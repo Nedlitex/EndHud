@@ -46,6 +46,7 @@
     <sys:String x:Key="Menu.AutoShow.Hint">关闭后，需按 Ctrl+Shift+H 或在托盘菜单中手动显示。</sys:String>
     <sys:String x:Key="Menu.PartyOcr">识别小队栏（连携就绪提示需要此项）</sys:String>
     <sys:String x:Key="Menu.DebugPanel">显示调试面板（识别到的等级、生命值和技能）</sys:String>
+    <sys:String x:Key="Menu.CheckForUpdates">自动检查 EndHud 新版本（每天一次，只提示，不会自动安装）</sys:String>
     <sys:String x:Key="Menu.ComboHint">连携就绪提示</sys:String>
     <sys:String x:Key="Menu.ComboHint.Hint">战斗中干员的连携技冷却结束时，在屏幕上提示。菜单打开时，可直接拖动屏幕上的提示框调整位置。</sys:String>
     <sys:String x:Key="Menu.ComboHint.Enabled">显示连携就绪提示</sys:String>
@@ -68,8 +69,8 @@
     <!-- 干员头像库 -->
     <sys:String x:Key="Operators.Downloading">正在从 Endfield Wiki 下载干员头像和技能图标……</sys:String>
     <sys:String x:Key="Operators.Updated">干员头像库已更新，共 {0} 名干员</sys:String>
-    <sys:String x:Key="Operators.FirstDownloadFailed">无法下载干员头像库（请检查网络）。EndHud 会自动重试，也可在托盘菜单中选择“更新干员头像库”。在此之前，干员显示为“n 号位”。</sys:String>
-    <sys:String x:Key="Operators.UpdateFailed">更新干员头像库失败（请检查网络），继续使用已下载的头像库。可稍后在托盘菜单中重试。</sys:String>
+    <sys:String x:Key="Operators.FirstDownloadFailed">无法下载干员头像库（请检查网络）。EndHud 会自动重试，也可在托盘菜单中选择“检查更新”。在此之前，干员显示为“n 号位”。</sys:String>
+    <sys:String x:Key="Operators.UpdateFailed">检查干员头像库失败（请检查网络），继续使用已下载的头像库。可稍后在托盘菜单中选择“检查更新”重试。</sys:String>
 
     <!-- 系统托盘 -->
     <sys:String x:Key="Tray.Tooltip">EndHud 游戏辅助面板</sys:String>
@@ -79,7 +80,20 @@
     <sys:String x:Key="Tray.OpenMenu">打开菜单（Ctrl+Shift+M）</sys:String>
     <sys:String x:Key="Tray.AutoShow">游戏获得焦点时自动显示</sys:String>
     <sys:String x:Key="Tray.DebugPanel">显示调试面板（Ctrl+Shift+D）</sys:String>
-    <sys:String x:Key="Tray.UpdateOperators">更新干员头像库</sys:String>
+    <sys:String x:Key="Tray.CheckUpdates">检查更新（EndHud 新版本和新干员）</sys:String>
+    <sys:String x:Key="Tray.DownloadUpdate">下载新版本 {0}</sys:String>
+
+    <!-- 检查更新 -->
+    <sys:String x:Key="Update.Title">EndHud 检查更新</sys:String>
+    <sys:String x:Key="Update.Checking">正在检查更新……</sys:String>
+    <sys:String x:Key="Update.Available">发现 EndHud 新版本 {0}（当前 {1}），点击这里打开下载页面。</sys:String>
+    <sys:String x:Key="Update.UpToDate">EndHud 已是最新版本（{0}）。</sys:String>
+    <sys:String x:Key="Update.DevelopmentBuild">这是开发版本，不检查 EndHud 新版本。</sys:String>
+    <sys:String x:Key="Update.Unavailable">暂时无法检查 EndHud 新版本（无法连接 GitHub，或还没有发布版本）。</sys:String>
+    <sys:String x:Key="Operators.NewFound">新增干员：{0}</sys:String>
+    <sys:String x:Key="Operators.NoneNew">没有新干员（共 {0} 名）。</sys:String>
+    <sys:String x:Key="Operators.CheckedRecently">干员头像库 {0} 分钟前刚检查过，已是最新。</sys:String>
+    <sys:String x:Key="Operators.AlreadyChecking">正在检查干员头像库，请稍候。</sys:String>
     <sys:String x:Key="Tray.OpenConfig">打开配置文件所在文件夹</sys:String>
     <sys:String x:Key="Tray.Quit">退出</sys:String>
     <sys:String x:Key="Tray.Started">EndHud 已在系统托盘中运行。切换到游戏后会自动显示，按 Ctrl+Shift+M 打开菜单，右键托盘图标可更改设置。</sys:String>

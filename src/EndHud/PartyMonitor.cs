@@ -26,6 +26,15 @@ internal sealed class PartyMonitor : IDisposable
     /// <summary>A downloaded roster older than this is refreshed in the background, to pick up new operators.</summary>
     private static readonly TimeSpan RefreshAfter = TimeSpan.FromDays(7);
 
+    /// <summary>
+    /// A manual check doesn't ask the wiki again if it was asked this recently (polite to the wiki,
+    /// whose volunteers pay for it); it reports that it's up to date as of then.
+    /// </summary>
+    public static readonly TimeSpan MinManualCheckInterval = TimeSpan.FromMinutes(15);
+
+    /// <summary>While EndHud runs, how often it looks whether the roster is due for its weekly refresh.</summary>
+    private static readonly TimeSpan RefreshCheckEvery = TimeSpan.FromHours(6);
+
     /// <summary>With no roster at all (first start offline), the download is retried after these waits, then every 30 minutes.</summary>
     private static readonly TimeSpan[] FirstDownloadRetries =
         [TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(15), TimeSpan.FromMinutes(30)];
@@ -36,6 +45,7 @@ internal sealed class PartyMonitor : IDisposable
     private volatile bool _active;
     private volatile SquadIdentifier? _identifier;
     private int _libraryBusy;
+    private DateTime _lastWikiCheckUtc = DateTime.MinValue;
 
     public PartyMonitor(TimeSpan interval) => _interval = interval;
 
@@ -51,6 +61,9 @@ internal sealed class PartyMonitor : IDisposable
     /// <summary>True when the first download of the operator library has failed and is being retried.</summary>
     public bool LibraryDownloadFailed { get; private set; }
 
+    /// <summary>The weekly background refresh found operators that weren't there before.</summary>
+    public event Action<IReadOnlyList<OperatorInfo>>? NewOperators;
+
     /// <summary>Called from the UI thread whenever the game window or HUD visibility changes.</summary>
     public void SetTarget(IntPtr gameWindow, bool active)
     {
@@ -64,8 +77,20 @@ internal sealed class PartyMonitor : IDisposable
         _ = Task.Run(RunAsync);
     }
 
-    /// <summary>Download the current roster from the wiki now (new operators, new icons). Learned portraits are kept.</summary>
-    public void UpdateLibrary() => _ = Task.Run(() => DownloadLibraryAsync(announce: true));
+    /// <summary>
+    /// Check the wiki for new operators now (and new icons), unless it was checked in the last
+    /// <see cref="MinManualCheckInterval"/>. Learned portraits are kept.
+    /// </summary>
+    public async Task<OperatorCheck> CheckOperatorsAsync()
+    {
+        var since = DateTime.UtcNow - _lastWikiCheckUtc;
+        int total = _identifier?.Library.Operators.Count ?? 0;
+        if (since < MinManualCheckInterval) return new OperatorCheck(OperatorCheckStatus.CheckedRecently, [], total, since);
+        var (update, busy) = await DownloadLibraryAsync(announce: true);
+        return busy ? new OperatorCheck(OperatorCheckStatus.AlreadyChecking, [], total, TimeSpan.Zero)
+            : update is null ? new OperatorCheck(OperatorCheckStatus.Failed, [], total, TimeSpan.Zero)
+            : new OperatorCheck(OperatorCheckStatus.Checked, update.Added, update.Operators, TimeSpan.Zero);
+    }
 
     public Task CorrectAsync(int slotNumber, OperatorInfo? actual) =>
         _identifier?.CorrectAsync(slotNumber, actual) ?? Task.CompletedTask;
@@ -78,55 +103,66 @@ internal sealed class PartyMonitor : IDisposable
     }
 
     /// <summary>
-    /// Load the downloaded library if there is one; download it if not (retrying while offline), or
-    /// refresh it in the background if it's old, keeping the current copy in use meanwhile.
+    /// Load the downloaded library if there is one; download it if not (retrying while offline). Then,
+    /// while EndHud runs, refresh it in the background whenever it's older than a week, keeping the
+    /// current copy in use meanwhile and announcing new operators.
     /// </summary>
     private async Task KeepLibraryAsync()
     {
-        if (OperatorReference.Exists(ReferenceFolder)) await LoadLibraryAsync();
-
-        bool missing = !OperatorReference.Exists(ReferenceFolder);
-        if (!missing && DateTime.UtcNow - OperatorReference.DownloadedAtUtc(ReferenceFolder) < RefreshAfter) return;
-
-        // First start (announced: names are unknown until it's done) or a quiet weekly refresh.
-        for (int attempt = 0; !_cts.IsCancellationRequested; attempt++)
+        try
         {
-            if (await DownloadLibraryAsync(announce: missing) || !missing) return;
-            try
+            if (OperatorReference.Exists(ReferenceFolder)) await LoadLibraryAsync();
+
+            // First start: names are unknown until it's done, so it's announced and retried.
+            for (int attempt = 0; !OperatorReference.Exists(ReferenceFolder); attempt++)
             {
+                if ((await DownloadLibraryAsync(announce: true)).Update is not null) break;
                 await Task.Delay(FirstDownloadRetries[Math.Min(attempt, FirstDownloadRetries.Length - 1)], _cts.Token);
             }
-            catch (OperationCanceledException)
+
+            while (!_cts.IsCancellationRequested)
             {
-                return;
+                if (DateTime.UtcNow - OperatorReference.DownloadedAtUtc(ReferenceFolder) >= RefreshAfter
+                    && DateTime.UtcNow - _lastWikiCheckUtc >= RefreshCheckEvery)
+                {
+                    var (update, _) = await DownloadLibraryAsync(announce: false); // quiet: the current copy keeps working
+                    if (update is { Added.Count: > 0 }) NewOperators?.Invoke(update.Added);
+                }
+                await Task.Delay(RefreshCheckEvery, _cts.Token);
             }
+        }
+        catch (OperationCanceledException)
+        {
         }
     }
 
-    /// <summary>Download (or refresh) the reference data and reload the library. False if it failed.</summary>
-    private async Task<bool> DownloadLibraryAsync(bool announce)
+    /// <summary>
+    /// Download (or refresh) the reference data and reload the library. Update is null if it failed;
+    /// Busy is true if another download was already running (that one reports).
+    /// </summary>
+    private async Task<(OperatorUpdate? Update, bool Busy)> DownloadLibraryAsync(bool announce)
     {
-        if (Interlocked.Exchange(ref _libraryBusy, 1) == 1) return true; // one at a time; the running one reports
+        if (Interlocked.Exchange(ref _libraryBusy, 1) == 1) return (null, true);
         try
         {
+            _lastWikiCheckUtc = DateTime.UtcNow;
             if (announce) LibraryStatus?.Invoke("Operators.Downloading", []);
             using var http = WikiOperatorSource.CreateHttpClient();
-            var result = await OperatorReference.UpdateAsync(ReferenceFolder, http, _cts.Token);
+            var update = await OperatorReference.UpdateAsync(ReferenceFolder, http, WikiPoliteness.Default, _cts.Token);
             LibraryDownloadFailed = false;
             await LoadLibraryAsync();
-            if (announce) LibraryStatus?.Invoke("Operators.Updated", [result.Operators]);
-            return true;
+            if (announce) LibraryStatus?.Invoke("Operators.Updated", [update.Operators]);
+            return (update, false);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException
                                        or UnauthorizedAccessException or InvalidDataException or JsonException)
         {
             Debug.WriteLine($"EndHud operator library: {ex}");
-            if (_cts.IsCancellationRequested) return false;
+            if (_cts.IsCancellationRequested) return (null, false);
             bool haveCopy = _identifier is not null;
             LibraryDownloadFailed = !haveCopy;
-            // A failed background refresh is silent: the current copy keeps working.
             if (announce) LibraryStatus?.Invoke(haveCopy ? "Operators.UpdateFailed" : "Operators.FirstDownloadFailed", []);
-            return false;
+            return (null, false);
         }
         finally
         {
@@ -215,3 +251,22 @@ internal sealed class PartyMonitor : IDisposable
 
     public void Dispose() => _cts.Cancel();
 }
+
+internal enum OperatorCheckStatus
+{
+    /// <summary>The wiki was asked; <see cref="OperatorCheck.Added"/> lists the new operators (often none).</summary>
+    Checked,
+
+    /// <summary>The wiki was asked within <see cref="PartyMonitor.MinManualCheckInterval"/>, so not again.</summary>
+    CheckedRecently,
+
+    /// <summary>A download was already running.</summary>
+    AlreadyChecking,
+
+    /// <summary>The wiki couldn't be reached or answered badly; the current copy is kept.</summary>
+    Failed,
+}
+
+/// <param name="Total">Operators in the roster now.</param>
+/// <param name="Since">For <see cref="OperatorCheckStatus.CheckedRecently"/>: how long ago the wiki was asked.</param>
+internal sealed record OperatorCheck(OperatorCheckStatus Status, IReadOnlyList<OperatorInfo> Added, int Total, TimeSpan Since);

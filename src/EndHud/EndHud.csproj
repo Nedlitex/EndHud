@@ -13,6 +13,8 @@
     <!-- The tray icon's design (a gold "E" on a dark tile), for the exe, taskbar and installer. -->
     <ApplicationIcon>EndHud.ico</ApplicationIcon>
     <AssemblyName>EndHud</AssemblyName>
+    <!-- Release builds get the version from the tag (release.yml: -p:Version=1.2.0); 0.0.0 marks a development build. -->
+    <Version>0.0.0</Version>
     <RootNamespace>EndHud</RootNamespace>
     <!-- WinForms analyzer wants DPI set via its API; this is a WPF app, where the manifest is the right place. -->
     <NoWarn>$(NoWarn);WFAC010</NoWarn>

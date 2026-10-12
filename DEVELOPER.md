@@ -128,7 +128,22 @@ EndHud starts in the **system tray**, and the HUD appears whenever the game wind
 | **Ctrl+Shift+Q** | Quit |
 | **Esc** | Close the menu |
 
-Right-click the tray icon for: status, show HUD, open menu, auto-show on/off, debug panel on/off, **update the operator library** (from the wiki), open the config folder, and quit.
+Right-click the tray icon for: status, show HUD, open menu, auto-show on/off, debug panel on/off,
+**check for updates**, open the config folder, and quit.
+
+### Updates
+
+- **A newer EndHud.** [`UpdateService`](src/EndHud/UpdateService.cs) asks GitHub for the
+  repository's latest published release (`/releases/latest`: drafts and pre-releases don't count)
+  a minute after start and then daily, when `CheckForUpdates` is on (the default; a menu checkbox).
+  A newer version shows a notification and a "download new version" tray item, both opening the
+  release page; nothing is downloaded or installed. Development builds (version 0.0.0, a plain
+  `dotnet build`) don't check. GitHub answers "not found" while the repository is private, which
+  EndHud reports as "can't check". A manual check reuses an answer under a minute old (GitHub allows
+  60 unauthenticated requests an hour).
+- **New operators.** The weekly background refresh announces operators that weren't there before.
+- **Check for updates** (tray) does both at once and shows the result in a notification. It asks
+  the wiki at most every 15 minutes; within that it reports the last result.
 
 ### Settings
 
@@ -137,6 +152,7 @@ edit it by hand, restart EndHud. Delete the file to reset.
 
 | Key | Default | Meaning |
 |---|---|---|
+| `CheckForUpdates` | `true` | Check GitHub for a newer EndHud a minute after start and then daily (a notification; nothing is installed). |
 | `AutoShowOnGameFocus` | `true` | Show the HUD when the game has focus and hide it otherwise. When `false`, the HUD only shows after Ctrl+Shift+H. |
 | `PartyOcrEnabled` | `true` | Read the squad panel (names, HP, skills, levels). |
 | `OcrIntervalMs` | `1000` | How often the squad panel is read (minimum 250). |
@@ -188,11 +204,23 @@ Your own data lives in `%APPDATA%\EndHud\operators\`:
 | `learned/<operator>/*.png` | portraits learned from your picks |
 | `calibration.json` | where avatars sit inside a squad portrait, if yours differs from the built-in measurement |
 
+How a download stays polite to the wiki, which volunteers run
+([`WikiPoliteness`](src/EndHud.Vision/Operators/WikiPoliteness.cs)):
+
+- One request at a time from the whole process, with a pause between them: 1 s between API calls,
+  0.1 s between images (served from a CDN). A full first download is about 10 API calls and 133
+  images, so about 25 s; a weekly refresh downloads only images that changed.
+- API calls send `maxlag=5`: when the wiki's database is behind, it answers "busy" instead of doing
+  the work, and EndHud waits (Retry-After, up to 60 s) and retries, giving up after three tries
+  until the next scheduled check. Busy HTTP answers (429, 5xx) are treated the same.
+- How often: on first start, then weekly in the background, plus manual checks at most every 15
+  minutes. Requests name EndHud and its repository in the User-Agent.
+
 How a download stays safe ([`OperatorReference`](src/EndHud.Vision/Operators/OperatorReference.cs),
 [`WikiOperatorSource`](src/EndHud.Vision/Operators/WikiOperatorSource.cs)):
 
 - New operators need nothing: the roster is whatever the wiki's Operator page lists.
-- Requests are retried when the wiki is busy (429, 5xx; `Retry-After` honoured) or the connection drops.
+- Requests are retried when the wiki is busy or the connection drops (see above).
 - An image that fails, or isn't a valid image, keeps the previous copy's file; the rest still updates.
 - The new copy is downloaded beside the current one and swapped in with two renames; an
   interrupted swap is undone on the next start. If the wiki lists far fewer operators than the

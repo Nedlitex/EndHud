@@ -147,7 +147,7 @@ static async Task<int> FetchAsync(string libraryDir)
     var result = await OperatorReference.UpdateAsync(reference, http);
     var library = await OperatorLibrary.LoadAsync(libraryDir);
     foreach (var op in library.Operators) Console.WriteLine($"{op.Id,-16} {op.NameZh}");
-    Console.WriteLine($"{result.Operators} operators ({result.Downloaded} images downloaded, {result.Reused} unchanged, {result.Failed} failed) -> {Path.GetFullPath(reference)}");
+    Console.WriteLine($"{result.Operators} operators, {result.Added.Count} new ({result.Download.Downloaded} images downloaded, {result.Download.Reused} unchanged, {result.Download.Failed} failed) -> {Path.GetFullPath(reference)}");
     return 0;
 }
 

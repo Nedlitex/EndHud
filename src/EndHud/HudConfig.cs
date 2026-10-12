@@ -23,6 +23,9 @@ internal sealed class HudConfig
     /// <summary>UI language; picks the file i18n/&lt;Language&gt;.xaml.</summary>
     public string Language { get; set; } = "zh-CN";
 
+    /// <summary>Look for a newer EndHud on GitHub soon after start and then daily (a notification; nothing is installed).</summary>
+    public bool CheckForUpdates { get; set; } = true;
+
     /// <summary>Show the debug panel: everything read from the squad panel, window size, clock.</summary>
     public bool DebugPanel { get; set; }
 

@@ -17,10 +17,15 @@ internal sealed class TrayIcon : IDisposable
     private readonly ToolStripMenuItem _showHud;
     private readonly ToolStripMenuItem _autoShow;
     private readonly ToolStripMenuItem _debugPanel;
+    private readonly ToolStripMenuItem _checkUpdates;
+    private readonly ToolStripMenuItem _downloadUpdate;
+    private readonly UpdateService _updates;
+    private string? _balloonLink; // opened when the current notification is clicked
 
-    public TrayIcon(OverlayWindow overlay)
+    public TrayIcon(OverlayWindow overlay, UpdateService updates)
     {
         _overlay = overlay;
+        _updates = updates;
         _iconImage = DrawIcon();
 
         _status = new ToolStripMenuItem { Enabled = false };
@@ -28,6 +33,9 @@ internal sealed class TrayIcon : IDisposable
         _autoShow = new ToolStripMenuItem(Loc.Get("Tray.AutoShow"), null,
             (_, _) => _overlay.SetAutoShow(!_overlay.AutoShow));
         _debugPanel = new ToolStripMenuItem(Loc.Get("Tray.DebugPanel"), null, (_, _) => _overlay.ToggleDebugPanel());
+        _checkUpdates = new ToolStripMenuItem(Loc.Get("Tray.CheckUpdates"), null, async (_, _) => await CheckForUpdatesAsync());
+        // Shown only when a newer release has been found.
+        _downloadUpdate = new ToolStripMenuItem("", null, (_, _) => OpenLink(_updates.Available?.PageUrl)) { Visible = false };
 
         var menu = new ContextMenuStrip();
         menu.Items.AddRange(new ToolStripItem[]
@@ -39,7 +47,8 @@ internal sealed class TrayIcon : IDisposable
             _autoShow,
             _debugPanel,
             new ToolStripSeparator(),
-            new ToolStripMenuItem(Loc.Get("Tray.UpdateOperators"), null, (_, _) => _overlay.UpdateOperatorLibrary()),
+            _downloadUpdate,
+            _checkUpdates,
             new ToolStripMenuItem(Loc.Get("Tray.OpenConfig"), null, (_, _) => OpenConfigFolder()),
             new ToolStripMenuItem(Loc.Get("Tray.Quit"), null, (_, _) => System.Windows.Application.Current.Shutdown()),
         });
@@ -53,6 +62,13 @@ internal sealed class TrayIcon : IDisposable
             Visible = true,
         };
         _icon.DoubleClick += (_, _) => _overlay.ToggleMenu();
+        _icon.BalloonTipClicked += (_, _) => OpenLink(_balloonLink);
+
+        // Found by the automatic checks (on worker threads).
+        _updates.NewVersionFound += release => OnUi(() =>
+            Notify(Loc.Format("Update.Available", release.Version.ToString(3), ReleaseChecker.Current?.ToString(3) ?? "?"), release.PageUrl));
+        _overlay.NewOperatorsFound += added => OnUi(() =>
+            Notify(Loc.Format("Operators.NewFound", string.Join("、", added.Select(o => o.NameZh))), null));
 
         _icon.ShowBalloonTip(4000, "EndHud",
             Loc.Get(_overlay.AutoShow ? "Tray.Started" : "Tray.Started.Manual"), ToolTipIcon.Info);
@@ -64,6 +80,58 @@ internal sealed class TrayIcon : IDisposable
         _showHud.Checked = _overlay.HudOn;
         _autoShow.Checked = _overlay.AutoShow;
         _debugPanel.Checked = _overlay.DebugPanel;
+        if (_updates.Available is { } release)
+        {
+            _downloadUpdate.Text = Loc.Format("Tray.DownloadUpdate", release.Version.ToString(3));
+            _downloadUpdate.Visible = true;
+        }
+    }
+
+    /// <summary>The tray's "check for updates": a newer EndHud, and new operators on the wiki.</summary>
+    private async Task CheckForUpdatesAsync()
+    {
+        _checkUpdates.Enabled = false;
+        try
+        {
+            var app = _updates.CheckAsync();
+            var operators = _overlay.CheckOperatorsAsync();
+            var (update, check) = (await app, await operators);
+
+            string appLine = update.Status switch
+            {
+                UpdateStatus.NewVersion => Loc.Format("Update.Available", update.Release!.Version.ToString(3), ReleaseChecker.Current!.ToString(3)),
+                UpdateStatus.UpToDate => Loc.Format("Update.UpToDate", ReleaseChecker.Current!.ToString(3)),
+                UpdateStatus.DevelopmentBuild => Loc.Get("Update.DevelopmentBuild"),
+                _ => Loc.Get("Update.Unavailable"),
+            };
+            string operatorLine = check.Status switch
+            {
+                OperatorCheckStatus.Checked when check.Added.Count > 0 =>
+                    Loc.Format("Operators.NewFound", string.Join("、", check.Added.Select(o => o.NameZh))),
+                OperatorCheckStatus.Checked => Loc.Format("Operators.NoneNew", check.Total),
+                OperatorCheckStatus.CheckedRecently => Loc.Format("Operators.CheckedRecently", Math.Max(1, (int)check.Since.TotalMinutes)),
+                OperatorCheckStatus.AlreadyChecking => Loc.Get("Operators.AlreadyChecking"),
+                _ => Loc.Get("Operators.UpdateFailed"),
+            };
+            Notify(appLine + Environment.NewLine + operatorLine, update.Release is { } r && update.Status == UpdateStatus.NewVersion ? r.PageUrl : null);
+        }
+        finally
+        {
+            _checkUpdates.Enabled = true;
+        }
+    }
+
+    private void Notify(string text, string? link)
+    {
+        _balloonLink = link;
+        _icon.ShowBalloonTip(8000, Loc.Get("Update.Title"), text, ToolTipIcon.Info);
+    }
+
+    private static void OnUi(Action action) => System.Windows.Application.Current?.Dispatcher.BeginInvoke(action);
+
+    private static void OpenLink(string? url)
+    {
+        if (url is not null) Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
     }
 
     private static void OpenConfigFolder()

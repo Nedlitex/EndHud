@@ -19,25 +19,25 @@ public sealed record WikiDownload(int Operators, int Downloaded, int Reused, int
 /// onto the user's machine and never bundled with EndHud.
 /// <para>
 /// New operators need nothing special: the roster is whatever the wiki's Operator page lists.
-/// Requests are retried when the wiki is busy or the network hiccups; one image that can't be
-/// fetched, or isn't a valid image, doesn't sink the whole download.
+/// Requests follow <see cref="WikiPoliteness"/> (one at a time, paced, backing off when the wiki is
+/// busy); one image that can't be fetched, or isn't a valid image, doesn't sink the whole download.
 /// </para>
 /// </summary>
 public static partial class WikiOperatorSource
 {
     private const string Api = "https://endfield.wiki.gg/api.php";
 
-    /// <summary>Waits between attempts of a request (so a request is tried this many times + 1).</summary>
-    internal static TimeSpan[] RetryDelays = [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(9)];
-    private static readonly TimeSpan MaxRetryAfter = TimeSpan.FromSeconds(30);
     private const string IconSuffix = "_icon.png";
     private const int TitlesPerRequest = 50; // MediaWiki API limit
+
+    /// <summary>Where EndHud lives, for the User-Agent (wikis ask API clients to say who they are and how to reach them).</summary>
+    public const string ProjectUrl = "https://github.com/Nedlitex/EndHud";
 
     public static HttpClient CreateHttpClient()
     {
         var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-        // Wikis ask API clients to identify themselves.
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("EndHud/0.1 (personal game HUD; reads operator icons)");
+        string version = typeof(WikiOperatorSource).Assembly.GetName().Version?.ToString(3) ?? "0";
+        http.DefaultRequestHeaders.UserAgent.ParseAdd($"EndHud/{version} (+{ProjectUrl}; operator icons for a game HUD)");
         return http;
     }
 
@@ -48,10 +48,11 @@ public static partial class WikiOperatorSource
     /// version is kept. Use <see cref="OperatorReference.UpdateAsync"/> to update a library in place.
     /// </summary>
     public static async Task<WikiDownload> DownloadAsync(string folder, HttpClient http, string? previous = null,
-        CancellationToken ct = default)
+        WikiPoliteness? politeness = null, CancellationToken ct = default)
     {
+        var wiki = new WikiClient(http, politeness ?? WikiPoliteness.Default);
         // 1. The "Operator" page's navbox shows one "<Name>_icon.png" per operator (plus facility icons, skipped).
-        var parse = await GetJsonAsync(http, $"{Api}?action=parse&page=Operator&prop=images&format=json&formatversion=2", ct);
+        var parse = await wiki.GetJsonAsync($"{Api}?action=parse&page=Operator&prop=images&format=json&formatversion=2", ct);
         var iconFiles = parse["parse"]!["images"]!.AsArray()
             .Select(n => n!.GetValue<string>())
             .Where(f => f.EndsWith(IconSuffix, StringComparison.Ordinal) && !f.Contains("_facility", StringComparison.Ordinal))
@@ -65,7 +66,7 @@ public static partial class WikiOperatorSource
         var chinese = new Dictionary<string, string>();
         foreach (var batch in names.Chunk(TitlesPerRequest))
         {
-            var json = await GetJsonAsync(http,
+            var json = await wiki.GetJsonAsync(
                 $"{Api}?action=query&prop=revisions&rvprop=content&rvslots=main&redirects=1&format=json&formatversion=2&titles="
                 + Uri.EscapeDataString(string.Join('|', batch)), ct);
             var redirects = RedirectMap(json);
@@ -84,10 +85,10 @@ public static partial class WikiOperatorSource
         // 3. Skill icons: each operator page shows its battle skill, combo and ultimate icons as Skill-*/Combo-*/Ult-*.
         //    File names don't follow the operator name reliably (Skill-Lastrite, Skill-Endmin,
         //    Skill-Arcane1 + Skill-Arcane2), so take whatever the page itself uses.
-        var skillFiles = await SkillFilesByPageAsync(http, names, ct);
+        var skillFiles = await SkillFilesByPageAsync(wiki, names, ct);
 
         // 4. Download URLs and checksums for everything.
-        var files = await ResolveFilesAsync(http, iconFiles.Concat(skillFiles.Values.SelectMany(f => f)), ct);
+        var files = await ResolveFilesAsync(wiki, iconFiles.Concat(skillFiles.Values.SelectMany(f => f)), ct);
 
         int downloaded = 0, reused = 0, failed = 0;
         // The wiki's SHA-1 of each file we hold. The wiki serves a re-compressed copy, so a file's
@@ -139,7 +140,7 @@ public static partial class WikiOperatorSource
             {
                 try
                 {
-                    byte[] bytes = await GetBytesAsync(http, file.Url, ct);
+                    byte[] bytes = await wiki.GetBytesAsync(file.Url, ct);
                     await ImageFile.LoadAsync(bytes); // a valid image, not an error page
                     await File.WriteAllBytesAsync(target, bytes, ct);
                     checksums[relative] = file.Sha1;
@@ -189,7 +190,7 @@ public static partial class WikiOperatorSource
     }
 
     /// <summary>The skill icon files each operator page displays, keyed by operator name.</summary>
-    private static async Task<Dictionary<string, List<string>>> SkillFilesByPageAsync(HttpClient http,
+    private static async Task<Dictionary<string, List<string>>> SkillFilesByPageAsync(WikiClient wiki,
         IReadOnlyList<string> pages, CancellationToken ct)
     {
         var result = new Dictionary<string, List<string>>();
@@ -201,7 +202,7 @@ public static partial class WikiOperatorSource
             do
             {
                 // Pages have ~100 images each, so a batch spans several responses ("imcontinue").
-                var json = await GetJsonAsync(http, next is null ? query : $"{query}&imcontinue={Uri.EscapeDataString(next)}", ct);
+                var json = await wiki.GetJsonAsync(next is null ? query : $"{query}&imcontinue={Uri.EscapeDataString(next)}", ct);
                 var redirects = RedirectMap(json);
                 foreach (var page in json["query"]!["pages"]!.AsArray())
                 {
@@ -224,13 +225,13 @@ public static partial class WikiOperatorSource
     /// <summary>Where a wiki file can be downloaded, and its SHA-1 (to skip files that haven't changed).</summary>
     private sealed record WikiFile(string Url, string Sha1);
 
-    private static async Task<Dictionary<string, WikiFile>> ResolveFilesAsync(HttpClient http, IEnumerable<string> files,
+    private static async Task<Dictionary<string, WikiFile>> ResolveFilesAsync(WikiClient wiki, IEnumerable<string> files,
         CancellationToken ct)
     {
         var result = new Dictionary<string, WikiFile>();
         foreach (var batch in files.Distinct().Chunk(TitlesPerRequest))
         {
-            var json = await GetJsonAsync(http,
+            var json = await wiki.GetJsonAsync(
                 $"{Api}?action=query&prop=imageinfo&iiprop=url|sha1&format=json&formatversion=2&titles="
                 + Uri.EscapeDataString(string.Join('|', batch.Select(f => "File:" + f))), ct);
             foreach (var page in json["query"]!["pages"]!.AsArray())
@@ -252,41 +253,6 @@ public static partial class WikiOperatorSource
             foreach (var r in redirects)
                 map[r!["to"]!.GetValue<string>()] = r["from"]!.GetValue<string>();
         return map;
-    }
-
-    private static async Task<JsonNode> GetJsonAsync(HttpClient http, string url, CancellationToken ct)
-    {
-        byte[] body = await GetBytesAsync(http, url, ct);
-        return JsonNode.Parse(body) ?? throw new InvalidDataException($"Empty response from {url}");
-    }
-
-    /// <summary>
-    /// GET with retries: a busy wiki (429 or 5xx, honouring Retry-After up to 30 s), a dropped
-    /// connection or a timeout is tried again after <see cref="RetryDelays"/>; any other error
-    /// status fails at once.
-    /// </summary>
-    private static async Task<byte[]> GetBytesAsync(HttpClient http, string url, CancellationToken ct)
-    {
-        for (int attempt = 0; ; attempt++)
-        {
-            bool last = attempt >= RetryDelays.Length;
-            TimeSpan? wait = null;
-            try
-            {
-                using var response = await http.GetAsync(url, ct);
-                if (response.IsSuccessStatusCode) return await response.Content.ReadAsByteArrayAsync(ct);
-                bool busy = response.StatusCode == HttpStatusCode.TooManyRequests || (int)response.StatusCode >= 500;
-                if (!busy || last) response.EnsureSuccessStatusCode();
-                wait = response.Headers.RetryAfter?.Delta;
-            }
-            catch (Exception ex) when (ex is HttpRequestException { StatusCode: null } or TaskCanceledException
-                                       && !ct.IsCancellationRequested && !last)
-            {
-                // Connection failure or timeout: try again.
-            }
-            var delay = wait is { } w && w > TimeSpan.Zero ? (w < MaxRetryAfter ? w : MaxRetryAfter) : RetryDelays[attempt];
-            await Task.Delay(delay, ct);
-        }
     }
 
     [GeneratedRegex(@"^\|\s*cnname\s*=\s*(.+?)\s*$", RegexOptions.Multiline)]

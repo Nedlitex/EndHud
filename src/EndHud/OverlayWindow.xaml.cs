@@ -52,12 +52,14 @@ public partial class OverlayWindow : Window
         PartySection.Visibility = config.PartyOcrEnabled ? Visibility.Visible : Visibility.Collapsed;
         PartyText.Text = Loc.Get("Party.Waiting");
         DebugPanelCheckBox.IsChecked = config.DebugPanel;
+        CheckForUpdatesCheckBox.IsChecked = config.CheckForUpdates;
         DebugRoot.Visibility = config.DebugPanel ? Visibility.Visible : Visibility.Collapsed;
         InitComboHintSettings();
 
         _party = new PartyMonitor(TimeSpan.FromMilliseconds(Math.Max(250, config.OcrIntervalMs)));
         _party.Updated += (state, error) => Dispatcher.BeginInvoke(() => ShowParty(state, error));
         _party.LibraryStatus += (key, args) => Dispatcher.BeginInvoke(() => ShowLibraryStatus(key, args));
+        _party.NewOperators += added => NewOperatorsFound?.Invoke(added);
 
         _winEventProc = OnWinEvent;
         _timer = new DispatcherTimer(TimeSpan.FromMilliseconds(500), DispatcherPriority.Background,
@@ -87,7 +89,11 @@ public partial class OverlayWindow : Window
 
     public void ToggleMenu() => SetMenuOpen(!_menuOpen);
 
-    public void UpdateOperatorLibrary() => _party.UpdateLibrary();
+    /// <summary>Check the wiki for new operators (at most every 15 minutes; see PartyMonitor).</summary>
+    internal Task<OperatorCheck> CheckOperatorsAsync() => _party.CheckOperatorsAsync();
+
+    /// <summary>The weekly background refresh found new operators (raised on a worker thread).</summary>
+    internal event Action<IReadOnlyList<Vision.Operators.OperatorInfo>>? NewOperatorsFound;
 
     public void SetAutoShow(bool enabled)
     {
@@ -191,6 +197,12 @@ public partial class OverlayWindow : Window
 
     private void DebugPanelCheckBox_Click(object sender, RoutedEventArgs e) =>
         SetDebugPanel(DebugPanelCheckBox.IsChecked == true);
+
+    private void CheckForUpdatesCheckBox_Click(object sender, RoutedEventArgs e)
+    {
+        _config.CheckForUpdates = CheckForUpdatesCheckBox.IsChecked == true;
+        ConfigStore.Save(_config);
+    }
 
     protected override void OnPreviewKeyDown(KeyEventArgs e)
     {

@@ -19,7 +19,13 @@ public sealed class OperatorDownloadTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), "endhud-tests", Guid.NewGuid().ToString("N"));
     private string Library => Path.Combine(_root, "reference");
 
-    public OperatorDownloadTests() => WikiOperatorSource.RetryDelays = [TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero];
+    // No waiting in these tests (the pacing itself is tested below with its own rules).
+    private static readonly WikiPoliteness Fast = new()
+    {
+        ApiInterval = TimeSpan.Zero,
+        FileInterval = TimeSpan.Zero,
+        RetryDelays = [TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero],
+    };
 
     public void Dispose()
     {
@@ -31,9 +37,10 @@ public sealed class OperatorDownloadTests : IDisposable
     {
         var wiki = await FakeWiki.CreateAsync("Alpha", "Beta");
 
-        var result = await OperatorReference.UpdateAsync(Library, wiki.Client());
+        var result = await OperatorReference.UpdateAsync(Library, wiki.Client(), Fast);
 
-        Assert.Equal(new WikiDownload(Operators: 2, Downloaded: 2 * 4, Reused: 0, Failed: 0), result);
+        Assert.Equal(new WikiDownload(Operators: 2, Downloaded: 2 * 4, Reused: 0, Failed: 0), result.Download);
+        Assert.Equal(["Alpha", "Beta"], result.Added.Select(o => o.Id)); // all new on the first download
         var library = await OperatorLibrary.LoadAsync(Path.Combine(_root, "user"), Library);
         Assert.Equal(["Alpha", "Beta"], library.Operators.Select(o => o.Id));
         Assert.Equal("Alpha-cn", library.Find("Alpha")!.NameZh);
@@ -45,12 +52,13 @@ public sealed class OperatorDownloadTests : IDisposable
     public async Task A_new_operator_appears_and_unchanged_images_are_not_downloaded_again()
     {
         var wiki = await FakeWiki.CreateAsync("Alpha", "Beta");
-        await OperatorReference.UpdateAsync(Library, wiki.Client());
+        await OperatorReference.UpdateAsync(Library, wiki.Client(), Fast);
 
         await wiki.AddOperatorAsync("Gamma");
-        var result = await OperatorReference.UpdateAsync(Library, wiki.Client());
+        var result = await OperatorReference.UpdateAsync(Library, wiki.Client(), Fast);
 
-        Assert.Equal(new WikiDownload(Operators: 3, Downloaded: 4, Reused: 2 * 4, Failed: 0), result);
+        Assert.Equal(new WikiDownload(Operators: 3, Downloaded: 4, Reused: 2 * 4, Failed: 0), result.Download);
+        Assert.Equal(["Gamma"], result.Added.Select(o => o.Id));
         Assert.Equal(1, wiki.Downloads("Alpha_icon.png"));
         var library = await OperatorLibrary.LoadAsync(Path.Combine(_root, "user"), Library);
         Assert.Contains("Gamma", library.Operators.Select(o => o.Id));
@@ -60,12 +68,12 @@ public sealed class OperatorDownloadTests : IDisposable
     public async Task A_changed_image_is_downloaded_again()
     {
         var wiki = await FakeWiki.CreateAsync("Alpha");
-        await OperatorReference.UpdateAsync(Library, wiki.Client());
+        await OperatorReference.UpdateAsync(Library, wiki.Client(), Fast);
 
         await wiki.ChangeImageAsync("Alpha_icon.png");
-        var result = await OperatorReference.UpdateAsync(Library, wiki.Client());
+        var result = await OperatorReference.UpdateAsync(Library, wiki.Client(), Fast);
 
-        Assert.Equal(1, result.Downloaded);
+        Assert.Equal(1, result.Download.Downloaded);
         Assert.Equal(2, wiki.Downloads("Alpha_icon.png"));
         Assert.Equal(wiki.Bytes("Alpha_icon.png"), File.ReadAllBytes(Path.Combine(Library, "icons", "Alpha.png")));
     }
@@ -74,15 +82,15 @@ public sealed class OperatorDownloadTests : IDisposable
     public async Task An_image_that_fails_keeps_the_previous_copy_and_the_rest_still_updates()
     {
         var wiki = await FakeWiki.CreateAsync("Alpha", "Beta");
-        await OperatorReference.UpdateAsync(Library, wiki.Client());
+        await OperatorReference.UpdateAsync(Library, wiki.Client(), Fast);
         byte[] before = File.ReadAllBytes(Path.Combine(Library, "icons", "Alpha.png"));
 
         await wiki.ChangeImageAsync("Alpha_icon.png");
         wiki.Broken.Add("Alpha_icon.png"); // the wiki errors on it every time
         await wiki.AddOperatorAsync("Gamma");
-        var result = await OperatorReference.UpdateAsync(Library, wiki.Client());
+        var result = await OperatorReference.UpdateAsync(Library, wiki.Client(), Fast);
 
-        Assert.Equal(1, result.Failed);
+        Assert.Equal(1, result.Download.Failed);
         Assert.Equal(before, File.ReadAllBytes(Path.Combine(Library, "icons", "Alpha.png")));
         var library = await OperatorLibrary.LoadAsync(Path.Combine(_root, "user"), Library);
         Assert.Equal(["Alpha", "Beta", "Gamma"], library.Operators.Select(o => o.Id));
@@ -95,9 +103,9 @@ public sealed class OperatorDownloadTests : IDisposable
         wiki.Broken.Add("Alpha_icon.png");
         wiki.NotImages.Add("Combo-Beta.png"); // an error page instead of a picture
 
-        var result = await OperatorReference.UpdateAsync(Library, wiki.Client());
+        var result = await OperatorReference.UpdateAsync(Library, wiki.Client(), Fast);
 
-        Assert.Equal(2, result.Failed);
+        Assert.Equal(2, result.Download.Failed);
         var library = await OperatorLibrary.LoadAsync(Path.Combine(_root, "user"), Library);
         Assert.Equal(["Beta"], library.Operators.Select(o => o.Id));
         Assert.Equal([SkillKind.BattleSkill, SkillKind.Ultimate], library.Find("Beta")!.Skills.Select(s => s.Kind).Order());
@@ -109,7 +117,7 @@ public sealed class OperatorDownloadTests : IDisposable
         var wiki = await FakeWiki.CreateAsync("Alpha");
         wiki.BusyFor = 2; // the first two requests get "503 Service Unavailable"
 
-        var result = await OperatorReference.UpdateAsync(Library, wiki.Client());
+        var result = await OperatorReference.UpdateAsync(Library, wiki.Client(), Fast);
 
         Assert.Equal(1, result.Operators);
     }
@@ -118,11 +126,11 @@ public sealed class OperatorDownloadTests : IDisposable
     public async Task A_failed_update_leaves_the_current_library_untouched()
     {
         var wiki = await FakeWiki.CreateAsync("Alpha", "Beta");
-        await OperatorReference.UpdateAsync(Library, wiki.Client());
+        await OperatorReference.UpdateAsync(Library, wiki.Client(), Fast);
         byte[] manifest = File.ReadAllBytes(Path.Combine(Library, "operators.json"));
 
         wiki.Down = true;
-        await Assert.ThrowsAnyAsync<HttpRequestException>(() => OperatorReference.UpdateAsync(Library, wiki.Client()));
+        await Assert.ThrowsAnyAsync<HttpRequestException>(() => OperatorReference.UpdateAsync(Library, wiki.Client(), Fast));
 
         Assert.Equal(manifest, File.ReadAllBytes(Path.Combine(Library, "operators.json")));
         Assert.False(Directory.Exists(Library + ".new"));
@@ -133,10 +141,10 @@ public sealed class OperatorDownloadTests : IDisposable
     public async Task A_much_smaller_roster_does_not_replace_the_current_one()
     {
         var wiki = await FakeWiki.CreateAsync("Alpha", "Beta", "Gamma", "Delta", "Epsilon");
-        await OperatorReference.UpdateAsync(Library, wiki.Client());
+        await OperatorReference.UpdateAsync(Library, wiki.Client(), Fast);
 
         wiki.Listed = ["Alpha"]; // the wiki's page broke part-way: operators don't leave the game
-        await Assert.ThrowsAsync<InvalidDataException>(() => OperatorReference.UpdateAsync(Library, wiki.Client()));
+        await Assert.ThrowsAsync<InvalidDataException>(() => OperatorReference.UpdateAsync(Library, wiki.Client(), Fast));
 
         var library = await OperatorLibrary.LoadAsync(Path.Combine(_root, "user"), Library);
         Assert.Equal(5, library.Operators.Count);
@@ -146,7 +154,7 @@ public sealed class OperatorDownloadTests : IDisposable
     public async Task An_interrupted_swap_is_undone()
     {
         var wiki = await FakeWiki.CreateAsync("Alpha");
-        await OperatorReference.UpdateAsync(Library, wiki.Client());
+        await OperatorReference.UpdateAsync(Library, wiki.Client(), Fast);
         Directory.Move(Library, Library + ".old"); // as if the process died between the two renames
 
         Assert.True(OperatorReference.Exists(Library));
@@ -157,11 +165,78 @@ public sealed class OperatorDownloadTests : IDisposable
     public async Task Ensure_downloads_when_missing_or_old_and_otherwise_leaves_it()
     {
         var wiki = await FakeWiki.CreateAsync("Alpha");
-        Assert.NotNull(await OperatorReference.EnsureAsync(Library, TimeSpan.FromDays(7), wiki.Client()));
-        Assert.Null(await OperatorReference.EnsureAsync(Library, TimeSpan.FromDays(7), wiki.Client()));
+        Assert.NotNull(await OperatorReference.EnsureAsync(Library, TimeSpan.FromDays(7), wiki.Client(), Fast));
+        Assert.Null(await OperatorReference.EnsureAsync(Library, TimeSpan.FromDays(7), wiki.Client(), Fast));
 
         File.SetLastWriteTimeUtc(Path.Combine(Library, "operators.json"), DateTime.UtcNow.AddDays(-8));
-        Assert.NotNull(await OperatorReference.EnsureAsync(Library, TimeSpan.FromDays(7), wiki.Client()));
+        Assert.NotNull(await OperatorReference.EnsureAsync(Library, TimeSpan.FromDays(7), wiki.Client(), Fast));
+    }
+
+    // ---- Being polite to the wiki ----
+
+    [Fact]
+    public async Task Requests_go_one_at_a_time_with_a_pause_between_them()
+    {
+        var wiki = await FakeWiki.CreateAsync("Alpha", "Beta", "Gamma");
+        var paced = new WikiPoliteness { ApiInterval = TimeSpan.FromMilliseconds(80), FileInterval = TimeSpan.FromMilliseconds(30) };
+
+        await OperatorReference.UpdateAsync(Library, wiki.Client(), paced);
+
+        Assert.Equal(1, wiki.MaxInFlight);
+        var requests = wiki.Requests;
+        Assert.True(requests.Count >= 4 + 12, $"only {requests.Count} requests");
+        for (int i = 1; i < requests.Count; i++)
+        {
+            var gap = requests[i].At - requests[i - 1].At;
+            var expected = requests[i].Api ? paced.ApiInterval : paced.FileInterval;
+            Assert.True(gap >= expected - TimeSpan.FromMilliseconds(5), $"request {i} came {gap.TotalMilliseconds:F0} ms after the previous one");
+        }
+    }
+
+    [Fact]
+    public async Task Two_downloads_at_once_still_send_one_request_at_a_time()
+    {
+        // The app shares one set of rules, so anything else talking to the wiki waits its turn too.
+        var wiki = await FakeWiki.CreateAsync("Alpha", "Beta");
+        var paced = new WikiPoliteness { ApiInterval = TimeSpan.FromMilliseconds(20), FileInterval = TimeSpan.FromMilliseconds(10) };
+
+        await Task.WhenAll(
+            OperatorReference.UpdateAsync(Path.Combine(_root, "one"), wiki.Client(), paced),
+            OperatorReference.UpdateAsync(Path.Combine(_root, "two"), wiki.Client(), paced));
+
+        Assert.Equal(1, wiki.MaxInFlight);
+    }
+
+    [Fact]
+    public async Task Api_calls_ask_the_wiki_to_refuse_when_it_is_lagging_and_a_refusal_is_waited_out()
+    {
+        var wiki = await FakeWiki.CreateAsync("Alpha");
+        wiki.LaggingFor = 2; // the first two API calls answer "maxlag": the database is behind
+
+        var result = await OperatorReference.UpdateAsync(Library, wiki.Client(), Fast);
+
+        Assert.Equal(1, result.Operators);
+        Assert.All(wiki.Requests.Where(r => r.Api), r => Assert.Contains("maxlag=5", r.Url));
+    }
+
+    [Fact]
+    public async Task A_wiki_that_stays_lagged_is_left_alone()
+    {
+        var wiki = await FakeWiki.CreateAsync("Alpha");
+        wiki.LaggingFor = 100;
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => OperatorReference.UpdateAsync(Library, wiki.Client(), Fast));
+        Assert.Equal(1 + Fast.RetryDelays.Length, wiki.Requests.Count); // gave up after the retries
+    }
+
+    [Fact]
+    public void Requests_say_who_is_asking_and_where_to_find_it()
+    {
+        using var http = WikiOperatorSource.CreateHttpClient();
+        string agent = http.DefaultRequestHeaders.UserAgent.ToString();
+
+        Assert.StartsWith("EndHud/", agent);
+        Assert.Contains(WikiOperatorSource.ProjectUrl, agent);
     }
 
     /// <summary>
@@ -179,7 +254,13 @@ public sealed class OperatorDownloadTests : IDisposable
         public HashSet<string> Broken { get; } = [];
         public HashSet<string> NotImages { get; } = [];
         public int BusyFor { get; set; }
+        public int LaggingFor { get; set; }
         public bool Down { get; set; }
+
+        /// <summary>Every request, in order: when it arrived and whether it was an API call.</summary>
+        public List<(DateTime At, bool Api, string Url)> Requests { get; } = [];
+        public int MaxInFlight { get; private set; }
+        private int _inFlight;
 
         public static async Task<FakeWiki> CreateAsync(params string[] operators)
         {
@@ -215,13 +296,28 @@ public sealed class OperatorDownloadTests : IDisposable
 
         private static string[] FilesOf(string name) => [$"{name}_icon.png", $"Skill-{name}.png", $"Combo-{name}.png", $"Ult-{name}.png"];
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
-            if (Down) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError));
+            MaxInFlight = Math.Max(MaxInFlight, Interlocked.Increment(ref _inFlight));
+            try
+            {
+                lock (Requests) Requests.Add((DateTime.UtcNow, request.RequestUri!.Host != "files.test", request.RequestUri.ToString()));
+                await Task.Delay(5, ct); // long enough for an overlapping request to show
+                return Answer(request);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _inFlight);
+            }
+        }
+
+        private HttpResponseMessage Answer(HttpRequestMessage request)
+        {
+            if (Down) return new HttpResponseMessage(HttpStatusCode.InternalServerError);
             if (BusyFor > 0)
             {
                 BusyFor--;
-                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+                return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
             }
 
             var uri = request.RequestUri!;
@@ -229,9 +325,21 @@ public sealed class OperatorDownloadTests : IDisposable
             {
                 string file = uri.AbsolutePath.TrimStart('/');
                 _downloads[file] = Downloads(file) + 1;
-                if (Broken.Contains(file)) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError));
+                if (Broken.Contains(file)) return new HttpResponseMessage(HttpStatusCode.InternalServerError);
                 byte[] body = NotImages.Contains(file) ? Encoding.UTF8.GetBytes("<html>error</html>") : _images[file];
-                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(body) });
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(body) };
+            }
+
+            if (LaggingFor > 0)
+            {
+                // How MediaWiki refuses under maxlag: 200 OK with an error body and Retry-After.
+                LaggingFor--;
+                var lagged = new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("{\"error\":{\"code\":\"maxlag\",\"info\":\"Waiting for a database server\"}}"),
+                };
+                lagged.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.Zero);
+                return lagged;
             }
 
             var q = HttpUtility.ParseQueryString(uri.Query);
@@ -256,7 +364,7 @@ public sealed class OperatorDownloadTests : IDisposable
                 }) } },
                 _ => throw new InvalidOperationException("unexpected wiki call: " + uri),
             };
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(json)) });
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(json)) };
         }
 
         /// <summary>A small valid PNG, different for each <paramref name="variant"/>.</summary>

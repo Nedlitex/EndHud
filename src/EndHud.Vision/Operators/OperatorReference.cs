@@ -2,6 +2,13 @@ using System.Net.Http;
 
 namespace EndHud.Vision.Operators;
 
+/// <param name="Download">What the download fetched, reused and missed.</param>
+/// <param name="Added">Operators that weren't in the previous copy (all of them on the first download).</param>
+public sealed record OperatorUpdate(WikiDownload Download, IReadOnlyList<OperatorInfo> Added)
+{
+    public int Operators => Download.Operators;
+}
+
 /// <summary>
 /// The operator reference data on this machine: the roster, avatars and skill icons downloaded
 /// from the wiki (<see cref="WikiOperatorSource"/>). EndHud ships none of it; the app fetches it on
@@ -39,17 +46,19 @@ public static class OperatorReference
     /// operators and new icons appear; unchanged files are reused). Throws, leaving the current
     /// copy as it was, when the wiki can't be reached or returns too little.
     /// </summary>
-    public static async Task<WikiDownload> UpdateAsync(string folder, HttpClient http, CancellationToken ct = default)
+    public static async Task<OperatorUpdate> UpdateAsync(string folder, HttpClient http, WikiPoliteness? politeness = null,
+        CancellationToken ct = default)
     {
         folder = Path.GetFullPath(folder.TrimEnd(Path.DirectorySeparatorChar, '/'));
         string staging = folder + ".new", old = folder + ".old";
         bool hasCurrent = Exists(folder);
-        int currentCount = hasCurrent ? OperatorCount(folder) : 0;
+        var current = hasCurrent ? Roster(folder) : [];
+        int currentCount = current.Count;
 
         if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
         try
         {
-            var result = await WikiOperatorSource.DownloadAsync(staging, http, hasCurrent ? folder : null, ct);
+            var result = await WikiOperatorSource.DownloadAsync(staging, http, hasCurrent ? folder : null, politeness, ct);
             if (result.Operators == 0 || result.Operators < currentCount * MinShareOfCurrentRoster)
                 throw new InvalidDataException(
                     $"The wiki listed {result.Operators} operators (the current copy has {currentCount}); keeping the current copy.");
@@ -59,7 +68,8 @@ public static class OperatorReference
             if (hasCurrent) Directory.Move(folder, old);
             Directory.Move(staging, folder);
             TryDelete(old);
-            return result;
+            var known = current.Select(o => o.Id).ToHashSet();
+            return new OperatorUpdate(result, Roster(folder).Where(o => !known.Contains(o.Id)).ToList());
         }
         finally
         {
@@ -71,21 +81,22 @@ public static class OperatorReference
     /// <see cref="UpdateAsync"/> if there's no copy yet or it's older than <paramref name="maxAge"/>.
     /// Returns null when the current copy is fresh enough.
     /// </summary>
-    public static async Task<WikiDownload?> EnsureAsync(string folder, TimeSpan maxAge, HttpClient http, CancellationToken ct = default)
+    public static async Task<OperatorUpdate?> EnsureAsync(string folder, TimeSpan maxAge, HttpClient http,
+        WikiPoliteness? politeness = null, CancellationToken ct = default)
     {
         if (DownloadedAtUtc(folder) is { } at && DateTime.UtcNow - at < maxAge) return null;
-        return await UpdateAsync(folder, http, ct);
+        return await UpdateAsync(folder, http, politeness, ct);
     }
 
-    private static int OperatorCount(string folder)
+    private static List<OperatorInfo> Roster(string folder)
     {
         try
         {
-            return System.Text.Json.JsonSerializer.Deserialize<List<OperatorInfo>>(File.ReadAllBytes(Path.Combine(folder, Manifest)))?.Count ?? 0;
+            return System.Text.Json.JsonSerializer.Deserialize<List<OperatorInfo>>(File.ReadAllBytes(Path.Combine(folder, Manifest))) ?? [];
         }
         catch (System.Text.Json.JsonException)
         {
-            return 0;
+            return [];
         }
     }
 

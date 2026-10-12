@@ -131,6 +131,9 @@
             <CheckBox x:Name="DebugPanelCheckBox" Click="DebugPanelCheckBox_Click">
                 <TextBlock Text="{DynamicResource Menu.DebugPanel}" />
             </CheckBox>
+            <CheckBox x:Name="CheckForUpdatesCheckBox" Click="CheckForUpdatesCheckBox_Click">
+                <TextBlock Text="{DynamicResource Menu.CheckForUpdates}" />
+            </CheckBox>
 
             <!-- Combo-ready hint. -->
             <TextBlock Text="{DynamicResource Menu.ComboHint}" Style="{StaticResource SectionHeader}" />

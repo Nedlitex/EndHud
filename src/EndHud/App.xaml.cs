@@ -10,6 +10,7 @@ public partial class App : Application
 {
     private Mutex? _singleInstance;
     private TrayIcon? _tray;
+    private UpdateService? _updates;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -29,11 +30,14 @@ public partial class App : Application
         var overlay = new OverlayWindow(HudOptions.Parse(e.Args), config);
         MainWindow = overlay;
         overlay.Show();
-        _tray = new TrayIcon(overlay);
+        _updates = new UpdateService();
+        _tray = new TrayIcon(overlay, _updates);
+        _updates.Start(() => config.CheckForUpdates);
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _updates?.Dispose();
         _tray?.Dispose();
         _singleInstance?.Dispose();
         base.OnExit(e);
