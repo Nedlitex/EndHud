@@ -18,9 +18,11 @@ sends input to it.
 
 ### Combo-ready hint
 
-In combat, when an operator's combo skill comes off cooldown, a banner shows that operator's
-portrait, their combo skill icon, their name and "combo ready". It's styled after the game's own
-combo banner and sits left of the screen's centre by default.
+In combat, when an operator's combo skill comes off cooldown, a banner slides in showing that
+operator's avatar and combo skill icon (both from the built-in operator library), their name and
+"combo ready". It's styled after the game's own combo banner, slides in from the left with its gold
+edge flaring, slides out when it ends, and sits left of the screen's centre by default. An operator
+EndHud hasn't recognised gets a banner with just their slot number.
 
 - **Two modes** (menu → combo-ready hint section): show for a few seconds when the cooldown
   finishes (2, 3 or 5 s; default 3 s), or show for as long as the combo skill stays ready.

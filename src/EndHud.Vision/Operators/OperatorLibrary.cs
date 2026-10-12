@@ -173,6 +173,9 @@ public sealed class OperatorLibrary
 
     public OperatorInfo? Find(string id) => Operators.FirstOrDefault(o => o.Id == id);
 
+    /// <summary>The operator's avatar from the roster (the wiki icon), or null if it has none.</summary>
+    public Frame? FindAvatar(string id) => Icons.GetValueOrDefault(id);
+
     /// <summary>Decode one of an operator's skill icons.</summary>
     public Task<Frame> LoadSkillIconAsync(SkillIcon icon) => ImageFile.LoadAsync(_reference.Read(icon.File));
 
