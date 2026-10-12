@@ -17,7 +17,10 @@ public sealed record PartySlot(int Number, int? Level, double? Hp, string LevelT
     Operators.OperatorMatch? Operator = null);
 
 /// <param name="PanelMarks">How many of the eight "-" marks beside the HP bars were found (see <see cref="PanelMarkers"/>).</param>
-public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int? PingMs, string PingText, int PanelMarks = 0)
+/// <param name="ReadingsSinceSeen">0 when this reading saw the panel; otherwise how many readings in a row
+/// have missed it and this is the last one kept by <see cref="PartyTracker"/>.</param>
+public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int? PingMs, string PingText, int PanelMarks = 0,
+    int ReadingsSinceSeen = 0)
 {
     /// <summary>
     /// False when the squad panel isn't on screen (menus, map, cutscenes). Mainly the HP-bar

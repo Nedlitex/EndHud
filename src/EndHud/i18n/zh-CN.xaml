@@ -10,7 +10,12 @@
     <sys:String x:Key="Hud.Status.NotFound">未检测到游戏（演示模式）</sys:String>
     <sys:String x:Key="Hud.Status.TargetNotFound">未找到窗口“{0}”（演示模式）</sys:String>
     <sys:String x:Key="Hud.Size">窗口 {0} × {1}，位置 ({2}, {3})</sys:String>
-    <sys:String x:Key="Hud.Hint">Ctrl+Shift+M 菜单　　Ctrl+Shift+H 显示/隐藏　　Ctrl+Shift+Q 退出</sys:String>
+    <sys:String x:Key="Hud.Hint">Ctrl+Shift+M 菜单　　Ctrl+Shift+H 显示/隐藏　　Ctrl+Shift+D 调试面板　　Ctrl+Shift+Q 退出</sys:String>
+
+    <!-- 连携就绪提示 -->
+    <sys:String x:Key="ComboHint.Ready">连携就绪</sys:String>
+    <sys:String x:Key="ComboHint.Sample">连携提示</sys:String>
+    <sys:String x:Key="ComboHint.Drag">按住拖动，调整提示位置</sys:String>
 
     <!-- 小队识别 -->
     <sys:String x:Key="Party.Header">小队</sys:String>
@@ -35,11 +40,20 @@
     <sys:String x:Key="Menu.Key.Menu">打开/关闭此菜单</sys:String>
     <sys:String x:Key="Menu.Key.Toggle">显示/隐藏 HUD</sys:String>
     <sys:String x:Key="Menu.Key.Quit">退出 EndHud</sys:String>
+    <sys:String x:Key="Menu.Key.Debug">显示/隐藏调试面板</sys:String>
     <sys:String x:Key="Menu.Key.Esc">关闭此菜单</sys:String>
     <sys:String x:Key="Menu.Settings">设置（自动保存）</sys:String>
     <sys:String x:Key="Menu.AutoShow">游戏窗口获得焦点时自动显示 HUD</sys:String>
     <sys:String x:Key="Menu.AutoShow.Hint">关闭后，需按 Ctrl+Shift+H 或在托盘菜单中手动显示。</sys:String>
-    <sys:String x:Key="Menu.PartyOcr">识别小队栏（等级、生命值、延迟）</sys:String>
+    <sys:String x:Key="Menu.PartyOcr">识别小队栏（连携就绪提示需要此项）</sys:String>
+    <sys:String x:Key="Menu.DebugPanel">显示调试面板（识别到的等级、生命值、技能和延迟）</sys:String>
+    <sys:String x:Key="Menu.ComboHint">连携就绪提示</sys:String>
+    <sys:String x:Key="Menu.ComboHint.Hint">战斗中干员的连携技冷却结束时，在屏幕上提示。菜单打开时，可直接拖动屏幕上的提示框调整位置。</sys:String>
+    <sys:String x:Key="Menu.ComboHint.Enabled">显示连携就绪提示</sys:String>
+    <sys:String x:Key="Menu.ComboHint.WhenReady">冷却结束时提示</sys:String>
+    <sys:String x:Key="Menu.ComboHint.WhileReady">冷却结束后一直显示，直到再次使用</sys:String>
+    <sys:String x:Key="Menu.ComboHint.Seconds">{0} 秒</sys:String>
+    <sys:String x:Key="Menu.ComboHint.ResetPosition">恢复默认位置</sys:String>
     <sys:String x:Key="Menu.Operators">干员识别</sys:String>
     <sys:String x:Key="Menu.Operators.Hint">头像来自 Endfield Wiki，首次识别可能不准。请为每个位置选择正确的干员，EndHud 会记住该干员在游戏中的样子，之后就能准确识别。</sys:String>
     <sys:String x:Key="Menu.Operators.Unrecognised">未识别（显示为“{0} 号位”）</sys:String>
@@ -73,10 +87,11 @@
     <sys:String x:Key="Tray.ShowHud">显示 HUD（Ctrl+Shift+H）</sys:String>
     <sys:String x:Key="Tray.OpenMenu">打开菜单（Ctrl+Shift+M）</sys:String>
     <sys:String x:Key="Tray.AutoShow">游戏获得焦点时自动显示</sys:String>
+    <sys:String x:Key="Tray.DebugPanel">显示调试面板（Ctrl+Shift+D）</sys:String>
     <sys:String x:Key="Tray.UpdateOperators">更新干员头像库</sys:String>
     <sys:String x:Key="Tray.OpenConfig">打开配置文件所在文件夹</sys:String>
     <sys:String x:Key="Tray.Quit">退出</sys:String>
-    <sys:String x:Key="Tray.Started">EndHud 已在系统托盘中运行。切换到游戏后会自动显示，右键托盘图标可更改设置。</sys:String>
+    <sys:String x:Key="Tray.Started">EndHud 已在系统托盘中运行。切换到游戏后会自动显示，按 Ctrl+Shift+M 打开菜单，右键托盘图标可更改设置。</sys:String>
     <sys:String x:Key="Tray.Started.Manual">EndHud 已在系统托盘中运行。按 Ctrl+Shift+H 显示 HUD，右键托盘图标可更改设置。</sys:String>
 
 </ResourceDictionary>

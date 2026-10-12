@@ -31,10 +31,14 @@ public sealed class PartyTracker
         // The ping is drawn in menus too, so it's kept from any reading.
         _lastPing = state.PingMs ?? _lastPing;
         if (!state.PanelVisible)
-            return _lastVisible is null ? state with { PingMs = _lastPing } : _lastVisible with { PingMs = _lastPing };
+        {
+            if (_lastVisible is null) return state with { PingMs = _lastPing };
+            _lastVisible = _lastVisible with { PingMs = _lastPing, ReadingsSinceSeen = _lastVisible.ReadingsSinceSeen + 1 };
+            return _lastVisible;
+        }
 
         var slots = state.Slots.Select(Track).ToList();
-        _lastVisible = state with { Slots = slots, PingMs = _lastPing };
+        _lastVisible = state with { Slots = slots, PingMs = _lastPing, ReadingsSinceSeen = 0 };
         return _lastVisible;
     }
 

@@ -1,8 +1,8 @@
 # EndHud
 
 **An external HUD overlay for *Arknights: Endfield* (明日方舟：终末地).** EndHud runs as its own
-Windows tray app and draws extra information over the game: each operator's name, HP,
-连携 (combo skill) cooldown and 终结技 (ultimate) charge.
+Windows tray app and draws extra information over the game. Its main feature is a
+**连携就绪 hint**: a banner telling you when an operator's 连携 (combo skill) comes off cooldown.
 
 It gets everything by **looking at the screen**, the same way OBS's window capture does. It
 never opens, reads, writes or injects into the game process, never hooks the game, and never
@@ -15,6 +15,26 @@ sends input to it.
 ---
 
 ## What it shows
+
+### 连携就绪 hint
+
+In combat, when an operator's 连携 comes off cooldown, a banner shows that operator's portrait,
+their 连携 icon, their name and "连携就绪". It's styled after the game's own combo banner and sits
+left of the screen's centre by default.
+
+- **Two modes** (menu → 连携就绪提示): show for a few seconds when the cooldown finishes (2, 3 or
+  5 s; default 3 s), or show for as long as the 连携 stays ready.
+- **Move it**: open the menu (Ctrl+Shift+M) and drag the banner. "恢复默认位置" puts it back.
+  The spot is saved relative to the game window, so it survives resizing.
+- A cooldown refreshed early by a skill (the bar jumps straight to ready) counts the same as one
+  that refilled. A cooldown that finishes during an ultimate cutscene is hinted when the HUD
+  comes back.
+- No hint out of combat, for a fallen operator, or for a 连携 that is simply ready when a fight
+  starts.
+
+### Debug panel
+
+Everything EndHud reads, for checking it (menu → 显示调试面板, or Ctrl+Shift+D). Off by default.
 
 ```
 ENDHUD
@@ -76,10 +96,11 @@ EndHud starts in the **system tray**, and the HUD appears whenever the game wind
 |---|---|
 | **Ctrl+Shift+M** | Open/close the menu: settings, and correcting operator names |
 | **Ctrl+Shift+H** | Show/hide the HUD |
+| **Ctrl+Shift+D** | Show/hide the debug panel |
 | **Ctrl+Shift+Q** | Quit |
 | **Esc** | Close the menu |
 
-Right-click the tray icon for: status, show HUD, open menu, auto-show on/off, **更新干员头像库**
+Right-click the tray icon for: status, show HUD, open menu, auto-show on/off, debug panel on/off, **更新干员头像库**
 (update the operator library from the wiki), open the config folder, and quit.
 
 ### Settings
@@ -93,6 +114,11 @@ edit it by hand, restart EndHud. Delete the file to reset.
 | `PartyOcrEnabled` | `true` | Read the squad panel (names, HP, skills, ping). |
 | `OcrIntervalMs` | `1000` | How often the squad panel is read (minimum 250). |
 | `Language` | `zh-CN` | UI language: picks `i18n/<Language>.xaml`. |
+| `DebugPanel` | `false` | Show the debug panel. |
+| `ComboHintEnabled` | `true` | Show the 连携就绪 hint (needs `PartyOcrEnabled`). |
+| `ComboHintMode` | `WhenReady` | `WhenReady`: for `ComboHintSeconds` after the cooldown finishes. `WhileReady`: until the 连携 is used. |
+| `ComboHintSeconds` | `3` | How long a `WhenReady` hint stays up. |
+| `ComboHintX`, `ComboHintY` | `0.2`, `0.36` | Where the hint sits: its top-left corner as a fraction of the game window's width and height. |
 
 ### Command-line options
 
@@ -143,7 +169,7 @@ git lfs install   # once: the gameplay recordings are stored with Git LFS
 dotnet test -c Release
 ```
 
-There are 77 tests, and all of them run from what's in the repository.
+There are 88 tests, and all of them run from what's in the repository.
 
 - **Fixture frames** ([`tests/EndHud.Vision.Tests/Fixtures`](tests/EndHud.Vision.Tests/Fixtures)):
   a 4K exploration screenshot and frames from gameplay recordings, UID blacked out. They cover
@@ -160,7 +186,9 @@ There are 77 tests, and all of them run from what's in the repository.
   - an ultimate is never read in the wrong state on any frame;
   - out of combat, no 连携 bar is ever reported;
   - through a full boss battle, the panel is followed and operators fall one by one and stay fallen;
-  - once read, the panel, ping and ultimates never go blank: unreadable moments keep the last value.
+  - once read, the panel, ping and ultimates never go blank: unreadable moments keep the last value;
+  - the 连携就绪 hint fires exactly when each cooldown finishes, including during cutscenes, and
+    never for an operator who falls mid-cooldown.
 
   See that folder's README for what each recording contains.
 
@@ -190,13 +218,15 @@ That keeps the learned portraits already in that folder.
 ## Project layout
 
 ```
-src/EndHud/              the tray app: overlay window, menu, tray icon, config, i18n
+src/EndHud/              the tray app: overlay window (debug panel, 连携就绪 hint), menu, tray icon, config, i18n
 src/EndHud.Vision/       everything that reads the screen
   Capture/               Windows.Graphics.Capture of a single window
   Operators/             operator library, portrait matching, learning
   Assets/operators/      built-in library (embedded into the assembly)
   PartyReader.cs         squad panel: level, HP, 连携, ping, portraits
   UltimateGauge.cs       终结技 circles
+  PartyTracker.cs        carries readings over (deaths, values that are briefly unreadable)
+  ComboHints.cs          when to show the 连携就绪 hint
 src/EndHud.Cli/          endhud-cli developer tool
 tests/EndHud.Vision.Tests/
 ```
@@ -217,6 +247,11 @@ Copy `src/EndHud/i18n/zh-CN.xaml` to, for example, `en-US.xaml`, translate the v
   for example a 连携 used at the moment its bar was hidden still shows "就绪" until the bar is read again.
   After the squad panel leaves the screen (menus, the map) the last squad reading also stays up.
 - Everything is tuned on 4K recordings.
+- The 连携就绪 hint needs two "cooling" readings in a row before it trusts that a 连携 was used,
+  because the bar is briefly drawn as an empty track while the HUD fades in. A cooldown
+  refreshed within about two seconds of being used therefore gets no hint.
+- Hints follow the squad panel reading, once a second by default (`OcrIntervalMs`), so a hint can
+  appear up to a second after the cooldown finishes.
 
 ## Game art
 

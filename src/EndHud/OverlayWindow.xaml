@@ -23,6 +23,8 @@
 
     <Grid>
     <Grid x:Name="HudRoot">
+    <!-- Debug panel (menu → 显示调试面板): what EndHud reads from the screen, and alignment marks. -->
+    <Grid x:Name="DebugRoot" Visibility="Collapsed">
         <!-- Corner brackets: show at a glance that the overlay is aligned to the game's client area. -->
         <Path Data="M0,24 L0,0 L24,0" Stroke="{StaticResource Accent}" StrokeThickness="2"
               HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4" />
@@ -58,10 +60,25 @@
                    Foreground="#99FFFFFF" FontSize="11" Text="{DynamicResource Hud.Hint}" />
     </Grid>
 
+    <!-- 连携就绪 hints, styled after the game's own combo banner. Placed at a fraction of the game
+         window (config ComboHintX/Y); draggable while the menu is open. -->
+    <Canvas x:Name="HintCanvas" SizeChanged="HintCanvas_SizeChanged">
+        <Border x:Name="ComboHintFrame" BorderThickness="2" Padding="6" CornerRadius="4" Background="Transparent"
+                MouseLeftButtonDown="ComboHint_MouseDown" MouseMove="ComboHint_MouseMove"
+                MouseLeftButtonUp="ComboHint_MouseUp">
+            <StackPanel>
+                <TextBlock x:Name="ComboHintDragLabel" Visibility="Collapsed" Text="{DynamicResource ComboHint.Drag}"
+                           Foreground="{StaticResource Accent}" Margin="0,0,0,4" />
+                <StackPanel x:Name="ComboHintStack" />
+            </StackPanel>
+        </Border>
+    </Canvas>
+    </Grid>
+
     <!-- Menu: while open, the overlay accepts mouse/keyboard input; closed, it is click-through again. -->
     <Border x:Name="MenuPanel" Visibility="Collapsed"
-            HorizontalAlignment="Center" VerticalAlignment="Center" Width="460"
-            Padding="20,16" CornerRadius="6"
+            HorizontalAlignment="Center" VerticalAlignment="Center" Width="480" Margin="0,16"
+            Padding="0,16" CornerRadius="6"
             Background="#E6101418" BorderBrush="{StaticResource Accent}" BorderThickness="0,3,0,0">
         <Border.Resources>
             <Style TargetType="CheckBox">
@@ -75,6 +92,8 @@
                 <Setter Property="Margin" Value="0,14,0,6" />
             </Style>
         </Border.Resources>
+        <!-- Scrolls when the game window is too short for the whole menu. -->
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20,0">
         <StackPanel>
             <TextBlock Text="{DynamicResource Menu.Title}" Foreground="{StaticResource Accent}" FontWeight="Bold" FontSize="16" />
 
@@ -85,7 +104,7 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
-                    <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
+                    <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
                 </Grid.RowDefinitions>
                 <TextBlock Grid.Row="0" Text="Ctrl+Shift+M" FontWeight="SemiBold" />
                 <TextBlock Grid.Row="0" Grid.Column="1" Text="{DynamicResource Menu.Key.Menu}" />
@@ -93,8 +112,10 @@
                 <TextBlock Grid.Row="1" Grid.Column="1" Text="{DynamicResource Menu.Key.Toggle}" />
                 <TextBlock Grid.Row="2" Text="Ctrl+Shift+Q" FontWeight="SemiBold" />
                 <TextBlock Grid.Row="2" Grid.Column="1" Text="{DynamicResource Menu.Key.Quit}" />
-                <TextBlock Grid.Row="3" Text="Esc" FontWeight="SemiBold" />
-                <TextBlock Grid.Row="3" Grid.Column="1" Text="{DynamicResource Menu.Key.Esc}" />
+                <TextBlock Grid.Row="3" Text="Ctrl+Shift+D" FontWeight="SemiBold" />
+                <TextBlock Grid.Row="3" Grid.Column="1" Text="{DynamicResource Menu.Key.Debug}" />
+                <TextBlock Grid.Row="4" Text="Esc" FontWeight="SemiBold" />
+                <TextBlock Grid.Row="4" Grid.Column="1" Text="{DynamicResource Menu.Key.Esc}" />
             </Grid>
 
             <!-- Real settings, saved to config.json. -->
@@ -107,6 +128,41 @@
             <CheckBox x:Name="PartyOcrCheckBox" Click="PartyOcrCheckBox_Click">
                 <TextBlock Text="{DynamicResource Menu.PartyOcr}" />
             </CheckBox>
+            <CheckBox x:Name="DebugPanelCheckBox" Click="DebugPanelCheckBox_Click">
+                <TextBlock Text="{DynamicResource Menu.DebugPanel}" />
+            </CheckBox>
+
+            <!-- 连携就绪 hint. -->
+            <TextBlock Text="{DynamicResource Menu.ComboHint}" Style="{StaticResource SectionHeader}" />
+            <StackPanel x:Name="ComboHintSettings">
+                <TextBlock Text="{DynamicResource Menu.ComboHint.Hint}" Foreground="#99FFFFFF" FontSize="11"
+                           TextWrapping="Wrap" Margin="0,0,0,4" />
+                <CheckBox x:Name="ComboHintCheckBox" Click="ComboHintSetting_Changed">
+                    <TextBlock Text="{DynamicResource Menu.ComboHint.Enabled}" />
+                </CheckBox>
+                <StackPanel x:Name="ComboHintModes" Margin="20,0,0,0">
+                    <StackPanel.Resources>
+                        <Style TargetType="RadioButton">
+                            <Setter Property="Foreground" Value="#EEFFFFFF" />
+                            <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI" />
+                            <Setter Property="VerticalAlignment" Value="Center" />
+                            <Setter Property="Margin" Value="0,3" />
+                        </Style>
+                    </StackPanel.Resources>
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton x:Name="ComboHintWhenReady" GroupName="ComboHintMode" Click="ComboHintSetting_Changed">
+                            <TextBlock Text="{DynamicResource Menu.ComboHint.WhenReady}" />
+                        </RadioButton>
+                        <ComboBox x:Name="ComboHintSecondsPicker" Margin="8,0,0,0" Width="80"
+                                  SelectionChanged="ComboHintSetting_Changed" />
+                    </StackPanel>
+                    <RadioButton x:Name="ComboHintWhileReady" GroupName="ComboHintMode" Click="ComboHintSetting_Changed">
+                        <TextBlock Text="{DynamicResource Menu.ComboHint.WhileReady}" />
+                    </RadioButton>
+                    <Button x:Name="ComboHintResetButton" HorizontalAlignment="Left" Padding="10,2" Margin="0,4,0,0"
+                            Content="{DynamicResource Menu.ComboHint.ResetPosition}" Click="ComboHintResetButton_Click" />
+                </StackPanel>
+            </StackPanel>
 
             <!-- Operator recognition: pick the right operator per slot; EndHud learns from it. -->
             <TextBlock Text="{DynamicResource Menu.Operators}" Style="{StaticResource SectionHeader}" />
@@ -154,6 +210,7 @@
             <Button x:Name="CloseMenuButton" Content="{DynamicResource Menu.Close}" HorizontalAlignment="Right"
                     Margin="0,16,0,0" Padding="18,4" Click="CloseMenuButton_Click" />
         </StackPanel>
+        </ScrollViewer>
     </Border>
     </Grid>
 </Window>

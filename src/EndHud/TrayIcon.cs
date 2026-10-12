@@ -16,6 +16,7 @@ internal sealed class TrayIcon : IDisposable
     private readonly ToolStripMenuItem _status;
     private readonly ToolStripMenuItem _showHud;
     private readonly ToolStripMenuItem _autoShow;
+    private readonly ToolStripMenuItem _debugPanel;
 
     public TrayIcon(OverlayWindow overlay)
     {
@@ -26,6 +27,7 @@ internal sealed class TrayIcon : IDisposable
         _showHud = new ToolStripMenuItem(Loc.Get("Tray.ShowHud"), null, (_, _) => _overlay.ToggleHud());
         _autoShow = new ToolStripMenuItem(Loc.Get("Tray.AutoShow"), null,
             (_, _) => _overlay.SetAutoShow(!_overlay.AutoShow));
+        _debugPanel = new ToolStripMenuItem(Loc.Get("Tray.DebugPanel"), null, (_, _) => _overlay.ToggleDebugPanel());
 
         var menu = new ContextMenuStrip();
         menu.Items.AddRange(new ToolStripItem[]
@@ -35,6 +37,7 @@ internal sealed class TrayIcon : IDisposable
             _showHud,
             new ToolStripMenuItem(Loc.Get("Tray.OpenMenu"), null, (_, _) => _overlay.ToggleMenu()),
             _autoShow,
+            _debugPanel,
             new ToolStripSeparator(),
             new ToolStripMenuItem(Loc.Get("Tray.UpdateOperators"), null, (_, _) => _overlay.UpdateOperatorLibrary()),
             new ToolStripMenuItem(Loc.Get("Tray.OpenConfig"), null, (_, _) => OpenConfigFolder()),
@@ -60,6 +63,7 @@ internal sealed class TrayIcon : IDisposable
         _status.Text = Loc.Get(_overlay.GameFound ? "Tray.Status.Found" : "Tray.Status.NotFound");
         _showHud.Checked = _overlay.HudOn;
         _autoShow.Checked = _overlay.AutoShow;
+        _debugPanel.Checked = _overlay.DebugPanel;
     }
 
     private static void OpenConfigFolder()

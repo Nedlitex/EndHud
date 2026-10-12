@@ -30,8 +30,9 @@ public class PartyTrackerTests
         var tracker = new PartyTracker();
         var seen = tracker.Track(InCombat());
 
-        for (int i = 0; i < 10; i++)
-            Assert.Equal(seen, tracker.Track(NoPanel()));
+        for (int i = 1; i <= 10; i++)
+            Assert.Equal(seen with { ReadingsSinceSeen = i }, tracker.Track(NoPanel()));
+        Assert.Equal(0, tracker.Track(InCombat()).ReadingsSinceSeen);
     }
 
     [Fact]

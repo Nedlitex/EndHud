@@ -1,5 +1,7 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using EndHud.Vision;
 
 namespace EndHud;
 
@@ -20,6 +22,27 @@ internal sealed class HudConfig
 
     /// <summary>UI language; picks the file i18n/&lt;Language&gt;.xaml.</summary>
     public string Language { get; set; } = "zh-CN";
+
+    /// <summary>Show the debug panel: everything read from the squad panel, window size, clock.</summary>
+    public bool DebugPanel { get; set; }
+
+    /// <summary>Show a hint when an operator's 连携 comes off cooldown in combat.</summary>
+    public bool ComboHintEnabled { get; set; } = true;
+
+    /// <summary>WhenReady: for <see cref="ComboHintSeconds"/> after the cooldown finishes. WhileReady: until it's used.</summary>
+    public ComboHintMode ComboHintMode { get; set; } = ComboHintMode.WhenReady;
+
+    public double ComboHintSeconds { get; set; } = DefaultComboHintSeconds;
+
+    /// <summary>Top-left corner of the hints, as a fraction of the game window's width and height.</summary>
+    public double ComboHintX { get; set; } = DefaultComboHintX;
+
+    public double ComboHintY { get; set; } = DefaultComboHintY;
+
+    public const double DefaultComboHintSeconds = 3;
+    // Left of the screen's centre, where the game shows its own combo banner.
+    public const double DefaultComboHintX = 0.2;
+    public const double DefaultComboHintY = 0.36;
 }
 
 /// <summary>
@@ -38,6 +61,7 @@ internal static class ConfigStore
         WriteIndented = true,
         ReadCommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true,
+        Converters = { new JsonStringEnumConverter() },
     };
 
     public static HudConfig Load()

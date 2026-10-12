@@ -17,6 +17,8 @@ public partial class OverlayWindow : Window
     private const int HotkeyToggle = 1;
     private const int HotkeyQuit = 2;
     private const int HotkeyMenu = 3;
+    private const int HotkeyDebug = 4;
+    private const uint VK_D = 0x44;
     private const uint VK_H = 0x48;
     private const uint VK_M = 0x4D;
     private const uint VK_Q = 0x51;
@@ -49,6 +51,9 @@ public partial class OverlayWindow : Window
         PartyOcrCheckBox.IsChecked = config.PartyOcrEnabled;
         PartySection.Visibility = config.PartyOcrEnabled ? Visibility.Visible : Visibility.Collapsed;
         PartyText.Text = Loc.Get("Party.Waiting");
+        DebugPanelCheckBox.IsChecked = config.DebugPanel;
+        DebugRoot.Visibility = config.DebugPanel ? Visibility.Visible : Visibility.Collapsed;
+        InitComboHintSettings();
 
         _party = new PartyMonitor(TimeSpan.FromMilliseconds(Math.Max(250, config.OcrIntervalMs)));
         _party.Updated += (state, error) => Dispatcher.BeginInvoke(() => ShowParty(state, error));
@@ -62,6 +67,17 @@ public partial class OverlayWindow : Window
     public bool HudOn => _hudOn;
     public bool GameFound => _game != IntPtr.Zero;
     public bool AutoShow => _config.AutoShowOnGameFocus;
+    public bool DebugPanel => _config.DebugPanel;
+
+    public void ToggleDebugPanel() => SetDebugPanel(!_config.DebugPanel);
+
+    private void SetDebugPanel(bool enabled)
+    {
+        _config.DebugPanel = enabled;
+        ConfigStore.Save(_config);
+        DebugPanelCheckBox.IsChecked = enabled;
+        DebugRoot.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     public void ToggleHud()
     {
@@ -88,6 +104,7 @@ public partial class OverlayWindow : Window
         ConfigStore.Save(_config);
         PartySection.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
         PartyText.Text = Loc.Get("Party.Waiting");
+        ApplyComboHintSettings();
         Refresh(reassertTopmost: false);
     }
 
@@ -109,6 +126,7 @@ public partial class OverlayWindow : Window
         Native.RegisterHotKey(_hwnd, HotkeyToggle, mods, VK_H);
         Native.RegisterHotKey(_hwnd, HotkeyQuit, mods, VK_Q);
         Native.RegisterHotKey(_hwnd, HotkeyMenu, mods, VK_M);
+        Native.RegisterHotKey(_hwnd, HotkeyDebug, mods, VK_D);
 
         // Out-of-context WinEvent hooks: Windows posts events to our thread; nothing is loaded into the game.
         _hooks.Add(Native.SetWinEventHook(Native.EVENT_SYSTEM_FOREGROUND, Native.EVENT_SYSTEM_FOREGROUND,
@@ -130,6 +148,7 @@ public partial class OverlayWindow : Window
         Native.UnregisterHotKey(_hwnd, HotkeyToggle);
         Native.UnregisterHotKey(_hwnd, HotkeyQuit);
         Native.UnregisterHotKey(_hwnd, HotkeyMenu);
+        Native.UnregisterHotKey(_hwnd, HotkeyDebug);
         base.OnClosed(e);
     }
 
@@ -146,6 +165,7 @@ public partial class OverlayWindow : Window
         Native.SetWindowLongPtr(_hwnd, Native.GWL_EXSTYLE, new IntPtr(ex));
 
         MenuPanel.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+        SetComboHintEditing(open);
 
         if (open)
         {
@@ -168,6 +188,9 @@ public partial class OverlayWindow : Window
 
     private void PartyOcrCheckBox_Click(object sender, RoutedEventArgs e) =>
         SetPartyOcr(PartyOcrCheckBox.IsChecked == true);
+
+    private void DebugPanelCheckBox_Click(object sender, RoutedEventArgs e) =>
+        SetDebugPanel(DebugPanelCheckBox.IsChecked == true);
 
     protected override void OnPreviewKeyDown(KeyEventArgs e)
     {
@@ -192,6 +215,7 @@ public partial class OverlayWindow : Window
         }
 
         ClockText.Text = DateTime.Now.ToString("HH:mm:ss");
+        UpdateComboHints(); // timed hints end on time even when no new reading arrives
         Refresh(reassertTopmost: true);
     }
 
@@ -266,6 +290,9 @@ public partial class OverlayWindow : Window
 
     private void ShowParty(PartyState? state, string? errorKey)
     {
+        _lastState = state;
+        UpdateComboHints();
+
         if (errorKey is not null)
         {
             PartyText.Text = Loc.Get(errorKey);
@@ -445,6 +472,10 @@ public partial class OverlayWindow : Window
                 break;
             case HotkeyMenu:
                 ToggleMenu();
+                handled = true;
+                break;
+            case HotkeyDebug:
+                ToggleDebugPanel();
                 handled = true;
                 break;
             case HotkeyQuit:
