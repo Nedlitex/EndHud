@@ -279,6 +279,7 @@ tests/EndHud.Vision.Tests/ tests of everything that reads the screen (fixtures, 
 tests/EndHud.Tests/      tests of the tray app (banner layout at any display scaling, windowed capture)
 .github/workflows/       CI: tests on every push (tests.yml); releases from version tags (release.yml)
 installer/               the MSI installer (WiX)
+tools/EndHud.ReadmeMedia/ renders the README's animated pictures from a recording
 ```
 
 Screen positions are measured on 3840×2160 and scaled to the game window's size, each element

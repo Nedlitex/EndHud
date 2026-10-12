@@ -21,6 +21,8 @@
   <ItemGroup>
     <!-- Layout and window arithmetic is tested directly. -->
     <InternalsVisibleTo Include="EndHud.Tests" />
+    <!-- Renders the README animations with the real banner code. -->
+    <InternalsVisibleTo Include="EndHud.ReadmeMedia" />
   </ItemGroup>
 
   <ItemGroup>
