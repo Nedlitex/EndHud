@@ -1,0 +1,81 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!-- 简体中文。{0}、{1} 等为运行时填入的值，翻译时请保留。 -->
+
+    <!-- HUD 面板 -->
+    <sys:String x:Key="Hud.Title">ENDHUD</sys:String>
+    <sys:String x:Key="Hud.Status.Tracking">跟踪中：{0}</sys:String>
+    <sys:String x:Key="Hud.Status.NotFound">未检测到游戏（演示模式）</sys:String>
+    <sys:String x:Key="Hud.Status.TargetNotFound">未找到窗口“{0}”（演示模式）</sys:String>
+    <sys:String x:Key="Hud.Size">窗口 {0} × {1}，位置 ({2}, {3})</sys:String>
+    <sys:String x:Key="Hud.Hint">Ctrl+Shift+M 菜单　　Ctrl+Shift+H 显示/隐藏　　Ctrl+Shift+Q 退出</sys:String>
+
+    <!-- 小队识别 -->
+    <sys:String x:Key="Party.Header">小队</sys:String>
+    <sys:String x:Key="Party.Slot">{0}　等级 {1}　生命 {2}</sys:String>
+    <sys:String x:Key="Party.Skills">　　连携 {0}　终结技 {1}</sys:String>
+    <sys:String x:Key="Party.Combo.Ready">就绪</sys:String>
+    <sys:String x:Key="Party.Combo.Cooling">冷却中 {0}</sys:String>
+    <sys:String x:Key="Party.Ultimate.Ready">就绪</sys:String>
+    <sys:String x:Key="Party.SlotNumber">{0} 号位</sys:String>
+    <sys:String x:Key="Party.Unknown">—</sys:String>
+    <sys:String x:Key="Party.Ping">延迟 {0} 毫秒</sys:String>
+    <sys:String x:Key="Party.Waiting">正在识别小队栏……</sys:String>
+    <sys:String x:Key="Party.NotVisible">画面中暂未看到小队栏（可能正在打开菜单或地图）</sys:String>
+    <sys:String x:Key="Party.CaptureFailed">无法捕获游戏画面，稍后会自动重试</sys:String>
+    <sys:String x:Key="Party.OcrUnavailable">系统未安装文字识别语言包。请在“设置 → 时间和语言 → 语言和区域”中添加英语或中文。</sys:String>
+
+    <!-- 菜单 -->
+    <sys:String x:Key="Menu.Title">ENDHUD — 菜单</sys:String>
+    <sys:String x:Key="Menu.Hotkeys">快捷键</sys:String>
+    <sys:String x:Key="Menu.Key.Menu">打开/关闭此菜单</sys:String>
+    <sys:String x:Key="Menu.Key.Toggle">显示/隐藏 HUD</sys:String>
+    <sys:String x:Key="Menu.Key.Quit">退出 EndHud</sys:String>
+    <sys:String x:Key="Menu.Key.Esc">关闭此菜单</sys:String>
+    <sys:String x:Key="Menu.Settings">设置（自动保存）</sys:String>
+    <sys:String x:Key="Menu.AutoShow">游戏窗口获得焦点时自动显示 HUD</sys:String>
+    <sys:String x:Key="Menu.AutoShow.Hint">关闭后，需按 Ctrl+Shift+H 或在托盘菜单中手动显示。</sys:String>
+    <sys:String x:Key="Menu.PartyOcr">识别小队栏（等级、生命值、延迟）</sys:String>
+    <sys:String x:Key="Menu.Operators">干员识别</sys:String>
+    <sys:String x:Key="Menu.Operators.Hint">头像来自 Endfield Wiki，首次识别可能不准。请为每个位置选择正确的干员，EndHud 会记住该干员在游戏中的样子，之后就能准确识别。</sys:String>
+    <sys:String x:Key="Menu.Operators.Unrecognised">未识别（显示为“{0} 号位”）</sys:String>
+    <sys:String x:Key="Menu.Operators.NoReading">切换到游戏画面、并能看到左下角的小队栏后，这里会列出识别结果。</sys:String>
+    <sys:String x:Key="Menu.Operators.NoLibrary">干员头像库尚未就绪（正在下载，或下载失败）。可在托盘菜单中选择“更新干员头像库”重试。</sys:String>
+    <sys:String x:Key="Menu.Operators.Saved">已记住：{0} 号位是 {1}</sys:String>
+    <sys:String x:Key="Menu.Operators.Cleared">已将 {0} 号位设为未识别</sys:String>
+    <sys:String x:Key="Menu.Operators.Forget">清除所有已学习的头像</sys:String>
+    <sys:String x:Key="Menu.Operators.ForgetConfirm">再次点击以确认清除</sys:String>
+    <sys:String x:Key="Menu.Operators.Forgotten">已清除所有已学习的头像</sys:String>
+    <sys:String x:Key="Menu.Placeholders">其他选项（示例，暂未生效）</sys:String>
+    <sys:String x:Key="Menu.ShowClock">显示时钟</sys:String>
+    <sys:String x:Key="Menu.ShowCorners">显示边角标记</sys:String>
+    <sys:String x:Key="Menu.Cooldowns">技能冷却计时</sys:String>
+    <sys:String x:Key="Menu.Opacity">HUD 不透明度</sys:String>
+    <sys:String x:Key="Menu.Position">面板位置</sys:String>
+    <sys:String x:Key="Menu.Position.TopLeft">左上</sys:String>
+    <sys:String x:Key="Menu.Position.TopRight">右上</sys:String>
+    <sys:String x:Key="Menu.Position.BottomLeft">左下</sys:String>
+    <sys:String x:Key="Menu.Close">关闭</sys:String>
+
+    <!-- 干员头像库 -->
+    <sys:String x:Key="Operators.Seeded">已载入内置干员头像库</sys:String>
+    <sys:String x:Key="Operators.Downloading">正在从 Endfield Wiki 下载干员头像……</sys:String>
+    <sys:String x:Key="Operators.Updated">干员头像库已更新，共 {0} 名干员</sys:String>
+    <sys:String x:Key="Operators.DownloadFailed">无法下载干员头像库（请检查网络）。干员将显示为“n 号位”，可在托盘菜单中选择“更新干员头像库”重试。</sys:String>
+
+    <!-- 系统托盘 -->
+    <sys:String x:Key="Tray.Tooltip">EndHud 游戏辅助面板</sys:String>
+    <sys:String x:Key="Tray.Status.Found">状态：已检测到游戏</sys:String>
+    <sys:String x:Key="Tray.Status.NotFound">状态：未检测到游戏</sys:String>
+    <sys:String x:Key="Tray.ShowHud">显示 HUD（Ctrl+Shift+H）</sys:String>
+    <sys:String x:Key="Tray.OpenMenu">打开菜单（Ctrl+Shift+M）</sys:String>
+    <sys:String x:Key="Tray.AutoShow">游戏获得焦点时自动显示</sys:String>
+    <sys:String x:Key="Tray.UpdateOperators">更新干员头像库</sys:String>
+    <sys:String x:Key="Tray.OpenConfig">打开配置文件所在文件夹</sys:String>
+    <sys:String x:Key="Tray.Quit">退出</sys:String>
+    <sys:String x:Key="Tray.Started">EndHud 已在系统托盘中运行。切换到游戏后会自动显示，右键托盘图标可更改设置。</sys:String>
+    <sys:String x:Key="Tray.Started.Manual">EndHud 已在系统托盘中运行。按 Ctrl+Shift+H 显示 HUD，右键托盘图标可更改设置。</sys:String>
+
+</ResourceDictionary>

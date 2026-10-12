@@ -1,0 +1,11 @@
+# Normalise text to LF in the repository; check out with the platform's line endings.
+* text=auto
+
+# Files Visual Studio / dotnet tooling write with CRLF; keep them that way everywhere.
+*.sln     text eol=crlf
+*.csproj  text eol=crlf
+
+# Binary assets: never diff or convert.
+*.png     binary
+*.jpg     binary
+*.mp4     binary

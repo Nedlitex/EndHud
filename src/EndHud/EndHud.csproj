@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.22621.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <!-- Only for the system tray icon (NotifyIcon); WPF has none. -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>EndHud</AssemblyName>
+    <RootNamespace>EndHud</RootNamespace>
+    <!-- WinForms analyzer wants DPI set via its API; this is a WPF app, where the manifest is the right place. -->
+    <NoWarn>$(NoWarn);WFAC010</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- WinForms/Drawing names clash with WPF ones (Application, Button, Color…); import them explicitly where used. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EndHud.Vision\EndHud.Vision.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Operator library copied to %APPDATA%\EndHud\operators on first start (game art: local use only). -->
+    <None Update="seed\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

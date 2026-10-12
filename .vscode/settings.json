@@ -1,0 +1,5 @@
+{
+    // Load the repository's solution. Without this, C# Dev Kit keeps using the solution it
+    // generated in workspace storage when the folder was first opened (before EndHud.sln existed).
+    "dotnet.defaultSolution": "EndHud.sln"
+}
