@@ -301,11 +301,16 @@ public partial class OverlayWindow : Window
                     { } c => Loc.Format("Party.Combo.Cooling", c.Progress.ToString("P0")),
                     null => unknown,
                 };
-                string ultimate = slot.Ultimate switch
+                // Skill effects often cover the circle for a moment: keep the last reading briefly
+                // rather than flashing "unknown".
+                if (slot.Ultimate is { } read2) _lastUltimates[i] = (read2, DateTime.UtcNow);
+                var shown = slot.Ultimate
+                            ?? (_lastUltimates[i] is { } held && DateTime.UtcNow - held.At < UltimateHoldTime ? held.Reading : null);
+                string ultimate = shown switch
                 {
                     { Ready: true } => Loc.Get("Party.Ultimate.Ready"),
-                    { Charge: { } charge } => charge.ToString("P0"),
-                    _ => unknown,
+                    { } u => Loc.Format("Party.Ultimate.Charging", u.Progress.ToString("P0")),
+                    null => unknown,
                 };
                 sb.AppendLine(Loc.Format("Party.Skills", combo, ultimate));
             }
@@ -333,6 +338,8 @@ public partial class OverlayWindow : Window
     }
 
     private readonly (string? OperatorId, int Level)?[] _lastLevels = new (string?, int)?[4];
+    private readonly (Vision.UltimateReading Reading, DateTime At)?[] _lastUltimates = new (Vision.UltimateReading, DateTime)?[4];
+    private static readonly TimeSpan UltimateHoldTime = TimeSpan.FromSeconds(3);
 
     private bool _populatingPickers;
 

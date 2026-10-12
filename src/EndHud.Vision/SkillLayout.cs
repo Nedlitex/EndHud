@@ -1,36 +1,38 @@
 namespace EndHud.Vision;
 
 /// <summary>
-/// The four ultimate (终结技) buttons in the bottom-right corner, one per squad slot in slot
-/// order, measured on a 3840×2160 recording and anchored to the bottom-right corner. Each is a
-/// dark disc that fills with the operator's element colour from the bottom as the ultimate
-/// charges, and gains a bright white ring when it is ready.
+/// The 终结技 (ultimate) indicators in the bottom-right corner: one small circle per squad slot,
+/// in slot order, above that operator's large 战技 (battle skill) button. Measured on a
+/// 3840×2160 recording and anchored to the bottom-right corner.
+/// <list type="bullet">
+/// <item>Ready: the circle is filled with the operator's element colour behind a white icon,
+/// has a white outer ring, and the slot-number tag shows above it.</item>
+/// <item>Charging: a dark disc inside a thin grey ring, no tag; the charge is an arc of element
+/// colour growing clockwise from 12 o'clock just inside the ring.</item>
+/// </list>
 /// </summary>
 internal static class SkillLayout
 {
-    /// <summary>Centre of slot 1's ultimate button.</summary>
+    /// <summary>Centre of slot 1's ultimate circle.</summary>
     public const int FirstCentreX = 3155;
-    public const int CentreY = 1932;
+    public const int CentreY = 1783;
 
-    /// <summary>Horizontal distance between neighbouring buttons.</summary>
-    public const double Pitch = 192;
+    /// <summary>Horizontal distance between neighbouring circles.</summary>
+    public const double Pitch = 191.7;
 
-    /// <summary>Radius of the inner disc that holds the charge fill.</summary>
-    public const int FillRadius = 61;
+    /// <summary>The disc inside the circle: element colour when ready, dark when charging.</summary>
+    public const int DiscRadius = 28;
 
-    /// <summary>The grey ring around the disc (present whenever the button is on screen).</summary>
-    public const int RingRadius = 70;
+    /// <summary>The thin grey ring drawn around the empty disc while charging.</summary>
+    public const int ChargingRingRadius = 34;
 
-    /// <summary>
-    /// When the ultimate is ready a bright white ring plus an expanding ripple cover this band
-    /// (measured over the recording: radius 62–96 px at 4K). Nothing white is drawn here otherwise.
-    /// </summary>
-    public const int ReadyBandInner = 62;
-    public const int ReadyBandOuter = 96;
+    /// <summary>The charge arc's band (measured: radius 16–26, solid 18–24).</summary>
+    public const int ArcInnerRadius = 18;
+    public const int ArcOuterRadius = 24;
 
-    /// <summary>
-    /// The button icon covers the middle of the disc; the fill level is read on vertical lines
-    /// this far left and right of centre, where only fill or empty disc shows.
-    /// </summary>
-    public const int SampleOffsetX = 47;
+    /// <summary>Inside the arc: empty and dark while charging, the white icon when ready.</summary>
+    public const int EmptyCentreRadius = 13;
+
+    /// <summary>The white icon of a ready ultimate.</summary>
+    public const int IconRadius = 18;
 }

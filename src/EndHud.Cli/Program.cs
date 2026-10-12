@@ -73,9 +73,7 @@ static async Task<int> AnalyzeVideoAsync(string path, double everySeconds)
         {
             string hp = s.Hp is { } h ? $"{h * 100,3:F0}%" : "  - ";
             string combo = s.Combo is { } c ? (c.Ready ? "ready" : $"{c.Progress * 100,3:F0}% ") : "  -  ";
-            string ult = s.Ultimate is { } u
-                ? (u.Charge is { } c2 ? $"{c2 * 100,3:F0}%" : "  ? ") + (u.Ready ? "*" : " ")
-                : "  -  ";
+            string ult = s.Ultimate is { } u ? (u.Ready ? "ready" : $"{u.Progress * 100,3:F0}% ") : "  -  ";
             return $"{hp} {combo,-5} {ult}";
         });
         Console.WriteLine($"{t,5:F1} | {(state.PanelVisible ? "" : "(no panel) ")}{string.Join(" | ", cells)}");
@@ -116,7 +114,7 @@ static async Task<int> AnalyzeAsync(string imagePath, string? debugDir)
     {
         string hp = slot.Hp is { } h ? $"{h:P0}" : "-";
         string combo = slot.Combo is { } c ? (c.Ready ? "ready" : $"{c.Progress:P0}") : "-";
-        string ult = slot.Ultimate is { } u ? $"{(u.Charge is { } ch ? ch.ToString("P0") : "?")}{(u.Ready ? " READY" : "")}" : "-";
+        string ult = slot.Ultimate is { } u ? (u.Ready ? "ready" : $"{u.Progress:P0}") : "-";
         Console.WriteLine($"slot {slot.Number}: level={slot.Level?.ToString() ?? "-",-3} hp={hp,-5} combo={combo,-6} ult={ult,-10} ocr=\"{slot.LevelText}\"");
     }
     Console.WriteLine($"ping: {state.PingMs?.ToString() ?? "-"} ms   ocr=\"{state.PingText}\"");
