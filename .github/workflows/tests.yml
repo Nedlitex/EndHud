@@ -1,0 +1,73 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      # The gameplay recordings are in Git LFS (about 160 MB). Downloading them counts against
+      # the repository's LFS bandwidth quota, so they're cached and only fetched when they change.
+      - name: List the recordings (cache key)
+        shell: bash
+        run: git lfs ls-files --long | cut -d ' ' -f1 | sort > .lfs-assets-id
+      - name: Restore cached recordings
+        uses: actions/cache@v4
+        with:
+          path: .git/lfs/objects
+          key: lfs-${{ hashFiles('.lfs-assets-id') }}
+          restore-keys: lfs-
+      - name: Fetch recordings
+        run: git lfs pull
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      # EndHud reads text with the OCR engine built into Windows, which needs an OCR language.
+      - name: Install Windows OCR (English)
+        shell: pwsh
+        run: |
+          $name = 'Language.OCR~~~en-US~0.0.1.0'
+          if ((Get-WindowsCapability -Online -Name $name).State -ne 'Installed') {
+            Add-WindowsCapability -Online -Name $name | Out-Null
+          }
+          Get-WindowsCapability -Online -Name $name | Select-Object Name, State
+
+      # The recordings are decoded with Windows' media stack (Media Foundation).
+      - name: Install Media Foundation (video decoding)
+        shell: pwsh
+        run: |
+          if (-not (Get-WindowsFeature Server-Media-Foundation).Installed) {
+            Install-WindowsFeature Server-Media-Foundation | Out-Null
+          }
+          Get-WindowsFeature Server-Media-Foundation | Select-Object Name, InstallState
+
+      - name: Build
+        run: dotnet build -c Release
+
+      - name: Test
+        run: >
+          dotnet test -c Release --no-build --filter "Category!=Desktop"
+          --logger trx --logger "console;verbosity=normal" --results-directory TestResults
+
+      # The real-capture test shows a window and captures it with Windows.Graphics.Capture, which
+      # needs an interactive desktop. Whether hosted runners provide one is being found out; this
+      # step's result is reported separately and doesn't fail the run until that's settled.
+      - name: Test real window capture (needs a desktop session)
+        continue-on-error: true
+        run: dotnet test -c Release --no-build --filter "Category=Desktop" --logger "console;verbosity=normal"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults

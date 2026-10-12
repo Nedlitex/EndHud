@@ -233,10 +233,18 @@ public partial class OverlayWindow
         UpdateComboHints();
     }
 
-    private void HintCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
+    private void HintCanvas_SizeChanged(object sender, SizeChangedEventArgs e) => ScaleComboHints();
+
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
     {
-        // Sized for a 1080-unit-high window and scaled with the game, like the game's own UI.
-        double scale = Math.Clamp(HintCanvas.ActualHeight / 1080, 0.6, 2.5);
+        base.OnDpiChanged(oldDpi, newDpi);
+        ScaleComboHints(); // the game window moved to a monitor with different display scaling
+    }
+
+    /// <summary>Scale the hints with the game window, like the game's own HUD (see <see cref="ComboHintLayout"/>).</summary>
+    private void ScaleComboHints()
+    {
+        double scale = ComboHintLayout.Scale(HintCanvas.ActualHeight, VisualTreeHelper.GetDpi(this).DpiScaleY);
         ComboHintFrame.LayoutTransform = new ScaleTransform(scale, scale);
         PlaceComboHintsFromConfig();
     }
@@ -246,9 +254,7 @@ public partial class OverlayWindow
 
     private void PlaceComboHints(double left, double top)
     {
-        // Keep at least part of it on screen, whatever the window size.
-        left = Math.Clamp(left, 0, Math.Max(0, HintCanvas.ActualWidth - 80));
-        top = Math.Clamp(top, 0, Math.Max(0, HintCanvas.ActualHeight - 80));
+        (left, top) = ComboHintLayout.Place(left, top, HintCanvas.ActualWidth, HintCanvas.ActualHeight);
         Canvas.SetLeft(ComboHintFrame, left);
         Canvas.SetTop(ComboHintFrame, top);
     }

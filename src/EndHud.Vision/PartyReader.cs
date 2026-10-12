@@ -58,30 +58,73 @@ public sealed partial class PartyReader(TextRecognizer ocr)
 
             var combo = ComboBar.Measure(frame, ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.ComboBar, i)));
             // In combat the combo bar replaces the level text, so there's nothing to OCR.
-            string text = combo is not null ? "" : await ReadLevelTextAsync(frame, ui, i);
-            slots.Add(new PartySlot(i + 1, ParseLevel(text), hp, text, portrait, combo, UltimateGauge.Measure(frame, i)));
+            var (level, text) = combo is not null ? (null, "") : await ReadLevelAsync(frame, ui, i);
+            slots.Add(new PartySlot(i + 1, level, hp, text, portrait, combo, UltimateGauge.Measure(frame, i)));
         }
 
         // The ping is white normally and red when the connection is poor.
         var pingRegion = ui.BottomLeft(PartyLayout.Ping);
-        string pingText = await ocr.ReadAsync(frame, pingRegion, t => ParsePing(t) is not null);
-        if (ParsePing(pingText) is null)
-            pingText = await ocr.ReadAsync(frame, pingRegion, t => ParsePing(t) is not null, colour: TextColour.Red);
-        return new PartyState(slots, ParsePing(pingText), pingText, PanelMarkers.Count(frame));
+        var (ping, pingText) = await ReadNumberAsync(frame, ui, pingRegion, null, TextColour.White, ParsePing, _ => true,
+            checkDigits: true, needAgreement: false);
+        // Red text needs two attempts to agree instead: the pink "5" loses its corner and reads as 3
+        // or 6 on some frames, even at 4K (the red "515ms" in the battle recording read as 316 or
+        // 616), which keeps the number of digits; and the digit check miscounts red text (the bar
+        // drawn left of it counts as a glyph), so it would only reject correct readings.
+        if (ping is null) (ping, pingText) = await ReadNumberAsync(frame, ui, pingRegion, null, TextColour.Red, ParsePing, _ => true,
+            checkDigits: false, needAgreement: true);
+        return new PartyState(slots, ping, pingText, PanelMarkers.Count(frame));
     }
 
     /// <summary>
-    /// OCR the level under slot <paramref name="slot"/>'s portrait. A one-digit result is
-    /// often a two-digit level with a digit lost ("LV9" for "LV.90"), so first look for a
-    /// two-digit reading across all attempts, and only then settle for one digit — operators
-    /// below level 10 do exist.
+    /// Below this HUD scale (smaller than about 1650x930, so 1600x900, 1366x768 and 1280x720)
+    /// glyphs are a handful of pixels: at 1600x900 a quarter of levels and pings were readable
+    /// and digits were still dropped ("16" for "165ms"), so levels and ping are not read at all.
+    /// Bars, circles and death marks are still measured.
     /// </summary>
-    private async Task<string> ReadLevelTextAsync(Frame frame, UiScaler ui, int slot)
+    public const double MinTextScale = 0.43;
+
+    /// <summary>The game's level cap. A higher reading is a misread ("96" for "90").</summary>
+    public const int MaxLevel = 90;
+
+    /// <summary>
+    /// OCR the level under slot <paramref name="slot"/>'s portrait. Only two-digit levels up to
+    /// <see cref="MaxLevel"/> are accepted: a one-digit result is usually a two-digit level with
+    /// a digit lost ("9" for "LV.90"; seen at 4K and on simulated laptop screens), so levels 1-9
+    /// are left unknown rather than risk showing 9 for 90. Two attempts must agree: a level
+    /// sometimes reads as another two-digit number ("56" for "90" on a 2256x1504 screen), and
+    /// the digit check can't be used, because the portrait behind the text adds glyph-sized blobs.
+    /// </summary>
+    private Task<(int? Level, string Text)> ReadLevelAsync(Frame frame, UiScaler ui, int slot)
     {
         var region = ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.LevelText, slot));
         var glyphRows = ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.LevelGlyphRows, slot));
-        string text = await ocr.ReadAsync(frame, region, t => ParseLevel(t) >= 10, glyphRows);
-        return ParseLevel(text) >= 10 ? text : await ocr.ReadAsync(frame, region, t => ParseLevel(t) is not null, glyphRows);
+        return ReadNumberAsync(frame, ui, region, glyphRows, TextColour.White, ParseLevel, level => level is >= 10 and <= MaxLevel,
+            checkDigits: false, needAgreement: true);
+    }
+
+    /// <summary>
+    /// The first number <paramref name="parse"/> finds across the OCR attempts that
+    /// <paramref name="wanted"/> accepts, or with <paramref name="needAgreement"/>, the first one
+    /// two attempts agree on. Null when there is none. With <paramref name="checkDigits"/>, an
+    /// attempt only counts if the number has as many digits as the region has full-height glyphs:
+    /// OCR sometimes drops or adds a digit the same way on every attempt ("16" or "1660" for
+    /// "166ms", seen on 1600x900, 3000x2000 and 5K screens), which agreement can't catch.
+    /// </summary>
+    private async Task<(int? Value, string Text)> ReadNumberAsync(Frame frame, UiScaler ui, PixelRect region,
+        PixelRect? glyphRows, TextColour colour, Func<string, int?> parse, Func<int, bool> wanted, bool checkDigits, bool needAgreement)
+    {
+        if (ui.Scale < MinTextScale) return (null, "");
+        var seen = new List<int>();
+        string last = "";
+        await foreach (var (text, tallGlyphs) in ocr.ReadAttemptsAsync(frame, region, glyphRows, colour, ui.Scale))
+        {
+            last = text;
+            if (parse(text) is not { } value || !wanted(value)) continue;
+            if (checkDigits && value.ToString().Length != tallGlyphs) continue;
+            if (!needAgreement || seen.Contains(value)) return (value, text);
+            seen.Add(value);
+        }
+        return (null, last);
     }
 
     /// <summary>

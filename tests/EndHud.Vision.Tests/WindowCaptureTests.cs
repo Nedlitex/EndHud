@@ -11,6 +11,7 @@ namespace EndHud.Vision.Tests;
 /// Windows.Graphics.Capture exactly as the game window is, and must read the same as the file.
 /// Shows a full-screen window for a few seconds.
 /// </summary>
+[Trait("Category", "Desktop")] // needs an interactive desktop session (see .github/workflows/tests.yml)
 public class WindowCaptureTests
 {
     [Fact]

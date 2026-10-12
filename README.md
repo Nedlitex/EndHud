@@ -173,7 +173,8 @@ git lfs install   # once: the gameplay recordings are stored with Git LFS
 dotnet test -c Release
 ```
 
-There are 88 tests, and all of them run from what's in the repository.
+All tests run from what's in the repository. They also run on every push to `main` and on pull
+requests, on a GitHub-hosted Windows runner ([`.github/workflows/tests.yml`](.github/workflows/tests.yml)).
 
 - **Fixture frames** ([`tests/EndHud.Vision.Tests/Fixtures`](tests/EndHud.Vision.Tests/Fixtures)):
   a 4K exploration screenshot and frames from gameplay recordings, UID blacked out. They cover
@@ -195,6 +196,22 @@ There are 88 tests, and all of them run from what's in the repository.
     never for an operator who falls mid-cooldown.
 
   See that folder's README for what each recording contains.
+- **Other screen sizes**, simulated from the 4K fixtures and recordings (see
+  [`SimulatedScreen`](tests/EndHud.Vision.Tests/SimulatedScreen.cs)): desktop monitors (5K,
+  2560×1440, 1920×1080, 1920×1200, 21:9 and 32:9 ultrawides), laptop panels (1280×720, 1366×768,
+  1600×900, 2560×1600, 2880×1800, and 3:2 at 2256×1504 and 3000×2000) and the game in a 1700×956
+  window. At every size, each value read must match the 4K reading (unreadable is allowed, wrong
+  is not), and enough values must be read. The combo-ready hint must fire at the same moments on a
+  1080p, 720p, 1366×768, 21:9, 16:10 and 3:2 screen.
+- **Laptop vs desktop display scaling** ([`tests/EndHud.Tests`](tests/EndHud.Tests)): the
+  combo-ready banner's size and position for game windows from 1280×720 to 5K at 100–200% display
+  scaling, and a real capture of the game in an ordinary window with a title bar, checking that
+  only its client area is read.
+
+  16:9 sizes are the 4K frames scaled down, which is close to a real smaller screen. The other
+  aspect ratios follow the layout EndHud assumes (the HUD fits 16:9 and each element keeps its
+  distance from its own corner), so they test EndHud's handling of that layout, not that the game
+  uses it. A real screenshot at 16:10 or 21:9 would confirm it.
 
 ## Developer tool
 
@@ -232,11 +249,30 @@ src/EndHud.Vision/       everything that reads the screen
   PartyTracker.cs        carries readings over (deaths, values that are briefly unreadable)
   ComboHints.cs          when to show the combo-ready hint
 src/EndHud.Cli/          endhud-cli developer tool
-tests/EndHud.Vision.Tests/
+tests/EndHud.Vision.Tests/ tests of everything that reads the screen (fixtures, recordings, screen sizes)
+tests/EndHud.Tests/      tests of the tray app (banner layout at any display scaling, windowed capture)
+.github/workflows/       CI: all tests on a Windows runner
 ```
 
-Screen positions are measured on 3840×2160 and scaled to the game window's size. All tuning so
-far is from 4K footage. Other resolutions should work, but level OCR is less reliable at 1080p.
+Screen positions are measured on 3840×2160 and scaled to the game window's size, each element
+keeping its distance from its corner of the window. What works at each size, tested on simulated
+screens (see [Tests](#tests)); "read" is the share of levels and pings read on the test frames:
+
+| Game window | HP, combo, ultimate, fallen | Level and ping |
+|---|---|---|
+| 4K, 5K, 1440p class (2560×1440, 3440×1440, 2560×1600, 5120×1440), 3000×2000 | all | 88–100% read |
+| 2880×1800 | all | about 58% read |
+| 1080p class (1920×1080, 1920×1200, 2560×1080), 2256×1504 | all | about 62% read (text is enlarged first) |
+| 1600×900, 1366×768, 1280×720 | all (HP within about 8%) | not read: too small to read reliably |
+
+A level or ping that isn't read keeps its last value; one that might be wrong is not shown. To
+that end: a ping must have as many digits as the text has digit-sized glyphs; a red ping (poor
+connection) and a level must be read the same by two attempts; levels are 10 to 90 (the game's
+cap). Levels 1–9 are shown as unknown, because a "9" is usually "90" with a digit lost.
+
+Display scaling (125–200% on most laptops) doesn't change what's read: the game draws in real
+pixels and EndHud captures them. The combo-ready banner is sized from the game window's real
+pixels, so it looks the same on a laptop at 150% as on a desktop at 100%.
 
 ## Adding a language
 
@@ -250,7 +286,11 @@ Copy `src/EndHud/i18n/zh-CN.xaml` to, for example, `en-US.xaml`, translate the v
   under skill icons), the HUD keeps showing the last value it read. So a value can be a few seconds old,
   for example a combo skill used at the moment its bar was hidden still shows "ready" until the bar is read again.
   After the squad panel leaves the screen (menus, the map) the last squad reading also stays up.
-- Everything is tuned on 4K recordings.
+- Everything is tuned on 4K recordings; other sizes are tested on frames scaled from them, not on
+  real recordings at those sizes. 16:10 and 21:9 assume the HUD is laid out as described above.
+- At 1600×900 and smaller, levels and ping aren't shown, and out of combat the squad panel can't
+  always be recognised (its edge marks are under two pixels wide). Both only affect the debug panel.
+- Levels 1–9 are shown as unknown (see above).
 - The combo-ready hint needs two "cooling" readings in a row before it trusts that a combo skill was used,
   because the bar is briefly drawn as an empty track while the HUD fades in. A cooldown
   refreshed within about two seconds of being used therefore gets no hint.

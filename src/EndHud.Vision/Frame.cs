@@ -66,6 +66,33 @@ public sealed class Frame
         return new Frame(width, height, buffer);
     }
 
+    /// <summary>Resample bilinearly: smooth when enlarging, unlike <see cref="Resize"/>.</summary>
+    public Frame ResizeSmooth(int width, int height)
+    {
+        var buffer = new byte[width * height * 4];
+        double sx = Width / (double)width, sy = Height / (double)height;
+        for (int y = 0; y < height; y++)
+        {
+            double fy = Math.Clamp((y + 0.5) * sy - 0.5, 0, Height - 1);
+            int y0 = (int)fy, y1 = Math.Min(y0 + 1, Height - 1);
+            double wy = fy - y0;
+            for (int x = 0; x < width; x++)
+            {
+                double fx = Math.Clamp((x + 0.5) * sx - 0.5, 0, Width - 1);
+                int x0 = (int)fx, x1 = Math.Min(x0 + 1, Width - 1);
+                double wx = fx - x0;
+                int o = (y * width + x) * 4;
+                for (int c = 0; c < 4; c++)
+                {
+                    double top = Bgra[(y0 * Width + x0) * 4 + c] * (1 - wx) + Bgra[(y0 * Width + x1) * 4 + c] * wx;
+                    double bottom = Bgra[(y1 * Width + x0) * 4 + c] * (1 - wx) + Bgra[(y1 * Width + x1) * 4 + c] * wx;
+                    buffer[o + c] = (byte)Math.Round(top * (1 - wy) + bottom * wy);
+                }
+            }
+        }
+        return new Frame(width, height, buffer);
+    }
+
     public byte GetAlpha(int x, int y) => Bgra[(y * Width + x) * 4 + 3];
 
     public static Frame FromSoftwareBitmap(SoftwareBitmap bitmap)

@@ -10,12 +10,23 @@ namespace EndHud.Vision;
 /// The region is cleaned of background, turned into smooth dark-on-white text and upscaled
 /// first, which is what the engine reads best.
 /// </summary>
+/// <param name="Text">What the OCR engine read.</param>
+/// <param name="TallGlyphs">
+/// How many full-height glyphs the cleaned-up region holds. For a ping that's its digits (the
+/// "ms" is lowercase, so shorter), which lets a caller check how many digits were read.
+/// </param>
+public sealed record OcrAttempt(string Text, int TallGlyphs);
+
 public sealed class TextRecognizer
 {
     // Windows OCR is most reliable when glyphs are a few dozen pixels tall. Its results on tiny
     // crops vary with scale, so when the caller rejects a reading we retry at another size.
     private static readonly int[] TargetRegionHeights = [120, 90, 160];
     private const int Padding = 16;
+    private const double MaxSourceUpscale = 4;
+    // Enlarging matters from 1080p down (without it, 41% instead of 83% of levels and pings read at
+    // 1080p, and digits were dropped); at 1440p and up it made no difference.
+    private const double EnlargeBelowScale = 0.6;
 
     private readonly OcrEngine _engine;
 
@@ -32,29 +43,39 @@ public sealed class TextRecognizer
     public string LanguageTag => _engine.RecognizerLanguage.LanguageTag;
 
     /// <summary>
-    /// OCR the region. If <paramref name="accept"/> is given and rejects the text, retry at other
-    /// scales, then (if given) on <paramref name="glyphRows"/> — a crop of exactly the rows the text
-    /// occupies, for when glyphs touch the background. Returns the first accepted text, or the
-    /// last attempt's text. <paramref name="colour"/> picks which text to read: white (most HUD
-    /// text) or red (the ping at high latency).
+    /// The text of each attempt in turn (the region at several scales, then
+    /// <paramref name="glyphRows"/> if given), read only as far as the caller enumerates, for a
+    /// caller that wants attempts to agree. <paramref name="hudScale"/> is how large the game's HUD
+    /// is relative to 4K (<see cref="UiScaler.Scale"/>). The cleanup is tuned on 4K, where glyphs
+    /// are a couple of dozen pixels tall; picking out text pixels from glyphs a few pixels tall
+    /// loses their thin strokes, so in a smaller window the region is first enlarged smoothly to
+    /// its 4K size.
     /// </summary>
-    public async Task<string> ReadAsync(Frame frame, PixelRect region, Func<string, bool>? accept = null,
-        PixelRect? glyphRows = null, TextColour colour = TextColour.White)
+    public async IAsyncEnumerable<OcrAttempt> ReadAttemptsAsync(Frame frame, PixelRect region, PixelRect? glyphRows,
+        TextColour colour, double hudScale)
     {
         var attempts = TargetRegionHeights.Select(h => (region, h, edgeBlobsAreBackground: true));
         if (glyphRows is { } tight)
             attempts = attempts.Concat(TargetRegionHeights.Select(h => (tight, h, edgeBlobsAreBackground: false)));
 
-        string text = "";
+        double enlarge = hudScale < EnlargeBelowScale ? Math.Clamp(1 / hudScale, 1, MaxSourceUpscale) : 1;
         foreach (var (rect, targetHeight, edgeBlobsAreBackground) in attempts)
         {
-            var prepared = Prepare(frame, rect, targetHeight, edgeBlobsAreBackground, colour);
-            if (prepared is null) return "";
+            var (source, sourceRect) = enlarge > 1.05 ? Enlarge(frame, rect, enlarge) : (frame, rect);
+            if (source is null) yield break;
+            var (prepared, tallGlyphs) = PrepareWithGlyphs(source, sourceRect, targetHeight, edgeBlobsAreBackground, colour);
+            if (prepared is null) yield break;
             using var bitmap = prepared.ToSoftwareBitmap();
-            text = (await _engine.RecognizeAsync(bitmap)).Text;
-            if (accept is null || accept(text)) break;
+            yield return new OcrAttempt((await _engine.RecognizeAsync(bitmap)).Text, tallGlyphs);
         }
-        return text;
+    }
+
+    private static (Frame? Frame, PixelRect Rect) Enlarge(Frame frame, PixelRect region, double factor)
+    {
+        var r = region.ClampTo(frame.Width, frame.Height);
+        if (r.IsEmpty) return (null, r);
+        var enlarged = frame.Crop(r).ResizeSmooth((int)Math.Round(r.Width * factor), (int)Math.Round(r.Height * factor));
+        return (enlarged, new PixelRect(0, 0, enlarged.Width, enlarged.Height));
     }
 
     /// <summary>The image actually handed to the OCR engine (exposed for debugging layouts).</summary>
@@ -63,10 +84,14 @@ public sealed class TextRecognizer
     /// the text; wrong for a crop of exactly the text rows, where every glyph touches both edges.
     /// </param>
     public static Frame? Prepare(Frame frame, PixelRect region, int targetHeight = 120,
-        bool edgeBlobsAreBackground = true, TextColour colour = TextColour.White)
+        bool edgeBlobsAreBackground = true, TextColour colour = TextColour.White) =>
+        PrepareWithGlyphs(frame, region, targetHeight, edgeBlobsAreBackground, colour).Image;
+
+    private static (Frame? Image, int TallGlyphs) PrepareWithGlyphs(Frame frame, PixelRect region, int targetHeight,
+        bool edgeBlobsAreBackground, TextColour colour)
     {
         var r = region.ClampTo(frame.Width, frame.Height);
-        if (r.IsEmpty) return null;
+        if (r.IsEmpty) return (null, 0);
 
         // 1. Decide which pixels are text: bright, unsaturated, in glyph-shaped blobs.
         var ink = new bool[r.Width * r.Height];
@@ -76,7 +101,7 @@ public sealed class TextRecognizer
             var (cr, cg, cb) = frame.GetPixel(r.X + x, r.Y + y);
             ink[y * r.Width + x] = colour == TextColour.Red ? IsRedPixel(cr, cg, cb) : IsTextPixel(cr, cg, cb);
         }
-        RemoveNonGlyphBlobs(ink, r.Width, r.Height, edgeBlobsAreBackground);
+        int tallGlyphs = RemoveNonGlyphBlobs(ink, r.Width, r.Height, edgeBlobsAreBackground);
 
         // 2. Keep the anti-aliased edge around each glyph (1 px), using its real brightness.
         var darkness = new float[r.Width * r.Height];
@@ -114,7 +139,7 @@ public sealed class TextRecognizer
                 buffer[i] = buffer[i + 1] = buffer[i + 2] = v;
             }
         }
-        return new Frame(width, height, buffer);
+        return (new Frame(width, height, buffer), tallGlyphs);
     }
 
     private static bool NearInk(bool[] ink, int width, int height, int x, int y)
@@ -141,11 +166,12 @@ public sealed class TextRecognizer
     /// Text sits fully inside its region; bright bits of the portrait behind it (hair, collars)
     /// enter from the top or bottom edge, or are specks. Drop those connected blobs.
     /// </summary>
-    private static void RemoveNonGlyphBlobs(bool[] ink, int width, int height, bool edgeBlobsAreBackground)
+    /// <returns>How many of the remaining blobs are full height (see <see cref="OcrAttempt.TallGlyphs"/>).</returns>
+    private static int RemoveNonGlyphBlobs(bool[] ink, int width, int height, bool edgeBlobsAreBackground)
     {
         int minArea = Math.Max(2, width * height / 400);
         var seen = new bool[ink.Length];
-        var kept = new List<(List<int> Pixels, int Bottom)>();
+        var kept = new List<(List<int> Pixels, int Top, int Bottom)>();
         var stack = new Stack<int>();
 
         for (int start = 0; start < ink.Length; start++)
@@ -154,7 +180,7 @@ public sealed class TextRecognizer
 
             var blob = new List<int>();
             bool touchesEdge = false;
-            int bottom = 0;
+            int top = height, bottom = 0;
             seen[start] = true;
             stack.Push(start);
             while (stack.Count > 0)
@@ -162,6 +188,7 @@ public sealed class TextRecognizer
                 int p = stack.Pop();
                 blob.Add(p);
                 int x = p % width, y = p / width;
+                top = Math.Min(top, y);
                 bottom = Math.Max(bottom, y);
                 if (y == 0 || y == height - 1) touchesEdge = true;
                 if (x > 0) Visit(p - 1);
@@ -173,7 +200,7 @@ public sealed class TextRecognizer
             if ((touchesEdge && edgeBlobsAreBackground) || blob.Count < minArea)
                 Erase(blob);
             else
-                kept.Add((blob, bottom));
+                kept.Add((blob, top, bottom));
         }
 
         // HUD text has no descenders: anything reaching well below the shared baseline is background.
@@ -181,9 +208,15 @@ public sealed class TextRecognizer
         {
             int baseline = kept.Select(b => b.Bottom).Order().ElementAt(kept.Count / 2);
             int tolerance = Math.Max(2, height / 8);
-            foreach (var (pixels, bottom) in kept)
+            foreach (var (pixels, _, bottom) in kept)
                 if (bottom > baseline + tolerance) Erase(pixels);
+            kept.RemoveAll(b => b.Bottom > baseline + tolerance);
         }
+
+        // Digits share one height; lowercase letters ("ms") reach about 70% of it.
+        if (kept.Count == 0) return 0;
+        int tallest = kept.Max(b => b.Bottom - b.Top + 1);
+        return kept.Count(b => b.Bottom - b.Top + 1 >= tallest * 0.85);
 
         void Erase(List<int> pixels)
         {

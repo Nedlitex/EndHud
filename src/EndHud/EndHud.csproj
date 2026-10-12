@@ -17,6 +17,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Layout and window arithmetic is tested directly. -->
+    <InternalsVisibleTo Include="EndHud.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- WinForms/Drawing names clash with WPF ones (Application, Button, Color…); import them explicitly where used. -->
     <Using Remove="System.Windows.Forms" />
     <Using Remove="System.Drawing" />
