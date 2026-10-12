@@ -6,8 +6,8 @@ namespace EndHud.Vision.Tests;
 
 /// <summary>
 /// Operator recognition on the 4K fixture, whose squad is (by eye) Laevatain, Camille, Arcane,
-/// Ardelia. Uses the built-in library's roster and avatars with a fresh user folder per test,
-/// and without the built-in learned portraits, so learning is tested from scratch.
+/// Ardelia. Uses the downloaded roster and avatars (<see cref="OperatorCache"/>) with a fresh user
+/// folder per test, so learning is tested from scratch.
 /// </summary>
 public sealed class SquadIdentifierTests : IDisposable
 {
@@ -21,7 +21,7 @@ public sealed class SquadIdentifierTests : IDisposable
         try { Directory.Delete(_libraryDir, recursive: true); } catch (IOException) { }
     }
 
-    private Task<OperatorLibrary> LoadLibraryAsync() => OperatorLibrary.LoadAsync(_libraryDir, includeBuiltInLearned: false);
+    private Task<OperatorLibrary> LoadLibraryAsync() => OperatorCache.LoadAsync(_libraryDir);
 
     private static async Task<PartyState> ReadAsync(Frame frame) => await new PartyReader(new TextRecognizer()).ReadAsync(frame);
 

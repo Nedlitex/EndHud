@@ -162,10 +162,15 @@ EndHud finds the game as a Unity window whose title contains "Endfield" or the g
 
 The game shows no operator names in the squad panel, so EndHud identifies each portrait.
 
-1. **Built-in references.** Every operator's avatar, their battle skill, combo and ultimate icons and
-   Chinese name (34 operators, from [endfield.wiki.gg](https://endfield.wiki.gg/wiki/Operator)),
-   plus portraits learned from real gameplay, are **compiled into EndHud**. Nothing is
-   downloaded or copied at startup, and recognition works offline.
+1. **References, downloaded.** Every operator's avatar, their battle skill, combo and ultimate
+   icons and Chinese name come from [endfield.wiki.gg](https://endfield.wiki.gg/wiki/Operator).
+   They're the game's art, so **EndHud ships none of it**: the first start downloads them (about
+   1 MB) into your user data, for the MSI and the portable exe alike. A copy older than 7 days is
+   refreshed in the background, which picks up new operators; the tray's **update the operator
+   library** refreshes it now. Without internet on the first start, slots show "slot n" and the
+   download is retried (after 1, 5, 15 and then every 30 minutes); the menu says so.
+   The only built-in operator data is where an avatar sits inside a squad portrait
+   (`src/EndHud.Vision/Assets/calibration.json`, a few numbers).
 2. **First guess.** Portraits are compared with the avatars by face/hair layout and colour.
    A guess is shown only when it clearly wins; otherwise the slot shows **"slot n"**.
 3. **Learning from you.** In the menu (Ctrl+Shift+M) each slot has a dropdown, sorted by most
@@ -174,16 +179,24 @@ The game shows no operator names in the squad panel, so EndHud identifies each p
    guesses, so a wrong guess can't make itself permanent.
 4. **Correcting and clearing.** Picking a different name later removes the wrong learned
    portraits and saves the right one. "Forget all learned portraits" clears everything learned.
-   Built-in portraits can't be deleted from the exe, so they are switched off for you instead.
 
 Your own data lives in `%APPDATA%\EndHud\operators\`:
 
 | Path | Contents |
 |---|---|
+| `reference/` | the roster, avatars and skill icons downloaded from the wiki (`wiki-sha1.json` records the wiki's checksums, so unchanged files aren't downloaded again) |
 | `learned/<operator>/*.png` | portraits learned from your picks |
-| `suppressed.json` | built-in portraits you've unlearned |
-| `calibration.json` | where avatars sit inside a squad portrait, if yours differs from the built-in one |
-| `reference/` | a newer roster from **update the operator library**; used instead of the built-in one while present |
+| `calibration.json` | where avatars sit inside a squad portrait, if yours differs from the built-in measurement |
+
+How a download stays safe ([`OperatorReference`](src/EndHud.Vision/Operators/OperatorReference.cs),
+[`WikiOperatorSource`](src/EndHud.Vision/Operators/WikiOperatorSource.cs)):
+
+- New operators need nothing: the roster is whatever the wiki's Operator page lists.
+- Requests are retried when the wiki is busy (429, 5xx; `Retry-After` honoured) or the connection drops.
+- An image that fails, or isn't a valid image, keeps the previous copy's file; the rest still updates.
+- The new copy is downloaded beside the current one and swapped in with two renames; an
+  interrupted swap is undone on the next start. If the wiki lists far fewer operators than the
+  current copy (under 80%), the current copy is kept: operators don't leave the game.
 
 Si and Argent Flow have no skill icons on the wiki yet; they're recognised by portrait only.
 
@@ -207,7 +220,14 @@ exception: hosted runners can't capture windows, so they only run on a developer
   level, HP, combo and ultimate readings in exploration, combat, low HP, a dimmed squad, a heal,
   and with operators fallen.
 - **Recognition:** guessing, learning, correcting and clearing.
-- **Built-in library:** contents, and how user data layers on top of it.
+- **Operator library:** the downloaded roster and icons, learning on top of them, and that the
+  build contains no game art. Downloading and updating are tested against a stand-in for the wiki
+  (new operators, changed and unchanged images, busy or broken wiki, broken images, interrupted
+  swaps), so those tests need no network.
+
+  The other recognition tests use the real roster from `.cache/operator-library` (git-ignored: it's
+  game art). A fresh clone downloads it the first time the tests run (about 10 s); CI keeps it in its
+  cache, refreshed weekly.
 - **Real capture:** a stand-in game window (shows a full-screen window for a few seconds).
 - **Gameplay recordings** ([`tests/EndHud.Vision.Tests/Recordings`](tests/EndHud.Vision.Tests/Recordings),
   Git LFS, HUD areas only): whole fights replayed, checking that values change the way the game
@@ -250,15 +270,8 @@ exception: hosted runners can't capture windows, so they only run on a developer
 | `capture <window title text> <out.png>` | Grab one frame from a window (e.g. the game) through the HUD's capture path. |
 | `identify <screenshot> --library <dir>` | Show the top operator candidates for each slot. |
 | `learn <screenshot> --library <dir> --slots A,B,C,D` | Teach a library the squad in a screenshot (operator ids, slot order). |
-| `fetch-operators <dir>` | Download the roster, avatars and skill icons from the wiki. |
+| `fetch-operators <dir>` | Download or update the roster, avatars and skill icons from the wiki into `<dir>/reference`, as the app does (`identify` and `learn` use the same layout). |
 
-To refresh the built-in library after new operators are released:
-
-```powershell
-dotnet run --project src/EndHud.Cli -c Release -- fetch-operators src/EndHud.Vision/Assets/operators
-```
-
-That keeps the learned portraits already in that folder.
 
 ---
 
@@ -269,7 +282,7 @@ src/EndHud/              the tray app: overlay window (debug panel, combo-ready 
 src/EndHud.Vision/       everything that reads the screen
   Capture/               Windows.Graphics.Capture of a single window
   Operators/             operator library, portrait matching, learning
-  Assets/operators/      built-in library (embedded into the assembly)
+  Assets/calibration.json  where avatars sit in a squad portrait (the only built-in operator data)
   PartyReader.cs         squad panel: level, HP, combo, portraits
   UltimateGauge.cs       ultimate circles
   PartyTracker.cs        carries readings over (deaths, values that are briefly unreadable)
@@ -325,6 +338,8 @@ Copy `src/EndHud/i18n/zh-CN.xaml` to, for example, `en-US.xaml`, translate the v
 
 ## Game art
 
-The built-in library and the test fixtures contain game art from the community wiki and frames
-of gameplay. They're included for personal use. Keep the repository private, or remove them
-before publishing it.
+EndHud ships no game art: operator avatars and skill icons are downloaded from the community wiki
+onto the user's machine, and the build contains none (a test checks). The repository's test
+fixtures, recordings and README pictures are frames of gameplay, kept for testing and
+documentation. Earlier commits did contain the wiki art; clean the history before making the
+repository public.

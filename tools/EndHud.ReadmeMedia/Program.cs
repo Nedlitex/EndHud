@@ -39,7 +39,14 @@ var clips = new[]
 var plans = await Task.Run(async () =>
 {
     var file = await VideoFile.OpenAsync(video);
-    var library = await OperatorLibrary.LoadAsync(Path.Combine(Path.GetTempPath(), "endhud-readme-media"));
+    // The roster and icons from the developer cache (downloaded if missing), as the tests use.
+    string reference = Path.Combine(RepositoryRoot(), ".cache", "operator-library");
+    if (!OperatorReference.Exists(reference))
+    {
+        using var http = WikiOperatorSource.CreateHttpClient();
+        await OperatorReference.UpdateAsync(reference, http);
+    }
+    var library = await OperatorLibrary.LoadAsync(Path.Combine(Path.GetTempPath(), "endhud-readme-media"), reference);
     var result = new Dictionary<string, List<Banner>>();
     foreach (var clip in clips)
     {
@@ -203,6 +210,13 @@ static void SaveCropped(byte[] pixels, Clip clip, string path)
     encoder.Frames.Add(BitmapFrame.Create(scaled));
     using var stream = File.Create(path);
     encoder.Save(stream);
+}
+
+static string RepositoryRoot()
+{
+    for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        if (File.Exists(Path.Combine(dir.FullName, "EndHud.sln"))) return dir.FullName;
+    throw new DirectoryNotFoundException("EndHud.sln not found above " + AppContext.BaseDirectory);
 }
 
 record Clip(string Name, ComboHintMode Mode, double From, double To, Int32Rect Crop, int OutWidth);

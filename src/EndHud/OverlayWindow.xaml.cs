@@ -380,7 +380,8 @@ public partial class OverlayWindow : Window
             var current = identifier?.Current;
             if (identifier is null || current is null || current.All(c => c is null))
             {
-                OperatorPickersEmpty.Text = Loc.Get(identifier is null ? "Menu.Operators.NoLibrary" : "Menu.Operators.NoReading");
+                OperatorPickersEmpty.Text = Loc.Get(identifier is not null ? "Menu.Operators.NoReading"
+                    : _party.LibraryDownloadFailed ? "Operators.FirstDownloadFailed" : "Menu.Operators.NoLibrary");
                 OperatorPickersEmpty.Visibility = Visibility.Visible;
                 ForgetLearnedButton.IsEnabled = identifier is not null;
                 return;

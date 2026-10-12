@@ -9,17 +9,17 @@ public sealed record IconCalibration(int Size, int X, int Y);
 /// <summary>
 /// The references used to recognise operators. Two parts:
 /// <list type="bullet">
-/// <item><b>Reference data</b> (read-only): the roster, each operator's avatar and skill icons,
-/// portraits learned from real gameplay, and the icon calibration. Built into EndHud
-/// (<see cref="EmbeddedAssets"/>), or a newer copy downloaded from the wiki into the user
-/// folder's <c>reference/</c>.</item>
+/// <item><b>Reference data</b> (read-only): the roster and each operator's avatar and skill icons,
+/// downloaded from the wiki (<see cref="OperatorReference"/>); EndHud ships none of it. In the
+/// app it's the user folder's <c>reference/</c>. Without it the library is empty and no operator
+/// is recognised.</item>
 /// <item><b>User data</b> (the user folder, %APPDATA%\EndHud\operators in the app):
-/// <c>learned/&lt;id&gt;/*.png</c> portraits learned from the user's own corrections,
-/// <c>calibration.json</c>, and <c>suppressed.json</c> — built-in portraits the user has
-/// unlearned (they can't be deleted from the executable, so they're switched off here).</item>
+/// <c>learned/&lt;id&gt;/*.png</c> portraits learned from the user's own corrections, and
+/// <c>calibration.json</c>, where avatars sit in a squad portrait if it differs from the
+/// built-in measurement (the only reference data EndHud ships: a few numbers).</item>
 /// </list>
-/// Every learned portrait, built-in or not, can be corrected (<see cref="Unlearn"/> + learn the
-/// right one) or cleared (<see cref="ForgetAllLearned"/>).
+/// Learned portraits can be corrected (<see cref="Unlearn"/> + learn the right one) or cleared
+/// (<see cref="ForgetAllLearned"/>).
 /// </summary>
 /// <remarks>
 /// Layout of a library root (embedded, downloaded, or a plain folder used by tools/tests):
@@ -27,8 +27,8 @@ public sealed record IconCalibration(int Size, int X, int Y);
 /// operators.json            roster: id, names, avatar file, skill icon files
 /// icons/&lt;id&gt;.png            avatar
 /// skills/&lt;id&gt;/*.png          battle skill / combo / ultimate icons (Skill-*, Combo-*, Ult-*)
-/// learned/&lt;id&gt;/*.png         learned squad portraits
-/// calibration.json          where avatars sit inside a squad portrait
+/// learned/&lt;id&gt;/*.png         learned squad portraits (user data)
+/// calibration.json          where avatars sit inside a squad portrait (user data)
 /// </code>
 /// </remarks>
 public sealed class OperatorLibrary
@@ -39,7 +39,6 @@ public sealed class OperatorLibrary
     public const string ReferenceFolderName = "reference";
     private const string ManifestName = "operators.json";
     private const string CalibrationName = "calibration.json";
-    private const string SuppressedName = "suppressed.json";
 
     /// <summary>
     /// User-learned portraits kept per operator. Beyond this the oldest is dropped (a size cap,
@@ -54,27 +53,25 @@ public sealed class OperatorLibrary
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.Create(System.Text.Unicode.UnicodeRanges.All),
     };
 
-    private sealed record Learned(string Key, string OperatorId, Frame Portrait, string? UserFile);
+    private sealed record Learned(string OperatorId, Frame Portrait, string File);
 
     private readonly object _lock = new();
-    private readonly IAssetSource _reference;
+    private readonly FolderAssets _reference;
     private readonly string _userFolder;
     private readonly List<Learned> _learned;
-    private readonly HashSet<string> _suppressed;
-    private readonly IconCalibration? _referenceCalibration;
+    private readonly IconCalibration? _builtInCalibration;
     private IconCalibration? _userCalibration;
 
-    private OperatorLibrary(IAssetSource reference, string userFolder, IReadOnlyList<OperatorInfo> operators,
-        IReadOnlyDictionary<string, Frame> icons, List<Learned> learned, HashSet<string> suppressed,
-        IconCalibration? referenceCalibration, IconCalibration? userCalibration)
+    private OperatorLibrary(FolderAssets reference, string userFolder, IReadOnlyList<OperatorInfo> operators,
+        IReadOnlyDictionary<string, Frame> icons, List<Learned> learned,
+        IconCalibration? builtInCalibration, IconCalibration? userCalibration)
     {
         _reference = reference;
         _userFolder = userFolder;
         Operators = operators;
         Icons = icons;
         _learned = learned;
-        _suppressed = suppressed;
-        _referenceCalibration = referenceCalibration;
+        _builtInCalibration = builtInCalibration;
         _userCalibration = userCalibration;
     }
 
@@ -85,30 +82,21 @@ public sealed class OperatorLibrary
     /// <summary>The user's own calibration if any, else the built-in one.</summary>
     public IconCalibration? Calibration
     {
-        get { lock (_lock) return _userCalibration ?? _referenceCalibration; }
+        get { lock (_lock) return _userCalibration ?? _builtInCalibration; }
     }
-
-    /// <summary>True when the reference data is a downloaded update rather than the built-in copy.</summary>
-    public bool UsesDownloadedReference => _reference is FolderAssets;
 
     /// <summary>
-    /// The app's library: built-in reference data (or the user's downloaded update in
-    /// <paramref name="userFolder"/>/reference), plus the user's learned data.
+    /// The app's library: the reference data downloaded into <paramref name="userFolder"/>/reference
+    /// (empty if there is none yet), plus the user's learned data.
     /// </summary>
-    public static Task<OperatorLibrary> LoadAsync(string userFolder, bool includeBuiltInLearned = true)
-    {
-        string downloaded = Path.Combine(userFolder, ReferenceFolderName);
-        IAssetSource reference = File.Exists(Path.Combine(downloaded, ManifestName))
-            ? new FolderAssets(downloaded)
-            : EmbeddedAssets.Instance;
-        return LoadAsync(reference, userFolder, includeBuiltInLearned);
-    }
+    public static Task<OperatorLibrary> LoadAsync(string userFolder) =>
+        LoadAsync(userFolder, Path.Combine(userFolder, ReferenceFolderName));
 
-    /// <summary>A self-contained library folder (reference and learned data together), as the tools use.</summary>
-    public static Task<OperatorLibrary> LoadFolderAsync(string folder) =>
-        LoadAsync(new FolderAssets(folder), folder, includeReferenceLearned: false);
+    /// <summary>A library with its reference data in <paramref name="referenceFolder"/> (tests and tools keep a shared copy).</summary>
+    public static Task<OperatorLibrary> LoadAsync(string userFolder, string referenceFolder) =>
+        LoadAsync(new FolderAssets(referenceFolder), userFolder);
 
-    private static async Task<OperatorLibrary> LoadAsync(IAssetSource reference, string userFolder, bool includeReferenceLearned)
+    private static async Task<OperatorLibrary> LoadAsync(FolderAssets reference, string userFolder)
     {
         var operators = reference.Exists(ManifestName)
             ? JsonSerializer.Deserialize<List<OperatorInfo>>(reference.Read(ManifestName)) ?? []
@@ -124,39 +112,32 @@ public sealed class OperatorLibrary
         var known = operators.Select(o => o.Id).ToHashSet();
 
         var learned = new List<Learned>();
-        if (includeReferenceLearned)
-        {
-            foreach (string path in reference.List(LearnedFolderName))
-            {
-                if (OperatorIdOf(path) is { } id && known.Contains(id))
-                    learned.Add(new Learned("builtin:" + path, id, await ImageFile.LoadAsync(reference.Read(path)), null));
-            }
-        }
         var user = new FolderAssets(userFolder);
         foreach (string path in user.List(LearnedFolderName))
         {
             if (OperatorIdOf(path) is { } id && known.Contains(id) && path.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
             {
                 string file = Path.Combine(user.Root, path);
-                learned.Add(new Learned("user:" + path, id, await ImageFile.LoadAsync(file), file));
+                learned.Add(new Learned(id, await ImageFile.LoadAsync(file), file));
             }
         }
 
-        var suppressed = user.Exists(SuppressedName)
-            ? JsonSerializer.Deserialize<HashSet<string>>(user.Read(SuppressedName)) ?? []
-            : [];
-
-        var referenceCalibration = reference.Exists(CalibrationName)
-            ? JsonSerializer.Deserialize<IconCalibration>(reference.Read(CalibrationName))
+        var userCalibration = user.Exists(CalibrationName)
+            ? JsonSerializer.Deserialize<IconCalibration>(user.Read(CalibrationName))
             : null;
-        // In a self-contained folder the reference and user calibration are the same file.
-        var userCalibration = reference is FolderAssets f && f.Root == user.Root
-            ? null
-            : user.Exists(CalibrationName) ? JsonSerializer.Deserialize<IconCalibration>(user.Read(CalibrationName)) : null;
 
-        return new OperatorLibrary(reference, userFolder, operators, icons, learned, suppressed,
-            referenceCalibration, userCalibration);
+        return new OperatorLibrary(reference, userFolder, operators, icons, learned, BuiltInCalibration.Value, userCalibration);
     }
+
+    /// <summary>
+    /// Where a wiki avatar sits inside a squad portrait, measured once on real gameplay
+    /// (Assets/calibration.json, compiled in). The same for every operator: it's the game's framing.
+    /// </summary>
+    private static readonly Lazy<IconCalibration?> BuiltInCalibration = new(() =>
+    {
+        using var stream = typeof(OperatorLibrary).Assembly.GetManifestResourceStream("calibration.json");
+        return stream is null ? null : JsonSerializer.Deserialize<IconCalibration>(stream);
+    });
 
     // "learned/Laevatain/2026….png" → "Laevatain"
     private static string? OperatorIdOf(string path)
@@ -179,13 +160,12 @@ public sealed class OperatorLibrary
     /// <summary>Decode one of an operator's skill icons.</summary>
     public Task<Frame> LoadSkillIconAsync(SkillIcon icon) => ImageFile.LoadAsync(_reference.Read(icon.File));
 
-    /// <summary>Snapshot of all active learned portraits (built-in ones the user hasn't unlearned, plus the user's).</summary>
+    /// <summary>Snapshot of all learned portraits.</summary>
     internal List<(OperatorInfo Operator, Frame Portrait)> LearnedPortraits()
     {
         lock (_lock)
         {
             return _learned
-                .Where(l => !_suppressed.Contains(l.Key))
                 .Select(l => (Find(l.OperatorId), l.Portrait))
                 .Where(p => p.Item1 is not null)
                 .Select(p => (p.Item1!, p.Portrait))
@@ -195,7 +175,7 @@ public sealed class OperatorLibrary
 
     public int LearnedCount(string id)
     {
-        lock (_lock) return _learned.Count(l => l.OperatorId == id && !_suppressed.Contains(l.Key));
+        lock (_lock) return _learned.Count(l => l.OperatorId == id);
     }
 
     /// <summary>Remember <paramref name="portrait"/> (a squad portrait crop) as <paramref name="op"/>.</summary>
@@ -207,44 +187,42 @@ public sealed class OperatorLibrary
 
         lock (_lock)
         {
-            _learned.Add(new Learned("user:" + relative, op.Id, portrait, file));
-            var mine = _learned.Where(l => l.OperatorId == op.Id && l.UserFile is not null).ToList();
+            _learned.Add(new Learned(op.Id, portrait, file));
+            var mine = _learned.Where(l => l.OperatorId == op.Id).ToList();
             foreach (var oldest in mine.Take(Math.Max(0, mine.Count - MaxLearnedPerOperator)))
             {
-                TryDelete(oldest.UserFile!);
+                TryDelete(oldest.File);
                 _learned.Remove(oldest);
             }
         }
     }
 
-    /// <summary>
-    /// Remove the learned portraits of <paramref name="operatorId"/> that <paramref name="isWrong"/>
-    /// selects: the user's are deleted, built-in ones are switched off for this user.
-    /// </summary>
+    /// <summary>Delete the learned portraits of <paramref name="operatorId"/> that <paramref name="isWrong"/> selects.</summary>
     public int Unlearn(string operatorId, Func<Frame, bool> isWrong)
     {
         lock (_lock)
         {
-            var wrong = _learned.Where(l => l.OperatorId == operatorId && !_suppressed.Contains(l.Key) && isWrong(l.Portrait)).ToList();
-            foreach (var l in wrong) Remove(l);
-            SaveSuppressed();
+            var wrong = _learned.Where(l => l.OperatorId == operatorId && isWrong(l.Portrait)).ToList();
+            foreach (var l in wrong)
+            {
+                TryDelete(l.File);
+                _learned.Remove(l);
+            }
             return wrong.Count;
         }
     }
 
-    /// <summary>Forget every learned portrait, built-in ones included, and the user's calibration.</summary>
+    /// <summary>Forget every learned portrait and the user's calibration.</summary>
     public void ForgetAllLearned()
     {
         lock (_lock)
         {
-            foreach (var l in _learned.ToList()) Remove(l);
-            SaveSuppressed();
+            foreach (var l in _learned) TryDelete(l.File);
+            _learned.Clear();
             string dir = Path.Combine(_userFolder, LearnedFolderName);
-            if (Directory.Exists(dir) && !(_reference is FolderAssets f && f.Root == Path.GetFullPath(_userFolder)))
-                Directory.Delete(dir, recursive: true);
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
             _userCalibration = null;
-            if (!(_reference is FolderAssets f2 && f2.Root == Path.GetFullPath(_userFolder)))
-                TryDelete(Path.Combine(_userFolder, CalibrationName));
+            TryDelete(Path.Combine(_userFolder, CalibrationName));
         }
     }
 
@@ -256,28 +234,6 @@ public sealed class OperatorLibrary
             Directory.CreateDirectory(_userFolder);
             File.WriteAllText(Path.Combine(_userFolder, CalibrationName), JsonSerializer.Serialize(calibration, Json));
         }
-    }
-
-    // Caller holds _lock.
-    private void Remove(Learned learned)
-    {
-        if (learned.UserFile is { } file)
-        {
-            TryDelete(file);
-            _learned.Remove(learned);
-        }
-        else
-        {
-            _suppressed.Add(learned.Key);
-        }
-    }
-
-    // Caller holds _lock.
-    private void SaveSuppressed()
-    {
-        if (_suppressed.Count == 0 && !File.Exists(Path.Combine(_userFolder, SuppressedName))) return;
-        Directory.CreateDirectory(_userFolder);
-        File.WriteAllText(Path.Combine(_userFolder, SuppressedName), JsonSerializer.Serialize(_suppressed.Order(), Json));
     }
 
     private static void TryDelete(string path)

@@ -15,12 +15,11 @@
 
   <ItemGroup>
     <!--
-      Built-in operator library, compiled into this assembly: roster, avatar and skill icons
-      (from endfield.wiki.gg) and portraits learned from gameplay. Refresh with
-      `endhud-cli fetch-operators src/EndHud.Vision/Assets/operators`.
-      Game art: personal use only.
+      The only built-in operator data: where a wiki avatar sits inside a squad portrait (a few
+      numbers measured on gameplay). The roster, avatars and skill icons are game art and are
+      never shipped: they're downloaded from the wiki on first start (OperatorReference).
     -->
-    <EmbeddedResource Include="Assets\operators\**" LogicalName="operators/%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Assets\calibration.json" LogicalName="calibration.json" />
   </ItemGroup>
 
 </Project>

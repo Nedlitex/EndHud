@@ -15,10 +15,20 @@ namespace EndHud;
 internal sealed class PartyMonitor : IDisposable
 {
     /// <summary>
-    /// The user's part of the operator library: learned portraits, calibration and (after
-    /// the tray's "update operator library") a newer roster. The roster and icons themselves are built into EndHud.
+    /// The operator library on this machine: the roster, avatars and skill icons downloaded from
+    /// the wiki (reference/), and the user's learned portraits and calibration. EndHud ships no
+    /// game art, so the first start downloads it.
     /// </summary>
     public static string LibraryFolder { get; } = Path.Combine(ConfigStore.Folder, "operators");
+
+    private static string ReferenceFolder => Path.Combine(LibraryFolder, OperatorLibrary.ReferenceFolderName);
+
+    /// <summary>A downloaded roster older than this is refreshed in the background, to pick up new operators.</summary>
+    private static readonly TimeSpan RefreshAfter = TimeSpan.FromDays(7);
+
+    /// <summary>With no roster at all (first start offline), the download is retried after these waits, then every 30 minutes.</summary>
+    private static readonly TimeSpan[] FirstDownloadRetries =
+        [TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(15), TimeSpan.FromMinutes(30)];
 
     private readonly TimeSpan _interval;
     private readonly CancellationTokenSource _cts = new();
@@ -35,8 +45,11 @@ internal sealed class PartyMonitor : IDisposable
     /// <summary>Operator library progress: an i18n key and its format arguments.</summary>
     public event Action<string, object[]>? LibraryStatus;
 
-    /// <summary>Null until the operator library has loaded (or if it couldn't be downloaded).</summary>
+    /// <summary>Null until the operator library has been downloaded and loaded.</summary>
     public SquadIdentifier? Identifier => _identifier;
+
+    /// <summary>True when the first download of the operator library has failed and is being retried.</summary>
+    public bool LibraryDownloadFailed { get; private set; }
 
     /// <summary>Called from the UI thread whenever the game window or HUD visibility changes.</summary>
     public void SetTarget(IntPtr gameWindow, bool active)
@@ -47,15 +60,12 @@ internal sealed class PartyMonitor : IDisposable
 
     public void Start()
     {
-        _ = Task.Run(() => LoadLibraryAsync(forceDownload: false));
+        _ = Task.Run(KeepLibraryAsync);
         _ = Task.Run(RunAsync);
     }
 
-    /// <summary>
-    /// Download the current roster from the wiki (new operators, new icons) into the user folder;
-    /// it then takes precedence over the built-in copy. Learned portraits are kept.
-    /// </summary>
-    public void UpdateLibrary() => _ = Task.Run(() => LoadLibraryAsync(forceDownload: true));
+    /// <summary>Download the current roster from the wiki now (new operators, new icons). Learned portraits are kept.</summary>
+    public void UpdateLibrary() => _ = Task.Run(() => DownloadLibraryAsync(announce: true));
 
     public Task CorrectAsync(int slotNumber, OperatorInfo? actual) =>
         _identifier?.CorrectAsync(slotNumber, actual) ?? Task.CompletedTask;
@@ -67,37 +77,68 @@ internal sealed class PartyMonitor : IDisposable
         _identifier = new SquadIdentifier(identifier.Library); // drop cached answers too
     }
 
-    private async Task LoadLibraryAsync(bool forceDownload)
+    /// <summary>
+    /// Load the downloaded library if there is one; download it if not (retrying while offline), or
+    /// refresh it in the background if it's old, keeping the current copy in use meanwhile.
+    /// </summary>
+    private async Task KeepLibraryAsync()
     {
-        if (Interlocked.Exchange(ref _libraryBusy, 1) == 1) return;
+        if (OperatorReference.Exists(ReferenceFolder)) await LoadLibraryAsync();
+
+        bool missing = !OperatorReference.Exists(ReferenceFolder);
+        if (!missing && DateTime.UtcNow - OperatorReference.DownloadedAtUtc(ReferenceFolder) < RefreshAfter) return;
+
+        // First start (announced: names are unknown until it's done) or a quiet weekly refresh.
+        for (int attempt = 0; !_cts.IsCancellationRequested; attempt++)
+        {
+            if (await DownloadLibraryAsync(announce: missing) || !missing) return;
+            try
+            {
+                await Task.Delay(FirstDownloadRetries[Math.Min(attempt, FirstDownloadRetries.Length - 1)], _cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+        }
+    }
+
+    /// <summary>Download (or refresh) the reference data and reload the library. False if it failed.</summary>
+    private async Task<bool> DownloadLibraryAsync(bool announce)
+    {
+        if (Interlocked.Exchange(ref _libraryBusy, 1) == 1) return true; // one at a time; the running one reports
         try
         {
-            if (forceDownload)
-            {
-                LibraryStatus?.Invoke("Operators.Downloading", []);
-                using var http = WikiOperatorSource.CreateHttpClient();
-                // Download beside the current copy and swap in only when complete, so a failed
-                // download never leaves a half-written roster in use.
-                string target = Path.Combine(LibraryFolder, OperatorLibrary.ReferenceFolderName);
-                string staging = target + ".new";
-                if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
-                var roster = await WikiOperatorSource.DownloadAsync(staging, http, _cts.Token);
-                if (Directory.Exists(target)) Directory.Delete(target, recursive: true);
-                Directory.Move(staging, target);
-                LibraryStatus?.Invoke("Operators.Updated", [roster.Count]);
-            }
-            _identifier = new SquadIdentifier(await OperatorLibrary.LoadAsync(LibraryFolder));
+            if (announce) LibraryStatus?.Invoke("Operators.Downloading", []);
+            using var http = WikiOperatorSource.CreateHttpClient();
+            var result = await OperatorReference.UpdateAsync(ReferenceFolder, http, _cts.Token);
+            LibraryDownloadFailed = false;
+            await LoadLibraryAsync();
+            if (announce) LibraryStatus?.Invoke("Operators.Updated", [result.Operators]);
+            return true;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException
-                                       or InvalidDataException or JsonException)
+                                       or UnauthorizedAccessException or InvalidDataException or JsonException)
         {
             Debug.WriteLine($"EndHud operator library: {ex}");
-            if (!_cts.IsCancellationRequested) LibraryStatus?.Invoke("Operators.DownloadFailed", []);
+            if (_cts.IsCancellationRequested) return false;
+            bool haveCopy = _identifier is not null;
+            LibraryDownloadFailed = !haveCopy;
+            // A failed background refresh is silent: the current copy keeps working.
+            if (announce) LibraryStatus?.Invoke(haveCopy ? "Operators.UpdateFailed" : "Operators.FirstDownloadFailed", []);
+            return false;
         }
         finally
         {
             Interlocked.Exchange(ref _libraryBusy, 0);
         }
+    }
+
+    private async Task LoadLibraryAsync()
+    {
+        var library = await OperatorLibrary.LoadAsync(LibraryFolder);
+        // An empty library recognises nobody; leave the identifier unset so the menu says why.
+        _identifier = library.IsEmpty ? null : new SquadIdentifier(library);
     }
 
     private async Task RunAsync()

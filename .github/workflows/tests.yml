@@ -28,6 +28,20 @@ jobs:
       - name: Fetch recordings
         run: git lfs pull
 
+      # The operator roster, avatars and skill icons (game art, never committed) are downloaded from
+      # the wiki by the tests on first use. Keep them between runs, refreshed weekly so new
+      # operators are picked up.
+      - name: Week number (operator library cache key)
+        id: week
+        shell: bash
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+      - name: Restore the operator library
+        uses: actions/cache@v4
+        with:
+          path: .cache/operator-library
+          key: operator-library-${{ steps.week.outputs.week }}
+          restore-keys: operator-library-
+
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x

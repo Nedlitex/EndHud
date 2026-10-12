@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -5,14 +6,30 @@ using System.Text.RegularExpressions;
 
 namespace EndHud.Vision.Operators;
 
+/// <param name="Operators">Operators in the downloaded roster.</param>
+/// <param name="Downloaded">Image files fetched from the wiki.</param>
+/// <param name="Reused">Image files copied from the previous copy, unchanged on the wiki.</param>
+/// <param name="Failed">Image files that couldn't be fetched or weren't valid images. Their operator
+/// is still listed if the previous copy had the file (kept as it was) or it was only a skill icon.</param>
+public sealed record WikiDownload(int Operators, int Downloaded, int Reused, int Failed);
+
 /// <summary>
 /// Downloads the operator roster from the community wiki (endfield.wiki.gg): every operator's
-/// icon and Chinese name. The icons are the game's own art, so they stay on this machine
-/// (in the library folder) and are never bundled with EndHud.
+/// avatar, skill icons and Chinese name. The images are the game's own art, so they're fetched
+/// onto the user's machine and never bundled with EndHud.
+/// <para>
+/// New operators need nothing special: the roster is whatever the wiki's Operator page lists.
+/// Requests are retried when the wiki is busy or the network hiccups; one image that can't be
+/// fetched, or isn't a valid image, doesn't sink the whole download.
+/// </para>
 /// </summary>
 public static partial class WikiOperatorSource
 {
     private const string Api = "https://endfield.wiki.gg/api.php";
+
+    /// <summary>Waits between attempts of a request (so a request is tried this many times + 1).</summary>
+    internal static TimeSpan[] RetryDelays = [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(9)];
+    private static readonly TimeSpan MaxRetryAfter = TimeSpan.FromSeconds(30);
     private const string IconSuffix = "_icon.png";
     private const int TitlesPerRequest = 50; // MediaWiki API limit
 
@@ -25,10 +42,12 @@ public static partial class WikiOperatorSource
     }
 
     /// <summary>
-    /// Fetch the roster into <paramref name="folder"/> (portrait icons, skill icons,
-    /// operators.json), replacing the old roster. Learned portraits are left alone.
+    /// Fetch the roster into <paramref name="folder"/> (avatars, skill icons, operators.json). Files
+    /// that <paramref name="previous"/> (an earlier download) already has, unchanged on the wiki,
+    /// are copied from it instead of downloaded; if a file can't be fetched, the previous copy's
+    /// version is kept. Use <see cref="OperatorReference.UpdateAsync"/> to update a library in place.
     /// </summary>
-    public static async Task<IReadOnlyList<OperatorInfo>> DownloadAsync(string folder, HttpClient http,
+    public static async Task<WikiDownload> DownloadAsync(string folder, HttpClient http, string? previous = null,
         CancellationToken ct = default)
     {
         // 1. The "Operator" page's navbox shows one "<Name>_icon.png" per operator (plus facility icons, skipped).
@@ -67,35 +86,96 @@ public static partial class WikiOperatorSource
         //    Skill-Arcane1 + Skill-Arcane2), so take whatever the page itself uses.
         var skillFiles = await SkillFilesByPageAsync(http, names, ct);
 
-        // 4. Download URLs for everything.
-        var urls = await ResolveUrlsAsync(http, iconFiles.Concat(skillFiles.Values.SelectMany(f => f)), ct);
+        // 4. Download URLs and checksums for everything.
+        var files = await ResolveFilesAsync(http, iconFiles.Concat(skillFiles.Values.SelectMany(f => f)), ct);
 
-        string iconFolder = Path.Combine(folder, OperatorLibrary.IconFolderName);
-        Directory.CreateDirectory(iconFolder);
+        int downloaded = 0, reused = 0, failed = 0;
+        // The wiki's SHA-1 of each file we hold. The wiki serves a re-compressed copy, so a file's
+        // own bytes never match the wiki's checksum; we compare with what the wiki said last time.
+        var checksums = new Dictionary<string, string>();
+        var previousChecksums = previous is null ? [] : ReadChecksums(previous);
         var roster = new List<OperatorInfo>();
         for (int i = 0; i < iconFiles.Count; i++)
         {
-            if (!urls.TryGetValue(iconFiles[i], out string? url)) continue;
             string id = names[i].Replace(' ', '_');
             string iconFile = id + ".png";
-            await File.WriteAllBytesAsync(Path.Combine(iconFolder, iconFile), await http.GetByteArrayAsync(url, ct), ct);
+            string iconPath = $"{OperatorLibrary.IconFolderName}/{iconFile}";
+            // Without its avatar an operator can't be recognised, so it's left out.
+            if (!await FetchAsync(files.GetValueOrDefault(iconFiles[i]), iconPath)) continue;
 
             var skills = new List<SkillIcon>();
             foreach (string file in skillFiles.GetValueOrDefault(names[i], []))
             {
-                if (ClassifySkillFile(file) is not { } kind || !urls.TryGetValue(file, out string? skillUrl)) continue;
-                string relative = Path.Combine(OperatorLibrary.SkillFolderName, id, file).Replace('\\', '/');
-                string target = Path.Combine(folder, relative);
-                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                await File.WriteAllBytesAsync(target, await http.GetByteArrayAsync(skillUrl, ct), ct);
-                skills.Add(new SkillIcon(kind, relative));
+                if (ClassifySkillFile(file) is not { } kind) continue;
+                string relative = $"{OperatorLibrary.SkillFolderName}/{id}/{file}";
+                if (await FetchAsync(files.GetValueOrDefault(file), relative)) skills.Add(new SkillIcon(kind, relative));
             }
 
             roster.Add(new OperatorInfo(id, names[i], chinese.GetValueOrDefault(names[i], names[i]), iconFile, skills));
         }
 
         OperatorLibrary.SaveManifest(folder, roster);
-        return roster;
+        File.WriteAllText(Path.Combine(folder, ChecksumsName), JsonSerializer.Serialize(checksums, new JsonSerializerOptions { WriteIndented = true }));
+        return new WikiDownload(roster.Count, downloaded, reused, failed);
+
+        // One image into folder/relative: copied from the previous copy when unchanged on the wiki,
+        // else downloaded and checked to be a valid image. If that fails, the previous copy's
+        // version (if any) is kept. False when the file ends up missing.
+        async Task<bool> FetchAsync(WikiFile? file, string relative)
+        {
+            string target = Path.Combine(folder, relative.Replace('/', Path.DirectorySeparatorChar));
+            string? old = previous is null ? null : Path.Combine(previous, relative.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+
+            string? oldSha1 = previousChecksums.GetValueOrDefault(relative);
+            if (file is not null && file.Sha1 != "" && old is not null && File.Exists(old) && oldSha1 == file.Sha1)
+            {
+                File.Copy(old, target, overwrite: true);
+                checksums[relative] = file.Sha1;
+                reused++;
+                return true;
+            }
+            if (file is not null)
+            {
+                try
+                {
+                    byte[] bytes = await GetBytesAsync(http, file.Url, ct);
+                    await ImageFile.LoadAsync(bytes); // a valid image, not an error page
+                    await File.WriteAllBytesAsync(target, bytes, ct);
+                    checksums[relative] = file.Sha1;
+                    downloaded++;
+                    return true;
+                }
+                catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException
+                                               or InvalidDataException or System.Runtime.InteropServices.COMException
+                                           && !ct.IsCancellationRequested)
+                {
+                    // Fall through to the previous copy.
+                }
+            }
+            failed++;
+            if (old is null || !File.Exists(old)) return false;
+            File.Copy(old, target, overwrite: true);
+            // Keep the old checksum: this is still the old file, so the next update tries again.
+            if (oldSha1 is not null) checksums[relative] = oldSha1;
+            return true;
+        }
+    }
+
+    /// <summary>The wiki's SHA-1 of each downloaded file, by library-relative path.</summary>
+    private const string ChecksumsName = "wiki-sha1.json";
+
+    private static Dictionary<string, string> ReadChecksums(string folder)
+    {
+        string path = Path.Combine(folder, ChecksumsName);
+        try
+        {
+            return File.Exists(path) ? JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(path)) ?? [] : [];
+        }
+        catch (JsonException)
+        {
+            return []; // everything is downloaded again
+        }
     }
 
     /// <summary>"Skill-Laevatain.png" → battle skill, "Combo-…" → combo, "Ult-…" → ultimate; anything else → null.</summary>
@@ -141,24 +221,28 @@ public static partial class WikiOperatorSource
         return result;
     }
 
-    private static async Task<Dictionary<string, string>> ResolveUrlsAsync(HttpClient http, IEnumerable<string> files,
+    /// <summary>Where a wiki file can be downloaded, and its SHA-1 (to skip files that haven't changed).</summary>
+    private sealed record WikiFile(string Url, string Sha1);
+
+    private static async Task<Dictionary<string, WikiFile>> ResolveFilesAsync(HttpClient http, IEnumerable<string> files,
         CancellationToken ct)
     {
-        var urls = new Dictionary<string, string>();
+        var result = new Dictionary<string, WikiFile>();
         foreach (var batch in files.Distinct().Chunk(TitlesPerRequest))
         {
             var json = await GetJsonAsync(http,
-                $"{Api}?action=query&prop=imageinfo&iiprop=url&format=json&formatversion=2&titles="
+                $"{Api}?action=query&prop=imageinfo&iiprop=url|sha1&format=json&formatversion=2&titles="
                 + Uri.EscapeDataString(string.Join('|', batch.Select(f => "File:" + f))), ct);
             foreach (var page in json["query"]!["pages"]!.AsArray())
             {
-                string? url = page!["imageinfo"]?[0]?["url"]?.GetValue<string>();
+                var info = page!["imageinfo"]?[0];
+                string? url = info?["url"]?.GetValue<string>();
                 if (url is null) continue;
                 string file = page["title"]!.GetValue<string>()["File:".Length..].Replace(' ', '_');
-                urls[file] = url;
+                result[file] = new WikiFile(url, info!["sha1"]?.GetValue<string>()?.ToLowerInvariant() ?? "");
             }
         }
-        return urls;
+        return result;
     }
 
     private static Dictionary<string, string> RedirectMap(JsonNode json)
@@ -172,9 +256,37 @@ public static partial class WikiOperatorSource
 
     private static async Task<JsonNode> GetJsonAsync(HttpClient http, string url, CancellationToken ct)
     {
-        await using var stream = await http.GetStreamAsync(url, ct);
-        return await JsonNode.ParseAsync(stream, cancellationToken: ct)
-               ?? throw new InvalidDataException($"Empty response from {url}");
+        byte[] body = await GetBytesAsync(http, url, ct);
+        return JsonNode.Parse(body) ?? throw new InvalidDataException($"Empty response from {url}");
+    }
+
+    /// <summary>
+    /// GET with retries: a busy wiki (429 or 5xx, honouring Retry-After up to 30 s), a dropped
+    /// connection or a timeout is tried again after <see cref="RetryDelays"/>; any other error
+    /// status fails at once.
+    /// </summary>
+    private static async Task<byte[]> GetBytesAsync(HttpClient http, string url, CancellationToken ct)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            bool last = attempt >= RetryDelays.Length;
+            TimeSpan? wait = null;
+            try
+            {
+                using var response = await http.GetAsync(url, ct);
+                if (response.IsSuccessStatusCode) return await response.Content.ReadAsByteArrayAsync(ct);
+                bool busy = response.StatusCode == HttpStatusCode.TooManyRequests || (int)response.StatusCode >= 500;
+                if (!busy || last) response.EnsureSuccessStatusCode();
+                wait = response.Headers.RetryAfter?.Delta;
+            }
+            catch (Exception ex) when (ex is HttpRequestException { StatusCode: null } or TaskCanceledException
+                                       && !ct.IsCancellationRequested && !last)
+            {
+                // Connection failure or timeout: try again.
+            }
+            var delay = wait is { } w && w > TimeSpan.Zero ? (w < MaxRetryAfter ? w : MaxRetryAfter) : RetryDelays[attempt];
+            await Task.Delay(delay, ct);
+        }
     }
 
     [GeneratedRegex(@"^\|\s*cnname\s*=\s*(.+?)\s*$", RegexOptions.Multiline)]

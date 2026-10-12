@@ -85,7 +85,7 @@ static async Task<int> AnalyzeVideoAsync(string path, double everySeconds)
 // Teach the library the squad in a screenshot (slot order), as a user correction would.
 static async Task<int> LearnAsync(string imagePath, string libraryDir, string ids)
 {
-    var library = await OperatorLibrary.LoadFolderAsync(libraryDir);
+    var library = await OperatorLibrary.LoadAsync(libraryDir);
     var identifier = new SquadIdentifier(library);
     var state = await identifier.IdentifyAsync(await new PartyReader(new TextRecognizer()).ReadAsync(await ImageFile.LoadAsync(imagePath)));
     if (!state.PanelVisible)
@@ -138,19 +138,23 @@ static async Task<int> AnalyzeAsync(string imagePath, string? debugDir)
     return 0;
 }
 
-static async Task<int> FetchAsync(string folder)
+// Download (or update) the wiki's roster, avatars and skill icons into <library>/reference, as the
+// app does on first start. Learned portraits in <library>/learned are kept.
+static async Task<int> FetchAsync(string libraryDir)
 {
+    string reference = Path.Combine(libraryDir, OperatorLibrary.ReferenceFolderName);
     using var http = WikiOperatorSource.CreateHttpClient();
-    var roster = await WikiOperatorSource.DownloadAsync(folder, http);
-    foreach (var op in roster) Console.WriteLine($"{op.Id,-16} {op.NameZh}");
-    Console.WriteLine($"{roster.Count} operators -> {Path.GetFullPath(folder)}");
+    var result = await OperatorReference.UpdateAsync(reference, http);
+    var library = await OperatorLibrary.LoadAsync(libraryDir);
+    foreach (var op in library.Operators) Console.WriteLine($"{op.Id,-16} {op.NameZh}");
+    Console.WriteLine($"{result.Operators} operators ({result.Downloaded} images downloaded, {result.Reused} unchanged, {result.Failed} failed) -> {Path.GetFullPath(reference)}");
     return 0;
 }
 
 static async Task<int> IdentifyAsync(string imagePath, string libraryDir, string? debugDir)
 {
     var frame = await ImageFile.LoadAsync(imagePath);
-    var library = await OperatorLibrary.LoadFolderAsync(libraryDir);
+    var library = await OperatorLibrary.LoadAsync(libraryDir);
     if (library.IsEmpty)
     {
         Console.Error.WriteLine($"library {libraryDir} is empty; run fetch-operators first");
