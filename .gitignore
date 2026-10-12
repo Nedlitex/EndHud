@@ -12,3 +12,7 @@ Thumbs.db
 
 # dotnet publish output
 publish/
+
+# Full, unmasked gameplay recordings the test clips are cut from. They show the player UID,
+# so they are never committed. See tests/EndHud.Vision.Tests/Recordings/README.md.
+original-recordings/

@@ -28,6 +28,22 @@ B-frames and with a keyframe every 1–3 s, so frame-accurate seeking matches th
 The two battle files are one recording split at the rewards/loading screen between the
 fights, to keep each file small.
 
+## Originals
+
+The full, unmasked recordings are kept locally in `original-recordings/` at the repository root.
+That folder is git-ignored because the originals show the player UID. Each clip here was cut from:
+
+| Clip | Original | Cut |
+|---|---|---|
+| `combat.mp4` | `combat-ultimate-and-combos.mp4` | whole file |
+| `ultimate-charging.mp4` | `ultimate-charging.mp4` | whole file |
+| `out-of-combat.mp4` | `out-of-combat-exploring.mp4` | whole file |
+| `battle-fight1.mp4` | `boss-battle-two-fights-and-wipe.mp4` | `-ss 6 -to 116` |
+| `battle-fight2.mp4` | `boss-battle-two-fights-and-wipe.mp4` | `-ss 128` |
+
+`loading-into-arena-and-first-combat.mp4` (33 s: loading screen, entering the arena, the first
+seconds of combat) isn't used by any test yet.
+
 Encoding, from an original recording (add `-ss`/`-to` to cut):
 
 ```
