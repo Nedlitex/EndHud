@@ -22,6 +22,8 @@ public partial class OverlayWindow
     private static readonly TimeSpan SlideInTime = TimeSpan.FromMilliseconds(320);
     private static readonly TimeSpan SlideOutTime = TimeSpan.FromMilliseconds(200);
     private const double SlideDistance = 160;
+    private const double BannerHeight = 72, BannerGap = 6;
+    private static readonly TimeSpan GapTime = TimeSpan.FromMilliseconds(220);
 
     private readonly ComboHints _hints = new();
     private readonly Stopwatch _clock = Stopwatch.StartNew();
@@ -33,7 +35,9 @@ public partial class OverlayWindow
     private bool _loadingComboHintSettings;
 
     /// <summary>A banner on screen. <paramref name="Key"/> is who it's for, so a banner is only replaced when that changes.</summary>
-    private sealed record HintBanner(int Slot, string Key, Border Element, Func<UIElement> BuildContent);
+    /// <paramref name="Holder"/> is the banner's space in the stack: it opens and closes, so the
+    /// banners below glide to their new place instead of jumping.
+    private sealed record HintBanner(int Slot, string Key, Border Element, Grid Holder, Func<UIElement> BuildContent);
 
     private void InitComboHintSettings()
     {
@@ -97,7 +101,7 @@ public partial class OverlayWindow
         foreach (var banner in _banners.Where(b => !wanted.Any(w => w.Number == b.Slot && w.Key == b.Key)).ToList())
         {
             _banners.Remove(banner);
-            SlideOut(banner.Element);
+            SlideOut(banner);
         }
         foreach (var (number, key, slot) in wanted)
         {
@@ -106,12 +110,13 @@ public partial class OverlayWindow
                 ? () => BannerContent(null, null, Loc.Get("ComboHint.Sample"))
                 : () => OperatorBannerContent(slot);
             var element = Banner(build());
-            element.Tag = number;
-            // In slot order; banners still sliding out count too, so nothing jumps.
+            var holder = new Grid { Tag = number, Height = 0, Children = { element } };
+            // In slot order; banners still sliding out count too.
             int index = ComboHintStack.Children.OfType<FrameworkElement>().Count(c => c.Tag is int n && n < number);
-            ComboHintStack.Children.Insert(index, element);
-            _banners.Add(new HintBanner(number, key, element, build));
-            SlideIn(element);
+            ComboHintStack.Children.Insert(index, holder);
+            var banner = new HintBanner(number, key, element, holder, build);
+            _banners.Add(banner);
+            SlideIn(banner);
         }
     }
 
@@ -140,8 +145,8 @@ public partial class OverlayWindow
     private Border Banner(UIElement content) => new()
     {
         MinWidth = 280,
-        Height = 72,
-        Margin = new Thickness(0, 0, 0, 6),
+        Height = BannerHeight,
+        VerticalAlignment = VerticalAlignment.Center,
         Background = new LinearGradientBrush(Color.FromArgb(0xE6, 0x10, 0x14, 0x18), Color.FromArgb(0x30, 0x10, 0x14, 0x18), 0),
         BorderBrush = (Brush)FindResource("Accent"),
         BorderThickness = new Thickness(5, 0, 0, 0),
@@ -150,23 +155,27 @@ public partial class OverlayWindow
     };
 
     /// <summary>Slides in from the left and fades in, with the gold edge flaring and settling, so it catches the eye.</summary>
-    private static void SlideIn(Border banner)
+    private static void SlideIn(HintBanner hint)
     {
+        var banner = hint.Element;
         var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        hint.Holder.BeginAnimation(HeightProperty, new DoubleAnimation(0, BannerHeight + BannerGap, GapTime) { EasingFunction = ease });
         Translation(banner).BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(-SlideDistance, 0, SlideInTime) { EasingFunction = ease });
         banner.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, SlideInTime));
         banner.BeginAnimation(Border.BorderThicknessProperty, new ThicknessAnimation(new Thickness(18, 0, 0, 0), new Thickness(5, 0, 0, 0),
             TimeSpan.FromMilliseconds(600)) { BeginTime = SlideInTime / 2, EasingFunction = ease });
     }
 
-    /// <summary>Slides back out to the left and fades away, then leaves the stack.</summary>
-    private void SlideOut(Border banner)
+    /// <summary>Slides back out to the left and fades away; then its space closes and it leaves the stack.</summary>
+    private void SlideOut(HintBanner hint)
     {
-        var fade = new DoubleAnimation(0, SlideOutTime);
-        fade.Completed += (_, _) => ComboHintStack.Children.Remove(banner);
+        var banner = hint.Element;
         Translation(banner).BeginAnimation(TranslateTransform.XProperty,
             new DoubleAnimation(-SlideDistance / 2, SlideOutTime) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } });
-        banner.BeginAnimation(OpacityProperty, fade);
+        banner.BeginAnimation(OpacityProperty, new DoubleAnimation(0, SlideOutTime));
+        var close = new DoubleAnimation(0, GapTime) { BeginTime = SlideOutTime * 0.75, EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut } };
+        close.Completed += (_, _) => ComboHintStack.Children.Remove(hint.Holder);
+        hint.Holder.BeginAnimation(HeightProperty, close);
     }
 
     private static TranslateTransform Translation(Border banner) =>
