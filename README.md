@@ -1,326 +1,126 @@
 # EndHud
 
-**An external HUD overlay for *Arknights: Endfield*.** EndHud runs as its own Windows tray app
-and draws extra information over the game. Its main feature is a **combo-ready hint**: a banner
-telling you when an operator's combo skill comes off cooldown.
+**《明日方舟：终末地》的游戏辅助面板。** 战斗中，干员的连携技冷却一结束，EndHud 就在屏幕上弹出提示，让你不错过任何一次连携。
 
-It gets everything by **looking at the screen**, the same way OBS's window capture does. It
-never opens, reads, writes or injects into the game process, never hooks the game, and never
-sends input to it.
+![EndHud 在游戏中：左侧是连携就绪提示，下方是游戏自带的小队栏](docs/images/hud-in-game.jpg)
 
-> ⚠️ Using any third-party tool with an online game is at your own risk. The game uses the ACE
-> anti-cheat, and Gryphline's terms may restrict third-party software. EndHud is designed to
-> stay outside the game process, but that is not a guarantee of anything.
+EndHud 是一个独立运行的小程序，只通过**看屏幕**来获取信息，和录屏软件截取游戏画面的方式一样。它**不会**打开、读取或修改游戏进程，不注入任何代码，也不会替你操作游戏。
+
+> ⚠️ 在网络游戏中使用任何第三方工具都有风险，请自行判断。游戏使用 ACE 反作弊，运营方的用户协议也可能限制第三方软件。EndHud 的设计完全在游戏进程之外运行，但这不代表任何保证。
 
 ---
 
-## What it shows
+## 功能
 
-### Combo-ready hint
+### 连携就绪提示
 
-In combat, when an operator's combo skill comes off cooldown, a banner slides in showing that
-operator's avatar and combo skill icon (both from the built-in operator library), their name and
-"combo ready". It's styled after the game's own combo banner, slides in from the left with its gold
-edge flaring, slides out when it ends, and sits left of the screen's centre by default. An operator
-EndHud hasn't recognised gets a banner with just their slot number.
+战斗中，某位干员的连携技冷却结束时，屏幕上会滑入一条提示：干员头像、连携技图标、干员名字和“连携就绪”。样式参照游戏自带的连携提示，默认显示在屏幕中央偏左的位置。
 
-- **Two modes** (menu → combo-ready hint section): show for a few seconds when the cooldown
-  finishes (2, 3 or 5 s; default 3 s), or show for as long as the combo skill stays ready.
-- **Move it**: open the menu (Ctrl+Shift+M) and drag the banner. "Reset position" puts it back.
-  The spot is saved relative to the game window, so it survives resizing.
-- A cooldown refreshed early by a skill (the bar jumps straight to ready) counts the same as one
-  that refilled. A cooldown that finishes during an ultimate cutscene is hinted when the HUD
-  comes back.
-- No hint out of combat, for a fallen operator, or for a combo skill that is simply ready when a
-  fight starts.
+![连携就绪提示：每位冷却结束的干员一条](docs/images/combo-banners.jpg)
 
-### Debug panel
+- **两种显示方式**（在菜单里选择）：
+  - **冷却结束时提示**：冷却结束时显示几秒（2、3 或 5 秒，默认 3 秒），然后自动滑出。
+  - **冷却结束后一直显示，直到再次使用**：只要连携技处于就绪状态就一直显示。
+- **位置可以拖动**：打开菜单（Ctrl+Shift+M）后，直接用鼠标拖动屏幕上的提示框；“恢复默认位置”可以放回原处。位置按游戏窗口的比例保存，改变窗口大小后仍在相同位置。
+- 被技能提前刷新的冷却（冷却条直接跳满）同样会提示；在终结技动画期间结束的冷却，会在画面恢复后提示。
+- 非战斗状态、已阵亡的干员，以及战斗一开始就已就绪的连携技不会提示。
 
-Everything EndHud reads, for checking it (the "debug panel" checkbox in the menu, the tray, or
-Ctrl+Shift+D). Off by default. It lists, per squad slot:
+### 自动识别干员
 
-```
-ENDHUD
-Tracking: <game window title>
-Squad
-<operator>  level 90  HP 83%
-    combo ready        ultimate charging 44%
-<operator>  level 90  HP 100%
-    combo cooling 37%  ultimate ready
-<operator>  fallen
-…
-```
+EndHud 会根据小队栏的头像自动识别四位干员，提示中显示对应的名字和头像。内置全部 34 位干员的头像和技能图标，无需联网。
 
-(Shown in Chinese, like the rest of the interface.)
+第一次识别可能不准。在菜单的“干员识别”中为每个位置选择正确的干员，EndHud 会记住该干员在游戏中的样子，之后就能准确识别。识别不出的位置显示为“n 号位”。
 
-| Field | Where it's read from | How |
+### 调试面板
+
+想看 EndHud 识别到了什么，可以打开调试面板（菜单里勾选“显示调试面板”，或按 Ctrl+Shift+D）：每位干员的生命值、连携技冷却、终结技充能，以及等级。默认关闭。
+
+![调试面板](docs/images/debug-panel.jpg)
+
+---
+
+## 安装
+
+1. 打开本项目的 **Releases** 页面，下载最新版本的 `EndHud-版本号.msi`。
+2. 双击运行安装程序。只为当前用户安装，**不需要管理员权限**，安装完成后开始菜单里会出现“EndHud”。
+3. 以后安装新版本会直接覆盖旧版本，设置和已学习的头像都会保留。
+
+> 首次运行时，Windows 可能提示“Windows 已保护你的电脑”（安装包暂未进行代码签名）。点击“更多信息”→“仍要运行”即可。
+
+**不想安装？** 同一页面还提供 `EndHud-版本号-portable.exe`，下载后直接双击运行即可，效果相同。
+
+**卸载**：在“设置 → 应用 → 安装的应用”中找到 EndHud，点击卸载。
+
+### 系统要求
+
+- Windows 10（2004 或更新版本）或 Windows 11。
+- 游戏需使用**无边框窗口**或**窗口**模式。独占全屏模式下任何程序都无法显示在游戏上方。
+- 无需另外安装 .NET 或其他组件。
+
+---
+
+## 使用方法
+
+1. 运行 EndHud，它会出现在屏幕右下角的**系统托盘**中（一个金色的“E”图标）。
+2. 切换到游戏，EndHud 会自动显示；切换到其他窗口时自动隐藏。
+3. 进入战斗后，连携技冷却结束时就会弹出提示。
+
+### 快捷键
+
+| 快捷键 | 作用 |
+|---|---|
+| **Ctrl+Shift+M** | 打开/关闭菜单（设置、调整提示位置、选择干员） |
+| **Ctrl+Shift+H** | 显示/隐藏 HUD |
+| **Ctrl+Shift+D** | 显示/隐藏调试面板 |
+| **Ctrl+Shift+Q** | 退出 EndHud |
+| **Esc** | 关闭菜单 |
+
+### 菜单设置
+
+按 Ctrl+Shift+M 打开菜单，所有设置都会自动保存：
+
+- **游戏窗口获得焦点时自动显示 HUD**：关闭后，需要按 Ctrl+Shift+H 手动显示。
+- **识别小队栏**：连携就绪提示需要此项。
+- **显示调试面板**。
+- **连携就绪提示**：开关、显示方式、显示时长、恢复默认位置。
+- **干员识别**：为每个位置选择正确的干员；“清除所有已学习的头像”可以重新开始。
+
+右键托盘图标还可以：查看是否检测到游戏、切换自动显示和调试面板、**更新干员头像库**（游戏推出新干员后，从 Wiki 下载最新的头像和技能图标）、打开配置文件夹、退出。
+
+---
+
+## 支持的分辨率
+
+在台式显示器和笔记本上都可以使用，与 Windows 的显示缩放比例（100%–200%）无关，提示框始终占游戏窗口相同的比例。
+
+| 游戏窗口 | 连携提示、生命值、终结技、阵亡 | 等级（仅调试面板） |
 |---|---|---|
-| Operator name | squad portraits, bottom-left | matched against built-in references (see [Recognising operators](#recognising-operators)) |
-| Level | "LV.90" under each portrait (outside combat) | Windows' built-in OCR |
-| HP | HP bar under each portrait | how much of the bar is coloured |
-| Combo skill | thin bar above each HP bar (in combat) | grey refill → "cooling NN%", white → "ready" |
-| Ultimate | small circle above each battle skill button, bottom-right | coloured arc growing clockwise from 12 o'clock → "charging NN%"; full colour + icon → "ready" |
-| Fallen | the "⊘" on a hatched square that replaces a fallen operator's portrait | ring shape + empty HP bar; stays fallen until clearly revived |
-
-The whole interface is in Chinese. Strings live in [`src/EndHud/i18n/zh-CN.xaml`](src/EndHud/i18n/zh-CN.xaml).
+| 4K、5K、2560×1440 及同级别（含 21:9、16:10 带鱼屏） | ✅ | ✅ 大部分可识别 |
+| 1920×1080 及同级别、1600×900 | ✅ | 约一半可识别 |
+| 1366×768、1280×720 | ✅ | 不识别 |
 
 ---
 
-## Requirements
+## 常见问题
 
-- Windows 10 2004 or later, or Windows 11 (EndHud uses Windows.Graphics.Capture and Windows OCR).
-- The game in **borderless windowed** mode. In exclusive fullscreen nothing can draw on top of it.
-- An installed Windows OCR language: English or Chinese. Every Chinese or English Windows has one.
-- To build: the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
+**游戏里看不到 EndHud？**
+确认游戏使用无边框窗口或窗口模式，并且 EndHud 正在托盘中运行。也可以按 Ctrl+Shift+H 手动显示。
 
-## Build and run
+**名字显示成“1 号位”或认错了人？**
+按 Ctrl+Shift+M 打开菜单，在“干员识别”中为该位置选择正确的干员，EndHud 会记住。
 
-```powershell
-dotnet build -c Release
-dotnet run --project src/EndHud -c Release
-```
+**提示偶尔晚一点出现？**
+EndHud 每秒读取一次画面，所以提示最多会比冷却结束晚一秒左右。被特效遮挡时，会沿用上一次读到的结果，下次读取时自动更正。
 
-Or produce a single `EndHud.exe` with everything inside it, operator icons included:
-
-```powershell
-dotnet publish src/EndHud -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish
-```
-
-That needs the .NET 8 Desktop Runtime on the machine. Add `--self-contained true` to bundle the
-runtime too, which makes a larger exe.
-
-## Releases
-
-Push a version tag and GitHub builds a release:
-
-```powershell
-git tag v1.2.0
-git push origin v1.2.0
-```
-
-[`.github/workflows/release.yml`](.github/workflows/release.yml) runs the tests, then attaches two
-files to a new release on the repository's Releases page:
-
-- `EndHud-1.2.0.msi`: the installer. It installs for the current user (no administrator prompt),
-  adds a Start menu shortcut, and upgrades an older version in place. See
-  [`installer/README.md`](installer/README.md).
-- `EndHud-1.2.0-portable.exe`: the same program as one file, to run without installing.
-
-Both include .NET, so nothing else needs installing. Tags must look like `v1.2.0`. "Run workflow"
-on the Actions tab does a dry run: it builds both files and attaches them to the run without
-creating a release. The files aren't code-signed yet, so Windows SmartScreen warns about an
-unrecognised app the first time.
+**设置保存在哪里？**
+`%APPDATA%\EndHud`。右键托盘图标选择“打开配置文件所在文件夹”即可找到；删除其中的 `config.json` 可以恢复默认设置。
 
 ---
 
-## Using it
+## 开发者
 
-EndHud starts in the **system tray**, and the HUD appears whenever the game window has focus.
+构建、测试、发布流程和技术细节见 [DEVELOPER.md](DEVELOPER.md)（英文）。
 
-| Hotkey | Action |
-|---|---|
-| **Ctrl+Shift+M** | Open/close the menu: settings, and correcting operator names |
-| **Ctrl+Shift+H** | Show/hide the HUD |
-| **Ctrl+Shift+D** | Show/hide the debug panel |
-| **Ctrl+Shift+Q** | Quit |
-| **Esc** | Close the menu |
+## 关于游戏素材
 
-Right-click the tray icon for: status, show HUD, open menu, auto-show on/off, debug panel on/off, **update the operator library** (from the wiki), open the config folder, and quit.
-
-### Settings
-
-`%APPDATA%\EndHud\config.json` is created on first start. The menu changes it for you; if you
-edit it by hand, restart EndHud. Delete the file to reset.
-
-| Key | Default | Meaning |
-|---|---|---|
-| `AutoShowOnGameFocus` | `true` | Show the HUD when the game has focus and hide it otherwise. When `false`, the HUD only shows after Ctrl+Shift+H. |
-| `PartyOcrEnabled` | `true` | Read the squad panel (names, HP, skills, levels). |
-| `OcrIntervalMs` | `1000` | How often the squad panel is read (minimum 250). |
-| `Language` | `zh-CN` | UI language: picks `i18n/<Language>.xaml`. |
-| `DebugPanel` | `false` | Show the debug panel. |
-| `ComboHintEnabled` | `true` | Show the combo-ready hint (needs `PartyOcrEnabled`). |
-| `ComboHintMode` | `WhenReady` | `WhenReady`: for `ComboHintSeconds` after the cooldown finishes. `WhileReady`: until the combo skill is used. |
-| `ComboHintSeconds` | `3` | How long a `WhenReady` hint stays up. |
-| `ComboHintX`, `ComboHintY` | `0.2`, `0.36` | Where the hint sits: its top-left corner as a fraction of the game window's width and height. |
-
-### Command-line options
-
-| Option | Purpose |
-|---|---|
-| `--target "<title text>"` | Track any window whose title contains this text instead of the game. Useful to try EndHud without the game, for example over a video of gameplay. |
-| `--hide-from-capture` | Keep the HUD out of screenshots and recordings. |
-
-EndHud finds the game as a Unity window whose title contains "Endfield" or the game's Chinese title.
-
----
-
-## Recognising operators
-
-The game shows no operator names in the squad panel, so EndHud identifies each portrait.
-
-1. **Built-in references.** Every operator's avatar, their battle skill, combo and ultimate icons and
-   Chinese name (34 operators, from [endfield.wiki.gg](https://endfield.wiki.gg/wiki/Operator)),
-   plus portraits learned from real gameplay, are **compiled into EndHud**. Nothing is
-   downloaded or copied at startup, and recognition works offline.
-2. **First guess.** Portraits are compared with the avatars by face/hair layout and colour.
-   A guess is shown only when it clearly wins; otherwise the slot shows **"slot n"**.
-3. **Learning from you.** In the menu (Ctrl+Shift+M) each slot has a dropdown, sorted by most
-   likely operator first. Picking a name saves that in-game portrait, and from then on that
-   operator is recognised reliably, at any resolution. EndHud never learns from its own
-   guesses, so a wrong guess can't make itself permanent.
-4. **Correcting and clearing.** Picking a different name later removes the wrong learned
-   portraits and saves the right one. "Forget all learned portraits" clears everything learned.
-   Built-in portraits can't be deleted from the exe, so they are switched off for you instead.
-
-Your own data lives in `%APPDATA%\EndHud\operators\`:
-
-| Path | Contents |
-|---|---|
-| `learned/<operator>/*.png` | portraits learned from your picks |
-| `suppressed.json` | built-in portraits you've unlearned |
-| `calibration.json` | where avatars sit inside a squad portrait, if yours differs from the built-in one |
-| `reference/` | a newer roster from **update the operator library**; used instead of the built-in one while present |
-
-Si and Argent Flow have no skill icons on the wiki yet; they're recognised by portrait only.
-
----
-
-## Tests
-
-```powershell
-git lfs install   # once: the gameplay recordings are stored with Git LFS
-dotnet test -c Release
-```
-
-All tests run from what's in the repository. They also run on every push to `main`, on pull
-requests and before every release, on a GitHub-hosted Windows runner
-([`.github/workflows/tests.yml`](.github/workflows/tests.yml)). The two real-capture tests are the
-exception: hosted runners can't capture windows, so they only run on a developer machine
-(`dotnet test` includes them; CI skips `Category=Desktop`).
-
-- **Fixture frames** ([`tests/EndHud.Vision.Tests/Fixtures`](tests/EndHud.Vision.Tests/Fixtures)):
-  a 4K exploration screenshot and frames from gameplay recordings, UID blacked out. They cover
-  level, HP, combo and ultimate readings in exploration, combat, low HP, a dimmed squad, a heal,
-  and with operators fallen.
-- **Recognition:** guessing, learning, correcting and clearing.
-- **Built-in library:** contents, and how user data layers on top of it.
-- **Real capture:** a stand-in game window (shows a full-screen window for a few seconds).
-- **Gameplay recordings** ([`tests/EndHud.Vision.Tests/Recordings`](tests/EndHud.Vision.Tests/Recordings),
-  Git LFS, HUD areas only): whole fights replayed, checking that values change the way the game
-  showed them. Examples:
-  - combo cooldowns refill steadily;
-  - the ultimate charge only grows;
-  - an ultimate is never read in the wrong state on any frame;
-  - out of combat, no combo bar is ever reported;
-  - through a full boss battle, the panel is followed and operators fall one by one and stay fallen;
-  - once read, the panel and ultimates never go blank: unreadable moments keep the last value;
-  - the combo-ready hint fires exactly when each cooldown finishes, including during cutscenes, and
-    never for an operator who falls mid-cooldown.
-
-  See that folder's README for what each recording contains.
-- **Other screen sizes**, simulated from the 4K fixtures and recordings (see
-  [`SimulatedScreen`](tests/EndHud.Vision.Tests/SimulatedScreen.cs)): desktop monitors (5K,
-  2560×1440, 1920×1080, 1920×1200, 21:9 and 32:9 ultrawides), laptop panels (1280×720, 1366×768,
-  1600×900, 2560×1600, 2880×1800, and 3:2 at 2256×1504 and 3000×2000) and the game in a 1700×956
-  window. At every size, each value read must match the 4K reading (unreadable is allowed, wrong
-  is not), and enough values must be read. The combo-ready hint must fire at the same moments on a
-  1080p, 720p, 1366×768, 21:9, 16:10 and 3:2 screen.
-- **Laptop vs desktop display scaling** ([`tests/EndHud.Tests`](tests/EndHud.Tests)): the
-  combo-ready banner's size and position for game windows from 1280×720 to 5K at 100–200% display
-  scaling, and a real capture of the game in an ordinary window with a title bar, checking that
-  only its client area is read.
-
-  16:9 sizes are the 4K frames scaled down, which is close to a real smaller screen. The other
-  aspect ratios follow the layout EndHud assumes (the HUD fits 16:9 and each element keeps its
-  distance from its own corner), so they test EndHud's handling of that layout, not that the game
-  uses it. A real screenshot at 16:10 or 21:9 would confirm it.
-
-## Developer tool
-
-`endhud-cli` (in `src/EndHud.Cli`) runs the same readers outside the app:
-
-| Command | Purpose |
-|---|---|
-| `analyze <screenshot>` `[--debug-dir <dir>]` | Read the squad panel from a screenshot. `--debug-dir` saves the exact images given to OCR. |
-| `analyze-video <video>` `[--every <s>]` | HP, combo cooldown and ultimate charge per slot over a recording. |
-| `capture <window title text> <out.png>` | Grab one frame from a window (e.g. the game) through the HUD's capture path. |
-| `identify <screenshot> --library <dir>` | Show the top operator candidates for each slot. |
-| `learn <screenshot> --library <dir> --slots A,B,C,D` | Teach a library the squad in a screenshot (operator ids, slot order). |
-| `fetch-operators <dir>` | Download the roster, avatars and skill icons from the wiki. |
-
-To refresh the built-in library after new operators are released:
-
-```powershell
-dotnet run --project src/EndHud.Cli -c Release -- fetch-operators src/EndHud.Vision/Assets/operators
-```
-
-That keeps the learned portraits already in that folder.
-
----
-
-## Project layout
-
-```
-src/EndHud/              the tray app: overlay window (debug panel, combo-ready hint), menu, tray icon, config, i18n
-src/EndHud.Vision/       everything that reads the screen
-  Capture/               Windows.Graphics.Capture of a single window
-  Operators/             operator library, portrait matching, learning
-  Assets/operators/      built-in library (embedded into the assembly)
-  PartyReader.cs         squad panel: level, HP, combo, portraits
-  UltimateGauge.cs       ultimate circles
-  PartyTracker.cs        carries readings over (deaths, values that are briefly unreadable)
-  ComboHints.cs          when to show the combo-ready hint
-src/EndHud.Cli/          endhud-cli developer tool
-tests/EndHud.Vision.Tests/ tests of everything that reads the screen (fixtures, recordings, screen sizes)
-tests/EndHud.Tests/      tests of the tray app (banner layout at any display scaling, windowed capture)
-.github/workflows/       CI: tests on every push (tests.yml); releases from version tags (release.yml)
-installer/               the MSI installer (WiX)
-```
-
-Screen positions are measured on 3840×2160 and scaled to the game window's size, each element
-keeping its distance from its corner of the window. What works at each size, tested on simulated
-screens (see [Tests](#tests)); "read" is the share of levels read on the test frames:
-
-| Game window | HP, combo, ultimate, fallen | Level (debug panel only) |
-|---|---|---|
-| 4K, 5K, 1440p class (2560×1440, 3440×1440, 2560×1600, 5120×1440), 3000×2000 | all | 80–100% read |
-| 1080p class (1920×1080, 1920×1200, 2560×1080), 2880×1800, 2256×1504, 1600×900 | all | 40–53% read |
-| 1366×768, 1280×720 | all (HP within about 8%) | not read |
-
-A level that isn't read keeps its last value; one that might be wrong is not shown: two OCR
-attempts must agree, and only levels 10 to 90 (the game's cap) are accepted. Levels 1–9 are
-shown as unknown, because a "9" is usually "90" with a digit lost. EndHud doesn't read the ping.
-
-Display scaling (125–200% on most laptops) doesn't change what's read: the game draws in real
-pixels and EndHud captures them. The combo-ready banner is sized from the game window's real
-pixels, so it looks the same on a laptop at 150% as on a desktop at 100%.
-
-## Adding a language
-
-Copy `src/EndHud/i18n/zh-CN.xaml` to, for example, `en-US.xaml`, translate the values (keep `{0}`,
-`{1}`), rebuild, and set `"Language": "en-US"` in `config.json`.
-
-## Known limits
-
-- The ultimate charge has only been observed up to about 46%; no recording yet shows one filling completely.
-- When something can't be read (cutscenes, HUD fades, skill effects covering an indicator), the HUD
-  keeps showing the last value it read. So a value can be a few seconds old,
-  for example a combo skill used at the moment its bar was hidden still shows "ready" until the bar is read again.
-  After the squad panel leaves the screen (menus, the map) the last squad reading also stays up.
-- Everything is tuned on 4K recordings; other sizes are tested on frames scaled from them, not on
-  real recordings at those sizes. 16:10 and 21:9 assume the HUD is laid out as described above.
-- At 1366×768 and smaller, levels aren't read, and out of combat the squad panel can't always be
-  recognised (its edge marks are under two pixels wide). Both only affect the debug panel.
-- Levels 1–9 are shown as unknown (see above).
-- The combo-ready hint needs two "cooling" readings in a row before it trusts that a combo skill was used,
-  because the bar is briefly drawn as an empty track while the HUD fades in. A cooldown
-  refreshed within about two seconds of being used therefore gets no hint.
-- Hints follow the squad panel reading, once a second by default (`OcrIntervalMs`), so a hint can
-  appear up to a second after the cooldown finishes.
-
-## Game art
-
-The built-in library and the test fixtures contain game art from the community wiki and frames
-of gameplay. They're included for personal use. Keep the repository private, or remove them
-before publishing it.
+内置的干员头像、技能图标和本页截图来自社区 Wiki 与游戏画面，仅供个人使用。
