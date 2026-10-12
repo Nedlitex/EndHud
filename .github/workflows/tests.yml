@@ -62,6 +62,7 @@ jobs:
       # needs an interactive desktop. Whether hosted runners provide one is being found out; this
       # step's result is reported separately and doesn't fail the run until that's settled.
       - name: Test real window capture (needs a desktop session)
+        if: success() || failure()
         continue-on-error: true
         run: dotnet test -c Release --no-build --filter "Category=Desktop" --logger "console;verbosity=normal"
 

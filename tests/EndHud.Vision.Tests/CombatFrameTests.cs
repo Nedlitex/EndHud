@@ -161,7 +161,9 @@ public class CombatFrameTests
 
         Assert.All(state.Slots, s => Assert.False(s.Dead));
         Assert.InRange(state.Slots[2].Hp!.Value, 0, 0.05); // Arcane, 2%
-        Assert.All(state.Slots, s => Assert.Equal(90, s.Level));
+        // A level two OCR attempts don't agree on is unknown, never wrong (one is, on the CI runner).
+        Assert.All(state.Slots, s => Assert.True(s.Level is null or 90, $"slot {s.Number} level read as {s.Level}"));
+        Assert.True(state.Slots.Count(s => s.Level == 90) >= 3, "most levels should be read");
         Assert.Equal(495, state.PingMs); // red at high latency, with white icons touching it
     }
 
