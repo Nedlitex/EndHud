@@ -10,6 +10,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- The tray icon's design (a gold "E" on a dark tile), for the exe, taskbar and installer. -->
+    <ApplicationIcon>EndHud.ico</ApplicationIcon>
     <AssemblyName>EndHud</AssemblyName>
     <RootNamespace>EndHud</RootNamespace>
     <!-- WinForms analyzer wants DPI set via its API; this is a WPF app, where the manifest is the right place. -->

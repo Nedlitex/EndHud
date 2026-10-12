@@ -89,6 +89,28 @@ dotnet publish src/EndHud -c Release -r win-x64 --self-contained false -p:Publis
 That needs the .NET 8 Desktop Runtime on the machine. Add `--self-contained true` to bundle the
 runtime too, which makes a larger exe.
 
+## Releases
+
+Push a version tag and GitHub builds a release:
+
+```powershell
+git tag v1.2.0
+git push origin v1.2.0
+```
+
+[`.github/workflows/release.yml`](.github/workflows/release.yml) runs the tests, then attaches two
+files to a new release on the repository's Releases page:
+
+- `EndHud-1.2.0.msi`: the installer. It installs for the current user (no administrator prompt),
+  adds a Start menu shortcut, and upgrades an older version in place. See
+  [`installer/README.md`](installer/README.md).
+- `EndHud-1.2.0-portable.exe`: the same program as one file, to run without installing.
+
+Both include .NET, so nothing else needs installing. Tags must look like `v1.2.0`. "Run workflow"
+on the Actions tab does a dry run: it builds both files and attaches them to the run without
+creating a release. The files aren't code-signed yet, so Windows SmartScreen warns about an
+unrecognised app the first time.
+
 ---
 
 ## Using it
@@ -171,8 +193,11 @@ git lfs install   # once: the gameplay recordings are stored with Git LFS
 dotnet test -c Release
 ```
 
-All tests run from what's in the repository. They also run on every push to `main` and on pull
-requests, on a GitHub-hosted Windows runner ([`.github/workflows/tests.yml`](.github/workflows/tests.yml)).
+All tests run from what's in the repository. They also run on every push to `main`, on pull
+requests and before every release, on a GitHub-hosted Windows runner
+([`.github/workflows/tests.yml`](.github/workflows/tests.yml)). The two real-capture tests are the
+exception: hosted runners can't capture windows, so they only run on a developer machine
+(`dotnet test` includes them; CI skips `Category=Desktop`).
 
 - **Fixture frames** ([`tests/EndHud.Vision.Tests/Fixtures`](tests/EndHud.Vision.Tests/Fixtures)):
   a 4K exploration screenshot and frames from gameplay recordings, UID blacked out. They cover
@@ -249,7 +274,8 @@ src/EndHud.Vision/       everything that reads the screen
 src/EndHud.Cli/          endhud-cli developer tool
 tests/EndHud.Vision.Tests/ tests of everything that reads the screen (fixtures, recordings, screen sizes)
 tests/EndHud.Tests/      tests of the tray app (banner layout at any display scaling, windowed capture)
-.github/workflows/       CI: all tests on a Windows runner
+.github/workflows/       CI: tests on every push (tests.yml); releases from version tags (release.yml)
+installer/               the MSI installer (WiX)
 ```
 
 Screen positions are measured on 3840×2160 and scaled to the game window's size, each element

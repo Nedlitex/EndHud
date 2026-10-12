@@ -5,6 +5,7 @@
 *.csproj  text eol=crlf
 # Binary assets: never diff or convert.
 *.png     binary
+*.ico     binary
 *.jpg     binary
 *.mp4     binary
 tests/EndHud.Vision.Tests/Recordings/*.mp4 filter=lfs diff=lfs merge=lfs -text

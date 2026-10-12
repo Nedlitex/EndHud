@@ -1,0 +1,61 @@
+<!--
+  EndHud's Windows installer (WiX Toolset v5). Built by .github/workflows/release.yml when a
+  version tag is pushed; to build it by hand, see installer/README.md.
+
+  Installs for the current user only (no administrator prompt) into
+  %LocalAppData%\Programs\EndHud, with a Start menu shortcut and an entry in Installed apps.
+  A newer version replaces an older one; installing an older one over a newer one is refused.
+
+  Variables (wix build -d Name=Value):
+    Version     1.2.3, from the release tag
+    PublishDir  folder holding the self-contained EndHud.exe
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="EndHud"
+           Manufacturer="EndHud"
+           Version="$(Version)"
+           Scope="perUser"
+           UpgradeCode="DE14780C-8881-4E6D-A8A7-7227CF00E8EE"
+           Compressed="yes">
+    <!-- Never change UpgradeCode: it is how Windows knows a new MSI replaces an installed EndHud. -->
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of EndHud is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Property Id="ARPPRODUCTICON" Value="EndHudIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/Nedlitex/EndHud" />
+    <Icon Id="EndHudIcon" SourceFile="$(sys.SOURCEFILEDIR)..\src\EndHud\EndHud.ico" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="UserProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="EndHud" />
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+
+    <!-- Per-user components need a registry value as their key path (Windows Installer rules), so
+         their GUIDs are fixed rather than generated. Keep them: they identify the components across
+         versions. -->
+    <ComponentGroup Id="EndHudFiles" Directory="INSTALLFOLDER">
+      <Component Id="EndHudExe" Guid="1B99C287-BE2B-44CD-8C77-1FA9A4DAFDE0">
+        <File Id="EndHudExeFile" Source="$(PublishDir)\EndHud.exe" />
+        <RegistryValue Root="HKCU" Key="Software\EndHud\Installer" Name="Program" Type="string" Value="[INSTALLFOLDER]" KeyPath="yes" />
+        <RemoveFolder Id="RemoveInstallFolder" On="uninstall" />
+        <RemoveFolder Id="RemoveUserProgramsFolder" Directory="UserProgramsFolder" On="uninstall" />
+      </Component>
+    </ComponentGroup>
+
+    <ComponentGroup Id="EndHudShortcuts" Directory="ProgramMenuFolder">
+      <Component Id="StartMenuShortcut" Guid="2A5B43F1-D979-4FF5-A478-4A881901AE62">
+        <Shortcut Id="EndHudStartMenuShortcut" Name="EndHud" Description="Arknights: Endfield HUD overlay"
+                  Target="[INSTALLFOLDER]EndHud.exe" WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue Root="HKCU" Key="Software\EndHud\Installer" Name="Shortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <Feature Id="Main">
+      <ComponentGroupRef Id="EndHudFiles" />
+      <ComponentGroupRef Id="EndHudShortcuts" />
+    </Feature>
+  </Package>
+</Wix>

@@ -19,3 +19,6 @@ original-recordings/
 
 # CI cache key for the LFS recordings
 .lfs-assets-id
+
+# Release builds (release.yml, installer/README.md)
+out/

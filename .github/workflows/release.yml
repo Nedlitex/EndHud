@@ -1,0 +1,85 @@
+name: Release
+
+# Push a tag like v1.2.0 to publish a release: the tests run, then EndHud is built as a
+# self-contained exe and an MSI installer, and both are attached to a new GitHub Release.
+#
+#   git tag v1.2.0
+#   git push origin v1.2.0
+#
+# "Run workflow" on the Actions tab does a dry run: it builds the same files and attaches them to
+# the run (as an artifact) without creating a release.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    uses: ./.github/workflows/tests.yml
+
+  build:
+    needs: tests
+    runs-on: windows-2022
+    permissions:
+      contents: write # to create the release
+    steps:
+      - uses: actions/checkout@v4 # the recordings (LFS) aren't needed to build
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Version
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq 'tag') {
+            $version = "${{ github.ref_name }}".TrimStart('v')
+            if ($version -notmatch '^\d+\.\d+\.\d+$') {
+              throw "Release tags look like v1.2.0 (three numbers); got '${{ github.ref_name }}'."
+            }
+          } else {
+            # Dry run: an MSI version must be numbers only.
+            $version = "0.0.${{ github.run_number }}"
+          }
+          "VERSION=$version" >> $env:GITHUB_ENV
+          "EndHud $version"
+
+      # One EndHud.exe with .NET included, so players don't need to install anything first.
+      - name: Publish EndHud.exe
+        run: >
+          dotnet publish src/EndHud -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true -p:Version=${{ env.VERSION }}
+          -o out/publish
+
+      - name: Build the installer
+        run: |
+          dotnet tool restore
+          dotnet wix build installer/EndHud.wxs -arch x64 -define "Version=${{ env.VERSION }}" -define "PublishDir=${{ github.workspace }}\out\publish" -o "out\EndHud-${{ env.VERSION }}.msi"
+
+      - name: Name the files
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force out/release | Out-Null
+          Move-Item "out/EndHud-$env:VERSION.msi" out/release/
+          Copy-Item out/publish/EndHud.exe "out/release/EndHud-$env:VERSION-portable.exe"
+          Get-ChildItem out/release | Select-Object Name, @{n='MB';e={[math]::Round($_.Length/1MB,1)}}
+
+      - name: Create the release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "${{ github.ref_name }}" out/release/*
+          --title "EndHud ${{ env.VERSION }}" --generate-notes
+
+      - name: Attach the files to the run (dry run)
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: EndHud-${{ env.VERSION }}
+          path: out/release

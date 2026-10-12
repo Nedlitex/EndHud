@@ -12,7 +12,7 @@ namespace EndHud.Tests;
 /// full screen: the capture includes the window frame, and EndHud must read only the game's
 /// client area. Shows a window for a few seconds.
 /// </summary>
-[Trait("Category", "Desktop")] // needs an interactive desktop session (see .github/workflows/tests.yml)
+[Trait("Category", "Desktop")] // needs an interactive desktop: runs locally, not on CI runners
 public class WindowedGameCaptureTests
 {
     private static readonly string Fixture = System.IO.Path.Combine(AppContext.BaseDirectory, "Fixtures", "combat-combos-nearly-refilled.jpg");

@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  workflow_call: # run before every release (release.yml)
 
 jobs:
   test:
@@ -53,18 +54,13 @@ jobs:
       - name: Build
         run: dotnet build -c Release
 
+      # The real-capture tests (Category=Desktop) show a window and capture it with
+      # Windows.Graphics.Capture, which hosted runners can't do: it fails there with "The service
+      # did not respond" (no interactive desktop). They run on a developer machine only.
       - name: Test
         run: >
           dotnet test -c Release --no-build --filter "Category!=Desktop"
           --logger trx --logger "console;verbosity=normal" --results-directory TestResults
-
-      # The real-capture test shows a window and captures it with Windows.Graphics.Capture, which
-      # needs an interactive desktop. Whether hosted runners provide one is being found out; this
-      # step's result is reported separately and doesn't fail the run until that's settled.
-      - name: Test real window capture (needs a desktop session)
-        if: success() || failure()
-        continue-on-error: true
-        run: dotnet test -c Release --no-build --filter "Category=Desktop" --logger "console;verbosity=normal"
 
       - name: Upload test results
         if: always()
