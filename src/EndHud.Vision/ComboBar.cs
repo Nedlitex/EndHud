@@ -1,11 +1,11 @@
 namespace EndHud.Vision;
 
 /// <param name="Progress">Cooldown progress in [0, 1]: how much of the bar has refilled.</param>
-/// <param name="Ready">The bar is full: the 连携 (combo skill) can be used.</param>
+/// <param name="Ready">The bar is full: the combo skill can be used.</param>
 public sealed record ComboReading(double Progress, bool Ready);
 
 /// <summary>
-/// Reads the 连携 cooldown bar above each squad HP bar: a dark track that refills with grey
+/// Reads the combo cooldown bar above each squad HP bar: a dark track that refills with grey
 /// from the left while cooling down, and is full (white) when ready. It is only drawn in
 /// combat; outside combat the same rows show the bottom of the level text and portrait art,
 /// which must not be mistaken for a bar. At low HP a pink frame surrounds the slot and tints

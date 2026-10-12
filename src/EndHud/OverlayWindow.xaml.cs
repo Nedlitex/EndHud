@@ -310,7 +310,7 @@ public partial class OverlayWindow : Window
         {
             int i = slot.Number - 1;
             string? operatorId = slot.Operator?.Operator.Id;
-            // In combat the level text is replaced by the 连携 bar: keep showing the last level
+            // In combat the level text is replaced by the combo bar: keep showing the last level
             // read for this slot, unless a different operator is in it now.
             if (slot.Level is { } read) _lastLevels[i] = (operatorId, read);
             else if (_lastLevels[i] is { } last && last.OperatorId != operatorId) _lastLevels[i] = null;

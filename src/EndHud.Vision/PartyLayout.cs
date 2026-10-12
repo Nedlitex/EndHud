@@ -25,7 +25,7 @@ internal static class PartyLayout
     public static readonly PixelRect HpBar = new(85, 1986, 166, 12);
 
     /// <summary>
-    /// The 连携 (combo skill) cooldown bar directly above the HP bar, shown in combat in place of
+    /// The combo skill cooldown bar directly above the HP bar, shown in combat in place of
     /// the level text: grey fill growing from the left while cooling down, solid white when ready.
     /// Only the bar's inner rows (1978–1981): at low HP a pink frame line runs along row 1977.
     /// </summary>

@@ -10,18 +10,18 @@ player). What's kept, at 4K positions:
 | Area | Region | Contains |
 |---|---|---|
 | Top centre | x 1100–2740, y 0–280 | Boss name, level, HP bar, status icons |
-| Bottom left | x 0–1100, bottom 430 px | Squad panel: portraits, levels, HP, 连携 bars, death marks, ping |
+| Bottom left | x 0–1100, bottom 430 px | Squad panel: portraits, levels, HP, combo bars, death marks, ping |
 | Bottom centre | x 1400–2440, bottom 340 px | Active operator's HP bar, skill-point segments, icons around them |
-| Bottom right | right 940 px, bottom 470 px | 终结技 circles, 战技 buttons with cooldown numbers |
+| Bottom right | right 940 px, bottom 470 px | Ultimate circles, battle skill buttons with cooldown numbers |
 
 The player UID is masked and file metadata is stripped. Frames are 5 fps, encoded without
 B-frames and with a keyframe every 1–3 s, so frame-accurate seeking matches the original timing.
 
 | File | Length | What happens |
 |---|---|---|
-| `combat.mp4` | 33 s | Slot 1 uses its ultimate (~9 s cutscene), 连携 cooldowns refill, slot 1 takes a hit (~27 s) |
-| `ultimate-charging.mp4` | 38 s | Slot 1's ultimate charges from 1% to ~44% (jump at ~31 s), slot 4's 连携 refills, two operators are hurt; the game dims the HUD around 20 s |
-| `out-of-combat.mp4` | 13 s | Exploring: no 连携 bars (dark portraits where they'd be), colourful scenery behind the ultimate circles |
+| `combat.mp4` | 33 s | Slot 1 uses its ultimate (~9 s cutscene), combo cooldowns refill, slot 1 takes a hit (~27 s) |
+| `ultimate-charging.mp4` | 38 s | Slot 1's ultimate charges from 1% to ~44% (jump at ~31 s), slot 4's combo refills, two operators are hurt; the game dims the HUD around 20 s |
+| `out-of-combat.mp4` | 13 s | Exploring: no combo bars (dark portraits where they'd be), colourful scenery behind the ultimate circles |
 | `battle-fight1.mp4` | 110 s | First fight of a boss battle, from the end of the menus: low HP (pink frames), ultimate cutscenes, a white-haired operator at 0–5% HP |
 | `battle-fight2.mp4` | 78 s | Second fight, from the loading screen: the squad dimmed with F1–F4 labels, heals, operators falling one by one, a full wipe, the screen after |
 

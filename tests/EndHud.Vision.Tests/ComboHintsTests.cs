@@ -3,7 +3,7 @@ using Xunit;
 
 namespace EndHud.Vision.Tests;
 
-/// <summary>When the "连携就绪" hint shows, from tracked readings.</summary>
+/// <summary>When the combo-ready hint shows, from tracked readings.</summary>
 public class ComboHintsTests
 {
     private static readonly Frame NoPortrait = new(1, 1, new byte[4]);
@@ -81,7 +81,7 @@ public class ComboHintsTests
         var hints = new ComboHints { Mode = ComboHintMode.WhileReady };
         var combat = Combat(Ready, Ready, Ready, Ready);
 
-        // Out of combat: no 连携 bar, the level shows instead.
+        // Out of combat: no combo bar, the level shows instead.
         var exploring = combat with { Slots = combat.Slots.Select(s => s with { Combo = null, Level = 90 }).ToList() };
         Assert.Empty(hints.Update(exploring, S(0)));
         // Fallen.
@@ -140,14 +140,14 @@ public class ComboHintsTests
     [Fact]
     public async Task Combat_recording_hints_exactly_when_each_cooldown_finishes()
     {
-        // Slot 1's 连携 refills over 13–21 s and is ready at 22 s; slot 3's over 11–24 s, ready at 25 s.
+        // Slot 1's combo refills over 13–21 s and is ready at 22 s; slot 3's over 11–24 s, ready at 25 s.
         Assert.Equal([(22, 1), (25, 3)], await HintsStartingIn(Recordings.Combat));
     }
 
     [Fact]
     public async Task Battle_hints_every_finished_cooldown_including_during_cutscenes()
     {
-        // Read off the recording: each (time, slot) is the first reading with that slot's 连携 ready
+        // Read off the recording: each (time, slot) is the first reading with that slot's combo ready
         // after it was seen cooling. 81 s and 87 s follow ultimate cutscenes (78–80 s, 85–86 s)
         // during which the cooldowns finished.
         Assert.Equal(

@@ -1,8 +1,8 @@
 namespace EndHud.Vision;
 
 /// <summary>
-/// The 终结技 (ultimate) indicators in the bottom-right corner: one small circle per squad slot,
-/// in slot order, above that operator's large 战技 (battle skill) button. Measured on a
+/// The ultimate indicators in the bottom-right corner: one small circle per squad slot,
+/// in slot order, above that operator's large battle skill button. Measured on a
 /// 3840×2160 recording and anchored to the bottom-right corner.
 /// <list type="bullet">
 /// <item>Ready: the circle is filled with the operator's element colour behind a white icon,

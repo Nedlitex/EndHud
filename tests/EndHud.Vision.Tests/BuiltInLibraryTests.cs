@@ -28,9 +28,9 @@ public sealed class BuiltInLibraryTests : IDisposable
 
         Assert.False(library.UsesDownloadedReference);
         Assert.True(library.Operators.Count >= 34);
-        Assert.Equal("莱万汀", library.Find("Laevatain")!.NameZh);
+        Assert.Matches(@"^\p{IsCJKUnifiedIdeographs}+$", library.Find("Laevatain")!.NameZh); // the Chinese name, not the English fallback
 
-        // Every operator the wiki has skill icons for: one 战技, 连携 and 终结技 each (at least).
+        // Every operator the wiki has skill icons for: one battle skill, combo and ultimate each (at least).
         // Si and Argent Flow have none on the wiki yet.
         var withSkills = library.Operators.Where(o => o.Skills.Count > 0).ToList();
         Assert.True(withSkills.Count >= 32, $"only {withSkills.Count} operators have skill icons");
@@ -93,10 +93,10 @@ public sealed class BuiltInLibraryTests : IDisposable
     [Fact]
     public async Task A_downloaded_roster_takes_precedence_over_the_built_in_one()
     {
-        // As "更新干员头像库" leaves it: a complete roster in <user>/reference.
+        // As the tray's "update operator library" leaves it: a complete roster in <user>/reference.
         string reference = Path.Combine(_userFolder, OperatorLibrary.ReferenceFolderName);
         Directory.CreateDirectory(Path.Combine(reference, OperatorLibrary.IconFolderName));
-        var op = new OperatorInfo("Laevatain", "Laevatain", "莱万汀", "Laevatain.png");
+        var op = new OperatorInfo("Laevatain", "Laevatain", "Laevatain", "Laevatain.png");
         File.WriteAllText(Path.Combine(reference, "operators.json"), JsonSerializer.Serialize(new[] { op }));
         File.WriteAllBytes(Path.Combine(reference, OperatorLibrary.IconFolderName, "Laevatain.png"),
             EmbeddedAssets.Instance.Read("icons/Laevatain.png"));

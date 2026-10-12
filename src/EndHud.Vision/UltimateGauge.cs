@@ -1,6 +1,6 @@
 namespace EndHud.Vision;
 
-/// <param name="Ready">True: the 终结技 (ultimate) can be used.</param>
+/// <param name="Ready">True: the ultimate can be used.</param>
 /// <param name="Progress">
 /// Charge in [0, 1]: 1 when ready; while charging, how far the coloured arc has grown
 /// clockwise from 12 o'clock.

@@ -16,7 +16,7 @@ internal sealed class PartyMonitor : IDisposable
 {
     /// <summary>
     /// The user's part of the operator library: learned portraits, calibration and (after
-    /// 更新干员头像库) a newer roster. The roster and icons themselves are built into EndHud.
+    /// the tray's "update operator library") a newer roster. The roster and icons themselves are built into EndHud.
     /// </summary>
     public static string LibraryFolder { get; } = Path.Combine(ConfigStore.Folder, "operators");
 

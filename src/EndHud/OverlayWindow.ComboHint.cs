@@ -10,7 +10,7 @@ using EndHud.Vision.Operators;
 namespace EndHud;
 
 /// <summary>
-/// The "连携就绪" hint: a slanted banner per operator whose 连携 came off cooldown, like the
+/// The combo-ready hint: a slanted banner per operator whose combo came off cooldown, like the
 /// game's own combo banner, left of the screen's centre by default. While the menu is open the
 /// hints can be dragged; the spot is saved as a fraction of the game window.
 /// </summary>
@@ -129,7 +129,7 @@ public partial class OverlayWindow
         return bitmap;
     }
 
-    /// <summary>The operator's 连携 icon from the library; loaded once, in the background.</summary>
+    /// <summary>The operator's combo icon from the library; loaded once, in the background.</summary>
     private BitmapSource? ComboIcon(OperatorInfo? op)
     {
         var icon = op?.Skills.FirstOrDefault(s => s.Kind == SkillKind.Combo);

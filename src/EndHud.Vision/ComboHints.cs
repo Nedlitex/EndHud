@@ -1,19 +1,19 @@
 namespace EndHud.Vision;
 
-/// <summary>How the "连携就绪" hint behaves.</summary>
+/// <summary>How the combo-ready hint behaves.</summary>
 public enum ComboHintMode
 {
-    /// <summary>Show for a few seconds when a 连携 comes off cooldown.</summary>
+    /// <summary>Show for a few seconds when a combo comes off cooldown.</summary>
     WhenReady,
 
-    /// <summary>Show the whole time a 连携 is off cooldown in combat.</summary>
+    /// <summary>Show the whole time a combo is off cooldown in combat.</summary>
     WhileReady,
 }
 
 /// <summary>
-/// Decides which slots get a "连携就绪" hint, from one tracked reading after another.
+/// Decides which slots get a combo-ready hint, from one tracked reading after another.
 /// <list type="bullet">
-/// <item>Only in combat: the 连携 bar is on screen (out of combat it isn't drawn), the operator
+/// <item>Only in combat: the combo bar is on screen (out of combat it isn't drawn), the operator
 /// hasn't fallen, and the panel was seen in the last <see cref="MaxReadingsSinceSeen"/> readings —
 /// so a kept reading carries the hint through a short cutscene, but not into menus.</item>
 /// <item>A cooldown that finishes while the panel is out of view (an ultimate cutscene) is hinted
@@ -62,7 +62,7 @@ public sealed class ComboHints
             }
             if (combo is null)
             {
-                // Out of combat or fallen: start over, so a 连携 that is simply ready when the next
+                // Out of combat or fallen: start over, so a combo that is simply ready when the next
                 // fight starts doesn't count as having come off cooldown. Merely out of view (an
                 // ultimate cutscene, a menu) keeps the state: a cooldown that finished meanwhile
                 // is hinted when the panel is back.

@@ -62,7 +62,7 @@ public static partial class WikiOperatorSource
             }
         }
 
-        // 3. Skill icons: each operator page shows its 战技/连携/终结技 icons as Skill-*/Combo-*/Ult-*.
+        // 3. Skill icons: each operator page shows its battle skill, combo and ultimate icons as Skill-*/Combo-*/Ult-*.
         //    File names don't follow the operator name reliably (Skill-Lastrite, Skill-Endmin,
         //    Skill-Arcane1 + Skill-Arcane2), so take whatever the page itself uses.
         var skillFiles = await SkillFilesByPageAsync(http, names, ct);
@@ -98,7 +98,7 @@ public static partial class WikiOperatorSource
         return roster;
     }
 
-    /// <summary>"Skill-Laevatain.png" → 战技, "Combo-…" → 连携, "Ult-…" → 终结技; anything else → null.</summary>
+    /// <summary>"Skill-Laevatain.png" → battle skill, "Combo-…" → combo, "Ult-…" → ultimate; anything else → null.</summary>
     internal static SkillKind? ClassifySkillFile(string file)
     {
         if (!file.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) return null;

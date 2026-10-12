@@ -59,13 +59,13 @@ static async Task<int> CaptureAsync(string titlePart, string outPath)
     return 0;
 }
 
-// HP, 连携 and 终结技 per slot over time, one line per sampled frame.
+// HP, combo cooldown and ultimate charge per slot over time, one line per sampled frame.
 static async Task<int> AnalyzeVideoAsync(string path, double everySeconds)
 {
     var video = await VideoFile.OpenAsync(path);
     var reader = new PartyReader(new TextRecognizer());
     Console.WriteLine($"video: {video.Width}x{video.Height}, {video.Duration.TotalSeconds:F1} s");
-    Console.WriteLine("   t  | slot: hp  连携        终结技");
+    Console.WriteLine("   t  | slot: hp  combo      ultimate");
     for (double t = 0; t < video.Duration.TotalSeconds; t += everySeconds)
     {
         var state = await reader.ReadAsync(await video.GetFrameAsync(TimeSpan.FromSeconds(t)));

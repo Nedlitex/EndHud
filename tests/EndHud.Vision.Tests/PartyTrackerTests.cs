@@ -5,7 +5,7 @@ namespace EndHud.Vision.Tests;
 
 /// <summary>
 /// When something can't be read, the HUD keeps showing the last value that was read rather
-/// than going blank ("—" or "画面中暂未看到小队栏").
+/// than going blank ("—" or "squad panel not visible").
 /// </summary>
 public class PartyTrackerTests
 {
@@ -86,7 +86,7 @@ public class PartyTrackerTests
     [Fact]
     public void Level_on_screen_means_out_of_combat_so_no_combo_is_kept()
     {
-        // The level text takes the 连携 bar's place outside combat: the bar is gone, not unreadable.
+        // The level text takes the combo bar's place outside combat: the bar is gone, not unreadable.
         var tracker = new PartyTracker();
         tracker.Track(InCombat());
 

@@ -8,11 +8,11 @@ namespace EndHud.Vision.Tests;
 /// Expected values were read off the frames by eye and match the readers' output. The combat
 /// frames, for example:
 /// <list type="bullet">
-/// <item>combat-all-ready — calm: everyone at full HP, every 连携 and 终结技 ready.</item>
+/// <item>combat-all-ready — calm: everyone at full HP, every combo and ultimate ready.</item>
 /// <item>combat-combos-refilling — slot 1 has used its ultimate (charging); slots 1 and 3 have
-/// used their 连携 and are refilling (~29%, ~46%).</item>
-/// <item>combat-combos-nearly-refilled — both 连携 still refilling (~84%, ~74%).</item>
-/// <item>combat-slot1-hurt — slot 1 has taken damage (~83% HP); all 连携 ready.</item>
+/// used their combo and are refilling (~29%, ~46%).</item>
+/// <item>combat-combos-nearly-refilled — both combos still refilling (~84%, ~74%).</item>
+/// <item>combat-slot1-hurt — slot 1 has taken damage (~83% HP); all combos ready.</item>
 /// </list>
 /// </summary>
 public class CombatFrameTests
@@ -69,7 +69,7 @@ public class CombatFrameTests
     [Fact]
     public async Task Exploration_screenshot_has_no_combo_bars_but_panel_is_still_visible()
     {
-        // Out of combat the level text shows where the 连携 bar would be.
+        // Out of combat the level text shows where the combo bar would be.
         var state = await ReadAsync("exploration-levels-visible.png");
 
         Assert.True(state.PanelVisible);
@@ -110,8 +110,8 @@ public class CombatFrameTests
     }
 
     // ---- Exploration frames from the out-of-combat recording (3838×2158, UID blacked out) ----
-    // Out of combat there is no 连携 bar; the rows where it would be show the portraits' dark
-    // clothing and shadow, which used to read as an empty bar ("冷却中 0%").
+    // Out of combat there is no combo bar; the rows where it would be show the portraits' dark
+    // clothing and shadow, which used to read as an empty bar ("cooling 0%").
 
     [Theory]
     [InlineData("exploration-dark-portraits.jpg")]

@@ -26,7 +26,7 @@ internal sealed class HudConfig
     /// <summary>Show the debug panel: everything read from the squad panel, window size, clock.</summary>
     public bool DebugPanel { get; set; }
 
-    /// <summary>Show a hint when an operator's 连携 comes off cooldown in combat.</summary>
+    /// <summary>Show a hint when an operator's combo comes off cooldown in combat.</summary>
     public bool ComboHintEnabled { get; set; } = true;
 
     /// <summary>WhenReady: for <see cref="ComboHintSeconds"/> after the cooldown finishes. WhileReady: until it's used.</summary>

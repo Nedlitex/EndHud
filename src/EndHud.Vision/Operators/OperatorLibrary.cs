@@ -26,7 +26,7 @@ public sealed record IconCalibration(int Size, int X, int Y);
 /// <code>
 /// operators.json            roster: id, names, avatar file, skill icon files
 /// icons/&lt;id&gt;.png            avatar
-/// skills/&lt;id&gt;/*.png          战技 / 连携 / 终结技 icons (Skill-*, Combo-*, Ult-*)
+/// skills/&lt;id&gt;/*.png          battle skill / combo / ultimate icons (Skill-*, Combo-*, Ult-*)
 /// learned/&lt;id&gt;/*.png         learned squad portraits
 /// calibration.json          where avatars sit inside a squad portrait
 /// </code>
@@ -50,7 +50,7 @@ public sealed class OperatorLibrary
     private static readonly JsonSerializerOptions Json = new()
     {
         WriteIndented = true,
-        // Keep Chinese names readable in operators.json ("别礼", not "别礼").
+        // Keep Chinese names readable in operators.json, not escaped as \uXXXX sequences.
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.Create(System.Text.Unicode.UnicodeRanges.All),
     };
 

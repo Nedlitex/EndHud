@@ -8,8 +8,8 @@ namespace EndHud.Vision;
 /// <param name="Hp">HP bar fill in [0, 1], or null when the bar is off-screen.</param>
 /// <param name="LevelText">Raw OCR output, for diagnostics.</param>
 /// <param name="Portrait">The operator's head portrait, resampled to the matcher's fixed size.</param>
-/// <param name="Combo">连携 cooldown; null outside combat (the bar isn't drawn) or when unreadable.</param>
-/// <param name="Ultimate">终结技 charge from the bottom-right button; null when not on screen.</param>
+/// <param name="Combo">Combo cooldown; null outside combat (the bar isn't drawn) or when unreadable.</param>
+/// <param name="Ultimate">Ultimate charge from the bottom-right button; null when not on screen.</param>
 /// <param name="Dead">The operator has fallen: the death mark (⊘ on a hatched square) replaces the portrait.</param>
 /// <param name="Operator">Who it is, once <see cref="Operators.SquadIdentifier"/> has run; null = not recognised.</param>
 public sealed record PartySlot(int Number, int? Level, double? Hp, string LevelText, Frame Portrait,
@@ -24,13 +24,13 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int? PingMs, str
 {
     /// <summary>
     /// False when the squad panel isn't on screen (menus, map, cutscenes). Mainly the HP-bar
-    /// marks, which show in every state; the level text (exploration) and 连携 bars (combat)
+    /// marks, which show in every state; the level text (exploration) and combo bars (combat)
     /// also count.
     /// </summary>
     public bool PanelVisible =>
         PanelMarks >= MinPanelMarks
         || Slots.Any(s => s.Level is not null)
-        // An empty 连携 track is just dark, so also require the HP bar under it.
+        // An empty combo track is just dark, so also require the HP bar under it.
         || Slots.Count(s => s.Combo is not null && s.Hp > 0.02) >= 2;
 
     private const int MinPanelMarks = 6;
@@ -49,7 +49,7 @@ public sealed partial class PartyReader(TextRecognizer ocr)
             var portrait = frame.Crop(ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.Portrait, i)))
                 .Resize(Operators.PortraitMatcher.PortraitWidth, Operators.PortraitMatcher.PortraitHeight);
 
-            // A fallen operator: empty HP bar and the death mark. Their 连携/终结技 aren't shown.
+            // A fallen operator: empty HP bar and the death mark. Their combo and ultimate aren't shown.
             if (hp <= 0.02 && PanelMarkers.IsDeathMark(frame, i))
             {
                 slots.Add(new PartySlot(i + 1, null, 0, "", portrait, Dead: true));
@@ -57,7 +57,7 @@ public sealed partial class PartyReader(TextRecognizer ocr)
             }
 
             var combo = ComboBar.Measure(frame, ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.ComboBar, i)));
-            // In combat the 连携 bar replaces the level text, so there's nothing to OCR.
+            // In combat the combo bar replaces the level text, so there's nothing to OCR.
             string text = combo is not null ? "" : await ReadLevelTextAsync(frame, ui, i);
             slots.Add(new PartySlot(i + 1, ParseLevel(text), hp, text, portrait, combo, UltimateGauge.Measure(frame, i)));
         }

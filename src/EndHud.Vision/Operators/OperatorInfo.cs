@@ -3,7 +3,7 @@ namespace EndHud.Vision.Operators;
 /// <summary>One playable operator in the reference library.</summary>
 /// <param name="Id">Stable file-system-safe key, e.g. "Last_Rite".</param>
 /// <param name="NameEn">English name, e.g. "Last Rite".</param>
-/// <param name="NameZh">Simplified Chinese name as shown in game, e.g. "莱万汀"; English if the wiki has none.</param>
+/// <param name="NameZh">Simplified Chinese name as shown in game (from the wiki); English if the wiki has none.</param>
 /// <param name="IconFile">Icon file name inside the library's icons folder.</param>
 /// <param name="Skills">
 /// The operator's skill icons as drawn in the bottom-right HUD (several per kind when the
@@ -20,13 +20,13 @@ public sealed record OperatorInfo(string Id, string NameEn, string NameZh, strin
 [System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter))]
 public enum SkillKind
 {
-    /// <summary>战技 — the large button in the bottom-right.</summary>
+    /// <summary>Battle skill: the large button in the bottom-right.</summary>
     BattleSkill,
 
-    /// <summary>连携 — combo skill.</summary>
+    /// <summary>Combo skill.</summary>
     Combo,
 
-    /// <summary>终结技 — the small circle above the battle skill button.</summary>
+    /// <summary>Ultimate: the small circle above the battle skill button.</summary>
     Ultimate,
 }
 

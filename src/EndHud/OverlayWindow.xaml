@@ -23,7 +23,7 @@
 
     <Grid>
     <Grid x:Name="HudRoot">
-    <!-- Debug panel (menu → 显示调试面板): what EndHud reads from the screen, and alignment marks. -->
+    <!-- Debug panel (menu checkbox, tray, Ctrl+Shift+D): what EndHud reads from the screen, and alignment marks. -->
     <Grid x:Name="DebugRoot" Visibility="Collapsed">
         <!-- Corner brackets: show at a glance that the overlay is aligned to the game's client area. -->
         <Path Data="M0,24 L0,0 L24,0" Stroke="{StaticResource Accent}" StrokeThickness="2"
@@ -60,7 +60,7 @@
                    Foreground="#99FFFFFF" FontSize="11" Text="{DynamicResource Hud.Hint}" />
     </Grid>
 
-    <!-- 连携就绪 hints, styled after the game's own combo banner. Placed at a fraction of the game
+    <!-- Combo-ready hints, styled after the game's own combo banner. Placed at a fraction of the game
          window (config ComboHintX/Y); draggable while the menu is open. -->
     <Canvas x:Name="HintCanvas" SizeChanged="HintCanvas_SizeChanged">
         <Border x:Name="ComboHintFrame" BorderThickness="2" Padding="6" CornerRadius="4" Background="Transparent"
@@ -132,7 +132,7 @@
                 <TextBlock Text="{DynamicResource Menu.DebugPanel}" />
             </CheckBox>
 
-            <!-- 连携就绪 hint. -->
+            <!-- Combo-ready hint. -->
             <TextBlock Text="{DynamicResource Menu.ComboHint}" Style="{StaticResource SectionHeader}" />
             <StackPanel x:Name="ComboHintSettings">
                 <TextBlock Text="{DynamicResource Menu.ComboHint.Hint}" Foreground="#99FFFFFF" FontSize="11"

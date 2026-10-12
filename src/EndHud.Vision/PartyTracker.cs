@@ -3,7 +3,7 @@ namespace EndHud.Vision;
 /// <summary>
 /// Carries state across readings where one frame can't be trusted on its own.
 /// Unreadable values: whenever something can't be read — the whole panel (HUD fade-in, a
-/// cutscene, effects hiding the marks), one HP bar, a 连携 bar, an ultimate circle or the ping —
+/// cutscene, effects hiding the marks), one HP bar, a combo bar, an ultimate circle or the ping —
 /// the last value that was read stays on show until a new one is read.
 /// Ultimate charge: skill effects of the arc's own colour (sparkles next to its end) can add a
 /// few percent in a single frame. The charge shown is the median of the last
@@ -60,7 +60,7 @@ public sealed class PartyTracker
         }
 
         var last = _lastSlots[i];
-        // The level text and the 连携 bar share one spot: a level read means out of combat (no
+        // The level text and the combo bar share one spot: a level read means out of combat (no
         // bar), while neither means the bar was there but couldn't be read.
         var combo = slot.Combo ?? (slot.Level is null ? last?.Combo : null);
         return _lastSlots[i] = slot with

@@ -6,7 +6,8 @@ internal static class GameWindowFinder
     // Endfield is a Unity game; requiring the Unity window class keeps us from latching onto
     // e.g. a browser tab or editor whose title happens to contain "Endfield".
     private const string UnityWindowClass = "UnityWndClass";
-    private static readonly string[] GameTitles = ["Endfield", "终末地"];
+    // The English title, and the Chinese one ("Zhongmodi"), escaped to keep the source ASCII.
+    private static readonly string[] GameTitles = ["Endfield", "\u7EC8\u672B\u5730"];
 
     public static IntPtr Find(string? targetTitle)
     {

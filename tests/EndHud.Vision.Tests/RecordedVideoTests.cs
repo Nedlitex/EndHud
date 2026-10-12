@@ -6,10 +6,10 @@ namespace EndHud.Vision.Tests;
 /// <summary>The gameplay recordings in Recordings/ (HUD areas only; see Recordings/README.md).</summary>
 public static class Recordings
 {
-    /// <summary>33 s of combat: slot 1 uses its ultimate (~9 s), 连携 cooldowns, slot 1 takes a hit.</summary>
+    /// <summary>33 s of combat: slot 1 uses its ultimate (~9 s), combo cooldowns, slot 1 takes a hit.</summary>
     public const string Combat = "combat.mp4";
 
-    /// <summary>38 s: slot 1's ultimate charging (1% → ~44%), slot 4's 连携 refilling, two operators hurt.</summary>
+    /// <summary>38 s: slot 1's ultimate charging (1% → ~44%), slot 4's combo refilling, two operators hurt.</summary>
     public const string UltimateCharging = "ultimate-charging.mp4";
 
     /// <summary>13 s out of combat over dark portraits and colourful scenery; slot 1's ultimate at ~44%.</summary>
@@ -165,7 +165,7 @@ public class RecordedVideoTests
         });
     }
 
-    // ---- Out of combat (the "连携 冷却中 0%" bug) ----
+    // ---- Out of combat (the "combo cooling 0%" bug) ----
 
     [Fact]
     public async Task Out_of_combat_no_combo_bar_is_ever_reported()
@@ -179,7 +179,7 @@ public class RecordedVideoTests
             for (int slot = 0; slot < 4; slot++)
             {
                 var reading = ComboBar.Measure(frame, ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.ComboBar, slot)));
-                Assert.True(reading is null, $"slot {slot + 1} read a 连携 bar ({reading?.Progress:P0}) at {t:F2} s, out of combat");
+                Assert.True(reading is null, $"slot {slot + 1} read a combo bar ({reading?.Progress:P0}) at {t:F2} s, out of combat");
             }
         }
     }
@@ -233,7 +233,7 @@ public class RecordedVideoTests
                 var firstUltimate = alive.FirstOrDefault(s => s.State.Slots[slot].Ultimate is not null);
                 if (firstUltimate is null) continue;
                 Assert.All(alive.Where(s => s.Time >= firstUltimate.Time),
-                    s => Assert.True(s.State.Slots[slot].Ultimate is not null, $"{recording}: slot {slot + 1} 终结技 blank at {s.Time} s"));
+                    s => Assert.True(s.State.Slots[slot].Ultimate is not null, $"{recording}: slot {slot + 1} ultimate blank at {s.Time} s"));
             }
         }
     }
@@ -264,22 +264,22 @@ public class RecordedVideoTests
     [Fact]
     public async Task Battle_combo_bars_are_read_inside_the_low_hp_frame()
     {
-        // Slots 2–4 are low on HP (pink frame, tinted bars) and refilling their 连携. A reading
+        // Slots 2–4 are low on HP (pink frame, tinted bars) and refilling their combo. A reading
         // missed under effects keeps the last value, so the same value may show twice — once.
         // (At 94 s slot 4's bar is unreadable just as it's used, so "ready" is kept for that second.)
         var samples = await SamplesOf(Recordings.BattleFight1);
         foreach (int slot in new[] { 1, 2, 3 })
         {
             var readings = Between(samples, 95, 101).Select(s => s.State.Slots[slot].Combo).ToList();
-            Assert.All(readings, c => Assert.True(c is { Ready: false }, $"slot {slot + 1}: 连携 at low HP was {(c is null ? "missing" : "ready")}"));
+            Assert.All(readings, c => Assert.True(c is { Ready: false }, $"slot {slot + 1}: combo at low HP was {(c is null ? "missing" : "ready")}"));
             var progress = readings.Select(c => c!.Progress).ToList();
             int repeats = 0;
             for (int i = 1; i < progress.Count; i++)
             {
-                Assert.True(progress[i] >= progress[i - 1], $"slot {slot + 1} 连携 went from {progress[i - 1]:P0} to {progress[i]:P0} at low HP");
+                Assert.True(progress[i] >= progress[i - 1], $"slot {slot + 1} combo went from {progress[i - 1]:P0} to {progress[i]:P0} at low HP");
                 if (progress[i] == progress[i - 1]) repeats++;
             }
-            Assert.True(repeats <= 1, $"slot {slot + 1} 连携 stuck for {repeats} readings at low HP");
+            Assert.True(repeats <= 1, $"slot {slot + 1} combo stuck for {repeats} readings at low HP");
         }
     }
 
@@ -340,7 +340,7 @@ public class RecordedVideoTests
     {
         var progress = Between(samples, cooling.From, cooling.To).Select(s => s.State.Slots[slot].Combo).ToList();
         Assert.NotEmpty(progress);
-        Assert.All(progress, c => Assert.True(c is { Ready: false }, $"slot {slot + 1} 连携 should be cooling, was {(c is null ? "unread" : "ready")}"));
+        Assert.All(progress, c => Assert.True(c is { Ready: false }, $"slot {slot + 1} combo should be cooling, was {(c is null ? "unread" : "ready")}"));
         for (int i = 1; i < progress.Count; i++)
             Assert.True(progress[i]!.Progress > progress[i - 1]!.Progress,
                 $"slot {slot + 1} cooldown went from {progress[i - 1]!.Progress:P0} to {progress[i]!.Progress:P0}");
