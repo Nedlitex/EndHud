@@ -63,15 +63,6 @@
     <sys:String x:Key="Menu.Operators.Forget">清除所有已学习的头像</sys:String>
     <sys:String x:Key="Menu.Operators.ForgetConfirm">再次点击以确认清除</sys:String>
     <sys:String x:Key="Menu.Operators.Forgotten">已清除所有已学习的头像</sys:String>
-    <sys:String x:Key="Menu.Placeholders">其他选项（示例，暂未生效）</sys:String>
-    <sys:String x:Key="Menu.ShowClock">显示时钟</sys:String>
-    <sys:String x:Key="Menu.ShowCorners">显示边角标记</sys:String>
-    <sys:String x:Key="Menu.Cooldowns">技能冷却计时</sys:String>
-    <sys:String x:Key="Menu.Opacity">HUD 不透明度</sys:String>
-    <sys:String x:Key="Menu.Position">面板位置</sys:String>
-    <sys:String x:Key="Menu.Position.TopLeft">左上</sys:String>
-    <sys:String x:Key="Menu.Position.TopRight">右上</sys:String>
-    <sys:String x:Key="Menu.Position.BottomLeft">左下</sys:String>
     <sys:String x:Key="Menu.Close">关闭</sys:String>
 
     <!-- 干员头像库 -->
