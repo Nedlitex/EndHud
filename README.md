@@ -24,6 +24,7 @@ ENDHUD
     连携 就绪      终结技 充能 44%
 卡缪    等级 90  生命 100%
     连携 冷却中 37%  终结技 就绪
+艾尔黛拉  阵亡
 …
 延迟 164 毫秒
 ```
@@ -35,7 +36,8 @@ ENDHUD
 | 生命 (HP) | HP bar under each portrait | how much of the bar is coloured |
 | 连携 (combo skill) | thin bar above each HP bar (in combat) | grey refill → "冷却中 NN%", white → "就绪" |
 | 终结技 (ultimate) | small circle above each 战技 button, bottom-right | coloured arc growing clockwise from 12 o'clock → "充能 NN%"; full colour + icon → "就绪" |
-| 延迟 (ping) | "164ms", bottom-left | OCR |
+| 阵亡 (fallen) | the "⊘" on a hatched square that replaces a fallen operator's portrait | ring shape + empty HP bar; stays fallen until clearly revived |
+| 延迟 (ping) | "164ms", bottom-left (red when the connection is poor) | OCR, white or red text |
 
 The whole interface is in Chinese. Strings live in [`src/EndHud/i18n/zh-CN.xaml`](src/EndHud/i18n/zh-CN.xaml).
 
@@ -137,26 +139,29 @@ Si and Argent Flow have no skill icons on the wiki yet; they're recognised by po
 ## Tests
 
 ```powershell
+git lfs install   # once: the gameplay recordings are stored with Git LFS
 dotnet test -c Release
 ```
 
-There are 53 tests. Most run on fixture images in [`tests/EndHud.Vision.Tests/Fixtures`](tests/EndHud.Vision.Tests/Fixtures):
-a 4K exploration screenshot and frames from two combat recordings, with the player UID blacked out.
-- **Readers:** level, HP, 连携 and 终结技 readings on known frames.
+There are 69 tests, and all of them run from what's in the repository.
+
+- **Fixture frames** ([`tests/EndHud.Vision.Tests/Fixtures`](tests/EndHud.Vision.Tests/Fixtures)):
+  a 4K exploration screenshot and frames from gameplay recordings, UID blacked out. They cover
+  level, HP, 连携, 终结技 and ping readings in exploration, combat, low HP, a dimmed squad, a heal,
+  and with operators fallen.
 - **Recognition:** guessing, learning, correcting and clearing.
 - **Built-in library:** contents, and how user data layers on top of it.
 - **Real capture:** a stand-in game window (shows a full-screen window for a few seconds).
+- **Gameplay recordings** ([`tests/EndHud.Vision.Tests/Recordings`](tests/EndHud.Vision.Tests/Recordings),
+  Git LFS, HUD areas only): whole fights replayed, checking that values change the way the game
+  showed them. Examples:
+  - 连携 cooldowns refill steadily;
+  - the ultimate charge only grows;
+  - an ultimate is never read in the wrong state on any frame;
+  - out of combat, no 连携 bar is ever reported;
+  - through a full boss battle, the panel is followed and operators fall one by one and stay fallen.
 
-**Recording tests** replay whole gameplay videos and check that values change the way the game
-showed them. Examples: the 连携 cooldown refills steadily, the ultimate charge only grows, and an
-ultimate is never read in the wrong state on any frame. The videos are too large for the repo,
-so these tests run when the files are found in your Downloads folder (or in
-`ENDHUD_TEST_VIDEO_DIR`) and are skipped otherwise:
-
-| File | What happens in it |
-|---|---|
-| `endhudtest.mp4` | 33 s of combat: slot 1 uses its ultimate, 连携 cooldowns, slot 1 takes a hit |
-| `Recording 2026-10-11 172152.mp4` | 38 s: slot 1's ultimate charges from 1% to about 45%, slot 4's 连携 refills, two operators get hurt |
+  See that folder's README for what each recording contains.
 
 ## Developer tool
 

@@ -9,3 +9,6 @@ Thumbs.db
 # VS Code: keep shared settings, ignore personal state
 .vscode/*
 !.vscode/settings.json
+
+# dotnet publish output
+publish/

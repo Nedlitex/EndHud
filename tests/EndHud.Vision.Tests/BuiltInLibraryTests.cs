@@ -49,9 +49,10 @@ public sealed class BuiltInLibraryTests : IDisposable
     [Fact]
     public async Task Built_in_learned_portraits_recognise_the_squad_in_a_frame_they_never_saw()
     {
-        // Learned from the exploration screenshot and the 20 s combat frame; 30 s is new.
+        // The built-in portraits were learned from exploration-levels-visible and
+        // combat-combos-nearly-refilled; this frame is new to them.
         var library = await OperatorLibrary.LoadAsync(_userFolder);
-        var frame = await ImageFile.LoadAsync(CombatFrameTests.Fixture("combat-30s.jpg"));
+        var frame = await ImageFile.LoadAsync(CombatFrameTests.Fixture("combat-slot1-hurt.jpg"));
         var state = await new SquadIdentifier(library).IdentifyAsync(await new PartyReader(new TextRecognizer()).ReadAsync(frame));
 
         Assert.Equal(["Laevatain", "Camille", "Arcane", "Ardelia"], state.Slots.Select(s => s.Operator?.Operator.Id));
@@ -69,7 +70,7 @@ public sealed class BuiltInLibraryTests : IDisposable
         // Recognition no longer uses them: slot 1 is no longer matched from a learned portrait.
         var reloaded = await OperatorLibrary.LoadAsync(_userFolder);
         Assert.Equal(0, reloaded.LearnedCount("Laevatain"));
-        var frame = await ImageFile.LoadAsync(CombatFrameTests.Fixture("combat-30s.jpg"));
+        var frame = await ImageFile.LoadAsync(CombatFrameTests.Fixture("combat-slot1-hurt.jpg"));
         var state = await new SquadIdentifier(reloaded).IdentifyAsync(await new PartyReader(new TextRecognizer()).ReadAsync(frame));
         Assert.False(state.Slots[0].Operator is { FromLearned: true, Operator.Id: "Laevatain" });
 

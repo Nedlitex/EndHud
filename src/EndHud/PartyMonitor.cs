@@ -115,6 +115,7 @@ internal sealed class PartyMonitor : IDisposable
 
         WindowCapture? capture = null;
         IntPtr captured = IntPtr.Zero;
+        var tracker = new PartyTracker();
         var ct = _cts.Token;
         try
         {
@@ -143,7 +144,8 @@ internal sealed class PartyMonitor : IDisposable
                     var frame = await capture.GetFrameAsync(ct);
                     var client = Native.ClientAreaInCapture(hwnd, frame.Width, frame.Height);
                     if (client.IsEmpty) continue;
-                    var state = await reader.ReadAsync(frame.Crop(client));
+                    // Death first, so a fallen operator's death mark is never matched as a portrait.
+                    var state = tracker.Track(await reader.ReadAsync(frame.Crop(client)));
                     if (_identifier is { } identifier) state = await identifier.IdentifyAsync(state);
                     Updated?.Invoke(state, null);
                 }

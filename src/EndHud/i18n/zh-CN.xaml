@@ -21,6 +21,7 @@
     <sys:String x:Key="Party.Ultimate.Ready">就绪</sys:String>
     <sys:String x:Key="Party.Ultimate.Charging">充能 {0}</sys:String>
     <sys:String x:Key="Party.SlotNumber">{0} 号位</sys:String>
+    <sys:String x:Key="Party.Dead">{0}　阵亡</sys:String>
     <sys:String x:Key="Party.Unknown">—</sys:String>
     <sys:String x:Key="Party.Ping">延迟 {0} 毫秒</sys:String>
     <sys:String x:Key="Party.Waiting">正在识别小队栏……</sys:String>

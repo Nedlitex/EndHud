@@ -27,8 +27,25 @@ internal static class PartyLayout
     /// <summary>
     /// The 连携 (combo skill) cooldown bar directly above the HP bar, shown in combat in place of
     /// the level text: grey fill growing from the left while cooling down, solid white when ready.
+    /// Only the bar's inner rows (1978–1981): at low HP a pink frame line runs along row 1977.
     /// </summary>
-    public static readonly PixelRect ComboBar = new(85, 1976, 166, 6);
+    public static readonly PixelRect ComboBar = new(85, 1978, 166, 4);
+
+    /// <summary>
+    /// The small white "-" marks either side of each HP bar. Drawn in every state — exploration,
+    /// combat, low HP, dead — so finding them is the sign that the squad panel is on screen.
+    /// </summary>
+    public static readonly PixelRect PanelMarkLeft = new(68, 1988, 11, 9);
+    public static readonly PixelRect PanelMarkRight = new(257, 1988, 11, 9);
+
+    /// <summary>
+    /// Centre of the ⊘ symbol that replaces a fallen operator's portrait (on a hatched square),
+    /// and the radii of its light-grey ring.
+    /// </summary>
+    public const int DeathMarkCentreX = 166;
+    public const int DeathMarkCentreY = 1905;
+    public const int DeathMarkRingInner = 24;
+    public const int DeathMarkRingOuter = 30;
 
     /// <summary>
     /// The first operator's head portrait, from the top of the hair to the HP bar. The face sits

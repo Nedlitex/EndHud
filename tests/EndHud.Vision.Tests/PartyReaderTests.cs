@@ -6,7 +6,7 @@ namespace EndHud.Vision.Tests;
 public class PartyReaderTests
 {
     // In-game 4K screenshot: four level-90 operators at full HP, ping 164 ms. (UID blacked out.)
-    private static readonly string Fixture4K = Path.Combine(AppContext.BaseDirectory, "Fixtures", "party-4k.png");
+    private static readonly string Fixture4K = Path.Combine(AppContext.BaseDirectory, "Fixtures", "exploration-levels-visible.png");
 
     [Fact]
     public async Task Reads_levels_hp_and_ping_from_4k_screenshot()

@@ -71,6 +71,7 @@ static async Task<int> AnalyzeVideoAsync(string path, double everySeconds)
         var state = await reader.ReadAsync(await video.GetFrameAsync(TimeSpan.FromSeconds(t)));
         var cells = state.Slots.Select(s =>
         {
+            if (s.Dead) return " DEAD            ";
             string hp = s.Hp is { } h ? $"{h * 100,3:F0}%" : "  - ";
             string combo = s.Combo is { } c ? (c.Ready ? "ready" : $"{c.Progress * 100,3:F0}% ") : "  -  ";
             string ult = s.Ultimate is { } u ? (u.Ready ? "ready" : $"{u.Progress * 100,3:F0}% ") : "  -  ";
@@ -112,13 +113,18 @@ static async Task<int> AnalyzeAsync(string imagePath, string? debugDir)
     var state = await new PartyReader(ocr).ReadAsync(frame);
     foreach (var slot in state.Slots)
     {
+        if (slot.Dead)
+        {
+            Console.WriteLine($"slot {slot.Number}: DEAD (death mark)");
+            continue;
+        }
         string hp = slot.Hp is { } h ? $"{h:P0}" : "-";
         string combo = slot.Combo is { } c ? (c.Ready ? "ready" : $"{c.Progress:P0}") : "-";
         string ult = slot.Ultimate is { } u ? (u.Ready ? "ready" : $"{u.Progress:P0}") : "-";
         Console.WriteLine($"slot {slot.Number}: level={slot.Level?.ToString() ?? "-",-3} hp={hp,-5} combo={combo,-6} ult={ult,-10} ocr=\"{slot.LevelText}\"");
     }
     Console.WriteLine($"ping: {state.PingMs?.ToString() ?? "-"} ms   ocr=\"{state.PingText}\"");
-    Console.WriteLine($"panel visible: {state.PanelVisible}");
+    Console.WriteLine($"panel visible: {state.PanelVisible} (HP-bar marks found: {state.PanelMarks}/8)");
 
     if (debugDir is not null)
     {

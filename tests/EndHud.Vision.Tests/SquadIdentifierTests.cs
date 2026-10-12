@@ -11,7 +11,7 @@ namespace EndHud.Vision.Tests;
 /// </summary>
 public sealed class SquadIdentifierTests : IDisposable
 {
-    private static readonly string Fixture4K = Path.Combine(AppContext.BaseDirectory, "Fixtures", "party-4k.png");
+    private static readonly string Fixture4K = Path.Combine(AppContext.BaseDirectory, "Fixtures", "exploration-levels-visible.png");
     private static readonly string[] Truth = ["Laevatain", "Camille", "Arcane", "Ardelia"];
 
     private readonly string _libraryDir = Path.Combine(Path.GetTempPath(), "endhud-tests", Guid.NewGuid().ToString("N"));

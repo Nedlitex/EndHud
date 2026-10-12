@@ -46,6 +46,15 @@ public sealed class SquadIdentifier(OperatorLibrary library)
             SlotIdentity? previous;
             lock (_lock) previous = _last[i];
 
+            // A fallen operator's portrait is the death mark: nothing to match. They're still
+            // whoever was in the slot, so keep the last answer (and don't let a correction
+            // learn the death mark as a portrait).
+            if (slot.Dead)
+            {
+                slots.Add(slot with { Operator = previous?.Match });
+                continue;
+            }
+
             SlotIdentity identity;
             if (previous is not null
                 && _matcher.SimilarityToLearned(slot.Portrait, previous.Portrait) >= SamePortraitThreshold)

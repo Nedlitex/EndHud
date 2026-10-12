@@ -35,10 +35,11 @@ public sealed class TextRecognizer
     /// OCR the region. If <paramref name="accept"/> is given and rejects the text, retry at other
     /// scales, then (if given) on <paramref name="glyphRows"/> — a crop of exactly the rows the text
     /// occupies, for when glyphs touch the background. Returns the first accepted text, or the
-    /// last attempt's text.
+    /// last attempt's text. <paramref name="colour"/> picks which text to read: white (most HUD
+    /// text) or red (the ping at high latency).
     /// </summary>
     public async Task<string> ReadAsync(Frame frame, PixelRect region, Func<string, bool>? accept = null,
-        PixelRect? glyphRows = null)
+        PixelRect? glyphRows = null, TextColour colour = TextColour.White)
     {
         var attempts = TargetRegionHeights.Select(h => (region, h, edgeBlobsAreBackground: true));
         if (glyphRows is { } tight)
@@ -47,7 +48,7 @@ public sealed class TextRecognizer
         string text = "";
         foreach (var (rect, targetHeight, edgeBlobsAreBackground) in attempts)
         {
-            var prepared = Prepare(frame, rect, targetHeight, edgeBlobsAreBackground);
+            var prepared = Prepare(frame, rect, targetHeight, edgeBlobsAreBackground, colour);
             if (prepared is null) return "";
             using var bitmap = prepared.ToSoftwareBitmap();
             text = (await _engine.RecognizeAsync(bitmap)).Text;
@@ -62,7 +63,7 @@ public sealed class TextRecognizer
     /// the text; wrong for a crop of exactly the text rows, where every glyph touches both edges.
     /// </param>
     public static Frame? Prepare(Frame frame, PixelRect region, int targetHeight = 120,
-        bool edgeBlobsAreBackground = true)
+        bool edgeBlobsAreBackground = true, TextColour colour = TextColour.White)
     {
         var r = region.ClampTo(frame.Width, frame.Height);
         if (r.IsEmpty) return null;
@@ -73,7 +74,7 @@ public sealed class TextRecognizer
         for (int x = 0; x < r.Width; x++)
         {
             var (cr, cg, cb) = frame.GetPixel(r.X + x, r.Y + y);
-            ink[y * r.Width + x] = IsTextPixel(cr, cg, cb);
+            ink[y * r.Width + x] = colour == TextColour.Red ? IsRedPixel(cr, cg, cb) : IsTextPixel(cr, cg, cb);
         }
         RemoveNonGlyphBlobs(ink, r.Width, r.Height, edgeBlobsAreBackground);
 
@@ -84,7 +85,7 @@ public sealed class TextRecognizer
         {
             if (!NearInk(ink, r.Width, r.Height, x, y)) continue;
             var (cr, cg, cb) = frame.GetPixel(r.X + x, r.Y + y);
-            darkness[y * r.Width + x] = Whiteness(cr, cg, cb);
+            darkness[y * r.Width + x] = colour == TextColour.Red ? Redness(cr, cg, cb) : Whiteness(cr, cg, cb);
         }
 
         // 3. Upscale bilinearly and draw dark text on white.
@@ -204,4 +205,18 @@ public sealed class TextRecognizer
         int max = Math.Max(r, Math.Max(g, b));
         return min >= 175 && max - min <= 50;
     }
+
+    // The ping turns red at high latency (~230,110,120). Only red counts, so white HUD icons
+    // drawn over it (which touch the digits) aren't read as part of the text.
+    private static bool IsRedPixel(byte r, byte g, byte b) => r >= 160 && r - Math.Max(g, b) >= 50;
+
+    private static float Redness(byte r, byte g, byte b) =>
+        Math.Clamp((r - Math.Max(g, b) - 20) / 80f, 0, 1);
+}
+
+/// <summary>Which colour of HUD text to read.</summary>
+public enum TextColour
+{
+    White,
+    Red,
 }

@@ -3,36 +3,31 @@ using Xunit;
 
 namespace EndHud.Vision.Tests;
 
-/// <summary>
-/// The gameplay recordings are hundreds of MB, so they aren't in the repo. Tests that need one
-/// run only when it's found: in ENDHUD_TEST_VIDEO_DIR if set, else %USERPROFILE%\Downloads.
-/// </summary>
+/// <summary>The gameplay recordings in Recordings/ (HUD areas only; see Recordings/README.md).</summary>
 public static class Recordings
 {
     /// <summary>33 s of combat: slot 1 uses its ultimate (~9 s), 连携 cooldowns, slot 1 takes a hit.</summary>
-    public const string Combat = "endhudtest.mp4";
+    public const string Combat = "combat.mp4";
 
-    /// <summary>38 s: slot 1's ultimate charging (1% → ~45%), slot 4's 连携 refilling, two operators hurt.</summary>
-    public const string UltimateCharging = "Recording 2026-10-11 172152.mp4";
+    /// <summary>38 s: slot 1's ultimate charging (1% → ~44%), slot 4's 连携 refilling, two operators hurt.</summary>
+    public const string UltimateCharging = "ultimate-charging.mp4";
 
-    public static string? Find(string name)
-    {
-        string? dir = Environment.GetEnvironmentVariable("ENDHUD_TEST_VIDEO_DIR");
-        if (string.IsNullOrEmpty(dir))
-            dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
-        string path = Path.Combine(dir, name);
-        return File.Exists(path) ? path : null;
-    }
-}
+    /// <summary>13 s out of combat over dark portraits and colourful scenery; slot 1's ultimate at ~44%.</summary>
+    public const string OutOfCombat = "out-of-combat.mp4";
 
-public sealed class RecordingFactAttribute : FactAttribute
-{
-    public RecordingFactAttribute(string recording)
-    {
-        if (Recordings.Find(recording) is null)
-            Skip = $"Recording \"{recording}\" not found; put it in Downloads or set ENDHUD_TEST_VIDEO_DIR.";
-        Timeout = 300_000;
-    }
+    /// <summary>
+    /// First fight of a full battle (110 s, from the end of the menus): low HP with pink frames,
+    /// ultimate cutscenes, a white-haired operator at 0–5% HP.
+    /// </summary>
+    public const string BattleFight1 = "battle-fight1.mp4";
+
+    /// <summary>
+    /// Second fight (78 s, from the loading screen): the squad dimmed with F1–F4 labels, heals,
+    /// operators falling one by one and a full wipe.
+    /// </summary>
+    public const string BattleFight2 = "battle-fight2.mp4";
+
+    public static string PathOf(string recording) => Path.Combine(AppContext.BaseDirectory, "Recordings", recording);
 }
 
 /// <summary>
@@ -45,17 +40,26 @@ public class RecordedVideoTests
 
     private static readonly Dictionary<string, Lazy<Task<List<Sample>>>> Cache = new()
     {
-        [Recordings.Combat] = new(() => ReadEverySecondAsync(Recordings.Combat)),
-        [Recordings.UltimateCharging] = new(() => ReadEverySecondAsync(Recordings.UltimateCharging)),
+        [Recordings.Combat] = new(() => ReadEverySecondAsync(Recordings.Combat, tracked: false)),
+        // Read as the HUD shows it (tracker included): the charge is smoothed over readings.
+        [Recordings.UltimateCharging] = new(() => ReadEverySecondAsync(Recordings.UltimateCharging, tracked: true)),
+        // The battle is read the way the HUD reads it: through the tracker that carries deaths
+        // and briefly hidden panels across readings.
+        [Recordings.BattleFight1] = new(() => ReadEverySecondAsync(Recordings.BattleFight1, tracked: true)),
+        [Recordings.BattleFight2] = new(() => ReadEverySecondAsync(Recordings.BattleFight2, tracked: true)),
     };
 
-    private static async Task<List<Sample>> ReadEverySecondAsync(string recording)
+    private static async Task<List<Sample>> ReadEverySecondAsync(string recording, bool tracked)
     {
-        var video = await VideoFile.OpenAsync(Recordings.Find(recording)!);
+        var video = await VideoFile.OpenAsync(Recordings.PathOf(recording));
         var reader = new PartyReader(new TextRecognizer());
+        var tracker = new PartyTracker();
         var samples = new List<Sample>();
         for (int t = 0; t < (int)video.Duration.TotalSeconds; t++)
-            samples.Add(new Sample(t, await reader.ReadAsync(await video.GetFrameAsync(TimeSpan.FromSeconds(t)))));
+        {
+            var state = await reader.ReadAsync(await video.GetFrameAsync(TimeSpan.FromSeconds(t)));
+            samples.Add(new Sample(t, tracked ? tracker.Track(state) : state));
+        }
         return samples;
     }
 
@@ -64,42 +68,40 @@ public class RecordedVideoTests
     private static IEnumerable<Sample> Between(List<Sample> samples, double from, double to) =>
         samples.Where(s => s.Time >= from && s.Time <= to && s.State.PanelVisible);
 
-    // ---- Combat recording ----
+    // ---- Combat ----
 
-    [RecordingFact(Recordings.Combat)]
-    public async Task Squad_panel_is_found_except_during_the_ultimate_cutscene()
+    [Fact]
+    public async Task Combat_squad_panel_is_found_except_during_transition_and_cutscene()
     {
         var samples = await SamplesOf(Recordings.Combat);
-        // 9–10 s is the full-screen ultimate animation, with no HUD; 2 s is a scene transition.
+        // 2 s is a scene transition, 9–10 s the full-screen ultimate animation (no HUD).
         var missing = samples.Where(s => !s.State.PanelVisible).Select(s => s.Time).ToList();
         Assert.All(missing, t => Assert.Contains(t, new double[] { 2, 9, 10 }));
     }
 
-    [RecordingFact(Recordings.Combat)]
-    public async Task Hp_of_slot_1_drops_once_and_stays_down()
+    [Fact]
+    public async Task Combat_hp_of_slot_1_drops_once_and_stays_down()
     {
         var samples = await SamplesOf(Recordings.Combat);
-        Assert.All(Between(samples, 3, 26), s => Assert.InRange(s.State.Slots[0].Hp!.Value, 0.97, 1.0));
-        Assert.All(Between(samples, 27, 33), s => Assert.InRange(s.State.Slots[0].Hp!.Value, 0.80, 0.86));
-        // The others aren't hit.
+        // The hit lands between 27 and 28 s.
+        Assert.All(Between(samples, 3, 27), s => Assert.InRange(s.State.Slots[0].Hp!.Value, 0.97, 1.0));
+        Assert.All(Between(samples, 28, 33), s => Assert.InRange(s.State.Slots[0].Hp!.Value, 0.80, 0.86));
         Assert.All(Between(samples, 3, 33), s => Assert.All(s.State.Slots.Skip(1), slot => Assert.InRange(slot.Hp!.Value, 0.97, 1.0)));
     }
 
-    [RecordingFact(Recordings.Combat)]
-    public async Task Combo_cooldowns_refill_steadily_then_become_ready()
+    [Fact]
+    public async Task Combat_combo_cooldowns_refill_steadily_then_become_ready()
     {
         var samples = await SamplesOf(Recordings.Combat);
         AssertRefills(samples, slot: 0, cooling: (13, 21), readyFrom: 22);
         AssertRefills(samples, slot: 2, cooling: (11, 24), readyFrom: 25);
     }
 
-    [RecordingFact(Recordings.Combat)]
-    public async Task Ultimates_all_ready_until_slot_1_uses_its_own()
+    [Fact]
+    public async Task Combat_ultimates_all_ready_until_slot_1_uses_its_own()
     {
         var samples = await SamplesOf(Recordings.Combat);
-        // Before slot 1's ultimate (~9 s) all four are ready.
         Assert.All(Between(samples, 3, 8), s => Assert.All(s.State.Slots, slot => Assert.True(slot.Ultimate!.Ready)));
-        // After it, slot 1's is charging (still empty) and the others stay ready.
         var after = Between(samples, 12, 33).ToList();
         Assert.All(after, s => Assert.False(s.State.Slots[0].Ultimate?.Ready ?? false));
         Assert.All(after, s => Assert.InRange(s.State.Slots[0].Ultimate?.Progress ?? 0, 0, 0.03));
@@ -108,10 +110,10 @@ public class RecordedVideoTests
             "slot 1's charging ultimate should be readable most of the time");
     }
 
-    // ---- Ultimate-charging recording ----
+    // ---- Ultimate charging ----
 
-    [RecordingFact(Recordings.UltimateCharging)]
-    public async Task Ultimate_charge_of_slot_1_only_grows_and_reaches_about_45_percent()
+    [Fact]
+    public async Task Charging_ultimate_of_slot_1_only_grows_and_reaches_about_45_percent()
     {
         var samples = await SamplesOf(Recordings.UltimateCharging);
         var charge = Between(samples, 2, 37)
@@ -120,11 +122,10 @@ public class RecordedVideoTests
             .ToList();
         Assert.True(charge.Count >= 25, $"slot 1's ultimate readable in only {charge.Count} of 36 samples");
         Assert.All(charge, r => Assert.False(r.Reading!.Ready));
-
-        // Small and slowly growing at first; a big jump around 31 s; never shrinking (beyond
-        // a few percent of measurement noise).
+        // Small and slowly growing at first; a jump around 31 s, which the HUD's median of the
+        // last 3 readings shows two readings later; never shrinking (beyond noise).
         Assert.All(charge.Where(r => r.Time <= 30), r => Assert.InRange(r.Reading!.Progress, 0, 0.10));
-        Assert.All(charge.Where(r => r.Time >= 31), r => Assert.InRange(r.Reading!.Progress, 0.40, 0.50));
+        Assert.All(charge.Where(r => r.Time >= 33), r => Assert.InRange(r.Reading!.Progress, 0.37, 0.50));
         double highest = 0;
         foreach (var (time, reading) in charge)
         {
@@ -133,25 +134,25 @@ public class RecordedVideoTests
         }
     }
 
-    [RecordingFact(Recordings.UltimateCharging)]
-    public async Task Other_ultimates_stay_ready_while_slot_1_charges()
+    [Fact]
+    public async Task Charging_other_ultimates_stay_ready()
     {
         var samples = await SamplesOf(Recordings.UltimateCharging);
         Assert.All(Between(samples, 2, 37), s => Assert.All(s.State.Slots.Skip(1), slot => Assert.True(slot.Ultimate?.Ready ?? true)));
     }
 
-    [RecordingFact(Recordings.UltimateCharging)]
-    public async Task Combo_of_slot_4_refills_after_use()
+    [Fact]
+    public async Task Charging_combo_of_slot_4_refills_after_use()
     {
         var samples = await SamplesOf(Recordings.UltimateCharging);
-        AssertRefills(samples, slot: 3, cooling: (22, 37), readyFrom: 99);
-        var cooling = Between(samples, 22, 37).Select(s => s.State.Slots[3].Combo!.Progress).ToList();
-        Assert.InRange(cooling.First(), 0.05, 0.15);
+        AssertRefills(samples, slot: 3, cooling: (23, 37), readyFrom: 99);
+        var cooling = Between(samples, 23, 37).Select(s => s.State.Slots[3].Combo!.Progress).ToList();
+        Assert.InRange(cooling.First(), 0.08, 0.20);
         Assert.InRange(cooling.Last(), 0.88, 0.98);
     }
 
-    [RecordingFact(Recordings.UltimateCharging)]
-    public async Task Two_operators_are_hurt_at_about_20_seconds()
+    [Fact]
+    public async Task Charging_two_operators_are_hurt_at_about_20_seconds()
     {
         var samples = await SamplesOf(Recordings.UltimateCharging);
         Assert.All(Between(samples, 3, 18), s => Assert.All(s.State.Slots, slot => Assert.InRange(slot.Hp!.Value, 0.97, 1.0)));
@@ -164,24 +165,129 @@ public class RecordedVideoTests
         });
     }
 
-    // ---- Frame-by-frame: no flicker in either recording ----
+    // ---- Out of combat (the "连携 冷却中 0%" bug) ----
 
-    [RecordingFact(Recordings.Combat)]
-    public Task Ultimate_states_never_flicker_in_combat_recording() => AssertNoUltimateFlicker(
+    [Fact]
+    public async Task Out_of_combat_no_combo_bar_is_ever_reported()
+    {
+        // Every 0.25 s: the rows above each HP bar show portrait art and shadow, never a bar.
+        var video = await VideoFile.OpenAsync(Recordings.PathOf(Recordings.OutOfCombat));
+        for (double t = 5; t < 13; t += 0.25)
+        {
+            var frame = await video.GetFrameAsync(TimeSpan.FromSeconds(t));
+            var ui = new UiScaler(frame.Width, frame.Height);
+            for (int slot = 0; slot < 4; slot++)
+            {
+                var reading = ComboBar.Measure(frame, ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.ComboBar, slot)));
+                Assert.True(reading is null, $"slot {slot + 1} read a 连携 bar ({reading?.Progress:P0}) at {t:F2} s, out of combat");
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Out_of_combat_ultimate_charge_holds_steady_over_changing_scenery()
+    {
+        var video = await VideoFile.OpenAsync(Recordings.PathOf(Recordings.OutOfCombat));
+        for (double t = 5; t < 12; t += 0.25)
+        {
+            var frame = await video.GetFrameAsync(TimeSpan.FromSeconds(t));
+            if (UltimateGauge.Measure(frame, 0) is not { } reading) continue;
+            Assert.False(reading.Ready, $"slot 1 read as ready at {t:F2} s");
+            Assert.True(reading.Progress is >= 0.40 and <= 0.48, $"slot 1 charge read as {reading.Progress:P0} at {t:F2} s (it's ~44%)");
+        }
+    }
+
+    // ---- Full battle (two fights) ----
+
+    [Fact]
+    public async Task Battle_panel_is_followed_through_combat_and_not_seen_in_menus()
+    {
+        var fight1 = await SamplesOf(Recordings.BattleFight1);
+        var fight2 = await SamplesOf(Recordings.BattleFight2);
+        // Combat stretches, leaving out the full-screen ultimate cutscenes (~65, 74, 79, 85 s).
+        var combat = fight1.Where(s => s.Time is >= 11 and <= 64 or >= 67 and <= 73 or >= 87 and <= 108)
+            .Concat(fight2.Where(s => s.Time is >= 3 and <= 75))
+            .ToList();
+        int seen = combat.Count(s => s.State.PanelVisible);
+        Assert.True(seen >= combat.Count * 0.97, $"panel found in only {seen} of {combat.Count} combat seconds");
+        // The end of the menus before the first fight, and the screen after the wipe.
+        Assert.All(fight1.Where(s => s.Time <= 4), s => Assert.False(s.State.PanelVisible, $"panel reported at {s.Time} s (menus)"));
+        Assert.All(fight2.Where(s => s.Time >= 77), s => Assert.False(s.State.PanelVisible, $"panel reported at {s.Time} s (after the wipe)"));
+    }
+
+    [Fact]
+    public async Task Battle_operators_fall_one_by_one_and_stay_fallen()
+    {
+        var fight1 = await SamplesOf(Recordings.BattleFight1);
+        var fight2 = await SamplesOf(Recordings.BattleFight2);
+        // Nobody falls in the first fight or early in the second (low HP is not death).
+        Assert.All(fight1.Concat(Between(fight2, 0, 54)), s => Assert.All(s.State.Slots, slot => Assert.False(slot.Dead, $"slot {slot.Number} dead at {s.Time} s")));
+        // Then: slot 4, slot 3, slot 2 and finally slot 1 (the wipe).
+        AssertDeadFrom(fight2, slot: 4, from: 56);
+        AssertDeadFrom(fight2, slot: 3, from: 57);
+        AssertDeadFrom(fight2, slot: 2, from: 68);
+        AssertDeadFrom(fight2, slot: 1, from: 73);
+        Assert.All(Between(fight2, 55, 72), s => Assert.False(s.State.Slots[0].Dead, $"slot 1 dead at {s.Time} s"));
+    }
+
+    [Fact]
+    public async Task Battle_low_hp_white_haired_operator_is_not_taken_for_dead()
+    {
+        // Arcane (slot 3) at 0–5% HP: her white hair sits where the death mark's ring would be.
+        var samples = await SamplesOf(Recordings.BattleFight1);
+        Assert.All(Between(samples, 104, 108), s => Assert.False(s.State.Slots[2].Dead, $"slot 3 dead at {s.Time} s"));
+    }
+
+    [Fact]
+    public async Task Battle_combo_bars_are_read_inside_the_low_hp_frame()
+    {
+        // Slots 2–4 are low on HP (pink frame, tinted bars) and refilling their 连携.
+        var samples = await SamplesOf(Recordings.BattleFight1);
+        foreach (int slot in new[] { 1, 2, 3 })
+        {
+            var readings = Between(samples, 94, 101).Select(s => s.State.Slots[slot].Combo).ToList();
+            Assert.True(readings.Count(c => c is not null) >= readings.Count - 1, $"slot {slot + 1}: 连携 missing at low HP");
+            var progress = readings.Where(c => c is not null).Select(c => c!.Progress).ToList();
+            for (int i = 1; i < progress.Count; i++)
+                Assert.True(progress[i] > progress[i - 1], $"slot {slot + 1} 连携 went from {progress[i - 1]:P0} to {progress[i]:P0} at low HP");
+        }
+    }
+
+    [Fact]
+    public async Task Battle_dimmed_squad_and_heals_keep_true_hp()
+    {
+        // The game dims the squad (F1–F4 labels; darker bars) and a heal sweeps a green glow
+        // over slot 1's bar. Neither may read as 0% or as full.
+        var samples = await SamplesOf(Recordings.BattleFight2);
+        Assert.All(Between(samples, 22, 32), s =>
+        {
+            Assert.InRange(s.State.Slots[0].Hp!.Value, 0.30, 0.90);
+            Assert.InRange(s.State.Slots[1].Hp!.Value, 0.50, 0.80);
+            Assert.InRange(s.State.Slots[3].Hp!.Value, 0.55, 0.80);
+        });
+    }
+
+    private static void AssertDeadFrom(List<Sample> samples, int slot, double from) =>
+        Assert.All(Between(samples, from, 75), s => Assert.True(s.State.Slots[slot - 1].Dead, $"slot {slot} not dead at {s.Time} s"));
+
+    // ---- Frame-by-frame: no ultimate flicker ----
+
+    [Fact]
+    public Task Combat_ultimate_states_never_flicker() => AssertNoUltimateFlicker(
         Recordings.Combat, allReadyUntil: 8.5, slot1ChargingFrom: 12, end: 33);
 
-    [RecordingFact(Recordings.UltimateCharging)]
-    public Task Ultimate_states_never_flicker_in_charging_recording() => AssertNoUltimateFlicker(
-        Recordings.UltimateCharging, allReadyUntil: null, slot1ChargingFrom: 2, end: 37.5);
+    [Fact]
+    public Task Charging_ultimate_states_never_flicker() => AssertNoUltimateFlicker(
+        Recordings.UltimateCharging, allReadyUntil: null, slot1ChargingFrom: 2.5, end: 37.5);
 
     /// <summary>
-    /// Every 0.25 s — far denser than the HUD's once a second: a reading that flips state even for
-    /// one frame would show on the HUD. Includes the moments the game dims the HUD and skill
-    /// effects sweep over the circles. A circle may be unreadable (null), never wrong.
+    /// Every 0.25 s — denser than the HUD's once a second: a reading that flips state even for
+    /// one frame would show on the HUD. Includes HUD dimming and skill effects sweeping over
+    /// the circles. A circle may be unreadable (null), never wrong.
     /// </summary>
     private static async Task AssertNoUltimateFlicker(string recording, double? allReadyUntil, double slot1ChargingFrom, double end)
     {
-        var video = await VideoFile.OpenAsync(Recordings.Find(recording)!);
+        var video = await VideoFile.OpenAsync(Recordings.PathOf(recording));
         if (allReadyUntil is { } until)
         {
             for (double t = 3; t < until; t += 0.25)
@@ -202,12 +308,12 @@ public class RecordedVideoTests
 
     private static void AssertRefills(List<Sample> samples, int slot, (double From, double To) cooling, double readyFrom)
     {
-        var progress = Between(samples, cooling.From, cooling.To).Select(s => s.State.Slots[slot].Combo!).ToList();
+        var progress = Between(samples, cooling.From, cooling.To).Select(s => s.State.Slots[slot].Combo).ToList();
         Assert.NotEmpty(progress);
-        Assert.All(progress, c => Assert.False(c.Ready));
+        Assert.All(progress, c => Assert.True(c is { Ready: false }, $"slot {slot + 1} 连携 should be cooling, was {(c is null ? "unread" : "ready")}"));
         for (int i = 1; i < progress.Count; i++)
-            Assert.True(progress[i].Progress > progress[i - 1].Progress,
-                $"slot {slot + 1} cooldown went from {progress[i - 1].Progress:P0} to {progress[i].Progress:P0}");
+            Assert.True(progress[i]!.Progress > progress[i - 1]!.Progress,
+                $"slot {slot + 1} cooldown went from {progress[i - 1]!.Progress:P0} to {progress[i]!.Progress:P0}");
         Assert.All(Between(samples, readyFrom, 99), s => Assert.True(s.State.Slots[slot].Combo!.Ready));
     }
 }

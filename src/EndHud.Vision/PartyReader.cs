@@ -10,20 +10,27 @@ namespace EndHud.Vision;
 /// <param name="Portrait">The operator's head portrait, resampled to the matcher's fixed size.</param>
 /// <param name="Combo">连携 cooldown; null outside combat (the bar isn't drawn) or when unreadable.</param>
 /// <param name="Ultimate">终结技 charge from the bottom-right button; null when not on screen.</param>
+/// <param name="Dead">The operator has fallen: the death mark (⊘ on a hatched square) replaces the portrait.</param>
 /// <param name="Operator">Who it is, once <see cref="Operators.SquadIdentifier"/> has run; null = not recognised.</param>
 public sealed record PartySlot(int Number, int? Level, double? Hp, string LevelText, Frame Portrait,
-    ComboReading? Combo = null, UltimateReading? Ultimate = null, Operators.OperatorMatch? Operator = null);
+    ComboReading? Combo = null, UltimateReading? Ultimate = null, bool Dead = false,
+    Operators.OperatorMatch? Operator = null);
 
-public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int? PingMs, string PingText)
+/// <param name="PanelMarks">How many of the eight "-" marks beside the HP bars were found (see <see cref="PanelMarkers"/>).</param>
+public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int? PingMs, string PingText, int PanelMarks = 0)
 {
     /// <summary>
-    /// False when the squad panel isn't on screen (menus, map, cutscenes). Out of combat it shows
-    /// level text; in combat the 连携 bars replace the text.
+    /// False when the squad panel isn't on screen (menus, map, cutscenes). Mainly the HP-bar
+    /// marks, which show in every state; the level text (exploration) and 连携 bars (combat)
+    /// also count.
     /// </summary>
     public bool PanelVisible =>
-        Slots.Any(s => s.Level is not null)
-        // An empty 连携 track is just black, so also require the HP bar under it.
+        PanelMarks >= MinPanelMarks
+        || Slots.Any(s => s.Level is not null)
+        // An empty 连携 track is just dark, so also require the HP bar under it.
         || Slots.Count(s => s.Combo is not null && s.Hp > 0.02) >= 2;
+
+    private const int MinPanelMarks = 6;
 }
 
 /// <summary>Reads the squad panel in the bottom-left corner of the game.</summary>
@@ -35,21 +42,43 @@ public sealed partial class PartyReader(TextRecognizer ocr)
         var slots = new List<PartySlot>(PartyLayout.SlotCount);
         for (int i = 0; i < PartyLayout.SlotCount; i++)
         {
-            var combo = ComboBar.Measure(frame, ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.ComboBar, i)));
-            // In combat the 连携 bar replaces the level text, so there's nothing to OCR.
-            string text = combo is not null
-                ? ""
-                : await ocr.ReadAsync(frame, ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.LevelText, i)),
-                    t => ParseLevel(t) is not null,
-                    ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.LevelGlyphRows, i)));
             double? hp = HpBar.Measure(frame, ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.HpBar, i)));
             var portrait = frame.Crop(ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.Portrait, i)))
                 .Resize(Operators.PortraitMatcher.PortraitWidth, Operators.PortraitMatcher.PortraitHeight);
+
+            // A fallen operator: empty HP bar and the death mark. Their 连携/终结技 aren't shown.
+            if (hp <= 0.02 && PanelMarkers.IsDeathMark(frame, i))
+            {
+                slots.Add(new PartySlot(i + 1, null, 0, "", portrait, Dead: true));
+                continue;
+            }
+
+            var combo = ComboBar.Measure(frame, ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.ComboBar, i)));
+            // In combat the 连携 bar replaces the level text, so there's nothing to OCR.
+            string text = combo is not null ? "" : await ReadLevelTextAsync(frame, ui, i);
             slots.Add(new PartySlot(i + 1, ParseLevel(text), hp, text, portrait, combo, UltimateGauge.Measure(frame, i)));
         }
 
-        string pingText = await ocr.ReadAsync(frame, ui.BottomLeft(PartyLayout.Ping), t => ParsePing(t) is not null);
-        return new PartyState(slots, ParsePing(pingText), pingText);
+        // The ping is white normally and red when the connection is poor.
+        var pingRegion = ui.BottomLeft(PartyLayout.Ping);
+        string pingText = await ocr.ReadAsync(frame, pingRegion, t => ParsePing(t) is not null);
+        if (ParsePing(pingText) is null)
+            pingText = await ocr.ReadAsync(frame, pingRegion, t => ParsePing(t) is not null, colour: TextColour.Red);
+        return new PartyState(slots, ParsePing(pingText), pingText, PanelMarkers.Count(frame));
+    }
+
+    /// <summary>
+    /// OCR the level under slot <paramref name="slot"/>'s portrait. A one-digit result is
+    /// often a two-digit level with a digit lost ("LV9" for "LV.90"), so first look for a
+    /// two-digit reading across all attempts, and only then settle for one digit — operators
+    /// below level 10 do exist.
+    /// </summary>
+    private async Task<string> ReadLevelTextAsync(Frame frame, UiScaler ui, int slot)
+    {
+        var region = ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.LevelText, slot));
+        var glyphRows = ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.LevelGlyphRows, slot));
+        string text = await ocr.ReadAsync(frame, region, t => ParseLevel(t) >= 10, glyphRows);
+        return ParseLevel(text) >= 10 ? text : await ocr.ReadAsync(frame, region, t => ParseLevel(t) is not null, glyphRows);
     }
 
     /// <summary>
@@ -72,7 +101,9 @@ public sealed partial class PartyReader(TextRecognizer ocr)
     {
         int m = text.IndexOf('m', StringComparison.OrdinalIgnoreCase);
         var match = Number().Match(FixDigits(m >= 0 ? text[..m] : text));
-        return match.Success && int.TryParse(match.Value, out int ms) && ms < 10000 ? ms : null;
+        // Real pings to the game's servers are tens to hundreds of ms; a single digit is OCR
+        // having dropped some ("5ms" for "165ms"), and unknown beats a believable wrong number.
+        return match.Success && int.TryParse(match.Value, out int ms) && ms is >= 10 and < 10000 ? ms : null;
     }
 
     // Letters OCR commonly confuses with digits in this font.

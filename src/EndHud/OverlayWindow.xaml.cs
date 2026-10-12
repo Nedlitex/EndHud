@@ -289,6 +289,11 @@ public partial class OverlayWindow : Window
             else if (_lastLevels[i] is { } last && last.OperatorId != operatorId) _lastLevels[i] = null;
 
             string name = slot.Operator?.Operator.NameZh ?? Loc.Format("Party.SlotNumber", slot.Number);
+            if (slot.Dead)
+            {
+                sb.AppendLine(Loc.Format("Party.Dead", name));
+                continue;
+            }
             string level = _lastLevels[i]?.Level.ToString() ?? unknown;
             string hp = slot.Hp is { } fraction ? $"{fraction:P0}" : unknown;
             sb.AppendLine(Loc.Format("Party.Slot", name, level, hp));

@@ -16,7 +16,7 @@ public class WindowCaptureTests
     [Fact]
     public async Task Captured_window_reads_the_same_as_the_recorded_frame()
     {
-        string fixture = CombatFrameTests.Fixture("combat-20s.jpg");
+        string fixture = CombatFrameTests.Fixture("combat-combos-nearly-refilled.jpg");
         var reader = new PartyReader(new TextRecognizer());
 
         using var window = StandInGameWindow.Show(fixture);

@@ -27,6 +27,8 @@
 
   <ItemGroup>
     <None Include="Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Gameplay recordings, HUD areas only (see Recordings/README.md). -->
+    <None Include="Recordings\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

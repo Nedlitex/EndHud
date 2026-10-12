@@ -26,12 +26,27 @@ public static class HpBar
         return filled / (double)r.Width;
     }
 
-    // The fill is a saturated, bright colour (cyan when healthy). The track and recent-damage
-    // trail are grey, i.e. unsaturated, so they don't count.
+    // The fill is a saturated colour: cyan when healthy (~35,220,246), pink at low HP
+    // (~235,130,155), and darker when the game dims the squad: teal (~35,116,146) or dull pink
+    // (~137,75,87, saturation ~60). The track, the recent-damage trail and a fallen operator's
+    // empty bar are grey (saturation < 20).
+    // Only those two colour families count: a heal sweeps a green glow (hue 84–99°) over the
+    // empty part of the bar, while the fill under it stays cyan-ish (148–180°).
     private static bool IsFill(byte r, byte g, byte b)
     {
         int min = Math.Min(r, Math.Min(g, b));
         int max = Math.Max(r, Math.Max(g, b));
-        return max >= 150 && max - min >= 90;
+        if (max < 100 || max - min < 45) return false;
+        double hue = Hue(r, g, b, max, min);
+        return hue is >= 140 and <= 240 // cyan / teal
+            || hue >= 320 || hue <= 20; // pink / red
+    }
+
+    private static double Hue(int r, int g, int b, int max, int min)
+    {
+        double d = max - min;
+        double h = max == r ? (g - b) / d % 6 : max == g ? (b - r) / d + 2 : (r - g) / d + 4;
+        h *= 60;
+        return h < 0 ? h + 360 : h;
     }
 }
