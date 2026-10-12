@@ -49,7 +49,6 @@ Squad
     combo cooling 37%  ultimate ready
 <operator>  fallen
 …
-Ping 164 ms
 ```
 
 (Shown in Chinese, like the rest of the interface.)
@@ -62,7 +61,6 @@ Ping 164 ms
 | Combo skill | thin bar above each HP bar (in combat) | grey refill → "cooling NN%", white → "ready" |
 | Ultimate | small circle above each battle skill button, bottom-right | coloured arc growing clockwise from 12 o'clock → "charging NN%"; full colour + icon → "ready" |
 | Fallen | the "⊘" on a hatched square that replaces a fallen operator's portrait | ring shape + empty HP bar; stays fallen until clearly revived |
-| Ping | "164ms", bottom-left (red when the connection is poor) | OCR, white or red text |
 
 The whole interface is in Chinese. Strings live in [`src/EndHud/i18n/zh-CN.xaml`](src/EndHud/i18n/zh-CN.xaml).
 
@@ -115,7 +113,7 @@ edit it by hand, restart EndHud. Delete the file to reset.
 | Key | Default | Meaning |
 |---|---|---|
 | `AutoShowOnGameFocus` | `true` | Show the HUD when the game has focus and hide it otherwise. When `false`, the HUD only shows after Ctrl+Shift+H. |
-| `PartyOcrEnabled` | `true` | Read the squad panel (names, HP, skills, ping). |
+| `PartyOcrEnabled` | `true` | Read the squad panel (names, HP, skills, levels). |
 | `OcrIntervalMs` | `1000` | How often the squad panel is read (minimum 250). |
 | `Language` | `zh-CN` | UI language: picks `i18n/<Language>.xaml`. |
 | `DebugPanel` | `false` | Show the debug panel. |
@@ -178,7 +176,7 @@ requests, on a GitHub-hosted Windows runner ([`.github/workflows/tests.yml`](.gi
 
 - **Fixture frames** ([`tests/EndHud.Vision.Tests/Fixtures`](tests/EndHud.Vision.Tests/Fixtures)):
   a 4K exploration screenshot and frames from gameplay recordings, UID blacked out. They cover
-  level, HP, combo, ultimate and ping readings in exploration, combat, low HP, a dimmed squad, a heal,
+  level, HP, combo and ultimate readings in exploration, combat, low HP, a dimmed squad, a heal,
   and with operators fallen.
 - **Recognition:** guessing, learning, correcting and clearing.
 - **Built-in library:** contents, and how user data layers on top of it.
@@ -191,7 +189,7 @@ requests, on a GitHub-hosted Windows runner ([`.github/workflows/tests.yml`](.gi
   - an ultimate is never read in the wrong state on any frame;
   - out of combat, no combo bar is ever reported;
   - through a full boss battle, the panel is followed and operators fall one by one and stay fallen;
-  - once read, the panel, ping and ultimates never go blank: unreadable moments keep the last value;
+  - once read, the panel and ultimates never go blank: unreadable moments keep the last value;
   - the combo-ready hint fires exactly when each cooldown finishes, including during cutscenes, and
     never for an operator who falls mid-cooldown.
 
@@ -244,7 +242,7 @@ src/EndHud.Vision/       everything that reads the screen
   Capture/               Windows.Graphics.Capture of a single window
   Operators/             operator library, portrait matching, learning
   Assets/operators/      built-in library (embedded into the assembly)
-  PartyReader.cs         squad panel: level, HP, combo, ping, portraits
+  PartyReader.cs         squad panel: level, HP, combo, portraits
   UltimateGauge.cs       ultimate circles
   PartyTracker.cs        carries readings over (deaths, values that are briefly unreadable)
   ComboHints.cs          when to show the combo-ready hint
@@ -256,19 +254,17 @@ tests/EndHud.Tests/      tests of the tray app (banner layout at any display sca
 
 Screen positions are measured on 3840×2160 and scaled to the game window's size, each element
 keeping its distance from its corner of the window. What works at each size, tested on simulated
-screens (see [Tests](#tests)); "read" is the share of levels and pings read on the test frames:
+screens (see [Tests](#tests)); "read" is the share of levels read on the test frames:
 
-| Game window | HP, combo, ultimate, fallen | Level and ping |
+| Game window | HP, combo, ultimate, fallen | Level (debug panel only) |
 |---|---|---|
-| 4K, 5K, 1440p class (2560×1440, 3440×1440, 2560×1600, 5120×1440), 3000×2000 | all | 88–100% read |
-| 2880×1800 | all | about 58% read |
-| 1080p class (1920×1080, 1920×1200, 2560×1080), 2256×1504 | all | about 62% read (text is enlarged first) |
-| 1600×900, 1366×768, 1280×720 | all (HP within about 8%) | not read: too small to read reliably |
+| 4K, 5K, 1440p class (2560×1440, 3440×1440, 2560×1600, 5120×1440), 3000×2000 | all | 80–100% read |
+| 1080p class (1920×1080, 1920×1200, 2560×1080), 2880×1800, 2256×1504, 1600×900 | all | 40–53% read |
+| 1366×768, 1280×720 | all (HP within about 8%) | not read |
 
-A level or ping that isn't read keeps its last value; one that might be wrong is not shown. To
-that end: a ping must have as many digits as the text has digit-sized glyphs; a red ping (poor
-connection) and a level must be read the same by two attempts; levels are 10 to 90 (the game's
-cap). Levels 1–9 are shown as unknown, because a "9" is usually "90" with a digit lost.
+A level that isn't read keeps its last value; one that might be wrong is not shown: two OCR
+attempts must agree, and only levels 10 to 90 (the game's cap) are accepted. Levels 1–9 are
+shown as unknown, because a "9" is usually "90" with a digit lost. EndHud doesn't read the ping.
 
 Display scaling (125–200% on most laptops) doesn't change what's read: the game draws in real
 pixels and EndHud captures them. The combo-ready banner is sized from the game window's real
@@ -282,14 +278,14 @@ Copy `src/EndHud/i18n/zh-CN.xaml` to, for example, `en-US.xaml`, translate the v
 ## Known limits
 
 - The ultimate charge has only been observed up to about 46%; no recording yet shows one filling completely.
-- When something can't be read (cutscenes, HUD fades, skill effects covering an indicator, the ping hidden
-  under skill icons), the HUD keeps showing the last value it read. So a value can be a few seconds old,
+- When something can't be read (cutscenes, HUD fades, skill effects covering an indicator), the HUD
+  keeps showing the last value it read. So a value can be a few seconds old,
   for example a combo skill used at the moment its bar was hidden still shows "ready" until the bar is read again.
   After the squad panel leaves the screen (menus, the map) the last squad reading also stays up.
 - Everything is tuned on 4K recordings; other sizes are tested on frames scaled from them, not on
   real recordings at those sizes. 16:10 and 21:9 assume the HUD is laid out as described above.
-- At 1600×900 and smaller, levels and ping aren't shown, and out of combat the squad panel can't
-  always be recognised (its edge marks are under two pixels wide). Both only affect the debug panel.
+- At 1366×768 and smaller, levels aren't read, and out of combat the squad panel can't always be
+  recognised (its edge marks are under two pixels wide). Both only affect the debug panel.
 - Levels 1–9 are shown as unknown (see above).
 - The combo-ready hint needs two "cooling" readings in a row before it trusts that a combo skill was used,
   because the bar is briefly drawn as an empty track while the HUD fades in. A cooldown

@@ -342,7 +342,6 @@ public partial class OverlayWindow : Window
                 sb.AppendLine(Loc.Format("Party.Skills", combo, ultimate));
             }
         }
-        if (state.PingMs is { } ping) sb.Append(Loc.Format("Party.Ping", ping));
         PartyText.Text = sb.ToString().TrimEnd();
     }
 

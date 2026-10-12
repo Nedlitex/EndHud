@@ -28,11 +28,11 @@ public class ScreenSizeTests(ITestOutputHelper output)
             list.Add(new Fixture(Path.GetFileName(path), frame, await reader.ReadAsync(frame)));
         }
         // Each screen is compared with these 4K readings, so they must be nearly complete themselves:
-        // a level or ping the 4K reading misses is a comparison silently skipped at every size. Of
-        // the 27 on these frames, 26 are read on Windows 11 and 25 on the CI runner (Windows
+        // a level the 4K reading misses is a comparison silently skipped at every size. Of the 16
+        // levels on these frames, 15 are read on Windows 11 and 14 on the CI runner (Windows
         // Server's OCR engine differs slightly).
-        int text = list.Sum(f => (f.At4K.PingMs is null ? 0 : 1) + f.At4K.Slots.Count(s => s.Level is not null));
-        if (text < 24) throw new InvalidOperationException($"4K readings found only {text} of 27 levels and pings");
+        int levels = list.Sum(f => f.At4K.Slots.Count(s => s.Level is not null));
+        if (levels < 13) throw new InvalidOperationException($"4K readings found only {levels} of 16 levels");
         return list;
     });
 
@@ -49,8 +49,8 @@ public class ScreenSizeTests(ITestOutputHelper output)
     {
         var screen = SimulatedScreen.Named(screenName);
         double scale = Math.Min(screen.Width / 3840.0, screen.Height / 2160.0);
-        // An HP bar is a few pixels tall at 1600x900 and below; its fill edge is less exact.
-        double hpTolerance = scale < PartyReader.MinTextScale ? 0.08 : 0.05;
+        // An HP bar is a few pixels tall at 1366x768 and below; its fill edge is less exact.
+        double hpTolerance = scale < 0.4 ? 0.08 : 0.05;
         var reader = new PartyReader(new TextRecognizer());
         var tally = new Tally();
 
@@ -67,7 +67,6 @@ public class ScreenSizeTests(ITestOutputHelper output)
             if (here.PanelVisible && !at4K.PanelVisible) Wrong("panel visible", false, true);
             else if (here.PanelVisible == at4K.PanelVisible) tally.MeasuredRead++;
 
-            CountText(tally, at4K.PingMs, here.PingMs, (a, b) => Math.Abs(a - b) <= 2, v => Wrong("ping", at4K.PingMs, v));
             for (int i = 0; i < PartyLayout.SlotCount; i++)
             {
                 var (a, b) = (at4K.Slots[i], here.Slots[i]);
@@ -106,19 +105,20 @@ public class ScreenSizeTests(ITestOutputHelper output)
 
         output.WriteLine($"{screen}: measured {tally.MeasuredRead}/{tally.Measured}, text {tally.TextRead}/{tally.Text}");
         Assert.True(tally.Wrong.Count == 0, $"{screen}: {tally.Wrong.Count} wrong readings:\n" + string.Join("\n", tally.Wrong));
-        // Enough read to be useful. Measured on these fixtures (of what 4K reads):
+        // Enough read to be useful. Measured on these fixtures (of the levels 4K reads), Windows 11:
         //   bars, circles, death marks   97-100% everywhere
-        //   levels and pings             88-100% at 1440p-class, 3000x2000 and 5K; 58% at 2880x1800;
-        //                                62% at 1080p-class and 2256x1504; 46% in a 1700x956 window;
-        //                                none at 1600x900 and smaller (by design)
-        // A level or ping missed in one reading keeps its last value on the HUD.
+        //   levels                       80-100% at 1440p-class, 3000x2000 and 5K; 53% at 2880x1800;
+        //                                40-53% at 1080p-class, 2256x1504, 1600x900 and a 1700x956
+        //                                window; none at 1366x768 and smaller (not attempted)
+        // The CI runner's OCR reads slightly fewer, so the floors leave room. A level missed in one
+        // reading keeps its last value on the HUD.
         double measured = tally.MeasuredRead / (double)tally.Measured;
         Assert.True(measured >= (scale < PartyReader.MinTextScale ? 0.95 : 0.97), $"{screen}: only {measured:P0} of bars, circles and death marks read");
         if (scale >= PartyReader.MinTextScale)
         {
             double text = tally.TextRead / (double)tally.Text;
-            double floor = scale >= 0.6 ? 0.5 : 0.4;
-            Assert.True(text >= floor, $"{screen}: only {text:P0} of levels and pings read (at least {floor:P0} expected)");
+            double floor = scale >= 0.6 ? 0.4 : 0.25;
+            Assert.True(text >= floor, $"{screen}: only {text:P0} of levels read (at least {floor:P0} expected)");
         }
     }
 

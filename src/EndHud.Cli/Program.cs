@@ -3,7 +3,7 @@ using EndHud.Vision.Operators;
 
 // Developer tool.
 //   endhud-cli analyze <screenshot.png> [--debug-dir <dir>]
-//       Read the squad panel (levels, HP, ping). --debug-dir writes the exact images handed to OCR.
+//       Read the squad panel (levels, HP, combo, ultimate). --debug-dir writes the exact images handed to OCR.
 //   endhud-cli fetch-operators <library-dir>
 //       Download every operator's icon and Chinese name from the wiki into a library folder.
 //   endhud-cli identify <screenshot.png> --library <library-dir> [--debug-dir <dir>]
@@ -123,7 +123,6 @@ static async Task<int> AnalyzeAsync(string imagePath, string? debugDir)
         string ult = slot.Ultimate is { } u ? (u.Ready ? "ready" : $"{u.Progress:P0}") : "-";
         Console.WriteLine($"slot {slot.Number}: level={slot.Level?.ToString() ?? "-",-3} hp={hp,-5} combo={combo,-6} ult={ult,-10} ocr=\"{slot.LevelText}\"");
     }
-    Console.WriteLine($"ping: {state.PingMs?.ToString() ?? "-"} ms   ocr=\"{state.PingText}\"");
     Console.WriteLine($"panel visible: {state.PanelVisible} (HP-bar marks found: {state.PanelMarks}/8)");
 
     if (debugDir is not null)

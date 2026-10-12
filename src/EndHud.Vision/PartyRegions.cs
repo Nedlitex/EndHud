@@ -11,6 +11,5 @@ public static class PartyRegions
             yield return ($"slot{i + 1}-level", ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.LevelText, i)));
             yield return ($"slot{i + 1}-hp", ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.HpBar, i)));
         }
-        yield return ("ping", ui.BottomLeft(PartyLayout.Ping));
     }
 }

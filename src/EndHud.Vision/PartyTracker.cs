@@ -3,7 +3,7 @@ namespace EndHud.Vision;
 /// <summary>
 /// Carries state across readings where one frame can't be trusted on its own.
 /// Unreadable values: whenever something can't be read — the whole panel (HUD fade-in, a
-/// cutscene, effects hiding the marks), one HP bar, a combo bar, an ultimate circle or the ping —
+/// cutscene, effects hiding the marks), one HP bar, a combo bar or an ultimate circle —
 /// the last value that was read stays on show until a new one is read.
 /// Ultimate charge: skill effects of the arc's own colour (sparkles next to its end) can add a
 /// few percent in a single frame. The charge shown is the median of the last
@@ -24,21 +24,18 @@ public sealed class PartyTracker
     private readonly Queue<double>[] _charge = Enumerable.Range(0, PartyLayout.SlotCount).Select(_ => new Queue<double>()).ToArray();
     private readonly PartySlot?[] _lastSlots = new PartySlot?[PartyLayout.SlotCount];
     private PartyState? _lastVisible;
-    private int? _lastPing;
 
     public PartyState Track(PartyState state)
     {
-        // The ping is drawn in menus too, so it's kept from any reading.
-        _lastPing = state.PingMs ?? _lastPing;
         if (!state.PanelVisible)
         {
-            if (_lastVisible is null) return state with { PingMs = _lastPing };
-            _lastVisible = _lastVisible with { PingMs = _lastPing, ReadingsSinceSeen = _lastVisible.ReadingsSinceSeen + 1 };
+            if (_lastVisible is null) return state;
+            _lastVisible = _lastVisible with { ReadingsSinceSeen = _lastVisible.ReadingsSinceSeen + 1 };
             return _lastVisible;
         }
 
         var slots = state.Slots.Select(Track).ToList();
-        _lastVisible = state with { Slots = slots, PingMs = _lastPing, ReadingsSinceSeen = 0 };
+        _lastVisible = state with { Slots = slots, ReadingsSinceSeen = 0 };
         return _lastVisible;
     }
 

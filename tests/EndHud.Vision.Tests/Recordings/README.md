@@ -10,7 +10,7 @@ player). What's kept, at 4K positions:
 | Area | Region | Contains |
 |---|---|---|
 | Top centre | x 1100–2740, y 0–280 | Boss name, level, HP bar, status icons |
-| Bottom left | x 0–1100, bottom 430 px | Squad panel: portraits, levels, HP, combo bars, death marks, ping |
+| Bottom left | x 0–1100, bottom 430 px | Squad panel: portraits, levels, HP, combo bars, death marks, ping (not read) |
 | Bottom centre | x 1400–2440, bottom 340 px | Active operator's HP bar, skill-point segments, icons around them |
 | Bottom right | right 940 px, bottom 470 px | Ultimate circles, battle skill buttons with cooldown numbers |
 

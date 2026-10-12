@@ -220,13 +220,11 @@ public class RecordedVideoTests
     }
 
     [Fact]
-    public async Task Battle_ping_and_ultimates_never_go_blank_once_read()
+    public async Task Battle_ultimates_never_go_blank_once_read()
     {
         foreach (var recording in new[] { Recordings.BattleFight1, Recordings.BattleFight2 })
         {
             var samples = await SamplesOf(recording);
-            double firstPing = samples.First(s => s.State.PingMs is not null).Time;
-            Assert.All(samples.Where(s => s.Time >= firstPing), s => Assert.True(s.State.PingMs is not null, $"{recording}: ping blank at {s.Time} s"));
             for (int slot = 0; slot < 4; slot++)
             {
                 var alive = samples.Where(s => s.State.PanelVisible && !s.State.Slots[slot].Dead).ToList();

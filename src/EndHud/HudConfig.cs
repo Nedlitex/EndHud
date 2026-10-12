@@ -14,7 +14,7 @@ internal sealed class HudConfig
     /// </summary>
     public bool AutoShowOnGameFocus { get; set; } = true;
 
-    /// <summary>Read operator levels, HP and ping from the squad panel (bottom-left).</summary>
+    /// <summary>Read the squad panel (bottom-left): HP, combo cooldowns, ultimates, levels.</summary>
     public bool PartyOcrEnabled { get; set; } = true;
 
     /// <summary>How often the squad panel is read, in milliseconds (minimum 250).</summary>

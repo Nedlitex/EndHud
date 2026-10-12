@@ -54,9 +54,6 @@ internal static class PartyLayout
     /// </summary>
     public static readonly PixelRect Portrait = new(81, 1826, 128, 160);
 
-    /// <summary>"164ms" next to the signal icon (stops before the UID).</summary>
-    public static readonly PixelRect Ping = new(88, 2090, 120, 42);
-
     public static PixelRect ForSlot(PixelRect first, int slot) =>
         first.Offset((int)Math.Round(slot * SlotPitch), 0);
 }

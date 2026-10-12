@@ -9,7 +9,7 @@ public class ComboHintsTests
     private static readonly Frame NoPortrait = new(1, 1, new byte[4]);
 
     private static PartyState Combat(params ComboReading?[] combos) => new(
-        combos.Select((c, i) => new PartySlot(i + 1, null, 1, "", NoPortrait, c)).ToList(), 100, "", PanelMarks: 8);
+        combos.Select((c, i) => new PartySlot(i + 1, null, 1, "", NoPortrait, c)).ToList(), PanelMarks: 8);
 
     private static readonly ComboReading Ready = new(1, true);
     private static ComboReading Cooling(double progress) => new(progress, false);

@@ -5,11 +5,11 @@ namespace EndHud.Vision.Tests;
 
 public class PartyReaderTests
 {
-    // In-game 4K screenshot: four level-90 operators at full HP, ping 164 ms. (UID blacked out.)
+    // In-game 4K screenshot: four level-90 operators at full HP. (UID blacked out.)
     private static readonly string Fixture4K = Path.Combine(AppContext.BaseDirectory, "Fixtures", "exploration-levels-visible.png");
 
     [Fact]
-    public async Task Reads_levels_hp_and_ping_from_4k_screenshot()
+    public async Task Reads_levels_and_hp_from_4k_screenshot()
     {
         var frame = await ImageFile.LoadAsync(Fixture4K);
 
@@ -18,7 +18,6 @@ public class PartyReaderTests
         Assert.True(state.PanelVisible);
         Assert.Equal([90, 90, 90, 90], state.Slots.Select(s => s.Level));
         Assert.All(state.Slots, s => Assert.InRange(s.Hp!.Value, 0.98, 1.0));
-        Assert.Equal(164, state.PingMs);
     }
 
     [Fact]
@@ -44,13 +43,6 @@ public class PartyReaderTests
     [InlineData("LV", null)]
     [InlineData("", null)]
     public void ParseLevel(string ocrText, int? expected) => Assert.Equal(expected, PartyReader.ParseLevel(ocrText));
-
-    [Theory]
-    [InlineData("164ms", 164)]
-    [InlineData("164 ms", 164)]
-    [InlineData("I64ms", 164)]
-    [InlineData("ms", null)]
-    public void ParsePing(string ocrText, int? expected) => Assert.Equal(expected, PartyReader.ParsePing(ocrText));
 }
 
 public class HpBarTests
