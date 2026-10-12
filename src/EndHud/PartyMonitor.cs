@@ -14,7 +14,10 @@ namespace EndHud;
 /// </summary>
 internal sealed class PartyMonitor : IDisposable
 {
-    /// <summary>Operator icons, names and learned portraits: %APPDATA%\EndHud\operators.</summary>
+    /// <summary>
+    /// The user's part of the operator library: learned portraits, calibration and (after
+    /// 更新干员头像库) a newer roster. The roster and icons themselves are built into EndHud.
+    /// </summary>
     public static string LibraryFolder { get; } = Path.Combine(ConfigStore.Folder, "operators");
 
     private readonly TimeSpan _interval;
@@ -48,7 +51,10 @@ internal sealed class PartyMonitor : IDisposable
         _ = Task.Run(RunAsync);
     }
 
-    /// <summary>Re-download the roster from the wiki (new operators, new icons). Learned portraits are kept.</summary>
+    /// <summary>
+    /// Download the current roster from the wiki (new operators, new icons) into the user folder;
+    /// it then takes precedence over the built-in copy. Learned portraits are kept.
+    /// </summary>
     public void UpdateLibrary() => _ = Task.Run(() => LoadLibraryAsync(forceDownload: true));
 
     public Task CorrectAsync(int slotNumber, OperatorInfo? actual) =>
@@ -66,20 +72,21 @@ internal sealed class PartyMonitor : IDisposable
         if (Interlocked.Exchange(ref _libraryBusy, 1) == 1) return;
         try
         {
-            // First start: install the bundled library so recognition works offline straight away.
-            if (OperatorLibrary.SeedIfMissing(LibraryFolder, Path.Combine(AppContext.BaseDirectory, "seed", "operators")))
-                LibraryStatus?.Invoke("Operators.Seeded", []);
-
-            var library = await OperatorLibrary.LoadAsync(LibraryFolder);
-            if (library.IsEmpty || forceDownload)
+            if (forceDownload)
             {
                 LibraryStatus?.Invoke("Operators.Downloading", []);
                 using var http = WikiOperatorSource.CreateHttpClient();
-                var roster = await WikiOperatorSource.DownloadAsync(LibraryFolder, http, _cts.Token);
-                library = await OperatorLibrary.LoadAsync(LibraryFolder);
+                // Download beside the current copy and swap in only when complete, so a failed
+                // download never leaves a half-written roster in use.
+                string target = Path.Combine(LibraryFolder, OperatorLibrary.ReferenceFolderName);
+                string staging = target + ".new";
+                if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+                var roster = await WikiOperatorSource.DownloadAsync(staging, http, _cts.Token);
+                if (Directory.Exists(target)) Directory.Delete(target, recursive: true);
+                Directory.Move(staging, target);
                 LibraryStatus?.Invoke("Operators.Updated", [roster.Count]);
             }
-            _identifier = new SquadIdentifier(library);
+            _identifier = new SquadIdentifier(await OperatorLibrary.LoadAsync(LibraryFolder));
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException
                                        or InvalidDataException or JsonException)

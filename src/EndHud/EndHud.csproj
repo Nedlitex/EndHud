@@ -26,9 +26,4 @@
     <ProjectReference Include="..\EndHud.Vision\EndHud.Vision.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <!-- Operator library copied to %APPDATA%\EndHud\operators on first start (game art: local use only). -->
-    <None Update="seed\**" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
-
 </Project>

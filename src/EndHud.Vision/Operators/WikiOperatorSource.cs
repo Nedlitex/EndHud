@@ -24,7 +24,10 @@ public static partial class WikiOperatorSource
         return http;
     }
 
-    /// <summary>Fetch the roster into <paramref name="folder"/> (icons + operators.json), replacing the old roster.</summary>
+    /// <summary>
+    /// Fetch the roster into <paramref name="folder"/> (portrait icons, skill icons,
+    /// operators.json), replacing the old roster. Learned portraits are left alone.
+    /// </summary>
     public static async Task<IReadOnlyList<OperatorInfo>> DownloadAsync(string folder, HttpClient http,
         CancellationToken ct = default)
     {
@@ -59,9 +62,90 @@ public static partial class WikiOperatorSource
             }
         }
 
-        // 3. Icon download URLs.
+        // 3. Skill icons: each operator page shows its 战技/连携/终结技 icons as Skill-*/Combo-*/Ult-*.
+        //    File names don't follow the operator name reliably (Skill-Lastrite, Skill-Endmin,
+        //    Skill-Arcane1 + Skill-Arcane2), so take whatever the page itself uses.
+        var skillFiles = await SkillFilesByPageAsync(http, names, ct);
+
+        // 4. Download URLs for everything.
+        var urls = await ResolveUrlsAsync(http, iconFiles.Concat(skillFiles.Values.SelectMany(f => f)), ct);
+
+        string iconFolder = Path.Combine(folder, OperatorLibrary.IconFolderName);
+        Directory.CreateDirectory(iconFolder);
+        var roster = new List<OperatorInfo>();
+        for (int i = 0; i < iconFiles.Count; i++)
+        {
+            if (!urls.TryGetValue(iconFiles[i], out string? url)) continue;
+            string id = names[i].Replace(' ', '_');
+            string iconFile = id + ".png";
+            await File.WriteAllBytesAsync(Path.Combine(iconFolder, iconFile), await http.GetByteArrayAsync(url, ct), ct);
+
+            var skills = new List<SkillIcon>();
+            foreach (string file in skillFiles.GetValueOrDefault(names[i], []))
+            {
+                if (ClassifySkillFile(file) is not { } kind || !urls.TryGetValue(file, out string? skillUrl)) continue;
+                string relative = Path.Combine(OperatorLibrary.SkillFolderName, id, file).Replace('\\', '/');
+                string target = Path.Combine(folder, relative);
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                await File.WriteAllBytesAsync(target, await http.GetByteArrayAsync(skillUrl, ct), ct);
+                skills.Add(new SkillIcon(kind, relative));
+            }
+
+            roster.Add(new OperatorInfo(id, names[i], chinese.GetValueOrDefault(names[i], names[i]), iconFile, skills));
+        }
+
+        OperatorLibrary.SaveManifest(folder, roster);
+        return roster;
+    }
+
+    /// <summary>"Skill-Laevatain.png" → 战技, "Combo-…" → 连携, "Ult-…" → 终结技; anything else → null.</summary>
+    internal static SkillKind? ClassifySkillFile(string file)
+    {
+        if (!file.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) return null;
+        if (file.StartsWith("Skill-", StringComparison.Ordinal)) return SkillKind.BattleSkill;
+        if (file.StartsWith("Combo-", StringComparison.Ordinal)) return SkillKind.Combo;
+        if (file.StartsWith("Ult-", StringComparison.Ordinal)) return SkillKind.Ultimate;
+        return null;
+    }
+
+    /// <summary>The skill icon files each operator page displays, keyed by operator name.</summary>
+    private static async Task<Dictionary<string, List<string>>> SkillFilesByPageAsync(HttpClient http,
+        IReadOnlyList<string> pages, CancellationToken ct)
+    {
+        var result = new Dictionary<string, List<string>>();
+        foreach (var batch in pages.Chunk(TitlesPerRequest))
+        {
+            string query = $"{Api}?action=query&prop=images&imlimit=max&redirects=1&format=json&formatversion=2&titles="
+                           + Uri.EscapeDataString(string.Join('|', batch));
+            string? next = null;
+            do
+            {
+                // Pages have ~100 images each, so a batch spans several responses ("imcontinue").
+                var json = await GetJsonAsync(http, next is null ? query : $"{query}&imcontinue={Uri.EscapeDataString(next)}", ct);
+                var redirects = RedirectMap(json);
+                foreach (var page in json["query"]!["pages"]!.AsArray())
+                {
+                    if (page!["images"] is not JsonArray images) continue;
+                    string title = page["title"]!.GetValue<string>();
+                    string name = redirects.GetValueOrDefault(title, title);
+                    if (!result.TryGetValue(name, out var files)) result[name] = files = [];
+                    foreach (var image in images)
+                    {
+                        string file = image!["title"]!.GetValue<string>()["File:".Length..].Replace(' ', '_');
+                        if (ClassifySkillFile(file) is not null && !files.Contains(file)) files.Add(file);
+                    }
+                }
+                next = json["continue"]?["imcontinue"]?.GetValue<string>();
+            } while (next is not null);
+        }
+        return result;
+    }
+
+    private static async Task<Dictionary<string, string>> ResolveUrlsAsync(HttpClient http, IEnumerable<string> files,
+        CancellationToken ct)
+    {
         var urls = new Dictionary<string, string>();
-        foreach (var batch in iconFiles.Chunk(TitlesPerRequest))
+        foreach (var batch in files.Distinct().Chunk(TitlesPerRequest))
         {
             var json = await GetJsonAsync(http,
                 $"{Api}?action=query&prop=imageinfo&iiprop=url&format=json&formatversion=2&titles="
@@ -74,22 +158,7 @@ public static partial class WikiOperatorSource
                 urls[file] = url;
             }
         }
-
-        string iconFolder = Path.Combine(folder, OperatorLibrary.IconFolderName);
-        Directory.CreateDirectory(iconFolder);
-        var roster = new List<OperatorInfo>();
-        for (int i = 0; i < iconFiles.Count; i++)
-        {
-            if (!urls.TryGetValue(iconFiles[i], out string? url)) continue;
-            string id = names[i].Replace(' ', '_');
-            string iconFile = id + ".png";
-            byte[] bytes = await http.GetByteArrayAsync(url, ct);
-            await File.WriteAllBytesAsync(Path.Combine(iconFolder, iconFile), bytes, ct);
-            roster.Add(new OperatorInfo(id, names[i], chinese.GetValueOrDefault(names[i], names[i]), iconFile));
-        }
-
-        OperatorLibrary.SaveManifest(folder, roster);
-        return roster;
+        return urls;
     }
 
     private static Dictionary<string, string> RedirectMap(JsonNode json)

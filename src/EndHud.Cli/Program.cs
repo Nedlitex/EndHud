@@ -84,7 +84,7 @@ static async Task<int> AnalyzeVideoAsync(string path, double everySeconds)
 // Teach the library the squad in a screenshot (slot order), as a user correction would.
 static async Task<int> LearnAsync(string imagePath, string libraryDir, string ids)
 {
-    var library = await OperatorLibrary.LoadAsync(libraryDir);
+    var library = await OperatorLibrary.LoadFolderAsync(libraryDir);
     var identifier = new SquadIdentifier(library);
     var state = await identifier.IdentifyAsync(await new PartyReader(new TextRecognizer()).ReadAsync(await ImageFile.LoadAsync(imagePath)));
     if (!state.PanelVisible)
@@ -145,7 +145,7 @@ static async Task<int> FetchAsync(string folder)
 static async Task<int> IdentifyAsync(string imagePath, string libraryDir, string? debugDir)
 {
     var frame = await ImageFile.LoadAsync(imagePath);
-    var library = await OperatorLibrary.LoadAsync(libraryDir);
+    var library = await OperatorLibrary.LoadFolderAsync(libraryDir);
     if (library.IsEmpty)
     {
         Console.Error.WriteLine($"library {libraryDir} is empty; run fetch-operators first");

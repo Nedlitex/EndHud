@@ -16,6 +16,23 @@ public static class ImageFile
         return Frame.FromSoftwareBitmap(bitmap);
     }
 
+    /// <summary>Decode an image held in memory (e.g. an embedded resource).</summary>
+    public static async Task<Frame> LoadAsync(byte[] encoded)
+    {
+        using var memory = new InMemoryRandomAccessStream();
+        using (var writer = new DataWriter(memory.GetOutputStreamAt(0)))
+        {
+            writer.WriteBytes(encoded);
+            await writer.StoreAsync();
+            await writer.FlushAsync();
+            writer.DetachStream();
+        }
+        memory.Seek(0);
+        var decoder = await BitmapDecoder.CreateAsync(memory);
+        using var bitmap = await decoder.GetSoftwareBitmapAsync(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
+        return Frame.FromSoftwareBitmap(bitmap);
+    }
+
     public static async Task SavePngAsync(Frame frame, string path)
     {
         path = Path.GetFullPath(path);

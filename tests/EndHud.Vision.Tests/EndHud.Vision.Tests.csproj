@@ -27,8 +27,6 @@
 
   <ItemGroup>
     <None Include="Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
-    <!-- The library EndHud installs on first start, to test it as shipped. -->
-    <None Include="..\..\src\EndHud\seed\**" LinkBase="Seed" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

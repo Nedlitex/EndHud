@@ -13,4 +13,14 @@
     <InternalsVisibleTo Include="EndHud.Vision.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!--
+      Built-in operator library, compiled into this assembly: roster, avatar and skill icons
+      (from endfield.wiki.gg) and portraits learned from gameplay. Refresh with
+      `endhud-cli fetch-operators src/EndHud.Vision/Assets/operators`.
+      Game art: personal use only.
+    -->
+    <EmbeddedResource Include="Assets\operators\**" LogicalName="operators/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>

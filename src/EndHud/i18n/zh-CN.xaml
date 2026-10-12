@@ -43,7 +43,7 @@
     <sys:String x:Key="Menu.Operators.Hint">头像来自 Endfield Wiki，首次识别可能不准。请为每个位置选择正确的干员，EndHud 会记住该干员在游戏中的样子，之后就能准确识别。</sys:String>
     <sys:String x:Key="Menu.Operators.Unrecognised">未识别（显示为“{0} 号位”）</sys:String>
     <sys:String x:Key="Menu.Operators.NoReading">切换到游戏画面、并能看到左下角的小队栏后，这里会列出识别结果。</sys:String>
-    <sys:String x:Key="Menu.Operators.NoLibrary">干员头像库尚未就绪（正在下载，或下载失败）。可在托盘菜单中选择“更新干员头像库”重试。</sys:String>
+    <sys:String x:Key="Menu.Operators.NoLibrary">干员头像库正在加载，请稍候。</sys:String>
     <sys:String x:Key="Menu.Operators.Saved">已记住：{0} 号位是 {1}</sys:String>
     <sys:String x:Key="Menu.Operators.Cleared">已将 {0} 号位设为未识别</sys:String>
     <sys:String x:Key="Menu.Operators.Forget">清除所有已学习的头像</sys:String>
@@ -61,10 +61,9 @@
     <sys:String x:Key="Menu.Close">关闭</sys:String>
 
     <!-- 干员头像库 -->
-    <sys:String x:Key="Operators.Seeded">已载入内置干员头像库</sys:String>
-    <sys:String x:Key="Operators.Downloading">正在从 Endfield Wiki 下载干员头像……</sys:String>
+    <sys:String x:Key="Operators.Downloading">正在从 Endfield Wiki 更新干员头像库……</sys:String>
     <sys:String x:Key="Operators.Updated">干员头像库已更新，共 {0} 名干员</sys:String>
-    <sys:String x:Key="Operators.DownloadFailed">无法下载干员头像库（请检查网络）。干员将显示为“n 号位”，可在托盘菜单中选择“更新干员头像库”重试。</sys:String>
+    <sys:String x:Key="Operators.DownloadFailed">更新干员头像库失败（请检查网络），继续使用内置头像库。可稍后在托盘菜单中重试。</sys:String>
 
     <!-- 系统托盘 -->
     <sys:String x:Key="Tray.Tooltip">EndHud 游戏辅助面板</sys:String>

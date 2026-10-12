@@ -1,0 +1,668 @@
+[
+  {
+    "Id": "Argent_Flow",
+    "NameEn": "Argent Flow",
+    "NameZh": "明河",
+    "IconFile": "Argent_Flow.png",
+    "Skills": []
+  },
+  {
+    "Id": "Endministrator",
+    "NameEn": "Endministrator",
+    "NameZh": "管理员",
+    "IconFile": "Endministrator.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Endministrator/Combo-Endmin.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Endministrator/Skill-Endmin.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Endministrator/Ult-Endmin.png"
+      }
+    ]
+  },
+  {
+    "Id": "Lifeng",
+    "NameEn": "Lifeng",
+    "NameZh": "黎风",
+    "IconFile": "Lifeng.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Lifeng/Combo-Lifeng.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Lifeng/Skill-Lifeng.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Lifeng/Ult-Lifeng.png"
+      }
+    ]
+  },
+  {
+    "Id": "Mi_Fu",
+    "NameEn": "Mi Fu",
+    "NameZh": "弭弗",
+    "IconFile": "Mi_Fu.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Mi_Fu/Combo-Mifu.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Mi_Fu/Skill-Mifu.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Mi_Fu/Ult-Mifu.png"
+      }
+    ]
+  },
+  {
+    "Id": "Rossi",
+    "NameEn": "Rossi",
+    "NameZh": "洛茜",
+    "IconFile": "Rossi.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Rossi/Combo-Rossi.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Rossi/Skill-Rossi.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Rossi/Ult-Rossi.png"
+      }
+    ]
+  },
+  {
+    "Id": "Chen_Qianyu",
+    "NameEn": "Chen Qianyu",
+    "NameZh": "陈千语",
+    "IconFile": "Chen_Qianyu.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Chen_Qianyu/Combo-Chen.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Chen_Qianyu/Skill-Chen.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Chen_Qianyu/Ult-Chen.png"
+      }
+    ]
+  },
+  {
+    "Id": "Estella",
+    "NameEn": "Estella",
+    "NameZh": "埃特拉",
+    "IconFile": "Estella.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Estella/Combo-Estella.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Estella/Skill-Estella.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Estella/Ult-Estella.png"
+      }
+    ]
+  },
+  {
+    "Id": "Ember",
+    "NameEn": "Ember",
+    "NameZh": "余烬",
+    "IconFile": "Ember.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Ember/Combo-Ember.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Ember/Skill-Ember.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Ember/Ult-Ember.png"
+      }
+    ]
+  },
+  {
+    "Id": "Purrchena",
+    "NameEn": "Purrchena",
+    "NameZh": "噗切娜",
+    "IconFile": "Purrchena.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Purrchena/Combo-Purrchena.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Purrchena/Skill-Purrchena.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Purrchena/Ult-Purrchena.png"
+      }
+    ]
+  },
+  {
+    "Id": "Snowshine",
+    "NameEn": "Snowshine",
+    "NameZh": "昼雪",
+    "IconFile": "Snowshine.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Snowshine/Combo-Snowshine.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Snowshine/Skill-Snowshine.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Snowshine/Ult-Snowshine.png"
+      }
+    ]
+  },
+  {
+    "Id": "Catcher",
+    "NameEn": "Catcher",
+    "NameZh": "卡契尔",
+    "IconFile": "Catcher.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Catcher/Combo-Catcher.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Catcher/Skill-Catcher.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Catcher/Ult-Catcher.png"
+      }
+    ]
+  },
+  {
+    "Id": "Ardelia",
+    "NameEn": "Ardelia",
+    "NameZh": "艾尔黛拉",
+    "IconFile": "Ardelia.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Ardelia/Combo-Ardelia.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Ardelia/Skill-Ardelia.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Ardelia/Ult-Ardelia.png"
+      }
+    ]
+  },
+  {
+    "Id": "Gilberta",
+    "NameEn": "Gilberta",
+    "NameZh": "洁尔佩塔",
+    "IconFile": "Gilberta.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Gilberta/Combo-Gilberta.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Gilberta/Skill-Gilberta.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Gilberta/Ult-Gilberta.png"
+      }
+    ]
+  },
+  {
+    "Id": "Liino",
+    "NameEn": "Liino",
+    "NameZh": "梨诺",
+    "IconFile": "Liino.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Liino/Combo-Liino.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Liino/Skill-Liino.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Liino/Ult-Liino.png"
+      }
+    ]
+  },
+  {
+    "Id": "Si",
+    "NameEn": "Si",
+    "NameZh": "祀",
+    "IconFile": "Si.png",
+    "Skills": []
+  },
+  {
+    "Id": "Xaihi",
+    "NameEn": "Xaihi",
+    "NameZh": "赛希",
+    "IconFile": "Xaihi.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Xaihi/Combo-Xaihi.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Xaihi/Skill-Xaihi.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Xaihi/Ult-Xaihi.png"
+      }
+    ]
+  },
+  {
+    "Id": "Antal",
+    "NameEn": "Antal",
+    "NameZh": "安塔尔",
+    "IconFile": "Antal.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Antal/Combo-Antal.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Antal/Skill-Antal.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Antal/Ult-Antal.png"
+      }
+    ]
+  },
+  {
+    "Id": "Arcane",
+    "NameEn": "Arcane",
+    "NameZh": "诀",
+    "IconFile": "Arcane.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Arcane/Combo-Arcane1.png"
+      },
+      {
+        "Kind": "Combo",
+        "File": "skills/Arcane/Combo-Arcane2.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Arcane/Skill-Arcane1.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Arcane/Skill-Arcane2.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Arcane/Ult-Arcane1.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Arcane/Ult-Arcane2.png"
+      }
+    ]
+  },
+  {
+    "Id": "Tangtang",
+    "NameEn": "Tangtang",
+    "NameZh": "汤汤",
+    "IconFile": "Tangtang.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Tangtang/Combo-Tangtang.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Tangtang/Skill-Tangtang.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Tangtang/Ult-Tangtang.png"
+      }
+    ]
+  },
+  {
+    "Id": "Perlica",
+    "NameEn": "Perlica",
+    "NameZh": "佩丽卡",
+    "IconFile": "Perlica.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Perlica/Combo-Perlica.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Perlica/Skill-Perlica.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Perlica/Ult-Perlica.png"
+      }
+    ]
+  },
+  {
+    "Id": "Wulfgard",
+    "NameEn": "Wulfgard",
+    "NameZh": "狼卫",
+    "IconFile": "Wulfgard.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Wulfgard/Combo-Wulfgard.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Wulfgard/Skill-Wulfgard.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Wulfgard/Ult-Wulfgard.png"
+      }
+    ]
+  },
+  {
+    "Id": "Fluorite",
+    "NameEn": "Fluorite",
+    "NameZh": "萤石",
+    "IconFile": "Fluorite.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Fluorite/Combo-Fluorite.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Fluorite/Skill-Fluorite.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Fluorite/Ult-Fluorite.png"
+      }
+    ]
+  },
+  {
+    "Id": "Laevatain",
+    "NameEn": "Laevatain",
+    "NameZh": "莱万汀",
+    "IconFile": "Laevatain.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Laevatain/Combo-Laevatain.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Laevatain/Skill-Laevatain.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Laevatain/Ult-Laevatain.png"
+      }
+    ]
+  },
+  {
+    "Id": "Last_Rite",
+    "NameEn": "Last Rite",
+    "NameZh": "别礼",
+    "IconFile": "Last_Rite.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Last_Rite/Combo-Lastrite.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Last_Rite/Skill-Lastrite.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Last_Rite/Ult-Lastrite.png"
+      }
+    ]
+  },
+  {
+    "Id": "Typhoeus",
+    "NameEn": "Typhoeus",
+    "NameZh": "提弗洛斯",
+    "IconFile": "Typhoeus.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Typhoeus/Combo-Typhoeus.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Typhoeus/Skill-Typhoeus.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Typhoeus/Ult-Typhoeus.png"
+      }
+    ]
+  },
+  {
+    "Id": "Yvonne",
+    "NameEn": "Yvonne",
+    "NameZh": "伊冯",
+    "IconFile": "Yvonne.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Yvonne/Combo-Yvonne.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Yvonne/Skill-Yvonne.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Yvonne/Ult-Yvonne.png"
+      }
+    ]
+  },
+  {
+    "Id": "Zhuang_Fangyi",
+    "NameEn": "Zhuang Fangyi",
+    "NameZh": "庄方宜",
+    "IconFile": "Zhuang_Fangyi.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Zhuang_Fangyi/Combo-Zhuangfangyi.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Zhuang_Fangyi/Skill-Zhuangfangyi.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Zhuang_Fangyi/Ult-Zhuangfangyi.png"
+      }
+    ]
+  },
+  {
+    "Id": "Avywenna",
+    "NameEn": "Avywenna",
+    "NameZh": "艾维文娜",
+    "IconFile": "Avywenna.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Avywenna/Combo-Avywenna.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Avywenna/Skill-Avywenna.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Avywenna/Ult-Avywenna.png"
+      }
+    ]
+  },
+  {
+    "Id": "Da_Pan",
+    "NameEn": "Da Pan",
+    "NameZh": "大潘",
+    "IconFile": "Da_Pan.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Da_Pan/Combo-Dapan.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Da_Pan/Skill-Dapan.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Da_Pan/Ult-Dapan.png"
+      }
+    ]
+  },
+  {
+    "Id": "Camille",
+    "NameEn": "Camille",
+    "NameZh": "卡缪",
+    "IconFile": "Camille.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Camille/Combo-Camille.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Camille/Skill-Camille.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Camille/Ult-Camille.png"
+      }
+    ]
+  },
+  {
+    "Id": "Pogranichnik",
+    "NameEn": "Pogranichnik",
+    "NameZh": "骏卫",
+    "IconFile": "Pogranichnik.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Pogranichnik/Combo-Pogranichnik.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Pogranichnik/Skill-Pogranichnik.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Pogranichnik/Ult-Pogranichnik.png"
+      }
+    ]
+  },
+  {
+    "Id": "Alesh",
+    "NameEn": "Alesh",
+    "NameZh": "阿列什",
+    "IconFile": "Alesh.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Alesh/Combo-Alesh.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Alesh/Skill-Alesh.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Alesh/Ult-Alesh.png"
+      }
+    ]
+  },
+  {
+    "Id": "Arclight",
+    "NameEn": "Arclight",
+    "NameZh": "弧光",
+    "IconFile": "Arclight.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Arclight/Combo-Arclight.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Arclight/Skill-Arclight.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Arclight/Ult-Arclight.png"
+      }
+    ]
+  },
+  {
+    "Id": "Akekuri",
+    "NameEn": "Akekuri",
+    "NameZh": "秋栗",
+    "IconFile": "Akekuri.png",
+    "Skills": [
+      {
+        "Kind": "Combo",
+        "File": "skills/Akekuri/Combo-Akekuri.png"
+      },
+      {
+        "Kind": "BattleSkill",
+        "File": "skills/Akekuri/Skill-Akekuri.png"
+      },
+      {
+        "Kind": "Ultimate",
+        "File": "skills/Akekuri/Ult-Akekuri.png"
+      }
+    ]
+  }
+]
