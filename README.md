@@ -143,7 +143,7 @@ git lfs install   # once: the gameplay recordings are stored with Git LFS
 dotnet test -c Release
 ```
 
-There are 69 tests, and all of them run from what's in the repository.
+There are 77 tests, and all of them run from what's in the repository.
 
 - **Fixture frames** ([`tests/EndHud.Vision.Tests/Fixtures`](tests/EndHud.Vision.Tests/Fixtures)):
   a 4K exploration screenshot and frames from gameplay recordings, UID blacked out. They cover
@@ -159,7 +159,8 @@ There are 69 tests, and all of them run from what's in the repository.
   - the ultimate charge only grows;
   - an ultimate is never read in the wrong state on any frame;
   - out of combat, no 连携 bar is ever reported;
-  - through a full boss battle, the panel is followed and operators fall one by one and stay fallen.
+  - through a full boss battle, the panel is followed and operators fall one by one and stay fallen;
+  - once read, the panel, ping and ultimates never go blank: unreadable moments keep the last value.
 
   See that folder's README for what each recording contains.
 
@@ -211,7 +212,10 @@ Copy `src/EndHud/i18n/zh-CN.xaml` to, for example, `en-US.xaml`, translate the v
 ## Known limits
 
 - The ultimate charge has only been observed up to about 46%; no recording yet shows one filling completely.
-- Readings are briefly unknown ("—") during cutscenes, HUD fades, and when skill effects cover an indicator.
+- When something can't be read (cutscenes, HUD fades, skill effects covering an indicator, the ping hidden
+  under skill icons), the HUD keeps showing the last value it read. So a value can be a few seconds old,
+  for example a 连携 used at the moment its bar was hidden still shows "就绪" until the bar is read again.
+  After the squad panel leaves the screen (menus, the map) the last squad reading also stays up.
 - Everything is tuned on 4K recordings.
 
 ## Game art

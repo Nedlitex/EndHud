@@ -44,7 +44,7 @@ public class RecordedVideoTests
         // Read as the HUD shows it (tracker included): the charge is smoothed over readings.
         [Recordings.UltimateCharging] = new(() => ReadEverySecondAsync(Recordings.UltimateCharging, tracked: true)),
         // The battle is read the way the HUD reads it: through the tracker that carries deaths
-        // and briefly hidden panels across readings.
+        // and unreadable values across readings.
         [Recordings.BattleFight1] = new(() => ReadEverySecondAsync(Recordings.BattleFight1, tracked: true)),
         [Recordings.BattleFight2] = new(() => ReadEverySecondAsync(Recordings.BattleFight2, tracked: true)),
     };
@@ -200,19 +200,42 @@ public class RecordedVideoTests
     // ---- Full battle (two fights) ----
 
     [Fact]
-    public async Task Battle_panel_is_followed_through_combat_and_not_seen_in_menus()
+    public async Task Battle_panel_stays_on_show_once_seen_and_not_before()
     {
         var fight1 = await SamplesOf(Recordings.BattleFight1);
         var fight2 = await SamplesOf(Recordings.BattleFight2);
-        // Combat stretches, leaving out the full-screen ultimate cutscenes (~65, 74, 79, 85 s).
-        var combat = fight1.Where(s => s.Time is >= 11 and <= 64 or >= 67 and <= 73 or >= 87 and <= 108)
-            .Concat(fight2.Where(s => s.Time is >= 3 and <= 75))
-            .ToList();
-        int seen = combat.Count(s => s.State.PanelVisible);
-        Assert.True(seen >= combat.Count * 0.97, $"panel found in only {seen} of {combat.Count} combat seconds");
-        // The end of the menus before the first fight, and the screen after the wipe.
+        // The end of the menus before the first fight: nothing has been read yet.
         Assert.All(fight1.Where(s => s.Time <= 4), s => Assert.False(s.State.PanelVisible, $"panel reported at {s.Time} s (menus)"));
-        Assert.All(fight2.Where(s => s.Time >= 77), s => Assert.False(s.State.PanelVisible, $"panel reported at {s.Time} s (after the wipe)"));
+        // From the first reading on, the last one stays on show through HUD fades and the
+        // full-screen ultimate cutscenes (~65, 74, 79, 85 s). Each recording is read with a fresh
+        // tracker, and the second opens on a loading screen.
+        foreach (var samples in new[] { fight1, fight2 })
+        {
+            double first = samples.First(s => s.State.PanelVisible).Time;
+            Assert.True(first <= 11, $"panel first found at {first} s");
+            Assert.All(samples.Where(s => s.Time >= first), s => Assert.True(s.State.PanelVisible, $"panel lost at {s.Time} s"));
+        }
+        // After the wipe the screen has no panel; the wiped squad stays on show.
+        Assert.All(fight2.Where(s => s.Time >= 77), s => Assert.All(s.State.Slots, slot => Assert.True(slot.Dead, $"slot {slot.Number} at {s.Time} s")));
+    }
+
+    [Fact]
+    public async Task Battle_ping_and_ultimates_never_go_blank_once_read()
+    {
+        foreach (var recording in new[] { Recordings.BattleFight1, Recordings.BattleFight2 })
+        {
+            var samples = await SamplesOf(recording);
+            double firstPing = samples.First(s => s.State.PingMs is not null).Time;
+            Assert.All(samples.Where(s => s.Time >= firstPing), s => Assert.True(s.State.PingMs is not null, $"{recording}: ping blank at {s.Time} s"));
+            for (int slot = 0; slot < 4; slot++)
+            {
+                var alive = samples.Where(s => s.State.PanelVisible && !s.State.Slots[slot].Dead).ToList();
+                var firstUltimate = alive.FirstOrDefault(s => s.State.Slots[slot].Ultimate is not null);
+                if (firstUltimate is null) continue;
+                Assert.All(alive.Where(s => s.Time >= firstUltimate.Time),
+                    s => Assert.True(s.State.Slots[slot].Ultimate is not null, $"{recording}: slot {slot + 1} 终结技 blank at {s.Time} s"));
+            }
+        }
     }
 
     [Fact]
@@ -241,15 +264,22 @@ public class RecordedVideoTests
     [Fact]
     public async Task Battle_combo_bars_are_read_inside_the_low_hp_frame()
     {
-        // Slots 2–4 are low on HP (pink frame, tinted bars) and refilling their 连携.
+        // Slots 2–4 are low on HP (pink frame, tinted bars) and refilling their 连携. A reading
+        // missed under effects keeps the last value, so the same value may show twice — once.
+        // (At 94 s slot 4's bar is unreadable just as it's used, so "ready" is kept for that second.)
         var samples = await SamplesOf(Recordings.BattleFight1);
         foreach (int slot in new[] { 1, 2, 3 })
         {
-            var readings = Between(samples, 94, 101).Select(s => s.State.Slots[slot].Combo).ToList();
-            Assert.True(readings.Count(c => c is not null) >= readings.Count - 1, $"slot {slot + 1}: 连携 missing at low HP");
-            var progress = readings.Where(c => c is not null).Select(c => c!.Progress).ToList();
+            var readings = Between(samples, 95, 101).Select(s => s.State.Slots[slot].Combo).ToList();
+            Assert.All(readings, c => Assert.True(c is { Ready: false }, $"slot {slot + 1}: 连携 at low HP was {(c is null ? "missing" : "ready")}"));
+            var progress = readings.Select(c => c!.Progress).ToList();
+            int repeats = 0;
             for (int i = 1; i < progress.Count; i++)
-                Assert.True(progress[i] > progress[i - 1], $"slot {slot + 1} 连携 went from {progress[i - 1]:P0} to {progress[i]:P0} at low HP");
+            {
+                Assert.True(progress[i] >= progress[i - 1], $"slot {slot + 1} 连携 went from {progress[i - 1]:P0} to {progress[i]:P0} at low HP");
+                if (progress[i] == progress[i - 1]) repeats++;
+            }
+            Assert.True(repeats <= 1, $"slot {slot + 1} 连携 stuck for {repeats} readings at low HP");
         }
     }
 

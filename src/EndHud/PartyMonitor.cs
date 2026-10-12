@@ -138,6 +138,7 @@ internal sealed class PartyMonitor : IDisposable
                     {
                         capture?.Dispose();
                         capture = new WindowCapture(hwnd);
+                        if (captured != hwnd) tracker = new PartyTracker(); // another game window: nothing carries over
                         captured = hwnd;
                     }
 

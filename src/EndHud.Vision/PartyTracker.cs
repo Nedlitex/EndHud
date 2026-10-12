@@ -2,7 +2,9 @@ namespace EndHud.Vision;
 
 /// <summary>
 /// Carries state across readings where one frame can't be trusted on its own.
-/// Panel: see <see cref="HeldMissedReadings"/>.
+/// Unreadable values: whenever something can't be read — the whole panel (HUD fade-in, a
+/// cutscene, effects hiding the marks), one HP bar, a 连携 bar, an ultimate circle or the ping —
+/// the last value that was read stays on show until a new one is read.
 /// Ultimate charge: skill effects of the arc's own colour (sparkles next to its end) can add a
 /// few percent in a single frame. The charge shown is the median of the last
 /// <see cref="ChargeMedianWindow"/> readings, so a one-frame spike never reaches the HUD.
@@ -10,57 +12,59 @@ namespace EndHud.Vision;
 /// fallen operator flash back to life with a sliver of "HP" (seen in the battle recording). So
 /// a fallen operator stays fallen until a reading shows them clearly alive again — HP above
 /// <see cref="RevivedHp"/>, as after a revive or at the start of the next battle.
+/// One tracker follows one game window; use a new one for another window.
 /// </summary>
 public sealed class PartyTracker
 {
     public const double RevivedHp = 0.1;
 
-    /// <summary>
-    /// A heavy skill effect can hide enough of the panel for one reading to miss it; keep showing
-    /// the last reading through this many misses rather than flashing "not visible".
-    /// </summary>
-    public const int HeldMissedReadings = 1;
-
     public const int ChargeMedianWindow = 3;
 
     private readonly bool[] _dead = new bool[PartyLayout.SlotCount];
     private readonly Queue<double>[] _charge = Enumerable.Range(0, PartyLayout.SlotCount).Select(_ => new Queue<double>()).ToArray();
+    private readonly PartySlot?[] _lastSlots = new PartySlot?[PartyLayout.SlotCount];
     private PartyState? _lastVisible;
-    private int _missed;
+    private int? _lastPing;
 
     public PartyState Track(PartyState state)
     {
+        // The ping is drawn in menus too, so it's kept from any reading.
+        _lastPing = state.PingMs ?? _lastPing;
         if (!state.PanelVisible)
-        {
-            if (_lastVisible is not null && _missed < HeldMissedReadings)
-            {
-                _missed++;
-                return _lastVisible;
-            }
-            return state;
-        }
-        _missed = 0;
-        _lastVisible = TrackDeaths(state);
+            return _lastVisible is null ? state with { PingMs = _lastPing } : _lastVisible with { PingMs = _lastPing };
+
+        var slots = state.Slots.Select(Track).ToList();
+        _lastVisible = state with { Slots = slots, PingMs = _lastPing };
         return _lastVisible;
     }
 
-    private PartyState TrackDeaths(PartyState state)
+    private PartySlot Track(PartySlot slot)
     {
-        var slots = state.Slots.Select(slot =>
+        int i = slot.Number - 1;
+        if (slot.Dead)
         {
-            int i = slot.Number - 1;
-            if (slot.Dead)
-            {
-                _dead[i] = true;
-                _charge[i].Clear();
-                return slot;
-            }
-            if (_dead[i] && (slot.Hp ?? 0) <= RevivedHp)
-                return slot with { Dead = true, Hp = 0, Level = null, Combo = null, Ultimate = null };
+            _dead[i] = true;
+            _charge[i].Clear();
+            return _lastSlots[i] = slot;
+        }
+        if (_dead[i] && (slot.Hp ?? 0) <= RevivedHp)
+            return _lastSlots[i] = slot with { Dead = true, Hp = 0, Level = null, Combo = null, Ultimate = null };
+        if (_dead[i])
+        {
             _dead[i] = false;
-            return slot with { Ultimate = SmoothCharge(i, slot.Ultimate) };
-        }).ToList();
-        return state with { Slots = slots };
+            _lastSlots[i] = null; // revived: nothing from before the fall carries over
+        }
+
+        var last = _lastSlots[i];
+        // The level text and the 连携 bar share one spot: a level read means out of combat (no
+        // bar), while neither means the bar was there but couldn't be read.
+        var combo = slot.Combo ?? (slot.Level is null ? last?.Combo : null);
+        return _lastSlots[i] = slot with
+        {
+            Hp = slot.Hp ?? last?.Hp,
+            Combo = combo,
+            Ultimate = SmoothCharge(i, slot.Ultimate) ?? last?.Ultimate,
+        };
     }
 
     private UltimateReading? SmoothCharge(int slot, UltimateReading? reading)
