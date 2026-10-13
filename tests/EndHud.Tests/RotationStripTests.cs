@@ -62,6 +62,18 @@ public class RotationStripTests
         Assert.True(waiting.Height > Render(Guide(StripStepState.Waiting)).Height); // the reasons' line
     }
 
+    private static bool White(byte r, byte g, byte b) => r > 225 && g > 225 && b > 225;
+
+    [Fact]
+    public void The_step_the_player_is_on_stands_out_even_when_not_ready()
+    {
+        var waiting = Render(Guide(StripStepState.Waiting));
+        var later = Render(Guide(StripStepState.Upcoming));
+
+        // Its white ring, on top of the white text both have.
+        Assert.True(waiting.Count(White) > later.Count(White) + 100, $"{waiting.Count(White)} vs {later.Count(White)} white pixels");
+    }
+
     [Fact]
     public void Steps_used_together_overlap()
     {

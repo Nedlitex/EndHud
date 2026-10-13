@@ -424,6 +424,7 @@ like everything else.
 | Controlled operator ([`ActiveSlot`](src/EndHud.Vision/ActiveSlot.cs)) | the chevron over the controlled operator's portrait | shape match against the chevron |
 | Battle skill ([`BattleSkillButton`](src/EndHud.Vision/BattleSkillButton.cs)) | each battle skill button, bottom right | a dark disc with white digits is cooling; the white icon is available |
 | Operator counters ([`OperatorCounters`](src/EndHud.Vision/Operators/OperatorCounters.cs)) | the controlled operator's resource, bottom centre | Laevatain's 熔火 (0–4): lit petals of the flower; pink petals mean full |
+| Elemental infliction ([`InflictionRing`](src/EndHud.Vision/InflictionRing.cs)) | the ring at the right end of the boss's HP bar, top centre | present when the white stack segment on top of the ring shows; the element from the colour of the icon inside (heat, cryo, electric, nature) |
 | Enemy statuses ([`BossStatusReader`](src/EndHud.Vision/BossStatusReader.cs)) | the icon row under the boss's bars, top centre | each square is matched against the wiki's status icons; read at most once a second and only when the current rotation asks about statuses (about 70 ms a read at 4K) |
 
 Status icons come from the wiki's glossary module along with the operators (`statuses.json` in the
@@ -495,6 +496,9 @@ exception: hosted runners can't capture windows, so they only run on a developer
   labels in `labels.json`): skill points, the controlled operator, battle skill buttons, 熔火 and
   enemy statuses on labelled 4K battle frames (UID blacked out), including a cutscene that must
   read as nothing.
+- **Elemental infliction** ([`Fixtures/infliction`](tests/EndHud.Vision.Tests/Fixtures/infliction)):
+  heat and nature rings, and frames with no ring (a white background, a cutscene, blue effects
+  filling the ring's place), at 4K and on simulated 1440p, 1080p and 16:10 screens.
 - **Recommended rotations:** synced against a stand-in for GitHub (new, unchanged, corrected and
   removed files; a SHA or id that doesn't match; a 404, an unexpected answer or an unreachable
   GitHub changing nothing; the player's own rotations never touched; deleted ones staying deleted
@@ -604,9 +608,11 @@ Copy `src/EndHud/i18n/zh-CN.xaml` to, for example, `en-US.xaml`, translate the v
 - Hints and the rotation strip follow the screen reading, four times a second by default
   (`OcrIntervalMs`), so they can lag the game by up to a quarter of a second.
 - Rotations: only Laevatain's 熔火 is read as an operator counter so far (Typhoeus and Zhuang Fangyi
-  have counters too; they need combat screenshots). Enemy status stack counts aren't read, so the
-  editor doesn't offer them, and a shared rotation asking for 2+ stacks treats that check as unknown.
-  Elemental infliction rings have only been seen at one stack. A few boss icons aren't on the
+  have counters too; they need combat screenshots). Stack counts aren't read (the status row's
+  badges, or the infliction ring's segments), so the editor doesn't offer them, and a shared
+  rotation asking for 2+ stacks treats that check as unknown. Infliction rings have been seen at one
+  and two stacks, and only for heat and nature; cryo and electric are told apart by colour from the
+  wiki's icons but not yet seen in a recording. A few boss icons aren't on the
   wiki's glossary and aren't recognised.
 
 ## Game art

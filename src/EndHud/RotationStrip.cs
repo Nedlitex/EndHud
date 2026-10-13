@@ -80,8 +80,8 @@ internal static class RotationStrip
         });
         row.Children.Add(steps);
 
-        var body = new StackPanel();
-        body.Children.Add(new Border { Background = Band, CornerRadius = new CornerRadius(6), Padding = new Thickness(0, 6, 12, 6), Child = row });
+        // Why the current step isn't ready goes inside the band, readable over any scene.
+        var body = new StackPanel { Children = { row } };
         if (view.Reasons.Count > 0)
         {
             body.Children.Add(new TextBlock
@@ -89,11 +89,10 @@ internal static class RotationStrip
                 Text = string.Join("　", view.Reasons),
                 Foreground = Warning,
                 FontSize = 14,
-                Margin = new Thickness(18, 4, 0, 0),
-                Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 4, ShadowDepth = 0, Opacity = 0.9 },
+                Margin = new Thickness(18, 2, 0, 0),
             });
         }
-        return body;
+        return new Border { Background = Band, CornerRadius = new CornerRadius(6), Padding = new Thickness(0, 6, 12, 6), Child = body };
     }
 
     private static UIElement Step(StripStep step)
@@ -103,7 +102,7 @@ internal static class RotationStrip
         {
             Width = StepWidth,
             Margin = new Thickness(step.WithPrevious ? -Overlap : 0, 0, 0, 0),
-            Opacity = step.State == StripStepState.Done ? 0.35 : step.State == StripStepState.Waiting ? 0.7 : 1,
+            Opacity = step.State == StripStepState.Done ? 0.35 : 1,
         };
         panel.Children.Add(new TextBlock
         {
@@ -127,8 +126,9 @@ internal static class RotationStrip
         icon.Children.Add(new Ellipse
         {
             Fill = StepFill,
-            Stroke = step.State == StripStepState.Ready ? Gold : Dim,
-            StrokeThickness = step.State == StripStepState.Ready ? 3 : 1.5,
+            // Gold: use it now. White: this is the step, but not yet. Grey: later.
+            Stroke = step.State switch { StripStepState.Ready => Gold, StripStepState.Waiting => Text, _ => Dim },
+            StrokeThickness = current ? 3 : 1.5,
         });
         if (step.Icon is not null)
         {

@@ -3,9 +3,13 @@ using EndHud.Vision.Operators;
 namespace EndHud.Vision;
 
 /// <summary>A status the enemy has, recognised by its icon under the boss's bars.</summary>
-/// <param name="Position">Its place in the row, from 0 (the row reflows as statuses come and go).</param>
+/// <param name="Position">Its place in the row, from 0 (the row reflows as statuses come and go);
+/// <see cref="RingPosition"/> for the elemental infliction (<see cref="InflictionRing"/>).</param>
 /// <param name="Score">How well the icon matched (normalised correlation, 1 = identical).</param>
-public sealed record BossStatusReading(string StatusId, int Position, double Score);
+public sealed record BossStatusReading(string StatusId, int Position, double Score)
+{
+    public const int RingPosition = -1;
+}
 
 /// <summary>
 /// The boss's statuses: a row of icons in square frames under its HP bars, top centre, 70 px apart
@@ -36,7 +40,10 @@ public sealed class BossStatusReader(OperatorLibrary library)
 
     private readonly Dictionary<(string Id, int Size), IconTemplate> _templates = new();
 
-    /// <summary>The statuses recognised in the row (empty when there's no row or none is recognised).</summary>
+    /// <summary>
+    /// The statuses recognised in the row (empty when there's no row or none is recognised), then the
+    /// elemental infliction if there is one (<see cref="InflictionRing"/>).
+    /// </summary>
     public IReadOnlyList<BossStatusReading> Read(Frame frame)
     {
         var found = new List<BossStatusReading>();
@@ -44,6 +51,7 @@ public sealed class BossStatusReader(OperatorLibrary library)
         {
             if (best is { } b) found.Add(new BossStatusReading(b.Id, position, b.Score));
         }
+        if (InflictionRing.Read(frame) is { } infliction) found.Add(new BossStatusReading(infliction, BossStatusReading.RingPosition, 1));
         return found;
     }
 

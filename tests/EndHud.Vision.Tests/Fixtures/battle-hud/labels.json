@@ -23,7 +23,9 @@
    "Available"
   ],
   "meltingFlame": 0,
-  "bossStatuses": []
+  "bossStatuses": [
+   "Heat Infliction"
+  ]
  },
  {
   "file": "battle-28s.jpg",
@@ -94,7 +96,8 @@
   "meltingFlame": 3,
   "bossStatuses": [
    "Electrification",
-   "Susceptibility"
+   "Susceptibility",
+   "Nature Infliction"
   ]
  },
  {
@@ -226,7 +229,8 @@
   "meltingFlame": 4,
   "bossStatuses": [
    "Susceptibility",
-   "Corrosion"
+   "Corrosion",
+   "Heat Infliction"
   ]
  },
  {
