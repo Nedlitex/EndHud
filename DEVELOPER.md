@@ -333,7 +333,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
 {
   "format": 1,
   "id": "6f1c…",
-  "name": "标准轴",
+  "name": "示例排轴",
   "squad": ["Laevatain", "Camille", "Arcane", "Ardelia"],
   "phases": [
     {
@@ -344,7 +344,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
           "expect": [ { "kind": "skillPoints", "is": "AtLeast", "value": 2 } ] },
         { "operatorId": "Camille", "action": "Combo" },
         { "operatorId": "Arcane", "action": "Combo", "withPrevious": true },
-        { "operatorId": "Laevatain", "action": "BattleSkill", "label": "战技·意", "note": "飞天",
+        { "operatorId": "Laevatain", "action": "BattleSkill", "note": "熔火未满",
           "expect": [ { "kind": "bossStatus", "statusId": "Heat Infliction", "present": true },
                       { "kind": "counter", "operatorId": "Laevatain", "counterId": "melting-flame", "is": "AtMost", "value": 3 } ] }
       ]
@@ -359,6 +359,8 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
 - `action`: `BattleSkill`, `Combo` or `Ultimate`. The skill being available (a skill point for a
   battle skill, the combo or ultimate ready) is implied; `expect` lists anything else.
 - `withPrevious`: used right after the previous step, drawn overlapping it.
+- `label` (optional): replaces the action's name above the icon, for a variant the game names
+  differently (e.g. "战技·意"). `note` (optional): a short hint under the icon.
 - `expect` conditions (`kind`):
 
   | `kind` | Fields | Holds when |

@@ -190,8 +190,8 @@ public sealed class RotationSyncTests : IDisposable
     {
         string folder = Path.Combine(OperatorCache.RepositoryRoot(), "rotations");
         var operators = await OperatorCache.LoadAsync(Path.Combine(_folder, "user"));
+        // None yet is fine: rotations are added by committing a file (see rotations/README.md).
         var files = Directory.GetFiles(folder, "*.json");
-        Assert.NotEmpty(files);
 
         foreach (string file in files)
         {

@@ -30,7 +30,7 @@ The clips (time range, crop, mode) are listed at the top of `Program.cs`.
 ## The rotation strip over a recording
 
 ```powershell
-dotnet run --project tools/EndHud.ReadmeMedia -c Release -- rotation <recording.mp4> out/rotation-demo rotations/laevatain-standard.json
+dotnet run --project tools/EndHud.ReadmeMedia -c Release -- rotation <recording.mp4> out/rotation-demo <rotation.json>
 ```
 
 Replays the recording through the same steps as the app (four readings a second: squad panel,
