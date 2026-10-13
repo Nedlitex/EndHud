@@ -38,6 +38,10 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
     /// once the squad is identified; empty when unknown.</summary>
     public IReadOnlyList<Operators.CounterReading> Counters { get; init; } = [];
 
+    /// <summary>The boss's statuses recognised under its bars (see <see cref="BossStatusReader"/>);
+    /// null when not read this time (it's read less often than the rest).</summary>
+    public IReadOnlyList<BossStatusReading>? BossStatuses { get; init; }
+
     /// <summary>
     /// False when the squad panel isn't on screen (menus, map, cutscenes). Mainly the HP-bar
     /// marks, which show in every state; the level text (exploration) and combo bars (combat)
