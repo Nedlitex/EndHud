@@ -36,6 +36,8 @@ public partial class OverlayWindow : Window
     private string _gameTitle = "";
     private bool _hudOn;
     private bool _menuOpen;
+    // Off at every start, whatever was shown last time: it's for checking readings, not for play.
+    private bool _debugPanel;
     private (int X, int Y, int W, int H) _lastRect;
 
     internal OverlayWindow(HudOptions options, HudConfig config)
@@ -51,9 +53,9 @@ public partial class OverlayWindow : Window
         PartyOcrCheckBox.IsChecked = config.PartyOcrEnabled;
         PartySection.Visibility = config.PartyOcrEnabled ? Visibility.Visible : Visibility.Collapsed;
         PartyText.Text = Loc.Get("Party.Waiting");
-        DebugPanelCheckBox.IsChecked = config.DebugPanel;
+        DebugPanelCheckBox.IsChecked = false;
         CheckForUpdatesCheckBox.IsChecked = config.CheckForUpdates;
-        DebugRoot.Visibility = config.DebugPanel ? Visibility.Visible : Visibility.Collapsed;
+        DebugRoot.Visibility = Visibility.Collapsed;
         InitComboHintSettings();
 
         _party = new PartyMonitor(TimeSpan.FromMilliseconds(Math.Max(250, config.OcrIntervalMs)));
@@ -69,14 +71,14 @@ public partial class OverlayWindow : Window
     public bool HudOn => _hudOn;
     public bool GameFound => _game != IntPtr.Zero;
     public bool AutoShow => _config.AutoShowOnGameFocus;
-    public bool DebugPanel => _config.DebugPanel;
+    public bool DebugPanel => _debugPanel;
 
-    public void ToggleDebugPanel() => SetDebugPanel(!_config.DebugPanel);
+    public void ToggleDebugPanel() => SetDebugPanel(!_debugPanel);
 
+    /// <summary>Show or hide the debug panel until EndHud quits (never saved).</summary>
     private void SetDebugPanel(bool enabled)
     {
-        _config.DebugPanel = enabled;
-        ConfigStore.Save(_config);
+        _debugPanel = enabled;
         DebugPanelCheckBox.IsChecked = enabled;
         DebugRoot.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
     }

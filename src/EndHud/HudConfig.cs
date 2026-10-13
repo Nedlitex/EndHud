@@ -23,11 +23,11 @@ internal sealed class HudConfig
     /// <summary>UI language; picks the file i18n/&lt;Language&gt;.xaml.</summary>
     public string Language { get; set; } = "zh-CN";
 
-    /// <summary>Look for a newer EndHud on GitHub soon after start and then daily (a notification; nothing is installed).</summary>
+    /// <summary>Look for a newer EndHud on GitHub soon after start and then daily; the player installs it in one click.</summary>
     public bool CheckForUpdates { get; set; } = true;
 
-    /// <summary>Show the debug panel: everything read from the squad panel, window size, clock.</summary>
-    public bool DebugPanel { get; set; }
+    // The debug panel isn't a setting: it's off at every start (OverlayWindow). A "DebugPanel" left
+    // in an older config.json is ignored.
 
     /// <summary>Show a hint when an operator's combo comes off cooldown in combat.</summary>
     public bool ComboHintEnabled { get; set; } = true;
@@ -78,7 +78,7 @@ internal static class ConfigStore
 
         try
         {
-            return JsonSerializer.Deserialize<HudConfig>(File.ReadAllText(FilePath), Json) ?? new HudConfig();
+            return Parse(File.ReadAllText(FilePath));
         }
         catch (JsonException)
         {
@@ -88,11 +88,16 @@ internal static class ConfigStore
         }
     }
 
+    /// <summary>A config file's text; settings it doesn't mention keep their defaults, and ones EndHud no longer has are ignored.</summary>
+    internal static HudConfig Parse(string json) => JsonSerializer.Deserialize<HudConfig>(json, Json) ?? new HudConfig();
+
+    internal static string Serialize(HudConfig config) => JsonSerializer.Serialize(config, Json);
+
     public static void Save(HudConfig config)
     {
         Directory.CreateDirectory(Folder);
         string temp = FilePath + ".tmp";
-        File.WriteAllText(temp, JsonSerializer.Serialize(config, Json));
+        File.WriteAllText(temp, Serialize(config));
         File.Move(temp, FilePath, overwrite: true);
     }
 }

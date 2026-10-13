@@ -40,7 +40,7 @@ EndHud hasn't recognised gets a banner with just their slot number.
 ### Debug panel
 
 Everything EndHud reads, for checking it (the "debug panel" checkbox in the menu, the tray, or
-Ctrl+Shift+D). Off by default. It lists, per squad slot:
+Ctrl+Shift+D). Off at every start: it shows until EndHud quits, and isn't saved. It lists, per squad slot:
 
 ```
 ENDHUD
@@ -194,7 +194,6 @@ edit it by hand, restart EndHud. Delete the file to reset.
 | `PartyOcrEnabled` | `true` | Read the squad panel (names, HP, skills, levels). |
 | `OcrIntervalMs` | `1000` | How often the squad panel is read (minimum 250). |
 | `Language` | `zh-CN` | UI language: picks `i18n/<Language>.xaml`. |
-| `DebugPanel` | `false` | Show the debug panel. |
 | `ComboHintEnabled` | `true` | Show the combo-ready hint (needs `PartyOcrEnabled`). |
 | `ComboHintMode` | `WhenReady` | `WhenReady`: for `ComboHintSeconds` after the cooldown finishes. `WhileReady`: until the combo skill is used. |
 | `ComboHintSeconds` | `3` | How long a `WhenReady` hint stays up. |
