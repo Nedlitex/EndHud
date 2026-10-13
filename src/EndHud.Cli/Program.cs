@@ -8,6 +8,8 @@ using EndHud.Vision.Operators;
 //       Download every operator's icon and Chinese name from the wiki into a library folder.
 //   endhud-cli identify <screenshot.png> --library <library-dir> [--debug-dir <dir>]
 //       Match each squad portrait against the library and print the top candidates.
+//   endhud-cli build-portrait-references <squads.json> <out.json>
+//       Describe the labelled 4K squad screenshots' portraits for EndHud's built-in references.
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 
@@ -18,6 +20,7 @@ return args.FirstOrDefault() switch
     "identify" when args.Length >= 2 && Option("--library") is { } lib => await IdentifyAsync(args[1], lib, Option("--debug-dir")),
     "analyze-video" when args.Length >= 2 => await AnalyzeVideoAsync(args[1], double.Parse(Option("--every") ?? "1")),
     "capture" when args.Length >= 3 => await CaptureAsync(args[1], args[2]),
+    "build-portrait-references" when args.Length >= 3 => await BuildReferencesAsync(args[1], args[2]),
     "learn" when args.Length >= 2 && Option("--library") is { } lib && Option("--slots") is { } ids => await LearnAsync(args[1], lib, ids),
     _ => Usage(),
 };
@@ -38,6 +41,7 @@ static int Usage()
           endhud-cli analyze-video <recording.mp4> [--every <seconds>]
           endhud-cli learn <screenshot.png> --library <library-dir> --slots <id1>,<id2>,<id3>,<id4>
           endhud-cli capture <window-title-part> <out.png>
+          endhud-cli build-portrait-references <squads.json> <out.json>
         """);
     return 2;
 }
@@ -166,15 +170,43 @@ static async Task<int> IdentifyAsync(string imagePath, string libraryDir, string
     foreach (var slot in state.Slots)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
+        var screenPortrait = slot.ScreenPortrait ?? slot.Portrait;
+        await matcher.PrepareWikiAvatars(screenPortrait.Width);
         var learned = matcher.MatchLearned(slot.Portrait);
-        var (match, ranking) = matcher.MatchIcon(slot.Portrait);
-        string top = string.Join("  ", ranking.Take(4).Select(r =>
-            $"{r.Operator.NameZh}({r.Operator.Id}) {r.Score:F3} [shape {r.Shape:F2} colour {r.Colour:F2}]"));
-        Console.WriteLine($"slot {slot.Number}: learned={learned?.Operator.NameZh ?? "-"} icon={match?.Operator.NameZh ?? "-"}  [{sw.ElapsedMilliseconds} ms]");
-        Console.WriteLine($"         {top}");
+        var differences = matcher.Differences(screenPortrait)!;
+        var ranking = Enumerable.Range(0, differences.Length).OrderBy(j => differences[j]).Take(4)
+            .Select(j => $"{library.Operators[j].NameZh}({library.Operators[j].Id}) {differences[j]:F3}");
+        Console.WriteLine($"slot {slot.Number}: learned={learned?.Operator.NameZh ?? "-"}  [{sw.ElapsedMilliseconds} ms]");
+        Console.WriteLine($"         closest first: {string.Join("  ", ranking)}");
         if (debugDir is not null)
             await ImageFile.SavePngAsync(slot.Portrait, Path.Combine(debugDir, $"slot{slot.Number}-portrait.png"));
     }
-    Console.WriteLine($"calibration: {library.Calibration}");
     return 0;
 }
+
+// Labelled 4K squad screenshots (squads.json: [{ "file", "slots": [4 operator ids] }]) -> the
+// character model's description of every portrait, at each reference size (PortraitReferences).
+static async Task<int> BuildReferencesAsync(string squadsJson, string outFile)
+{
+    var squads = System.Text.Json.JsonSerializer.Deserialize<List<SquadScreenshot>>(File.ReadAllText(squadsJson),
+        new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+    var reader = new PartyReader(new TextRecognizer());
+    var portraits = new List<(string, string, Frame)>();
+    foreach (var squad in squads)
+    {
+        var frame = await ImageFile.LoadAsync(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(squadsJson))!, squad.File));
+        if (frame.Width != 3840 || frame.Height != 2160)
+        {
+            Console.Error.WriteLine($"{squad.File}: {frame.Width}x{frame.Height}; references are made from 4K screenshots");
+            return 1;
+        }
+        var state = await reader.ReadAsync(frame);
+        for (int i = 0; i < squad.Slots.Length; i++)
+            portraits.Add((squad.Slots[i], $"{squad.File} slot {i + 1}", state.Slots[i].ScreenPortrait ?? state.Slots[i].Portrait));
+    }
+    int count = PortraitReferences.Build(portraits, outFile);
+    Console.WriteLine($"{portraits.Count} portraits of {portraits.Select(p => p.Item1).Distinct().Count()} operators, {count} references -> {Path.GetFullPath(outFile)}");
+    return 0;
+}
+
+record SquadScreenshot(string File, string[] Slots);

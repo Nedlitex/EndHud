@@ -1,0 +1,11 @@
+[
+  { "file": "squad-1.png", "slots": ["Chen_Qianyu", "Snowshine", "Perlica", "Endministrator"] },
+  { "file": "squad-2.png", "slots": ["Wulfgard", "Akekuri", "Catcher", "Estella"] },
+  { "file": "squad-3.png", "slots": ["Fluorite", "Antal", "Arclight", "Avywenna"] },
+  { "file": "squad-4.png", "slots": ["Da_Pan", "Lifeng", "Pogranichnik", "Xaihi"] },
+  { "file": "squad-5.png", "slots": ["Yvonne", "Alesh", "Last_Rite", "Laevatain"] },
+  { "file": "squad-6.png", "slots": ["Ardelia", "Ember", "Gilberta", "Tangtang"] },
+  { "file": "squad-7.png", "slots": ["Rossi", "Zhuang_Fangyi", "Mi_Fu", "Camille"] },
+  { "file": "squad-8.png", "slots": ["Camille", "Arcane", "Liino", "Typhoeus"] },
+  { "file": "squad-9.png", "slots": ["Purrchena", "Typhoeus", "Liino", "Arcane"] }
+]

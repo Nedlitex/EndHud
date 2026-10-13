@@ -34,6 +34,7 @@ public enum SkillKind
 public sealed record SkillIcon(SkillKind Kind, string File);
 
 /// <summary>Result of identifying a squad portrait.</summary>
-/// <param name="Score">Similarity in [-1, 1] (normalised cross-correlation) of the best reference.</param>
-/// <param name="FromLearned">True when matched against a previously learned in-game portrait, false for a wiki icon.</param>
+/// <param name="Score">How alike, higher = closer: normalised cross-correlation for a learned portrait
+/// (1 = identical), 1 minus the character model's difference for a wiki avatar.</param>
+/// <param name="FromLearned">True when matched against a portrait the user taught, false for a wiki avatar.</param>
 public sealed record OperatorMatch(OperatorInfo Operator, double Score, bool FromLearned);

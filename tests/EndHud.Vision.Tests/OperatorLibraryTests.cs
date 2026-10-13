@@ -21,21 +21,24 @@ public sealed class OperatorLibraryTests : IDisposable
     }
 
     [Fact]
-    public async Task Without_a_download_the_library_is_empty_but_has_the_built_in_calibration()
+    public async Task Without_a_download_the_library_is_empty()
     {
         var library = await OperatorLibrary.LoadAsync(_userFolder);
 
         Assert.True(library.IsEmpty);
         Assert.Empty(library.Operators);
-        Assert.NotNull(library.Calibration); // a few numbers, compiled in: not game art
     }
 
     [Fact]
     public void EndHud_ships_no_game_art()
     {
         // The roster, avatars and skill icons are downloaded, never compiled in (they're the game's
-        // art). The only resource is the calibration: a few numbers.
-        Assert.Equal(["calibration.json"], typeof(OperatorLibrary).Assembly.GetManifestResourceNames());
+        // art). The only resources are the character recognition model (tools/ccip-model) and the
+        // in-game portrait references, which are the model's numbers, not images.
+        Assert.Equal(["ccip-features-int8.onnx", "ccip-metrics.onnx", PortraitReferences.ResourceName],
+            typeof(OperatorLibrary).Assembly.GetManifestResourceNames().Order());
+        Assert.All(PortraitReferences.BuiltIn, r => Assert.Equal(768, r.Features.Length));
+        Assert.True(PortraitReferences.BuiltIn.Select(r => r.OperatorId).Distinct().Count() >= 32);
     }
 
     [Fact]

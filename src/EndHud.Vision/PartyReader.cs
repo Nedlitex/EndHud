@@ -12,9 +12,11 @@ namespace EndHud.Vision;
 /// <param name="Ultimate">Ultimate charge from the bottom-right button; null when not on screen.</param>
 /// <param name="Dead">The operator has fallen: the death mark (⊘ on a hatched square) replaces the portrait.</param>
 /// <param name="Operator">Who it is, once <see cref="Operators.SquadIdentifier"/> has run; null = not recognised.</param>
+/// <param name="ScreenPortrait">The portrait at the screen's own resolution, for the character model
+/// (<see cref="Operators.PortraitMatcher.Differences"/>); null = use <paramref name="Portrait"/>.</param>
 public sealed record PartySlot(int Number, int? Level, double? Hp, string LevelText, Frame Portrait,
     ComboReading? Combo = null, UltimateReading? Ultimate = null, bool Dead = false,
-    Operators.OperatorMatch? Operator = null);
+    Operators.OperatorMatch? Operator = null, Frame? ScreenPortrait = null);
 
 /// <param name="PanelMarks">How many of the eight "-" marks beside the HP bars were found (see <see cref="PanelMarkers"/>).</param>
 /// <param name="ReadingsSinceSeen">0 when this reading saw the panel; otherwise how many readings in a row
@@ -45,20 +47,21 @@ public sealed partial class PartyReader(TextRecognizer ocr)
         for (int i = 0; i < PartyLayout.SlotCount; i++)
         {
             double? hp = HpBar.Measure(frame, ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.HpBar, i)));
-            var portrait = frame.Crop(ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.Portrait, i)))
-                .Resize(Operators.PortraitMatcher.PortraitWidth, Operators.PortraitMatcher.PortraitHeight);
+            var screenPortrait = frame.Crop(ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.Portrait, i)));
+            var portrait = screenPortrait.Resize(Operators.PortraitMatcher.PortraitWidth, Operators.PortraitMatcher.PortraitHeight);
 
             // A fallen operator: empty HP bar and the death mark. Their combo and ultimate aren't shown.
             if (hp <= 0.02 && PanelMarkers.IsDeathMark(frame, i))
             {
-                slots.Add(new PartySlot(i + 1, null, 0, "", portrait, Dead: true));
+                slots.Add(new PartySlot(i + 1, null, 0, "", portrait, Dead: true, ScreenPortrait: screenPortrait));
                 continue;
             }
 
             var combo = ComboBar.Measure(frame, ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.ComboBar, i)));
             // In combat the combo bar replaces the level text, so there's nothing to OCR.
             var (level, text) = combo is not null ? (null, "") : await ReadLevelAsync(frame, ui, i);
-            slots.Add(new PartySlot(i + 1, level, hp, text, portrait, combo, UltimateGauge.Measure(frame, i)));
+            slots.Add(new PartySlot(i + 1, level, hp, text, portrait, combo, UltimateGauge.Measure(frame, i),
+                ScreenPortrait: screenPortrait));
         }
         return new PartyState(slots, PanelMarkers.Count(frame));
     }

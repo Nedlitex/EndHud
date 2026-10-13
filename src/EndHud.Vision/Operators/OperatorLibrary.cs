@@ -2,10 +2,6 @@ using System.Text.Json;
 
 namespace EndHud.Vision.Operators;
 
-/// <summary>Where a wiki icon lands inside a squad portrait (shared by all operators: same UI framing).</summary>
-/// <param name="Size">Icon edge length in portrait pixels.</param>
-public sealed record IconCalibration(int Size, int X, int Y);
-
 /// <summary>
 /// The references used to recognise operators. Two parts:
 /// <list type="bullet">
@@ -15,8 +11,8 @@ public sealed record IconCalibration(int Size, int X, int Y);
 /// is recognised.</item>
 /// <item><b>User data</b> (the user folder, %APPDATA%\EndHud\operators in the app):
 /// <c>learned/&lt;id&gt;/*.png</c> portraits learned from the user's own corrections, and
-/// <c>calibration.json</c>, where avatars sit in a squad portrait if it differs from the
-/// built-in measurement (the only reference data EndHud ships: a few numbers).</item>
+/// <c>features/</c>, the avatars as described by the character model (a cache, see
+/// <see cref="PortraitMatcher.PrepareWikiAvatars"/>).</item>
 /// </list>
 /// Learned portraits can be corrected (<see cref="Unlearn"/> + learn the right one) or cleared
 /// (<see cref="ForgetAllLearned"/>).
@@ -28,7 +24,7 @@ public sealed record IconCalibration(int Size, int X, int Y);
 /// icons/&lt;id&gt;.png            avatar
 /// skills/&lt;id&gt;/*.png          battle skill / combo / ultimate icons (Skill-*, Combo-*, Ult-*)
 /// learned/&lt;id&gt;/*.png         learned squad portraits (user data)
-/// calibration.json          where avatars sit inside a squad portrait (user data)
+/// features/*.json           avatars described by the character model (user data, a cache)
 /// </code>
 /// </remarks>
 public sealed class OperatorLibrary
@@ -38,7 +34,6 @@ public sealed class OperatorLibrary
     public const string LearnedFolderName = "learned";
     public const string ReferenceFolderName = "reference";
     private const string ManifestName = "operators.json";
-    private const string CalibrationName = "calibration.json";
 
     /// <summary>
     /// User-learned portraits kept per operator. Beyond this the oldest is dropped (a size cap,
@@ -59,31 +54,23 @@ public sealed class OperatorLibrary
     private readonly FolderAssets _reference;
     private readonly string _userFolder;
     private readonly List<Learned> _learned;
-    private readonly IconCalibration? _builtInCalibration;
-    private IconCalibration? _userCalibration;
 
     private OperatorLibrary(FolderAssets reference, string userFolder, IReadOnlyList<OperatorInfo> operators,
-        IReadOnlyDictionary<string, Frame> icons, List<Learned> learned,
-        IconCalibration? builtInCalibration, IconCalibration? userCalibration)
+        IReadOnlyDictionary<string, Frame> icons, List<Learned> learned)
     {
         _reference = reference;
         _userFolder = userFolder;
         Operators = operators;
         Icons = icons;
         _learned = learned;
-        _builtInCalibration = builtInCalibration;
-        _userCalibration = userCalibration;
     }
 
     public IReadOnlyList<OperatorInfo> Operators { get; }
     public bool IsEmpty => Operators.Count == 0;
     internal IReadOnlyDictionary<string, Frame> Icons { get; }
 
-    /// <summary>The user's own calibration if any, else the built-in one.</summary>
-    public IconCalibration? Calibration
-    {
-        get { lock (_lock) return _userCalibration ?? _builtInCalibration; }
-    }
+    /// <summary>Where the user's data (learned portraits, caches) is kept.</summary>
+    public string UserFolder => _userFolder;
 
     /// <summary>
     /// The app's library: the reference data downloaded into <paramref name="userFolder"/>/reference
@@ -122,22 +109,8 @@ public sealed class OperatorLibrary
             }
         }
 
-        var userCalibration = user.Exists(CalibrationName)
-            ? JsonSerializer.Deserialize<IconCalibration>(user.Read(CalibrationName))
-            : null;
-
-        return new OperatorLibrary(reference, userFolder, operators, icons, learned, BuiltInCalibration.Value, userCalibration);
+        return new OperatorLibrary(reference, userFolder, operators, icons, learned);
     }
-
-    /// <summary>
-    /// Where a wiki avatar sits inside a squad portrait, measured once on real gameplay
-    /// (Assets/calibration.json, compiled in). The same for every operator: it's the game's framing.
-    /// </summary>
-    private static readonly Lazy<IconCalibration?> BuiltInCalibration = new(() =>
-    {
-        using var stream = typeof(OperatorLibrary).Assembly.GetManifestResourceStream("calibration.json");
-        return stream is null ? null : JsonSerializer.Deserialize<IconCalibration>(stream);
-    });
 
     // "learned/Laevatain/2026….png" → "Laevatain"
     private static string? OperatorIdOf(string path)
@@ -212,7 +185,7 @@ public sealed class OperatorLibrary
         }
     }
 
-    /// <summary>Forget every learned portrait and the user's calibration.</summary>
+    /// <summary>Forget every learned portrait.</summary>
     public void ForgetAllLearned()
     {
         lock (_lock)
@@ -221,18 +194,6 @@ public sealed class OperatorLibrary
             _learned.Clear();
             string dir = Path.Combine(_userFolder, LearnedFolderName);
             if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
-            _userCalibration = null;
-            TryDelete(Path.Combine(_userFolder, CalibrationName));
-        }
-    }
-
-    internal void SaveCalibration(IconCalibration calibration)
-    {
-        lock (_lock)
-        {
-            _userCalibration = calibration;
-            Directory.CreateDirectory(_userFolder);
-            File.WriteAllText(Path.Combine(_userFolder, CalibrationName), JsonSerializer.Serialize(calibration, Json));
         }
     }
 

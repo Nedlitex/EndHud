@@ -14,12 +14,23 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Runs the character recognition model (on the CPU). -->
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!--
-      The only built-in operator data: where a wiki avatar sits inside a squad portrait (a few
-      numbers measured on gameplay). The roster, avatars and skill icons are game art and are
-      never shipped: they're downloaded from the wiki on first start (OperatorReference).
+      The character recognition model (CCIP, see tools/ccip-model), compiled in so recognition
+      works out of the box. It isn't game art: the roster, avatars and skill icons are never
+      shipped; they're downloaded from the wiki on first start (OperatorReference).
     -->
-    <EmbeddedResource Include="Assets\calibration.json" LogicalName="calibration.json" />
+    <EmbeddedResource Include="Assets\ccip\ccip-features-int8.onnx" LogicalName="ccip-features-int8.onnx" />
+    <EmbeddedResource Include="Assets\ccip\ccip-metrics.onnx" LogicalName="ccip-metrics.onnx" />
+    <!--
+      Each operator's in-game squad portrait as the model describes it (numbers, not images),
+      built from the test fixtures' squad screenshots; see PortraitReferences.
+    -->
+    <EmbeddedResource Include="Assets\operator-portraits.json" LogicalName="operator-portraits.json" />
   </ItemGroup>
 
 </Project>

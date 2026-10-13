@@ -28,19 +28,6 @@ public sealed class SquadIdentifierTests : IDisposable
     private static async Task<Frame> Fixture1440Async() => (await ImageFile.LoadAsync(Fixture4K)).Resize(2560, 1440);
 
     [Fact]
-    public async Task Wiki_icons_rank_the_right_operator_near_the_top_for_every_slot()
-    {
-        var state = await ReadAsync(await ImageFile.LoadAsync(Fixture4K));
-        var matcher = new PortraitMatcher(await LoadLibraryAsync());
-
-        for (int i = 0; i < 4; i++)
-        {
-            var top = matcher.MatchIcon(state.Slots[i].Portrait).Ranking.Take(5).Select(r => r.Operator.Id);
-            Assert.Contains(Truth[i], top);
-        }
-    }
-
-    [Fact]
     public async Task Learned_portraits_identify_the_whole_squad_at_another_resolution()
     {
         // Teach: the user picks the right operator for each slot once, at 4K.
@@ -107,7 +94,5 @@ public sealed class SquadIdentifierTests : IDisposable
 
         var reloaded = await LoadLibraryAsync();
         Assert.Equal(0, reloaded.LearnedCount("Laevatain"));
-        // The user's own calibration is gone; the built-in one remains.
-        Assert.False(File.Exists(Path.Combine(_libraryDir, "calibration.json")));
     }
 }

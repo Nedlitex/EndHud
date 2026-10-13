@@ -1,13 +1,21 @@
+using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using System.Text.Json;
+
 namespace EndHud.Vision.Operators;
 
 /// <summary>
-/// Identifies the operator in a squad portrait (see <see cref="PartyLayout.Portrait"/>), first
-/// against portraits learned in game, then against wiki icons.
+/// Compares a squad portrait (see <see cref="PartyLayout.Portrait"/>) with portraits the user
+/// taught (<see cref="MatchLearned"/>) and with every operator's references (<see cref="Differences"/>):
+/// the wiki avatar, and EndHud's built-in in-game portrait (<see cref="PortraitReferences"/>) when
+/// there is one.
 /// </summary>
 /// <remarks>
-/// Similarity is normalised cross-correlation over RGB, so brightness/contrast differences
-/// between the wiki art and the game's rendering don't matter. Only the middle of each image is
-/// compared: the portrait's edges show the game world behind the operator, which changes.
+/// Learned portraits are the same rendering as the squad panel, so pixels are compared:
+/// normalised cross-correlation over RGB of the middle of the image (the edges show the game
+/// world behind the operator, which changes). The references are compared by
+/// <see cref="CharacterModel"/>: the wiki avatar is different art (a drawing, not the game's 3D
+/// model), which pixels can't match.
 /// </remarks>
 public sealed class PortraitMatcher(OperatorLibrary library)
 {
@@ -18,25 +26,21 @@ public sealed class PortraitMatcher(OperatorLibrary library)
     // Learned portraits are the same rendering as what we're matching, so they score high.
     internal const double LearnedThreshold = 0.80;
     private const double LearnedMargin = 0.04;
-    // Wiki icons are different art of the same face (sometimes a different pose altogether): a
-    // guess only, shown when it clearly beats the runner-up and never learned from automatically.
-    // Measured on the 4K fixture: right answers score 0.77–0.84 and lead by 0.02–0.04.
-    private const double IconThreshold = 0.72;
-    private const double IconMargin = 0.03;
-
     private const int LearnedSearchRadius = 3;
-    private const int CalibratedSizeRadius = 3;
-    private const int CalibratedOffsetRadius = 3;
-    // In the squad panel the head is drawn at about the wiki icon's framing: icon width ≈ portrait
-    // width (64 px here). Much smaller sizes only find chance matches in hair texture.
-    private static readonly int[] IconSizes = Enumerable.Range(0, 11).Select(i => 52 + i * 2).ToArray(); // 52…72
-    // Icons may overhang the portrait by this fraction of their size (the head fills the slot).
-    private const double MaxOverhang = 0.2;
 
-    private readonly Dictionary<(string Id, int Size), Template> _iconTemplates = new();
     private static readonly Lazy<bool[]> PortraitMask = new(BuildPortraitMask);
+    private readonly Dictionary<int, Task<float[][]>> _wikiFeatures = new();
+    // Avatars already described in this process (by avatar content and width): a library reload
+    // after a roster refresh only describes what changed.
+    private static readonly ConcurrentDictionary<(string Avatar, int Width), float[]> Described = new();
 
-    public OperatorMatch? Match(Frame portrait) => MatchLearned(portrait) ?? MatchIcon(portrait).Match;
+    private readonly IReadOnlyList<PortraitReference> _references = PortraitReferences.BuiltIn;
+
+    /// <summary>With other in-game portrait references than the built-in ones (tests: leave one out, or none).</summary>
+    internal PortraitMatcher(OperatorLibrary library, IReadOnlyList<PortraitReference> references) : this(library) =>
+        _references = references;
+
+    public OperatorLibrary Library => library;
 
     /// <summary>Best match among learned in-game portraits, if clearly confident.</summary>
     public OperatorMatch? MatchLearned(Frame portrait)
@@ -68,111 +72,120 @@ public sealed class PortraitMatcher(OperatorLibrary library)
         return best;
     }
 
-    /// <summary>Ranks every wiki icon against the portrait; Match is set only for a confident, clear winner.</summary>
-    public (OperatorMatch? Match, IReadOnlyList<IconScore> Ranking) MatchIcon(Frame portrait)
+    /// <summary>
+    /// How different <paramref name="screenPortrait"/> (the portrait at the screen's own size,
+    /// <see cref="PartySlot.ScreenPortrait"/>) is from each operator, in
+    /// <see cref="OperatorLibrary.Operators"/> order; 0 = the same character. Per operator, the
+    /// closer of its wiki avatar and its in-game portrait references (at the nearest size). Null
+    /// while the avatars for this portrait size are still being prepared (see <see cref="PrepareWikiAvatars"/>).
+    /// </summary>
+    public float[]? Differences(Frame screenPortrait)
     {
-        var image = Patch.From(portrait);
-        var calibration = library.Calibration;
-        var ranking = new List<IconScore>();
+        var avatars = PrepareWikiAvatars(screenPortrait.Width);
+        if (!avatars.IsCompletedSuccessfully) return null;
 
-        foreach (var op in library.Operators)
+        int width = PortraitReferences.NearestWidth(screenPortrait.Width);
+        var index = new Dictionary<string, int>();
+        for (int j = 0; j < library.Operators.Count; j++) index[library.Operators[j].Id] = j;
+        var references = _references.Where(r => r.Width == width && index.ContainsKey(r.OperatorId)).ToList();
+
+        var model = CharacterModel.Shared;
+        var differences = model.Differences([model.Features(screenPortrait)],
+            [.. avatars.Result, .. references.Select(r => r.Features)]);
+        var row = new float[avatars.Result.Length];
+        for (int j = 0; j < row.Length; j++) row[j] = differences[0, j];
+        for (int k = 0; k < references.Count; k++)
         {
-            var (shape, size, x, y) = BestPlacement(op.Id, image, calibration);
-            double colour = OverlapColourSimilarity(portrait, library.Icons[op.Id].Resize(size, size), x, y);
-            ranking.Add(new IconScore(op, (shape + colour) / 2, shape, colour, size, x, y));
+            int j = index[references[k].OperatorId];
+            row[j] = Math.Min(row[j], differences[0, row.Length + k]);
         }
-
-        ranking.Sort((a, b) => b.Score.CompareTo(a.Score));
-        if (ranking.Count == 0 || ranking[0].Score < IconThreshold) return (null, ranking);
-        if (ranking.Count > 1 && ranking[0].Score - ranking[1].Score < IconMargin) return (null, ranking);
-        return (new OperatorMatch(ranking[0].Operator, ranking[0].Score, FromLearned: false), ranking);
+        return row;
     }
 
     /// <summary>
-    /// The user confirmed <paramref name="portrait"/> is <paramref name="op"/>: record where that
-    /// operator's icon sits in the portrait. Every operator is framed the same way in the squad
-    /// panel, so this narrows (and speeds up) all later icon searches. Only taken from a
-    /// confirmed answer — a calibration from a wrong guess would skew every search after it.
+    /// Describe every wiki avatar for portraits <paramref name="width"/> pixels wide, in the
+    /// background (about 0.2 s per operator; then cached in the user folder, so only once per
+    /// screen size and roster). Each avatar is first shrunk to that width: a small portrait is
+    /// blurry, and comparing it with an equally blurry avatar is fairer than with a sharp one
+    /// (at 1600x900, 47 of 53 portraits right instead of 36).
     /// </summary>
-    public void Calibrate(Frame portrait, OperatorInfo op)
+    public Task<float[][]> PrepareWikiAvatars(int width)
     {
-        var (_, size, x, y) = BestPlacement(op.Id, Patch.From(portrait), calibration: null);
-        library.SaveCalibration(new IconCalibration(size, x, y));
+        lock (_wikiFeatures)
+        {
+            if (!_wikiFeatures.TryGetValue(width, out var task) || task.IsFaulted)
+                _wikiFeatures[width] = task = Task.Run(() => DescribeWikiAvatars(width));
+            return task;
+        }
     }
 
-    /// <summary>
-    /// Where (size and offset) the icon correlates best with the portrait. Uncalibrated: a coarse
-    /// pass over the whole range, then a fine pass around the winner. Calibrated: a fine pass
-    /// around the calibrated placement only.
-    /// </summary>
-    private (double Score, int Size, int X, int Y) BestPlacement(string id, Patch image, IconCalibration? calibration)
+    private float[][] DescribeWikiAvatars(int width)
     {
-        var best = (Score: -1.0, Size: 0, X: 0, Y: 0);
-        if (calibration is null)
+        var cacheFile = Path.Combine(library.UserFolder, "features", $"{CharacterModel.Name}-{width}.json");
+        var cache = ReadFeatureCache(cacheFile);
+        var model = CharacterModel.Shared;
+        bool changed = false;
+        var result = new float[library.Operators.Count][];
+        for (int i = 0; i < result.Length; i++)
         {
-            for (int s = 0; s < IconSizes.Length; s += 2)
-                Search(IconSizes[s], step: 2, centre: null);
-            calibration = new IconCalibration(best.Size, best.X, best.Y);
-        }
-
-        for (int size = calibration.Size - CalibratedSizeRadius; size <= calibration.Size + CalibratedSizeRadius; size++)
-            Search(size, step: 1, centre: (calibration.X, calibration.Y));
-        return best;
-
-        void Search(int size, int step, (int X, int Y)? centre)
-        {
-            if (size < 16) return;
-            var template = IconTemplate(id, size);
-            int overhang = (int)(size * MaxOverhang);
-            int minX = -overhang, minY = -overhang;
-            int maxX = PortraitWidth - size + overhang, maxY = PortraitHeight - size + overhang;
-            if (centre is { } c)
+            var op = library.Operators[i];
+            var avatar = OnWhite(library.Icons[op.Id]);
+            string key = Convert.ToHexString(SHA1.HashData(avatar.Bgra));
+            if (cache.TryGetValue(op.Id, out var cached) && cached.Avatar == key && cached.Features.Length > 0)
             {
-                minX = Math.Max(minX, c.X - CalibratedOffsetRadius);
-                maxX = Math.Min(maxX, c.X + CalibratedOffsetRadius);
-                minY = Math.Max(minY, c.Y - CalibratedOffsetRadius);
-                maxY = Math.Min(maxY, c.Y + CalibratedOffsetRadius);
+                result[i] = Described[(key, width)] = cached.Features;
+                continue;
             }
-            for (int y = minY; y <= maxY; y += step)
-            for (int x = minX; x <= maxX; x += step)
-            {
-                double score = template.Correlate(image, x, y);
-                if (score > best.Score) best = (score, size, x, y);
-            }
+            result[i] = Described.GetOrAdd((key, width), _ => model.Features(avatar.Resize(width, width)));
+            cache[op.Id] = new CachedFeatures(key, result[i]);
+            changed = true;
+        }
+        if (changed) WriteFeatureCache(cacheFile, cache);
+        return result;
+    }
+
+    private sealed record CachedFeatures(string Avatar, float[] Features);
+
+    private static Dictionary<string, CachedFeatures> ReadFeatureCache(string file)
+    {
+        try
+        {
+            return File.Exists(file)
+                ? JsonSerializer.Deserialize<Dictionary<string, CachedFeatures>>(File.ReadAllText(file)) ?? []
+                : [];
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+        {
+            return []; // a damaged cache is just recomputed
         }
     }
 
-    /// <summary>
-    /// Colour similarity over only the pixels where the placed icon and the portrait's face area
-    /// overlap, so parts of the icon the game doesn't show (weapons, clothes) don't count.
-    /// </summary>
-    private static double OverlapColourSimilarity(Frame portrait, Frame icon, int ox, int oy)
+    private static void WriteFeatureCache(string file, Dictionary<string, CachedFeatures> cache)
     {
-        var mask = PortraitMask.Value;
-        bool Overlaps(int ix, int iy)
+        try
         {
-            int px = ix + ox, py = iy + oy;
-            return (uint)px < (uint)portrait.Width && (uint)py < (uint)portrait.Height
-                   && mask[py * portrait.Width + px] && icon.GetAlpha(ix, iy) > 200;
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            string temp = file + ".tmp";
+            File.WriteAllText(temp, JsonSerializer.Serialize(cache));
+            File.Move(temp, file, overwrite: true);
         }
-
-        var iconColours = ColourHistogram.Of(icon, Overlaps);
-        var portraitColours = ColourHistogram.Of(portrait, (px, py) =>
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            int ix = px - ox, iy = py - oy;
-            return (uint)ix < (uint)icon.Width && (uint)iy < (uint)icon.Height && Overlaps(ix, iy);
-        });
-        return portraitColours.Similarity(iconColours);
+            // Not fatal: it's recomputed next time.
+        }
     }
 
-    private Template IconTemplate(string id, int size)
+    /// <summary>The avatar over white (the model's convention for transparency), fully opaque.</summary>
+    private static Frame OnWhite(Frame image)
     {
-        lock (_iconTemplates)
+        var bgra = new byte[image.Bgra.Length];
+        for (int i = 0; i < bgra.Length; i += 4)
         {
-            if (!_iconTemplates.TryGetValue((id, size), out var template))
-                _iconTemplates[(id, size)] = template = Template.FromIcon(library.Icons[id].Resize(size, size));
-            return template;
+            int a = image.Bgra[i + 3];
+            for (int c = 0; c < 3; c++) bgra[i + c] = (byte)((image.Bgra[i + c] * a + 255 * (255 - a) + 127) / 255);
+            bgra[i + 3] = 255;
         }
+        return new Frame(image.Width, image.Height, bgra);
     }
 
     /// <summary>
@@ -227,7 +240,7 @@ public sealed class PortraitMatcher(OperatorLibrary library)
         }
     }
 
-    /// <summary>A reference image reduced to the masked pixels, zero-mean per channel, for fast correlation.</summary>
+    /// <summary>A learned portrait reduced to the masked pixels, zero-mean per channel, for fast correlation.</summary>
     private sealed class Template
     {
         private readonly int[] _xs, _ys;
@@ -240,14 +253,6 @@ public sealed class PortraitMatcher(OperatorLibrary library)
             _ys = ys;
             _values = values;
             _norm = norm;
-        }
-
-        public static Template FromIcon(Frame icon)
-        {
-            // Compare a centred disc: the face. Skip transparent pixels.
-            double c = (icon.Width - 1) / 2.0, radius = icon.Width * 0.45;
-            return Build(icon, (x, y) =>
-                (x - c) * (x - c) + (y - c) * (y - c) <= radius * radius && icon.GetAlpha(x, y) > 200);
         }
 
         public static Template FromPortrait(Frame portrait, bool[] mask) =>
@@ -347,69 +352,5 @@ public sealed class PortraitMatcher(OperatorLibrary library)
             index = (y * image.Width + x) * 3;
             return (uint)x < (uint)image.Width && (uint)y < (uint)image.Height && !image.Excluded[y * image.Width + x];
         }
-    }
-}
-
-/// <summary>How well one wiki icon matched, and where (for diagnostics and calibration).</summary>
-/// <param name="Score">Combined: mean of <paramref name="Shape"/> and <paramref name="Colour"/>.</param>
-/// <param name="Shape">Best normalised cross-correlation (layout of the face and hair).</param>
-/// <param name="Colour">Similarity of the colour distributions (hair, eyes, skin), independent of pose.</param>
-public sealed record IconScore(OperatorInfo Operator, double Score, double Shape, double Colour, int Size, int X, int Y);
-
-/// <summary>
-/// Hue histogram of the saturated pixels plus brightness bins for the grey ones. Compared with
-/// the Bhattacharyya coefficient: 1 = identical distributions, 0 = no overlap.
-/// </summary>
-internal sealed class ColourHistogram
-{
-    private const int HueBins = 18;
-    private const int GreyBins = 4;
-    private readonly double[] _bins;
-
-    private ColourHistogram(double[] bins) => _bins = bins;
-
-    public static ColourHistogram Of(Frame frame, Func<int, int, bool> include)
-    {
-        // Saturated colours split into dark/bright halves: dark red hair vs bright red eyes.
-        var bins = new double[HueBins * 2 + GreyBins];
-        double total = 0;
-        for (int y = 0; y < frame.Height; y++)
-        for (int x = 0; x < frame.Width; x++)
-        {
-            if (!include(x, y)) continue;
-            var (r, g, b) = frame.GetPixel(x, y);
-            int max = Math.Max(r, Math.Max(g, b)), min = Math.Min(r, Math.Min(g, b));
-            int bin;
-            if (max < 40 || max - min < max * 0.25)
-            {
-                bin = HueBins * 2 + Math.Min(GreyBins - 1, max * GreyBins / 256);
-            }
-            else
-            {
-                double hue = Hue(r, g, b, max, min);
-                int h = Math.Min(HueBins - 1, (int)(hue / 360 * HueBins));
-                bin = h * 2 + (max >= 160 ? 1 : 0);
-            }
-            bins[bin]++;
-            total++;
-        }
-        if (total > 0)
-            for (int i = 0; i < bins.Length; i++) bins[i] /= total;
-        return new ColourHistogram(bins);
-    }
-
-    public double Similarity(ColourHistogram other)
-    {
-        double bc = 0;
-        for (int i = 0; i < _bins.Length; i++) bc += Math.Sqrt(_bins[i] * other._bins[i]);
-        return bc;
-    }
-
-    private static double Hue(int r, int g, int b, int max, int min)
-    {
-        double d = max - min;
-        double h = max == r ? (g - b) / d % 6 : max == g ? (b - r) / d + 2 : (r - g) / d + 4;
-        h *= 60;
-        return h < 0 ? h + 360 : h;
     }
 }
