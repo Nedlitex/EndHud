@@ -225,22 +225,30 @@ jobs:
 
       # What "update now" does, without the tray: download, verify, install quietly.
       - name: The installed EndHud updates itself
+        timeout-minutes: 10
         shell: pwsh
         run: |
           $exe = "$env:LOCALAPPDATA\Programs\EndHud\EndHud.exe"
           $work = Join-Path ([IO.Path]::GetTempPath()) 'EndHud-update'
-          $p = Start-Process $exe -ArgumentList '--update-now', '--from', $env:FEED -Wait -PassThru
-          Get-Content "$work\update-now.log"
-          if ($p.ExitCode -ne 0) { throw "--update-now exited with $($p.ExitCode)" }
+          function Show-State {
+            foreach ($f in 'update-now.log', 'install-result.txt') { if (Test-Path "$work\$f") { "--- $f"; Get-Content "$work\$f" } }
+            if (Test-Path "$work\install.log") { '--- install.log (end)'; Get-Content "$work\install.log" -Tail 40 }
+            '--- processes'; Get-Process EndHud, msiexec, cmd -ErrorAction SilentlyContinue | Format-Table Id, ProcessName, StartTime | Out-String
+          }
+          # Wait for EndHud only: -Wait would also wait for the installer script it hands over to.
+          $p = Start-Process $exe -ArgumentList '--update-now', '--from', $env:FEED -PassThru
+          if (-not $p.WaitForExit(180000)) { Show-State; throw 'EndHud --update-now did not finish within 3 minutes' }
+          if ($p.ExitCode -ne 0) { Show-State; throw "--update-now exited with $($p.ExitCode)" }
 
           # The installer runs once EndHud has exited; it writes its exit code when done.
           $deadline = (Get-Date).AddMinutes(5)
           while (-not (Test-Path "$work\install-result.txt")) {
-            if ((Get-Date) -gt $deadline) { throw 'The installer did not finish within 5 minutes' }
+            if ((Get-Date) -gt $deadline) { Show-State; throw 'The installer did not finish within 5 minutes' }
             Start-Sleep 2
           }
+          Show-State
           $result = (Get-Content "$work\install-result.txt").Trim()
-          if ($result -ne '0') { Get-Content "$work\install.log" -Tail 60; throw "msiexec exited with $result" }
+          if ($result -ne '0') { throw "msiexec exited with $result" }
 
           $installed = (Get-Item $exe).VersionInfo.ProductVersion
           if (-not $installed.StartsWith($env:VERSION)) { throw "Installed version $installed, expected $env:VERSION" }
@@ -252,16 +260,21 @@ jobs:
           if ($products.Count -ne 1 -or $versions[0] -ne $env:VERSION) { throw "Expected one EndHud $env:VERSION registered" }
 
       - name: The updated EndHud works
+        timeout-minutes: 10
         shell: pwsh
         run: ./installer/self-test.ps1 -Exe "$env:LOCALAPPDATA\Programs\EndHud\EndHud.exe" -Folder "$env:RUNNER_TEMP\self-test-updated" -Screenshot tests/EndHud.Vision.Tests/Fixtures/exploration-levels-visible.png -Squad Laevatain,Camille,Arcane,Ardelia
 
       - name: The portable exe updates itself
+        timeout-minutes: 10
         shell: pwsh
         run: |
           $dir = New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\portable"
           Copy-Item old/EndHud-0.0.1-portable.exe "$dir\EndHud.exe"
-          $p = Start-Process "$dir\EndHud.exe" -ArgumentList '--update-now', '--from', $env:FEED -Wait -PassThru
-          Get-Content (Join-Path ([IO.Path]::GetTempPath()) 'EndHud-update\update-now.log')
+          $log = Join-Path ([IO.Path]::GetTempPath()) 'EndHud-update\update-now.log'
+          $p = Start-Process "$dir\EndHud.exe" -ArgumentList '--update-now', '--from', $env:FEED -PassThru
+          $finished = $p.WaitForExit(180000)
+          if (Test-Path $log) { Get-Content $log }
+          if (-not $finished) { throw 'EndHud --update-now did not finish within 3 minutes' }
           if ($p.ExitCode -ne 0) { throw "--update-now exited with $($p.ExitCode)" }
           $now = (Get-FileHash "$dir\EndHud.exe").Hash
           $expected = (Get-FileHash "release/EndHud-$env:VERSION-portable.exe").Hash
