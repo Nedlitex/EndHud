@@ -111,6 +111,14 @@ public class RotationStripTests
         Assert.True(strip.EdgeAlpha(left: false) < 12, $"right edge alpha {strip.EdgeAlpha(left: false):0}");
     }
 
+    [Theory]
+    [InlineData(0.96, "0.9")]
+    [InlineData(1.4, "1.4")]
+    [InlineData(2.0, "2")]
+    [InlineData(0.0, "0")]
+    public void Skill_points_short_of_what_is_needed_never_read_as_enough(double points, string shown) =>
+        Assert.Equal(shown, RotationStripView.Points(points));
+
     [Fact]
     public void Steps_used_together_overlap()
     {

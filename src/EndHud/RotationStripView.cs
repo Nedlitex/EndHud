@@ -42,7 +42,7 @@ internal static class RotationStripView
         {
             return step.Action switch
             {
-                StepAction.BattleSkill => state?.SkillPoints is < 1 ? Loc.Format("Rotation.Reason.SkillPoints", $"{state.SkillPoints:0.#}", 1)
+                StepAction.BattleSkill => state?.SkillPoints is < 1 ? Loc.Format("Rotation.Reason.SkillPoints", Points(state.SkillPoints), 1)
                     : Loc.Format("Rotation.Reason.Cooling", Name(step.OperatorId), Loc.Get("Rotation.Action.BattleSkill")),
                 StepAction.Combo => Loc.Format("Rotation.Reason.Cooling", Name(step.OperatorId), Loc.Get("Rotation.Action.Combo")),
                 _ => Loc.Format("Rotation.Reason.UltimateCharging", Name(step.OperatorId)),
@@ -50,7 +50,7 @@ internal static class RotationStripView
         }
         return check.Condition switch
         {
-            SkillPointsCondition c => Loc.Format("Rotation.Reason.SkillPoints", $"{state?.SkillPoints:0.#}", $"{c.Value:0.#}"),
+            SkillPointsCondition c => Loc.Format("Rotation.Reason.SkillPoints", Points(state?.SkillPoints), $"{c.Value:0.#}"),
             ComboCondition c => Loc.Format(c.Ready ? "Rotation.Reason.NeedComboReady" : "Rotation.Reason.NeedComboCooling", Name(c.OperatorId)),
             UltimateCondition c => Loc.Format(c.Ready ? "Rotation.Reason.NeedUltimateReady" : "Rotation.Reason.NeedUltimateUsed", Name(c.OperatorId)),
             CounterCondition c => Loc.Format("Rotation.Reason.Counter", Name(c.OperatorId),
@@ -63,4 +63,11 @@ internal static class RotationStripView
             _ => null,
         };
     }
+
+    /// <summary>
+    /// Skill points as the reason shows them: rounded down, so 0.96 of the 1 needed reads "0.9/1",
+    /// never a "1/1" that looks enough.
+    /// </summary>
+    internal static string Points(double? points) =>
+        points is { } p ? (Math.Floor(p * 10 + 1e-9) / 10).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) : "?";
 }
