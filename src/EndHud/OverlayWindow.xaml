@@ -178,6 +178,20 @@
                 </StackPanel>
             </StackPanel>
 
+            <!-- Rotation strip (排轴). -->
+            <TextBlock Text="{DynamicResource Menu.Rotation}" Style="{StaticResource SectionHeader}" />
+            <TextBlock Text="{DynamicResource Menu.Rotation.Hint}" Foreground="#99FFFFFF" FontSize="11"
+                       TextWrapping="Wrap" Margin="0,0,0,4" />
+            <CheckBox x:Name="RotationCheckBox" Click="RotationCheckBox_Click">
+                <TextBlock Text="{DynamicResource Menu.Rotation.Enabled}" />
+            </CheckBox>
+            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                <Button x:Name="EditRotationsButton" Padding="10,2" Margin="0,0,6,0"
+                        Content="{DynamicResource Menu.Rotation.Edit}" Click="EditRotationsButton_Click" />
+                <Button x:Name="RotationResetButton" Padding="10,2"
+                        Content="{DynamicResource Menu.Rotation.ResetPosition}" Click="RotationResetButton_Click" />
+            </StackPanel>
+
             <!-- Operator recognition: pick the right operator per slot; EndHud learns from it. -->
             <TextBlock Text="{DynamicResource Menu.Operators}" Style="{StaticResource SectionHeader}" />
             <TextBlock Text="{DynamicResource Menu.Operators.Hint}" Foreground="#99FFFFFF" FontSize="11"

@@ -58,6 +58,7 @@ public partial class OverlayWindow : Window
         DebugRoot.Visibility = Visibility.Collapsed;
         InitComboHintSettings();
         ReloadRotations();
+        InitRotationSettings();
 
         _party = new PartyMonitor(TimeSpan.FromMilliseconds(Math.Max(250, config.OcrIntervalMs)));
         _party.Updated += (state, error) => Dispatcher.BeginInvoke(() => ShowParty(state, error));

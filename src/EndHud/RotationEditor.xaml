@@ -1,0 +1,172 @@
+<Window x:Class="EndHud.RotationEditor"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{DynamicResource Editor.Title}"
+        Width="1080" Height="780" MinWidth="900" MinHeight="620"
+        WindowStartupLocation="CenterScreen" Topmost="True"
+        FontFamily="Microsoft YaHei UI, Segoe UI" FontSize="13">
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="10,3" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="MinWidth" Value="90" />
+        </Style>
+        <Style TargetType="GroupBox">
+            <Setter Property="Padding" Value="6" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+        </Style>
+        <Style x:Key="Label" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Which rotation -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+            <TextBlock Text="{DynamicResource Editor.Rotation}" Style="{StaticResource Label}" />
+            <ComboBox x:Name="RotationPicker" MinWidth="320" SelectionChanged="RotationPicker_SelectionChanged" />
+            <Button x:Name="NewButton" Content="{DynamicResource Editor.New}" Click="NewButton_Click" />
+            <Button x:Name="CopyButton" Content="{DynamicResource Editor.Copy}" Click="CopyButton_Click" />
+            <Button x:Name="DeleteButton" Content="{DynamicResource Editor.Delete}" Click="DeleteButton_Click" />
+        </StackPanel>
+
+        <!-- Name and squad -->
+        <StackPanel Grid.Row="1" x:Name="Header" Margin="0,0,0,8">
+            <TextBlock x:Name="EmptyText" Text="{DynamicResource Editor.Empty}" Foreground="#666" Margin="0,0,0,6" TextWrapping="Wrap" />
+            <TextBlock x:Name="UnreadableText" Foreground="#B04030" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,0,0,6" />
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{DynamicResource Editor.Name}" Style="{StaticResource Label}" />
+                <TextBox x:Name="NameBox" Width="220" Margin="0,0,16,0" TextChanged="NameBox_TextChanged" />
+                <TextBlock Text="{DynamicResource Editor.Squad}" Style="{StaticResource Label}" />
+                <ComboBox x:Name="Squad0" MinWidth="120" SelectionChanged="Squad_SelectionChanged" />
+                <ComboBox x:Name="Squad1" MinWidth="120" SelectionChanged="Squad_SelectionChanged" />
+                <ComboBox x:Name="Squad2" MinWidth="120" SelectionChanged="Squad_SelectionChanged" />
+                <ComboBox x:Name="Squad3" MinWidth="120" SelectionChanged="Squad_SelectionChanged" />
+                <Button x:Name="UseCurrentSquadButton" Content="{DynamicResource Editor.UseCurrentSquad}" Click="UseCurrentSquadButton_Click" />
+            </StackPanel>
+        </StackPanel>
+
+        <Grid Grid.Row="2" x:Name="Body">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="320" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- The full rotation: phases in order -->
+            <StackPanel Grid.Column="0">
+                <GroupBox Header="{DynamicResource Editor.Sequence}">
+                    <StackPanel>
+                        <ListBox x:Name="SequenceList" Height="170" SelectionChanged="SequenceList_SelectionChanged" />
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <TextBlock Text="{DynamicResource Editor.Times}" Style="{StaticResource Label}" />
+                            <ComboBox x:Name="TimesPicker" MinWidth="60" SelectionChanged="TimesPicker_SelectionChanged" />
+                            <Button Content="↑" Click="SequenceUp_Click" ToolTip="{DynamicResource Editor.MoveUp}" />
+                            <Button Content="↓" Click="SequenceDown_Click" ToolTip="{DynamicResource Editor.MoveDown}" />
+                            <Button Content="✕" Click="SequenceRemove_Click" ToolTip="{DynamicResource Editor.RemoveFromSequence}" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <ComboBox x:Name="AddPhasePicker" MinWidth="150" />
+                            <Button Content="{DynamicResource Editor.AddToSequence}" Click="AddToSequence_Click" />
+                        </StackPanel>
+                    </StackPanel>
+                </GroupBox>
+                <GroupBox Header="{DynamicResource Editor.Phases}">
+                    <StackPanel>
+                        <ComboBox x:Name="PhasePicker" HorizontalAlignment="Stretch" Margin="0,0,0,6" SelectionChanged="PhasePicker_SelectionChanged" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <TextBlock Text="{DynamicResource Editor.PhaseName}" Style="{StaticResource Label}" />
+                            <TextBox x:Name="PhaseNameBox" Width="180" TextChanged="PhaseNameBox_TextChanged" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="{DynamicResource Editor.NewPhase}" Click="NewPhase_Click" />
+                            <Button Content="{DynamicResource Editor.DeletePhase}" Click="DeletePhase_Click" />
+                        </StackPanel>
+                    </StackPanel>
+                </GroupBox>
+            </StackPanel>
+
+            <!-- The selected phase's steps -->
+            <GroupBox Grid.Column="2" x:Name="StepsGroup">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="300" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <DockPanel Grid.Column="0">
+                        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
+                            <Button Content="{DynamicResource Editor.AddStep}" Click="AddStep_Click" />
+                            <Button Content="↑" Click="StepUp_Click" ToolTip="{DynamicResource Editor.MoveUp}" />
+                            <Button Content="↓" Click="StepDown_Click" ToolTip="{DynamicResource Editor.MoveDown}" />
+                            <Button Content="{DynamicResource Editor.DeleteStep}" Click="DeleteStep_Click" />
+                        </StackPanel>
+                        <ListBox x:Name="StepList" SelectionChanged="StepList_SelectionChanged" />
+                    </DockPanel>
+                    <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="StepDetails">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <TextBlock Text="{DynamicResource Editor.Operator}" Style="{StaticResource Label}" Width="70" />
+                                <ComboBox x:Name="StepOperator" MinWidth="140" SelectionChanged="StepField_Changed" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <TextBlock Text="{DynamicResource Editor.Action}" Style="{StaticResource Label}" Width="70" />
+                                <ComboBox x:Name="StepActionPicker" MinWidth="140" SelectionChanged="StepField_Changed" />
+                            </StackPanel>
+                            <CheckBox x:Name="StepWithPrevious" Margin="70,0,0,6" Click="StepField_Changed"
+                                      Content="{DynamicResource Editor.WithPrevious}" />
+                            <DockPanel Margin="0,0,0,6">
+                                <TextBlock DockPanel.Dock="Left" Text="{DynamicResource Editor.Label}" Style="{StaticResource Label}" Width="70" />
+                                <TextBox DockPanel.Dock="Left" x:Name="StepLabel" Width="140" VerticalAlignment="Center" TextChanged="StepField_Changed" />
+                                <TextBlock Text="{DynamicResource Editor.LabelHint}" Foreground="#888" Margin="6,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            </DockPanel>
+                            <DockPanel Margin="0,0,0,10">
+                                <TextBlock DockPanel.Dock="Left" Text="{DynamicResource Editor.Note}" Style="{StaticResource Label}" Width="70" />
+                                <TextBox DockPanel.Dock="Left" x:Name="StepNote" Width="140" VerticalAlignment="Center" TextChanged="StepField_Changed" />
+                                <TextBlock Text="{DynamicResource Editor.NoteHint}" Foreground="#888" Margin="6,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            </DockPanel>
+                            <TextBlock Text="{DynamicResource Editor.Expect}" FontWeight="SemiBold" Margin="0,0,0,2" />
+                            <TextBlock Text="{DynamicResource Editor.ExpectHint}" Foreground="#888" TextWrapping="Wrap" Margin="0,0,0,6" />
+                            <StackPanel x:Name="ConditionRows" />
+                            <Button Content="{DynamicResource Editor.AddCondition}" HorizontalAlignment="Left" Margin="0,4,0,0" Click="AddCondition_Click" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </GroupBox>
+        </Grid>
+
+        <!-- Preview -->
+        <GroupBox Grid.Row="3" Header="{DynamicResource Editor.Preview}">
+            <Border Background="#5A646E" Padding="8" CornerRadius="4">
+                <ContentControl x:Name="PreviewHost" HorizontalAlignment="Left" />
+            </Border>
+        </GroupBox>
+
+        <StackPanel Grid.Row="4" Margin="0,0,0,8">
+            <TextBlock x:Name="ProblemsText" Foreground="#B04030" TextWrapping="Wrap" />
+            <TextBlock x:Name="StatusText" Foreground="#2E7D32" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <DockPanel Grid.Row="5" LastChildFill="False">
+            <Button Content="{DynamicResource Editor.ImportFile}" Click="ImportFile_Click" />
+            <Button Content="{DynamicResource Editor.PasteCode}" Click="PasteCode_Click" />
+            <Button Content="{DynamicResource Editor.ExportFile}" Click="ExportFile_Click" />
+            <Button Content="{DynamicResource Editor.CopyCode}" Click="CopyCode_Click" />
+            <Button DockPanel.Dock="Right" Content="{DynamicResource Editor.Close}" Click="CloseButton_Click" Margin="0" />
+            <Button DockPanel.Dock="Right" x:Name="SaveButton" Content="{DynamicResource Editor.Save}" Click="SaveButton_Click" IsDefault="True" />
+        </DockPanel>
+    </Grid>
+</Window>

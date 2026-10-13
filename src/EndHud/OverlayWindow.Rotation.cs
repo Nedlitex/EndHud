@@ -172,6 +172,51 @@ public partial class OverlayWindow
         }
     }
 
+    // ---- Menu and editor ----
+
+    private RotationEditor? _editor;
+
+    private void InitRotationSettings() => RotationCheckBox.IsChecked = _config.RotationEnabled;
+
+    private void RotationCheckBox_Click(object sender, RoutedEventArgs e)
+    {
+        _config.RotationEnabled = RotationCheckBox.IsChecked == true;
+        ConfigStore.Save(_config);
+        _rotationPosition = null;
+        RenderRotation();
+    }
+
+    private void EditRotationsButton_Click(object sender, RoutedEventArgs e) => OpenRotationEditor();
+
+    /// <summary>The rotation editor (one at a time), on the rotation for the recognised squad if there is one.</summary>
+    public void OpenRotationEditor()
+    {
+        if (_editor is not null)
+        {
+            _editor.Activate();
+            return;
+        }
+        if (_party.Identifier?.Library is not { } library)
+        {
+            MessageBox.Show(Loc.Get("Editor.NoLibrary"), Loc.Get("Editor.Title"), MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        var squad = _lastState?.Slots.Select(s => s.Operator?.Operator.Id).ToList() ?? [null, null, null, null];
+        _editor = new RotationEditor(_rotationStore, library, squad, RotationFor(squad)?.Id, saved =>
+        {
+            // A saved rotation becomes the one used for its squad.
+            if (saved is not null)
+            {
+                _config.ActiveRotations[SquadKey(saved.Squad)] = saved.Id;
+                ConfigStore.Save(_config);
+            }
+            ReloadRotations();
+        });
+        _editor.Closed += (_, _) => _editor = null;
+        if (_menuOpen) SetMenuOpen(false); // hand the screen to the editor
+        _editor.Show();
+    }
+
     // ---- Placing the strip ----
 
     private void SetRotationEditing(bool editing)

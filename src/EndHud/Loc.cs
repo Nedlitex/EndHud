@@ -19,7 +19,8 @@ internal static class Loc
         Application.Current.Resources.MergedDictionaries.Add(dictionary);
     }
 
-    public static string Get(string key) => Application.Current.TryFindResource(key) as string ?? key;
+    /// <summary>The string for <paramref name="key"/>; the key itself when it's missing (or outside the app, in tests).</summary>
+    public static string Get(string key) => Application.Current?.TryFindResource(key) as string ?? key;
 
     public static string Format(string key, params object[] args) => string.Format(Get(key), args);
 

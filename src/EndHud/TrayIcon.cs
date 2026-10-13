@@ -59,6 +59,7 @@ internal sealed class TrayIcon : IDisposable
             _updateNow,
             _releaseNotes,
             _checkUpdates,
+            new ToolStripMenuItem(Loc.Get("Tray.EditRotations"), null, (_, _) => _overlay.OpenRotationEditor()),
             new ToolStripMenuItem(Loc.Get("Tray.OpenConfig"), null, (_, _) => OpenConfigFolder()),
             new ToolStripMenuItem(Loc.Get("Tray.Quit"), null, (_, _) => System.Windows.Application.Current.Shutdown()),
         });
