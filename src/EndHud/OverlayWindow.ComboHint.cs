@@ -71,7 +71,10 @@ public partial class OverlayWindow
     {
         _hints.Mode = _config.ComboHintMode;
         _hints.ShowFor = TimeSpan.FromSeconds(_config.ComboHintSeconds);
-        // The hint is worked out from the squad panel, so it needs that reading on.
+        // The hint is worked out from the squad panel, so it needs that reading on; its settings
+        // are dimmed while it's off.
+        ComboHintNeedsPartyOcr.Visibility = _config.PartyOcrEnabled ? Visibility.Collapsed : Visibility.Visible;
+        ComboHintCheckBox.IsEnabled = _config.PartyOcrEnabled;
         ComboHintSettings.IsEnabled = _config.PartyOcrEnabled;
         ComboHintModes.IsEnabled = _config.ComboHintEnabled;
         ComboHintSecondsPicker.IsEnabled = _config.ComboHintMode == ComboHintMode.WhenReady;

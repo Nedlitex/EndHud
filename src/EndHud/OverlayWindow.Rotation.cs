@@ -128,6 +128,7 @@ public partial class OverlayWindow
     private void InitRotationSettings()
     {
         RotationCheckBox.IsChecked = _config.RotationEnabled;
+        ApplyRotationSettings();
         _publishedRotations.Changed += (_, _) => Dispatcher.BeginInvoke(() =>
         {
             ReloadRotations();
@@ -140,7 +141,16 @@ public partial class OverlayWindow
         _config.RotationEnabled = RotationCheckBox.IsChecked == true;
         ConfigStore.Save(_config);
         _rotationPosition = null;
+        ApplyRotationSettings();
         RenderRotation();
+    }
+
+    /// <summary>The menu's 排轴 card: it needs the squad panel read; its position button is dimmed while it's off.</summary>
+    private void ApplyRotationSettings()
+    {
+        RotationNeedsPartyOcr.Visibility = _config.PartyOcrEnabled ? Visibility.Collapsed : Visibility.Visible;
+        RotationCheckBox.IsEnabled = _config.PartyOcrEnabled;
+        RotationResetButton.IsEnabled = _config.PartyOcrEnabled && _config.RotationEnabled;
     }
 
     private void EditRotationsButton_Click(object sender, RoutedEventArgs e) => OpenRotationEditor();

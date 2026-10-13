@@ -158,7 +158,6 @@
     <!-- Menu: rotation strip -->
     <sys:String x:Key="Menu.Rotation">排轴</sys:String>
     <sys:String x:Key="Menu.Rotation.Hint">按识别到的小队自动加载排轴，战斗中提示当前该用哪个技能。</sys:String>
-    <sys:String x:Key="Menu.Rotation.Enabled">显示排轴</sys:String>
     <sys:String x:Key="Menu.Rotation.Edit">编辑排轴…</sys:String>
     <sys:String x:Key="Menu.Rotation.ResetPosition">恢复默认位置</sys:String>
     <sys:String x:Key="Tray.EditRotations">编辑排轴</sys:String>
@@ -187,15 +186,17 @@
     <sys:String x:Key="Menu.Key.Quit">退出 EndHud</sys:String>
     <sys:String x:Key="Menu.Key.Debug">显示/隐藏调试面板</sys:String>
     <sys:String x:Key="Menu.Key.Esc">关闭此菜单</sys:String>
-    <sys:String x:Key="Menu.Settings">设置（自动保存）</sys:String>
+    <sys:String x:Key="Menu.Settings">通用（设置自动保存）</sys:String>
+    <sys:String x:Key="Menu.PartyOcr.Hint">读取画面左下角的小队栏和战斗界面。连携就绪提示和排轴都依靠它；关闭后这两项也不会显示。</sys:String>
+    <sys:String x:Key="Menu.Feature.On">开启</sys:String>
+    <sys:String x:Key="Menu.Feature.NeedsPartyOcr">需要先在“通用”中开启“识别小队栏”。</sys:String>
     <sys:String x:Key="Menu.AutoShow">游戏窗口获得焦点时自动显示 HUD</sys:String>
     <sys:String x:Key="Menu.AutoShow.Hint">关闭后，需按 Ctrl+Shift+H 或在托盘菜单中手动显示。</sys:String>
-    <sys:String x:Key="Menu.PartyOcr">识别小队栏（连携就绪提示需要此项）</sys:String>
+    <sys:String x:Key="Menu.PartyOcr">识别小队栏</sys:String>
     <sys:String x:Key="Menu.DebugPanel">显示调试面板（识别到的等级、生命值和技能）</sys:String>
     <sys:String x:Key="Menu.CheckForUpdates">自动检查更新（每天一次）：EndHud 新版本只提示，不会自动安装；推荐排轴会自动更新</sys:String>
     <sys:String x:Key="Menu.ComboHint">连携就绪提示</sys:String>
     <sys:String x:Key="Menu.ComboHint.Hint">战斗中干员的连携技冷却结束时，在屏幕上提示。菜单打开时，可直接拖动屏幕上的提示框调整位置。</sys:String>
-    <sys:String x:Key="Menu.ComboHint.Enabled">显示连携就绪提示</sys:String>
     <sys:String x:Key="Menu.ComboHint.WhenReady">冷却结束时提示</sys:String>
     <sys:String x:Key="Menu.ComboHint.WhileReady">冷却结束后一直显示，直到再次使用</sys:String>
     <sys:String x:Key="Menu.ComboHint.Seconds">{0} 秒</sys:String>

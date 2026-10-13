@@ -102,6 +102,25 @@
                 <Setter Property="FontWeight" Value="SemiBold" />
                 <Setter Property="Margin" Value="0,14,0,6" />
             </Style>
+            <!-- One card per feature: its name and on/off switch on top, its settings below. -->
+            <Style x:Key="FeatureCard" TargetType="Border">
+                <Setter Property="Background" Value="#1AFFFFFF" />
+                <Setter Property="CornerRadius" Value="4" />
+                <Setter Property="Padding" Value="12,8,12,10" />
+                <Setter Property="Margin" Value="0,14,0,0" />
+            </Style>
+            <Style x:Key="FeatureTitle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                <Setter Property="Foreground" Value="{StaticResource Accent}" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+            <Style x:Key="FeatureNote" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                <Setter Property="Foreground" Value="#FFFFB86B" />
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+                <Setter Property="Margin" Value="0,2,0,4" />
+            </Style>
         </Border.Resources>
         <!-- Scrolls when the game window is too short for the whole menu. -->
         <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20,0">
@@ -132,68 +151,87 @@
             <!-- Real settings, saved to config.json. -->
             <TextBlock Text="{DynamicResource Menu.Settings}" Style="{StaticResource SectionHeader}" />
             <CheckBox x:Name="AutoShowCheckBox" Click="AutoShowCheckBox_Click">
-                <TextBlock Text="{DynamicResource Menu.AutoShow}" />
+                <TextBlock Text="{DynamicResource Menu.AutoShow}" TextWrapping="Wrap" />
             </CheckBox>
             <TextBlock Text="{DynamicResource Menu.AutoShow.Hint}" Foreground="#99FFFFFF" FontSize="11"
                        Margin="20,0,0,4" TextWrapping="Wrap" />
             <CheckBox x:Name="PartyOcrCheckBox" Click="PartyOcrCheckBox_Click">
-                <TextBlock Text="{DynamicResource Menu.PartyOcr}" />
+                <TextBlock Text="{DynamicResource Menu.PartyOcr}" TextWrapping="Wrap" />
             </CheckBox>
+            <TextBlock Text="{DynamicResource Menu.PartyOcr.Hint}" Foreground="#99FFFFFF" FontSize="11"
+                       Margin="20,0,0,4" TextWrapping="Wrap" />
             <CheckBox x:Name="DebugPanelCheckBox" Click="DebugPanelCheckBox_Click">
-                <TextBlock Text="{DynamicResource Menu.DebugPanel}" />
+                <TextBlock Text="{DynamicResource Menu.DebugPanel}" TextWrapping="Wrap" />
             </CheckBox>
             <CheckBox x:Name="CheckForUpdatesCheckBox" Click="CheckForUpdatesCheckBox_Click">
-                <TextBlock Text="{DynamicResource Menu.CheckForUpdates}" />
+                <TextBlock Text="{DynamicResource Menu.CheckForUpdates}" TextWrapping="Wrap" />
             </CheckBox>
 
-            <!-- Combo-ready hint. -->
-            <TextBlock Text="{DynamicResource Menu.ComboHint}" Style="{StaticResource SectionHeader}" />
-            <StackPanel x:Name="ComboHintSettings">
-                <TextBlock Text="{DynamicResource Menu.ComboHint.Hint}" Foreground="#99FFFFFF" FontSize="11"
-                           TextWrapping="Wrap" Margin="0,0,0,4" />
-                <CheckBox x:Name="ComboHintCheckBox" Click="ComboHintSetting_Changed">
-                    <TextBlock Text="{DynamicResource Menu.ComboHint.Enabled}" />
-                </CheckBox>
-                <StackPanel x:Name="ComboHintModes" Margin="20,0,0,0">
-                    <StackPanel.Resources>
-                        <Style TargetType="RadioButton">
-                            <Setter Property="Foreground" Value="#EEFFFFFF" />
-                            <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI" />
-                            <Setter Property="VerticalAlignment" Value="Center" />
-                            <Setter Property="Margin" Value="0,3" />
-                        </Style>
-                    </StackPanel.Resources>
-                    <StackPanel Orientation="Horizontal">
-                        <RadioButton x:Name="ComboHintWhenReady" GroupName="ComboHintMode" Click="ComboHintSetting_Changed">
-                            <TextBlock Text="{DynamicResource Menu.ComboHint.WhenReady}" />
-                        </RadioButton>
-                        <ComboBox x:Name="ComboHintSecondsPicker" Margin="8,0,0,0" Width="80"
-                                  SelectionChanged="ComboHintSetting_Changed" />
+            <!-- Feature: combo-ready hint. -->
+            <Border Style="{StaticResource FeatureCard}">
+                <StackPanel>
+                    <DockPanel>
+                        <CheckBox x:Name="ComboHintCheckBox" DockPanel.Dock="Right" Click="ComboHintSetting_Changed" Margin="0">
+                            <TextBlock Text="{DynamicResource Menu.Feature.On}" />
+                        </CheckBox>
+                        <TextBlock Text="{DynamicResource Menu.ComboHint}" Style="{StaticResource FeatureTitle}" />
+                    </DockPanel>
+                    <TextBlock x:Name="ComboHintNeedsPartyOcr" Text="{DynamicResource Menu.Feature.NeedsPartyOcr}"
+                               Style="{StaticResource FeatureNote}" Visibility="Collapsed" />
+                    <TextBlock Text="{DynamicResource Menu.ComboHint.Hint}" Foreground="#99FFFFFF" FontSize="11"
+                               TextWrapping="Wrap" Margin="0,4,0,4" />
+                    <StackPanel x:Name="ComboHintSettings">
+                        <StackPanel x:Name="ComboHintModes">
+                            <StackPanel.Resources>
+                                <Style TargetType="RadioButton">
+                                    <Setter Property="Foreground" Value="#EEFFFFFF" />
+                                    <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI" />
+                                    <Setter Property="VerticalAlignment" Value="Center" />
+                                    <Setter Property="Margin" Value="0,3" />
+                                </Style>
+                            </StackPanel.Resources>
+                            <StackPanel Orientation="Horizontal">
+                                <RadioButton x:Name="ComboHintWhenReady" GroupName="ComboHintMode" Click="ComboHintSetting_Changed">
+                                    <TextBlock Text="{DynamicResource Menu.ComboHint.WhenReady}" />
+                                </RadioButton>
+                                <ComboBox x:Name="ComboHintSecondsPicker" Margin="8,0,0,0" Width="80"
+                                          SelectionChanged="ComboHintSetting_Changed" />
+                            </StackPanel>
+                            <RadioButton x:Name="ComboHintWhileReady" GroupName="ComboHintMode" Click="ComboHintSetting_Changed">
+                                <TextBlock Text="{DynamicResource Menu.ComboHint.WhileReady}" />
+                            </RadioButton>
+                            <Button x:Name="ComboHintResetButton" HorizontalAlignment="Left" Padding="10,2" Margin="0,4,0,0"
+                                    Content="{DynamicResource Menu.ComboHint.ResetPosition}" Click="ComboHintResetButton_Click" />
+                        </StackPanel>
                     </StackPanel>
-                    <RadioButton x:Name="ComboHintWhileReady" GroupName="ComboHintMode" Click="ComboHintSetting_Changed">
-                        <TextBlock Text="{DynamicResource Menu.ComboHint.WhileReady}" />
-                    </RadioButton>
-                    <Button x:Name="ComboHintResetButton" HorizontalAlignment="Left" Padding="10,2" Margin="0,4,0,0"
-                            Content="{DynamicResource Menu.ComboHint.ResetPosition}" Click="ComboHintResetButton_Click" />
                 </StackPanel>
-            </StackPanel>
+            </Border>
 
-            <!-- Rotation strip (排轴). -->
-            <TextBlock Text="{DynamicResource Menu.Rotation}" Style="{StaticResource SectionHeader}" />
-            <TextBlock Text="{DynamicResource Menu.Rotation.Hint}" Foreground="#99FFFFFF" FontSize="11"
-                       TextWrapping="Wrap" Margin="0,0,0,4" />
-            <CheckBox x:Name="RotationCheckBox" Click="RotationCheckBox_Click">
-                <TextBlock Text="{DynamicResource Menu.Rotation.Enabled}" />
-            </CheckBox>
-            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                <Button x:Name="EditRotationsButton" Padding="10,2" Margin="0,0,6,0"
-                        Content="{DynamicResource Menu.Rotation.Edit}" Click="EditRotationsButton_Click" />
-                <Button x:Name="RotationResetButton" Padding="10,2"
-                        Content="{DynamicResource Menu.Rotation.ResetPosition}" Click="RotationResetButton_Click" />
-            </StackPanel>
+            <!-- Feature: rotation strip (排轴). -->
+            <Border Style="{StaticResource FeatureCard}">
+                <StackPanel>
+                    <DockPanel>
+                        <CheckBox x:Name="RotationCheckBox" DockPanel.Dock="Right" Click="RotationCheckBox_Click" Margin="0">
+                            <TextBlock Text="{DynamicResource Menu.Feature.On}" />
+                        </CheckBox>
+                        <TextBlock Text="{DynamicResource Menu.Rotation}" Style="{StaticResource FeatureTitle}" />
+                    </DockPanel>
+                    <TextBlock x:Name="RotationNeedsPartyOcr" Text="{DynamicResource Menu.Feature.NeedsPartyOcr}"
+                               Style="{StaticResource FeatureNote}" Visibility="Collapsed" />
+                    <TextBlock Text="{DynamicResource Menu.Rotation.Hint}" Foreground="#99FFFFFF" FontSize="11"
+                               TextWrapping="Wrap" Margin="0,4,0,4" />
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                        <!-- Editing works with the strip off: rotations can be prepared before turning it on. -->
+                        <Button x:Name="EditRotationsButton" Padding="10,2" Margin="0,0,6,0"
+                                Content="{DynamicResource Menu.Rotation.Edit}" Click="EditRotationsButton_Click" />
+                        <Button x:Name="RotationResetButton" Padding="10,2"
+                                Content="{DynamicResource Menu.Rotation.ResetPosition}" Click="RotationResetButton_Click" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
 
             <!-- Operator recognition: pick the right operator per slot; EndHud learns from it. -->
-            <TextBlock Text="{DynamicResource Menu.Operators}" Style="{StaticResource SectionHeader}" />
+            <TextBlock Text="{DynamicResource Menu.Operators}" Style="{StaticResource SectionHeader}" Margin="0,18,0,6" />
             <TextBlock Text="{DynamicResource Menu.Operators.Hint}" Foreground="#99FFFFFF" FontSize="11"
                        TextWrapping="Wrap" Margin="0,0,0,6" />
             <TextBlock x:Name="OperatorPickersEmpty" TextWrapping="Wrap" Foreground="#CCFFFFFF" Margin="0,2" />

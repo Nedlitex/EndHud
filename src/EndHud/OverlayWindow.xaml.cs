@@ -119,6 +119,9 @@ public partial class OverlayWindow : Window
         PartySection.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
         PartyText.Text = Loc.Get("Party.Waiting");
         ApplyComboHintSettings();
+        ApplyRotationSettings();
+        _rotationPosition = null;
+        RenderRotation();
         Refresh(reassertTopmost: false);
     }
 
