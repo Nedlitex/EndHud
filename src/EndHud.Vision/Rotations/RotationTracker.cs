@@ -26,19 +26,26 @@ public sealed record RotationPosition(PlayedStep Step, bool Ready, IReadOnlyList
 /// <summary>
 /// Finds the player's place in a rotation from what's on screen; there is nothing to reset.
 /// <list type="bullet">
+/// <item>Phases with an entry condition: the moment one's condition turns true (it wasn't seen true
+/// before; unseen readings don't count either way), the position moves to that phase's first step,
+/// even mid-phase. If several turn true together, the first in the list wins. The condition isn't
+/// checked again inside the phase, and a phase entered this way can't be left by the recovery jump
+/// below: it plays to its end, or until another phase's condition turns true.</item>
 /// <item>Each reading, every step gets a score: of its checks that can be seen now, the share that
-/// hold (smoothed, so a step with more checks confirming it wins over one with fewer). The checks: its own ability is available; the previous step's ability was seen being used
-/// in the last <see cref="RecentReadings"/> readings (not seen counts as unknown, not as no: at the
-/// start of a fight an empty ultimate looks just like a spent one); and its expected state. Checks
-/// that can't be seen (another operator's counter, a status not read this time) don't count.</item>
-/// <item>The first reading takes the best-scoring step.</item>
+/// hold (smoothed, so a step with more checks confirming it wins over one with fewer). The checks:
+/// its own ability is available; the step before it (in its phase, or the end of the phase the flow
+/// comes from) was seen being used in the last <see cref="RecentReadings"/> readings (not seen
+/// counts as unknown, not as no); and its expected state. Checks that can't be seen don't count.</item>
+/// <item>The first reading takes the best-scoring step of the phases without an entry condition
+/// (unless a condition already holds: see above).</item>
 /// <item>After that the position moves on only when the current step's ability is seen being used
 /// (combo ready → cooling, ultimate ready → spent, that slot's battle skill button turning to a
-/// countdown), so it waits on a step that isn't ready yet even when a later one is. Steps marked
-/// <see cref="RotationStep.WithPrevious"/> may come in either order.</item>
+/// countdown); steps marked <see cref="RotationStep.WithPrevious"/> may come in either order. After a
+/// phase's last step comes the next phase without an entry condition (<see cref="Rotation.NextInFlow"/>).</item>
 /// <item>It jumps elsewhere only when the screen clearly says it's somewhere else: another step
 /// scoring <see cref="JumpMargin"/> more than the current one for <see cref="JumpReadings"/> readings
-/// in a row (the player went off-script, or EndHud missed a step).</item>
+/// in a row (the player went off-script, or EndHud missed a step). It only jumps within the current
+/// phase or to phases without an entry condition.</item>
 /// </list>
 /// </summary>
 public sealed class RotationTracker(Rotation rotation)
@@ -59,6 +66,12 @@ public sealed class RotationTracker(Rotation rotation)
     private PartyState? _previous;
     private readonly HashSet<int> _doneInGroup = [];
 
+    /// <summary>Each phase's entry condition as last seen (true / false; null: never seen).</summary>
+    private readonly bool?[] _gateSeen = new bool?[rotation.Phases.Count];
+
+    /// <summary>The phase entered through its entry condition, while the position is in it.</summary>
+    private int? _enteredByGate;
+
     public Rotation Rotation => rotation;
 
     /// <summary>Take a reading; returns the position, or null when the rotation has no steps or the squad isn't known.</summary>
@@ -71,28 +84,44 @@ public sealed class RotationTracker(Rotation rotation)
         _reading++;
         if (_previous is { } last) RememberUses(last, state);
 
-        // 1. Steps seen done since the last reading move the position on.
+        // 1. Entry conditions that turn true now: straight into that phase.
+        if (GateTurnedTrue(state, slots) is { } entered)
+        {
+            MoveTo(FirstStep(entered));
+            _enteredByGate = entered;
+            _previous = state;
+            return Current(state);
+        }
+
+        // 2. Steps seen done since the last reading move the position on.
         if (_position is { } at && _previous is { } before)
         {
             foreach (int done in DoneSteps(at, before, state, slots)) _doneInGroup.Add(done);
             int groupEnd = GroupEnd(at);
             if (_doneInGroup.Contains(at) && Enumerable.Range(at, groupEnd - at + 1).All(_doneInGroup.Contains))
             {
-                _position = (groupEnd + 1) % _steps.Count;
-                _doneInGroup.Clear();
-                _jumpTarget = null;
+                int phase = _steps[at].PhaseIndex;
+                if (groupEnd < LastStep(phase)) MoveTo(groupEnd + 1);
+                else
+                {
+                    // The phase is done: on to the next phase of the flow.
+                    _enteredByGate = null;
+                    MoveTo(rotation.NextInFlow(phase) is { } next ? FirstStep(next) : FirstStep(phase));
+                }
             }
         }
         _previous = state;
 
-        // 2. The best-matching step.
-        int best = 0;
+        // 3. The best-matching step, among the steps the player could be on.
+        int best = -1;
         double bestScore = double.NegativeInfinity;
         for (int i = 0; i < _steps.Count; i++)
         {
+            if (!Reachable(i)) continue;
             double score = Score(i, state, slots).Score;
             if (score > bestScore) (best, bestScore) = (i, score);
         }
+        if (best < 0) return Current(state);
 
         if (_position is not { } current)
         {
@@ -105,9 +134,8 @@ public sealed class RotationTracker(Rotation rotation)
             _jumpTarget = best;
             if (_jumpReadings >= JumpReadings)
             {
-                _position = best;
-                _jumpTarget = null;
-                _doneInGroup.Clear();
+                if (_steps[best].PhaseIndex != _steps[current].PhaseIndex) _enteredByGate = null;
+                MoveTo(best);
             }
         }
         else
@@ -117,6 +145,47 @@ public sealed class RotationTracker(Rotation rotation)
         return Current(state);
     }
 
+    /// <summary>
+    /// Update every entry condition's last-seen value, and return the first phase (in list order)
+    /// whose condition turned true now, unless the position is already in it.
+    /// </summary>
+    private int? GateTurnedTrue(PartyState state, IReadOnlyDictionary<string, int> slots)
+    {
+        int? turned = null;
+        for (int p = 0; p < rotation.Phases.Count; p++)
+        {
+            var phase = rotation.Phases[p];
+            if (!phase.Gated || phase.Steps.Count == 0) continue;
+            bool? now = HoldsAll(phase.When, state, slots);
+            if (now is null) continue; // unseen: neither opens nor closes it
+            bool turnedTrue = now == true && _gateSeen[p] != true;
+            _gateSeen[p] = now;
+            if (turnedTrue && turned is null && (_position is not { } at || _steps[at].PhaseIndex != p)) turned = p;
+        }
+        return turned;
+    }
+
+    /// <summary>Steps the position may be found at: its own phase, and the phases of the flow (unless inside a phase entered by its condition).</summary>
+    private bool Reachable(int step)
+    {
+        int phase = _steps[step].PhaseIndex;
+        if (_position is { } at && _steps[at].PhaseIndex == phase) return true;
+        if (_enteredByGate is not null) return false;
+        return !rotation.Phases[phase].Gated;
+    }
+
+    private void MoveTo(int step)
+    {
+        _position = step;
+        _doneInGroup.Clear();
+        _jumpTarget = null;
+        _jumpReadings = 0;
+    }
+
+    private int FirstStep(int phase) => _steps.First(s => s.PhaseIndex == phase).Index;
+
+    private int LastStep(int phase) => _steps.Last(s => s.PhaseIndex == phase).Index;
+
     private RotationPosition? Current(PartyState state)
     {
         if (_position is not { } at) return null;
@@ -124,11 +193,11 @@ public sealed class RotationTracker(Rotation rotation)
         return new RotationPosition(_steps[at], ready, checks);
     }
 
-    /// <summary>The last step of the group starting at <paramref name="at"/> (steps marked WithPrevious belong to it).</summary>
+    /// <summary>The last step of the group starting at <paramref name="at"/> (steps marked WithPrevious belong to it), within its phase.</summary>
     private int GroupEnd(int at)
     {
         int end = at;
-        while (end + 1 < _steps.Count && _steps[end + 1].Step.WithPrevious) end++;
+        while (end + 1 < _steps.Count && _steps[end + 1].PhaseIndex == _steps[at].PhaseIndex && _steps[end + 1].Step.WithPrevious) end++;
         return end;
     }
 
@@ -151,6 +220,21 @@ public sealed class RotationTracker(Rotation rotation)
     }
 
     /// <summary>
+    /// The step the player does just before <paramref name="index"/>'s group: the one before it in its
+    /// phase, or for a phase's first step, the last step of the phase the flow comes from. None for
+    /// the first step of a phase entered by its condition (it can come after anything).
+    /// </summary>
+    private RotationStep? StepBefore(int index)
+    {
+        int groupStart = index;
+        while (_steps[groupStart].StepInPhase > 0 && _steps[groupStart].Step.WithPrevious) groupStart--;
+        var at = _steps[groupStart];
+        if (at.StepInPhase > 0) return _steps[groupStart - 1].Step;
+        if (rotation.Phases[at.PhaseIndex].Gated) return null;
+        return rotation.PreviousInFlow(at.PhaseIndex) is { } previous ? _steps[LastStep(previous)].Step : null;
+    }
+
+    /// <summary>
     /// The share of the step's visible checks that hold (for finding the position), whether it's
     /// ready (own ability and expected state; the previous-step check only helps find the position),
     /// and each check.
@@ -160,11 +244,7 @@ public sealed class RotationTracker(Rotation rotation)
     {
         var step = _steps[index].Step;
         var checks = new List<ConditionCheck> { new(CheckKind.OwnAbility, null, AbilityAvailable(step, state, slots)) };
-        // The step before this one's group (steps used together may come in either order).
-        int groupStart = index;
-        while (groupStart > 0 && _steps[groupStart].Step.WithPrevious) groupStart--;
-        var previous = _steps[(groupStart - 1 + _steps.Count) % _steps.Count].Step;
-        if (!ReferenceEquals(previous, step))
+        if (StepBefore(index) is { } previous && !ReferenceEquals(previous, step))
             checks.Add(new ConditionCheck(CheckKind.PreviousStepUsed, null, AbilityUsed(previous, slots)));
         foreach (var condition in step.Expect) checks.Add(new ConditionCheck(CheckKind.Expected, condition, Holds(condition, state, slots)));
 
@@ -210,10 +290,48 @@ public sealed class RotationTracker(Rotation rotation)
         };
     }
 
-    private static bool? Holds(StateCondition condition, PartyState state, IReadOnlyDictionary<string, int> slots)
+    /// <summary>Does the condition hold in this reading? Null when it can't be seen (for explaining a step that isn't ready).</summary>
+    public static bool? Evaluate(StateCondition condition, PartyState state) => Holds(condition, state, SlotsByOperator(state));
+
+    /// <summary>All of them hold: false if any is false, else unknown if any can't be seen, else true.</summary>
+    private static bool? HoldsAll(IEnumerable<StateCondition> conditions, PartyState state, IReadOnlyDictionary<string, int> slots)
+    {
+        bool unknown = false;
+        foreach (var condition in conditions)
+        {
+            switch (Holds(condition, state, slots))
+            {
+                case false: return false;
+                case null: unknown = true; break;
+            }
+        }
+        return unknown ? null : true;
+    }
+
+    /// <summary>One of them holds: true if any is true, else unknown if any can't be seen, else false.</summary>
+    private static bool? HoldsAny(IEnumerable<StateCondition> conditions, PartyState state, IReadOnlyDictionary<string, int> slots)
+    {
+        bool unknown = false;
+        foreach (var condition in conditions)
+        {
+            switch (Holds(condition, state, slots))
+            {
+                case true: return true;
+                case null: unknown = true; break;
+            }
+        }
+        return unknown ? null : false;
+    }
+
+    /// <summary>Does the condition hold in this reading? Null when it can't be seen.</summary>
+    internal static bool? Holds(StateCondition condition, PartyState state, IReadOnlyDictionary<string, int> slots)
     {
         switch (condition)
         {
+            case AllCondition all:
+                return HoldsAll(all.Of, state, slots);
+            case AnyCondition any:
+                return HoldsAny(any.Of, state, slots);
             case SkillPointsCondition c:
                 return state.SkillPoints is { } sp ? Compare(sp, c.Is, c.Value) : null;
             case ComboCondition c:

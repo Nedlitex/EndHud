@@ -335,7 +335,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
 
 ```json
 {
-  "format": 1,
+  "format": 2,
   "id": "6f1c…",
   "name": "示例排轴",
   "squad": ["Laevatain", "Camille", "Arcane", "Ardelia"],
@@ -353,19 +353,44 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
                       { "kind": "counter", "operatorId": "Laevatain", "counterId": "melting-flame", "is": "AtMost", "value": 3 } ] }
       ]
     },
-    { "id": "burst", "name": "爆发轴", "steps": [ { "operatorId": "Laevatain", "action": "Ultimate" } ] }
-  ],
-  "sequence": [ { "phaseId": "charge", "times": 2 }, { "phaseId": "burst", "times": 1 } ]
+    {
+      "id": "charge-2",
+      "name": "充能轴",
+      "steps": [
+        { "operatorId": "Camille", "action": "BattleSkill" },
+        { "operatorId": "Arcane", "action": "Combo" }
+      ]
+    },
+    {
+      "id": "burst",
+      "name": "爆发轴",
+      "when": [
+        { "kind": "any", "of": [
+          { "kind": "ultimate", "operatorId": "Laevatain", "ready": true },
+          { "kind": "all", "of": [
+            { "kind": "skillPoints", "is": "AtLeast", "value": 3 },
+            { "kind": "counter", "operatorId": "Laevatain", "counterId": "melting-flame", "is": "Exactly", "value": 4 } ] } ] }
+      ],
+      "steps": [ { "operatorId": "Laevatain", "action": "Ultimate" } ]
+    }
+  ]
 }
 ```
 
 - `squad`: operator ids from the operator library, in any slot order.
+- `phases`, in order. A phase without `when` is part of the **flow**: the flow plays those phases
+  one after another in list order and loops (here 充能轴 then 充能轴: charge twice, again and
+  again). A phase with `when` is never reached by the flow: it's entered **the moment** its entry
+  condition turns true, even in the middle of another phase, and played to its end; then the flow
+  carries on with the next phase without `when`. Its condition isn't checked again inside it (using
+  the ultimate makes "ultimate ready" false; the burst phase still finishes). At least one phase
+  must have no `when`.
 - `action`: `BattleSkill`, `Combo` or `Ultimate`. The skill being available (a skill point for a
   battle skill, the combo or ultimate ready) is implied; `expect` lists anything else.
-- `withPrevious`: used right after the previous step, drawn overlapping it.
+- `withPrevious`: used right after the previous step of the same phase, drawn overlapping it.
 - `label` (optional): replaces the action's name above the icon, for a variant the game names
   differently (e.g. "战技·意"). `note` (optional): a short hint under the icon.
-- `expect` conditions (`kind`):
+- `expect` (a step) and `when` (a phase) are lists that must all hold. Each item (`kind`):
 
   | `kind` | Fields | Holds when |
   |---|---|---|
@@ -375,8 +400,18 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   | `counter` | `operatorId`, `counterId`, `is`, `value` | an operator's own resource compares so (see below) |
   | `bossStatus` | `statusId` (the wiki's English name), `present`, `minStacks` | the enemy shows (or doesn't show) that status |
   | `controlling` | `operatorId` | that operator is the one being controlled |
+  | `all` | `of`: a list of conditions | every one holds (and) |
+  | `any` | `of`: a list of conditions | at least one holds (or) |
 
-- `format`: a file from a newer EndHud is refused with a message instead of being misread.
+  `all` and `any` nest to any depth. Something the screen doesn't show right now (a cutscene, an
+  operator's counter while someone else is controlled) is *unknown*, not false: `all` is false if a
+  part is false, else unknown if a part is unknown; `any` is true if a part is true, else unknown if
+  a part is unknown. An entry condition only opens on a *seen* change to true.
+
+- `format`: 2. A file from a newer EndHud is refused with a message instead of being misread
+  (builds from before format 2 say so about a format 2 file or share code). A format 1 file (a fixed
+  `sequence` of phases with repeat counts) is read as those phases in that order, repeats copied,
+  none with `when`: it plays exactly as before.
 
 The store ([`RotationStore`](src/EndHud.Vision/Rotations/RotationStore.cs)) covers every way an
 entry changes:
@@ -441,14 +476,23 @@ operator library), so new statuses need no release. Chinese names are in
 
 [`RotationTracker`](src/EndHud.Vision/Rotations/RotationTracker.cs), once per reading:
 
-1. For every step, each check is *holding*, *not holding* or *unknown*: the step's own skill
+1. **Entry conditions first.** Every `when` is checked; the value last *seen* is remembered
+   (unknown readings change nothing). A condition that turns true (it wasn't seen true before)
+   moves the position to its phase's first step right away. If several turn true together, the
+   first in the list wins. A fight that starts with one already true starts in that phase.
+2. For every step, each check is *holding*, *not holding* or *unknown*: the step's own skill
    available; its expected state; and whether the step before it was seen used recently (within
-   the last 40 readings, about 10 s). A value that isn't on screen is unknown, never a guess.
-2. Each step's score is (holding + 0.5) / (known + 1), so one holding check doesn't outrank three.
-3. On the first reading the best-scoring step becomes current. After that the strip moves on only
-   when it sees the current step's skill used (steps drawn together may be used in either order),
-   or when another step beats the current one by 0.34 for two readings in a row (the player went
-   off-script). After the last step it loops to the first.
+   the last 40 readings, about 10 s). The step before is the previous one in its phase, or for a
+   phase's first step, the last step of the phase the flow comes from (none for a phase entered by
+   its condition).
+3. Each step's score is (holding + 0.5) / (known + 1), so one holding check doesn't outrank three.
+4. On the first reading the best-scoring step of the flow becomes current. After that the strip
+   moves on only when it sees the current step's skill used (steps drawn together may be used in
+   either order). After a phase's last step comes the next phase of the flow.
+5. It jumps elsewhere if another step beats the current one by 0.34 for two readings in a row
+   (the player went off-script), but only within the current phase or to a phase of the flow, and
+   never out of a phase entered by its condition (that one ends when it's played, or when another
+   condition turns true).
 
 The current step is "ready" (lit) when all its known checks hold.
 

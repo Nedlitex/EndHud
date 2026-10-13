@@ -45,7 +45,6 @@ public partial class RotationEditor : Window
         InitializeComponent();
 
         foreach (var action in Enum.GetValues<StepAction>()) StepActionPicker.Items.Add(Item(Loc.Get($"Rotation.Action.{action}"), action));
-        for (int times = 1; times <= Rotation.MaxTimes; times++) TimesPicker.Items.Add(Item($"×{times}", times));
         foreach (var picker in SquadPickers) FillOperators(picker, _library.Operators);
         UseCurrentSquadButton.IsEnabled = currentSquad.Count == 4 && currentSquad.All(id => id is not null);
         UseCurrentSquadButton.ToolTip = UseCurrentSquadButton.IsEnabled ? null : Loc.Get("Editor.UseCurrentSquad.Unavailable");
@@ -106,7 +105,6 @@ public partial class RotationEditor : Window
         var draft = RotationDraft.New(Loc.Get("Editor.NewName"), _currentSquad.All(id => id is not null) ? _currentSquad : null);
         var phase = new PhaseDraft { Name = Loc.Get("Editor.NewPhaseName") };
         draft.Phases.Add(phase);
-        draft.Sequence.Add(new PhaseUseDraft { PhaseId = phase.Id, Times = 1 });
         ShowDraft(draft);
         MarkDirty();
     }
@@ -163,44 +161,33 @@ public partial class RotationEditor : Window
 
         _phase = draft?.Phases.FirstOrDefault();
         RefreshPhases();
-        RefreshSequence();
         Problems();
         ProblemsText.Text = "";
     }
 
-    private void RefreshSequence(int? select = null)
-    {
-        _loading = true;
-        SequenceList.Items.Clear();
-        AddPhasePicker.Items.Clear();
-        if (_draft is not null)
-        {
-            for (int i = 0; i < _draft.Sequence.Count; i++)
-            {
-                var use = _draft.Sequence[i];
-                string name = _draft.Phases.FirstOrDefault(p => p.Id == use.PhaseId)?.Name ?? Loc.Get("Editor.MissingPhase");
-                SequenceList.Items.Add(Item($"{i + 1}. {name} ×{use.Times}", i));
-            }
-            foreach (var phase in _draft.Phases) AddPhasePicker.Items.Add(Item(phase.Name, phase.Id));
-            if (AddPhasePicker.Items.Count > 0) AddPhasePicker.SelectedIndex = 0;
-            if (select is { } s && s < SequenceList.Items.Count) SequenceList.SelectedIndex = s;
-        }
-        _loading = false;
-        SyncTimes();
-    }
-
     private void RefreshPhases()
     {
+        RefreshPhaseList();
         _loading = true;
-        PhasePicker.Items.Clear();
-        foreach (var phase in _draft?.Phases ?? []) PhasePicker.Items.Add(Item(phase.Name, phase.Id));
-        PhasePicker.SelectedItem = PhasePicker.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == _phase?.Id);
         PhaseNameBox.Text = _phase?.Name ?? "";
-        PhaseNameBox.IsEnabled = _phase is not null;
+        PhaseNameBox.IsEnabled = AddGateButton.IsEnabled = _phase is not null;
         _loading = false;
+        BuildGateRows();
         StepsGroup.Header = _phase is null ? Loc.Get("Editor.Steps") : Loc.Format("Editor.StepsOf", _phase.Name);
         _step = _phase?.Steps.FirstOrDefault();
         RefreshSteps();
+    }
+
+    /// <summary>The phases in order; one with an entry condition says so.</summary>
+    private void RefreshPhaseList()
+    {
+        _loading = true;
+        PhaseList.Items.Clear();
+        var phases = _draft?.Phases ?? [];
+        for (int i = 0; i < phases.Count; i++)
+            PhaseList.Items.Add(Item(Loc.Format(phases[i].When.Count > 0 ? "Editor.PhaseItemGated" : "Editor.PhaseItem", i + 1, phases[i].Name), phases[i].Id));
+        PhaseList.SelectedItem = PhaseList.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == _phase?.Id);
+        _loading = false;
     }
 
     private void RefreshSteps()
@@ -274,67 +261,28 @@ public partial class RotationEditor : Window
         RefreshSteps();
     }
 
-    // ---- The full rotation ----
-
-    private void SequenceList_SelectionChanged(object sender, SelectionChangedEventArgs e) => SyncTimes();
-
-    private void SyncTimes()
-    {
-        var use = SelectedUse();
-        _loading = true;
-        TimesPicker.SelectedItem = TimesPicker.Items.Cast<ComboBoxItem>().FirstOrDefault(i => use is not null && (int)i.Tag == use.Times);
-        TimesPicker.IsEnabled = use is not null;
-        _loading = false;
-    }
-
-    private PhaseUseDraft? SelectedUse() =>
-        _draft is not null && SequenceList.SelectedIndex is int i and >= 0 && i < _draft.Sequence.Count ? _draft.Sequence[i] : null;
-
-    private void TimesPicker_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_loading || SelectedUse() is not { } use || TimesPicker.SelectedItem is not ComboBoxItem { Tag: int times }) return;
-        use.Times = times;
-        MarkDirty();
-        RefreshSequence(SequenceList.SelectedIndex);
-    }
-
-    private void SequenceUp_Click(object sender, RoutedEventArgs e) => MoveUse(-1);
-    private void SequenceDown_Click(object sender, RoutedEventArgs e) => MoveUse(1);
-
-    private void MoveUse(int by)
-    {
-        if (_draft is null || SelectedUse() is not { } use) return;
-        int from = _draft.Sequence.IndexOf(use), to = from + by;
-        if (to < 0 || to >= _draft.Sequence.Count) return;
-        _draft.Sequence.RemoveAt(from);
-        _draft.Sequence.Insert(to, use);
-        MarkDirty();
-        RefreshSequence(to);
-    }
-
-    private void SequenceRemove_Click(object sender, RoutedEventArgs e)
-    {
-        if (_draft is null || SelectedUse() is not { } use) return;
-        _draft.Sequence.Remove(use);
-        MarkDirty();
-        RefreshSequence();
-    }
-
-    private void AddToSequence_Click(object sender, RoutedEventArgs e)
-    {
-        if (_draft is null || AddPhasePicker.SelectedItem is not ComboBoxItem { Tag: string id }) return;
-        _draft.Sequence.Add(new PhaseUseDraft { PhaseId = id, Times = 1 });
-        MarkDirty();
-        RefreshSequence(_draft.Sequence.Count - 1);
-    }
-
     // ---- Phases ----
 
-    private void PhasePicker_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void PhaseList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_loading || _draft is null || PhasePicker.SelectedItem is not ComboBoxItem { Tag: string id }) return;
+        if (_loading || _draft is null || PhaseList.SelectedItem is not ComboBoxItem { Tag: string id }) return;
         _phase = _draft.Phases.FirstOrDefault(p => p.Id == id);
         RefreshPhases();
+    }
+
+    private void PhaseUp_Click(object sender, RoutedEventArgs e) => MovePhase(-1);
+    private void PhaseDown_Click(object sender, RoutedEventArgs e) => MovePhase(1);
+
+    private void MovePhase(int by)
+    {
+        if (_draft is null || _phase is null) return;
+        int from = _draft.Phases.IndexOf(_phase), to = from + by;
+        if (to < 0 || to >= _draft.Phases.Count) return;
+        _draft.Phases.RemoveAt(from);
+        _draft.Phases.Insert(to, _phase);
+        MarkDirty();
+        RefreshPhaseList();
+        Preview();
     }
 
     private void PhaseNameBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -343,12 +291,9 @@ public partial class RotationEditor : Window
         _phase.Name = PhaseNameBox.Text;
         MarkDirty();
         StepsGroup.Header = Loc.Format("Editor.StepsOf", _phase.Name);
-        // Keep the lists' names in step without disturbing the text box.
-        _loading = true;
-        foreach (ComboBoxItem item in PhasePicker.Items)
-            if ((string)item.Tag == _phase.Id) item.Content = _phase.Name;
-        _loading = false;
-        RefreshSequence(SequenceList.SelectedIndex);
+        // Keep the list's names in step without disturbing the text box.
+        RefreshPhaseList();
+        Preview();
     }
 
     private void NewPhase_Click(object sender, RoutedEventArgs e)
@@ -358,7 +303,6 @@ public partial class RotationEditor : Window
         _draft.Phases.Add(_phase);
         MarkDirty();
         RefreshPhases();
-        RefreshSequence();
     }
 
     private void DeletePhase_Click(object sender, RoutedEventArgs e)
@@ -367,11 +311,9 @@ public partial class RotationEditor : Window
         if (MessageBox.Show(this, Loc.Format("Editor.ConfirmDeletePhase", _phase.Name), Title, MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
             return;
         _draft.Phases.Remove(_phase);
-        _draft.Sequence.RemoveAll(u => u.PhaseId == _phase.Id);
         _phase = _draft.Phases.FirstOrDefault();
         MarkDirty();
         RefreshPhases();
-        RefreshSequence();
     }
 
     // ---- Steps ----
@@ -436,17 +378,22 @@ public partial class RotationEditor : Window
         Preview();
     }
 
-    // ---- Expected state ----
+    // ---- Conditions: a step's expected state, a phase's entry condition ----
 
-    private static readonly string[] ConditionKinds = ["SkillPoints", "Combo", "Ultimate", "Counter", "BossStatus", "Controlling"];
+    private static readonly string[] ConditionKinds = ["SkillPoints", "Combo", "Ultimate", "Counter", "BossStatus", "Controlling", "Group"];
 
     private void AddCondition_Click(object sender, RoutedEventArgs e)
     {
         if (_step is null) return;
         _step.Expect.Add(DefaultCondition("SkillPoints"));
-        MarkDirty();
-        BuildConditionRows();
-        RefreshStepText();
+        StepConditionsChanged(rebuild: true);
+    }
+
+    private void AddGateCondition_Click(object sender, RoutedEventArgs e)
+    {
+        if (_phase is null) return;
+        _phase.When.Add(DefaultCondition("Ultimate"));
+        GateConditionsChanged(rebuild: true);
     }
 
     private StateCondition DefaultCondition(string kind)
@@ -459,6 +406,8 @@ public partial class RotationEditor : Window
             "Counter" => Counters().FirstOrDefault() is { } c ? new CounterCondition(c.OperatorId, c.Id, Comparison.AtLeast, c.Max) : new SkillPointsCondition(Comparison.AtLeast, 2),
             "BossStatus" => new BossStatusCondition(_library.Statuses.FirstOrDefault()?.Id ?? "", true),
             "Controlling" => new ControllingCondition(first),
+            // A group is made to say "or": it starts as "any of" with one condition in it.
+            "Group" => new AnyCondition([new UltimateCondition(first, true)]),
             _ => new SkillPointsCondition(Comparison.AtLeast, 2),
         };
     }
@@ -470,29 +419,105 @@ public partial class RotationEditor : Window
         CounterCondition => "Counter",
         BossStatusCondition => "BossStatus",
         ControllingCondition => "Controlling",
+        AllCondition or AnyCondition => "Group",
         _ => "SkillPoints",
     };
 
     private void BuildConditionRows()
     {
         ConditionRows.Children.Clear();
-        if (_step is null) return;
-        for (int i = 0; i < _step.Expect.Count; i++) ConditionRows.Children.Add(ConditionRow(i));
+        if (_step is not null) AddConditionRows(ConditionRows, _step.Expect, StepConditionsChanged);
     }
 
-    /// <summary>One condition as pickers: its kind, then what it needs, then a remove button.</summary>
-    private UIElement ConditionRow(int index)
+    private void BuildGateRows()
     {
-        var condition = _step!.Expect[index];
+        GateRows.Children.Clear();
+        if (_phase is not null) AddConditionRows(GateRows, _phase.When, GateConditionsChanged);
+    }
+
+    /// <param name="rebuild">The list changed shape (added, removed, another kind): draw the rows again.</param>
+    private void StepConditionsChanged(bool rebuild)
+    {
+        MarkDirty();
+        if (rebuild) BuildConditionRows();
+        RefreshStepText();
+    }
+
+    private void GateConditionsChanged(bool rebuild)
+    {
+        MarkDirty();
+        if (rebuild) BuildGateRows();
+        RefreshPhaseList();
+        Preview();
+    }
+
+    private void AddConditionRows(Panel into, List<StateCondition> list, Action<bool> changed)
+    {
+        for (int i = 0; i < list.Count; i++) into.Children.Add(ConditionRow(list, i, changed));
+    }
+
+    /// <summary>
+    /// One condition as pickers: its kind, then what it needs, then a remove button. A group
+    /// ("all of" / "any of") shows its conditions indented below it, with its own "add" button.
+    /// </summary>
+    private UIElement ConditionRow(List<StateCondition> list, int index, Action<bool> changed)
+    {
+        var condition = list[index];
         var row = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
         var kind = new ComboBox();
         foreach (string k in ConditionKinds) kind.Items.Add(Item(Loc.Get($"Editor.Condition.{k}"), k));
         kind.SelectedItem = kind.Items.Cast<ComboBoxItem>().First(i => (string)i.Tag == KindOf(condition));
         row.Children.Add(kind);
 
+        UIElement result = row;
+        ComboBox? groupMode = null;
         Func<StateCondition> read;
         switch (condition)
         {
+            case AllCondition or AnyCondition:
+            {
+                var parts = new List<StateCondition>(condition is AllCondition all ? all.Of : ((AnyCondition)condition).Of);
+                groupMode = Picker([false, true], isAll => Loc.Get(isAll ? "Editor.Group.All" : "Editor.Group.Any"), condition is AllCondition);
+                row.Children.Add(groupMode);
+                var mode = groupMode;
+                read = () => (bool)Picked(mode) ? new AllCondition([.. parts]) : new AnyCondition([.. parts]);
+
+                // Its conditions, indented under a line, with their own "add".
+                var inner = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
+                void PartsChanged(bool rebuild)
+                {
+                    list[index] = read();
+                    changed(rebuild);
+                }
+                AddConditionRows(inner, parts, PartsChanged);
+                var add = new Button { Content = Loc.Get("Editor.AddToGroup"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 6) };
+                add.Click += (_, _) =>
+                {
+                    parts.Add(DefaultCondition("Ultimate"));
+                    PartsChanged(rebuild: true);
+                };
+                inner.Children.Add(add);
+                mode.SelectionChanged += (_, _) =>
+                {
+                    list[index] = read();
+                    changed(false);
+                };
+                result = new StackPanel
+                {
+                    Children =
+                    {
+                        row,
+                        new Border
+                        {
+                            BorderBrush = System.Windows.Media.Brushes.LightGray,
+                            BorderThickness = new Thickness(2, 0, 0, 0),
+                            Margin = new Thickness(8, 0, 0, 4),
+                            Child = inner,
+                        },
+                    },
+                };
+                break;
+            }
             case SkillPointsCondition c:
             {
                 var compare = ComparePicker(c.Is);
@@ -578,32 +603,26 @@ public partial class RotationEditor : Window
         var remove = new Button { Content = "✕", ToolTip = Loc.Get("Editor.RemoveCondition") };
         remove.Click += (_, _) =>
         {
-            _step.Expect.RemoveAt(index);
-            MarkDirty();
-            BuildConditionRows();
-            RefreshStepText();
+            list.RemoveAt(index);
+            changed(true);
         };
         row.Children.Add(remove);
 
         kind.SelectionChanged += (_, _) =>
         {
             if ((string)Picked(kind) == KindOf(condition)) return;
-            _step.Expect[index] = DefaultCondition((string)Picked(kind));
-            MarkDirty();
-            BuildConditionRows();
-            RefreshStepText();
+            list[index] = DefaultCondition((string)Picked(kind));
+            changed(true);
         };
-        foreach (var picker in row.Children.OfType<ComboBox>().Where(p => p != kind))
+        foreach (var picker in row.Children.OfType<ComboBox>().Where(p => p != kind && p != groupMode))
         {
             picker.SelectionChanged += (_, _) =>
             {
-                _step.Expect[index] = read();
-                MarkDirty();
-                if (_step.Expect[index] is CounterCondition) BuildConditionRows(); // the value range follows the counter
-                Preview();
+                list[index] = read();
+                changed(list[index] is CounterCondition); // the value range follows the counter
             };
         }
-        return row;
+        return result;
     }
 
     private void RefreshStepText()
@@ -658,7 +677,9 @@ public partial class RotationEditor : Window
                 string.IsNullOrWhiteSpace(s.Note) ? null : s.Note,
                 i == 0 ? StripStepState.Ready : StripStepState.Upcoming, i > 0 && s.WithPrevious);
         }).ToList();
-        PreviewHost.Content = RotationStrip.Build(new StripView($"{_phase.Name} I", steps, []));
+        // Numbered by its place in the list, as the strip shows it.
+        string label = _draft?.ToRotation().Played().FirstOrDefault(p => p.PhaseIndex == _draft.Phases.IndexOf(_phase))?.PhaseLabel ?? _phase.Name;
+        PreviewHost.Content = RotationStrip.Build(new StripView(label, steps, []));
     }
 
     private BitmapSource? Avatar(OperatorInfo op)

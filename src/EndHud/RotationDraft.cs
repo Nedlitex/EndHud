@@ -11,8 +11,8 @@ internal sealed class RotationDraft
     /// <summary>The four operators, by id; null where none is picked yet.</summary>
     public string?[] Squad { get; } = new string?[4];
 
+    /// <summary>In order: phases without an entry condition are played one after another, looping.</summary>
     public List<PhaseDraft> Phases { get; } = [];
-    public List<PhaseUseDraft> Sequence { get; } = [];
 
     public static RotationDraft New(string name, IReadOnlyList<string?>? squad = null)
     {
@@ -31,6 +31,7 @@ internal sealed class RotationDraft
             {
                 Id = phase.Id,
                 Name = phase.Name,
+                When = [.. phase.When],
                 Steps = phase.Steps.Select(s => new StepDraft
                 {
                     OperatorId = s.OperatorId,
@@ -42,7 +43,6 @@ internal sealed class RotationDraft
                 }).ToList(),
             });
         }
-        foreach (var use in rotation.Sequence) draft.Sequence.Add(new PhaseUseDraft { PhaseId = use.PhaseId, Times = use.Times });
         return draft;
     }
 
@@ -52,8 +52,7 @@ internal sealed class RotationDraft
         Name.Trim(),
         Squad.Where(id => id is not null).Select(id => id!).ToList(),
         Phases.Select(p => new RotationPhase(p.Id, p.Name.Trim(), p.Steps.Select(s => new RotationStep(
-            s.OperatorId, s.Action, [.. s.Expect], Blank(s.Note), Blank(s.Label), s.WithPrevious)).ToList())).ToList(),
-        Sequence.Select(u => new PhaseUse(u.PhaseId, u.Times)).ToList());
+            s.OperatorId, s.Action, [.. s.Expect], Blank(s.Note), Blank(s.Label), s.WithPrevious)).ToList(), [.. p.When])).ToList());
 
     /// <summary>What's wrong, as sentences for the player (empty when it can be saved).</summary>
     public IReadOnlyList<string> Problems()
@@ -65,12 +64,15 @@ internal sealed class RotationDraft
             string? message = problem.Kind switch
             {
                 RotationProblemKind.SquadNotFourOperators => Loc.Get("Rotation.Problem.Squad"),
-                RotationProblemKind.NoPhasesInSequence => Loc.Get("Rotation.Problem.NoPhases"),
-                RotationProblemKind.UnknownPhase => Loc.Get("Rotation.Problem.UnknownPhase"),
-                RotationProblemKind.TimesOutOfRange => Loc.Format("Rotation.Problem.Times", problem.Phase ?? ""),
+                RotationProblemKind.NoPhases => Loc.Get("Rotation.Problem.NoPhases"),
+                RotationProblemKind.NoDefaultPhase => Loc.Get("Rotation.Problem.NoDefaultPhase"),
                 RotationProblemKind.PhaseHasNoSteps => Loc.Format("Rotation.Problem.NoSteps", problem.Phase ?? ""),
+                RotationProblemKind.FirstStepWithPrevious => Loc.Format("Rotation.Problem.FirstStepWithPrevious", problem.Phase ?? ""),
                 RotationProblemKind.StepOperatorNotInSquad => Loc.Format("Rotation.Problem.StepOperator", problem.Phase ?? "", problem.Step ?? 0),
+                RotationProblemKind.ConditionOperatorNotInSquad when problem.Step is null => Loc.Format("Rotation.Problem.GateOperator", problem.Phase ?? ""),
                 RotationProblemKind.ConditionOperatorNotInSquad => Loc.Format("Rotation.Problem.ConditionOperator", problem.Phase ?? "", problem.Step ?? 0),
+                RotationProblemKind.EmptyConditionGroup when problem.Step is null => Loc.Format("Rotation.Problem.EmptyGateGroup", problem.Phase ?? ""),
+                RotationProblemKind.EmptyConditionGroup => Loc.Format("Rotation.Problem.EmptyGroup", problem.Phase ?? "", problem.Step ?? 0),
                 _ => null,
             };
             if (message is not null && !messages.Contains(message)) messages.Add(message);
@@ -86,12 +88,9 @@ internal sealed class PhaseDraft
     public string Id { get; set; } = RotationStore.NewId();
     public string Name { get; set; } = "";
     public List<StepDraft> Steps { get; set; } = [];
-}
 
-internal sealed class PhaseUseDraft
-{
-    public string PhaseId { get; set; } = "";
-    public int Times { get; set; } = 1;
+    /// <summary>Entry condition (all must hold); empty: part of the order.</summary>
+    public List<StateCondition> When { get; set; } = [];
 }
 
 internal sealed class StepDraft

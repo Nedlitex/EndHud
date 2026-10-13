@@ -32,7 +32,8 @@ public partial class I18nTests
             used.Add($"Editor.ReadError.{error}");
             used.Add($"Editor.ImportError.{error}");
         }
-        foreach (string kind in new[] { "SkillPoints", "Combo", "Ultimate", "Counter", "BossStatus", "Controlling" }) used.Add($"Editor.Condition.{kind}");
+        foreach (string kind in new[] { "SkillPoints", "Combo", "Ultimate", "Counter", "BossStatus", "Controlling", "Group" }) used.Add($"Editor.Condition.{kind}");
+        used.UnionWith(["Editor.Group.All", "Editor.Group.Any", "Editor.PhaseItem", "Editor.PhaseItemGated"]);
         foreach (string compare in new[] { "AtLeast", "AtMost", "Exactly" }) used.Add($"Editor.Compare.{compare}");
 
         Assert.NotEmpty(used);

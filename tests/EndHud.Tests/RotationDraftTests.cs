@@ -15,9 +15,9 @@ public class RotationDraftTests
             new RotationStep("Arcane", StepAction.Combo, WithPrevious: true),
             new RotationStep("Laevatain", StepAction.BattleSkill, [new BossStatusCondition("Heat Infliction", true)], Note: "飞天", Label: "战技·意"),
         ]),
-        new RotationPhase("burst", "爆发轴", [new RotationStep("Laevatain", StepAction.Ultimate)]),
-    ],
-    [new PhaseUse("charge", 2), new PhaseUse("burst", 1)]);
+        new RotationPhase("burst", "爆发轴", [new RotationStep("Laevatain", StepAction.Ultimate)],
+            [new AnyCondition([new UltimateCondition("Laevatain", true), new AllCondition([new SkillPointsCondition(Comparison.AtLeast, 3), new ComboCondition("Camille", true)])])]),
+    ]);
 
     [Fact]
     public void Editing_nothing_gives_back_the_same_rotation()
@@ -52,6 +52,24 @@ public class RotationDraftTests
 
         Assert.Null(step.Note);
         Assert.Null(step.Label);
+    }
+
+    [Fact]
+    public void Every_phase_behind_an_entry_condition_is_explained_in_words()
+    {
+        var draft = RotationDraft.From(Guide());
+        draft.Phases[0].When.Add(new SkillPointsCondition(Comparison.AtLeast, 1));
+
+        Assert.Contains("Rotation.Problem.NoDefaultPhase", draft.Problems());
+    }
+
+    [Fact]
+    public void An_empty_group_in_an_entry_condition_is_explained_in_words()
+    {
+        var draft = RotationDraft.From(Guide());
+        draft.Phases[1].When.Add(new AllCondition([]));
+
+        Assert.Contains("Rotation.Problem.EmptyGateGroup", draft.Problems());
     }
 
     [Fact]

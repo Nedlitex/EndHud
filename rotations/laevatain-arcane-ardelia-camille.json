@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "id": "laevatain-arcane-ardelia-camille",
   "name": "莱万汀 诀 小羊 卡缪 充能轴",
   "squad": [
@@ -84,16 +84,6 @@
           "action": "BattleSkill"
         }
       ]
-    }
-  ],
-  "sequence": [
-    {
-      "phaseId": "charge-1",
-      "times": 1
-    },
-    {
-      "phaseId": "charge-2",
-      "times": 1
     }
   ]
 }

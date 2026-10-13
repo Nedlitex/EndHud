@@ -52,16 +52,57 @@ public static class RotationFormat
                 throw new RotationReadException(RotationReadError.NotARotation);
             if (format.GetInt32() > Rotation.CurrentFormat)
                 throw new RotationReadException(RotationReadError.NewerFormat, $"format {format.GetInt32()}");
-            rotation = document.RootElement.Deserialize<Rotation>(Json);
+            rotation = format.GetInt32() <= 1
+                ? document.RootElement.Deserialize<RotationV1>(Json)?.ToCurrent()
+                : document.RootElement.Deserialize<Rotation>(Json);
         }
         catch (JsonException ex)
         {
             throw new RotationReadException(RotationReadError.NotARotation, ex.Message);
         }
-        if (rotation is null || rotation.Id is null || rotation.Phases is null || rotation.Sequence is null || rotation.Squad is null)
+        if (rotation is null || rotation.Id is null || rotation.Phases is null || rotation.Squad is null
+            || rotation.Phases.Any(p => p is null || p.Steps is null || p.Name is null || p.Id is null))
             throw new RotationReadException(RotationReadError.NotARotation);
         return rotation;
     }
+
+    /// <summary>
+    /// Format 1: phases played in a fixed sequence, each a number of times (充能轴 ×2 → 爆发轴 ×1).
+    /// Read as the same phases in that order, repeats copied under new ids, none with an entry
+    /// condition: the flow then plays them exactly as before. (A phase the sequence never used was
+    /// never played; it's left out rather than starting to play.)
+    /// </summary>
+    private sealed record RotationV1(string Id, string Name, IReadOnlyList<string> Squad, IReadOnlyList<RotationPhaseV1> Phases, IReadOnlyList<PhaseUseV1> Sequence)
+    {
+        public Rotation? ToCurrent()
+        {
+            if (Phases is null || Sequence is null) return null;
+            var taken = Phases.Select(p => p.Id).ToHashSet(StringComparer.Ordinal);
+            var used = new HashSet<string>(StringComparer.Ordinal);
+            var phases = new List<RotationPhase>();
+            foreach (var use in Sequence)
+            {
+                if (Phases.FirstOrDefault(p => p.Id == use.PhaseId) is not { } phase) continue;
+                for (int time = 0; time < Math.Max(1, use.Times); time++)
+                {
+                    // The first play keeps the phase's id; copies get one no other phase has or will have.
+                    string id = phase.Id;
+                    for (int copy = 2; used.Contains(id); copy++)
+                    {
+                        id = $"{phase.Id}-{copy}";
+                        if (taken.Contains(id)) id = phase.Id; // another phase's id: try the next number
+                    }
+                    used.Add(id);
+                    phases.Add(new RotationPhase(id, phase.Name, phase.Steps));
+                }
+            }
+            return new Rotation(Rotation.CurrentFormat, Id, Name, Squad, phases);
+        }
+    }
+
+    private sealed record RotationPhaseV1(string Id, string Name, IReadOnlyList<RotationStep> Steps);
+
+    private sealed record PhaseUseV1(string PhaseId, int Times = 1);
 
     /// <summary>"EHR1:" + the JSON, compressed, in URL-safe base64: short enough for a chat message.</summary>
     public static string ToShareCode(Rotation rotation)

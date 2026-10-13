@@ -13,52 +13,93 @@ public sealed class RotationFormatTests : IDisposable
         try { Directory.Delete(_folder, recursive: true); } catch (IOException) { }
     }
 
-    /// <summary>Shaped like the guide: two charging phases, then a burst phase.</summary>
+    private static readonly RotationStep[] ChargeSteps =
+    [
+        new RotationStep("Ardelia", StepAction.BattleSkill, [new SkillPointsCondition(Comparison.AtLeast, 2)]),
+        new RotationStep("Camille", StepAction.Combo),
+        new RotationStep("Arcane", StepAction.Combo, WithPrevious: true),
+        new RotationStep("Laevatain", StepAction.BattleSkill,
+            [new BossStatusCondition("Heat Infliction", true, 2), new CounterCondition("Laevatain", "melting-flame", Comparison.AtMost, 3)],
+            Note: "飞天", Label: "战技·意"),
+    ];
+
+    /// <summary>Two charging phases, then a burst phase, none with an entry condition: played in order, looping.</summary>
     internal static Rotation Guide() => new(
         Rotation.CurrentFormat, "guide", "标准轴", ["Laevatain", "Camille", "Arcane", "Ardelia"],
         [
-            new RotationPhase("charge", "充能轴",
-            [
-                new RotationStep("Ardelia", StepAction.BattleSkill, [new SkillPointsCondition(Comparison.AtLeast, 2)]),
-                new RotationStep("Camille", StepAction.Combo),
-                new RotationStep("Arcane", StepAction.Combo, WithPrevious: true),
-                new RotationStep("Laevatain", StepAction.BattleSkill,
-                    [new BossStatusCondition("Heat Infliction", true, 2), new CounterCondition("Laevatain", "melting-flame", Comparison.AtMost, 3)],
-                    Note: "飞天", Label: "战技·意"),
-            ]),
+            new RotationPhase("charge", "充能轴", ChargeSteps),
+            new RotationPhase("charge-2", "充能轴", ChargeSteps),
             new RotationPhase("burst", "爆发轴",
             [
                 new RotationStep("Laevatain", StepAction.Ultimate, [new ControllingCondition("Laevatain"), new UltimateCondition("Laevatain", true)]),
                 new RotationStep("Ardelia", StepAction.Combo, [new ComboCondition("Ardelia", true)]),
             ]),
-        ],
-        [new PhaseUse("charge", 2), new PhaseUse("burst", 1)]);
+        ]);
 
     [Fact]
-    public void Phases_are_played_in_sequence_and_numbered_across_the_whole_rotation()
+    public void Phases_are_listed_in_order_and_numbered_like_the_guides()
     {
         var played = Guide().Played();
 
         Assert.Equal(4 + 4 + 2, played.Count);
         Assert.Equal(["充能轴 I", "充能轴 II", "爆发轴 III"], played.Select(p => p.PhaseLabel).Distinct());
         Assert.Equal(Enumerable.Range(0, played.Count), played.Select(p => p.Index));
-        Assert.Same(played[0].Step, played[4].Step); // the same phase, used twice: one definition
+        Assert.Equal([0, 0, 0, 0, 1, 1, 1, 1, 2, 2], played.Select(p => p.PhaseIndex));
     }
 
     [Fact]
-    public void Editing_a_phase_changes_every_use_of_it()
+    public void The_flow_skips_phases_with_an_entry_condition_and_wraps_around()
     {
-        var rotation = Guide();
-        var charge = rotation.Phase("charge")!;
-        var edited = rotation with
-        {
-            Phases = [charge with { Steps = [.. charge.Steps, new RotationStep("Arcane", StepAction.Ultimate)] }, rotation.Phase("burst")!],
-        };
+        var guide = Guide();
+        var gated = guide with { Phases = [guide.Phases[0], guide.Phases[2] with { When = [new UltimateCondition("Laevatain", true)] }, guide.Phases[1]] };
 
-        var played = edited.Played();
-        Assert.Equal(5 + 5 + 2, played.Count);
-        Assert.Equal(StepAction.Ultimate, played[4].Step.Action);
-        Assert.Equal(StepAction.Ultimate, played[9].Step.Action);
+        Assert.Equal(1, guide.NextInFlow(0));
+        Assert.Equal(0, guide.NextInFlow(2)); // the last phase wraps to the first
+        Assert.Equal(2, gated.NextInFlow(0)); // over the burst phase: only its condition enters it
+        Assert.Equal(2, gated.NextInFlow(1)); // and after it, on to the next phase in the flow
+        Assert.Equal(2, gated.PreviousInFlow(0));
+        var alone = guide with { Phases = [guide.Phases[0]] };
+        Assert.Equal(0, alone.NextInFlow(0)); // a single phase follows itself
+    }
+
+    [Fact]
+    public void A_rotation_from_before_entry_conditions_plays_the_same_phases_in_the_same_order()
+    {
+        // Format 1: a fixed sequence (充能轴 ×2, then 爆发轴), with a phase whose id a copy would take.
+        string v1 = """
+            {"format":1,"id":"old","name":"旧轴","squad":["Laevatain","Camille","Arcane","Ardelia"],
+             "phases":[{"id":"charge","name":"充能轴","steps":[{"operatorId":"Camille","action":"Combo"}]},
+                       {"id":"charge-2","name":"另一个","steps":[{"operatorId":"Arcane","action":"Combo"}]},
+                       {"id":"burst","name":"爆发轴","steps":[{"operatorId":"Laevatain","action":"Ultimate"}]}],
+             "sequence":[{"phaseId":"charge","times":2},{"phaseId":"burst","times":1},{"phaseId":"charge-2","times":1}]}
+            """;
+
+        var rotation = RotationFormat.FromJson(v1);
+
+        Assert.Equal(Rotation.CurrentFormat, rotation.Format);
+        Assert.Equal(["充能轴", "充能轴", "爆发轴", "另一个"], rotation.Phases.Select(p => p.Name));
+        Assert.Equal(["charge", "charge-3", "burst", "charge-2"], rotation.Phases.Select(p => p.Id)); // "charge-2" was taken
+        Assert.All(rotation.Phases, p => Assert.False(p.Gated));
+        Assert.Empty(rotation.Problems());
+        Assert.Equal(rotation.Phases.Count, rotation.Phases.Select(p => p.Id).Distinct().Count());
+        Assert.Equal(RotationFormat.ToJson(rotation), RotationFormat.ToJson(RotationFormat.FromShareCode(RotationFormat.ToShareCode(rotation))));
+    }
+
+    [Fact]
+    public void Entry_conditions_and_nested_and_or_groups_survive_a_file_and_a_share_code()
+    {
+        var guide = Guide();
+        var gate = new AnyCondition([new UltimateCondition("Laevatain", true),
+            new AllCondition([new SkillPointsCondition(Comparison.AtLeast, 3), new CounterCondition("Laevatain", "melting-flame", Comparison.Exactly, 4)])]);
+        var gated = guide with { Phases = [guide.Phases[0], guide.Phases[2] with { When = [gate] }] };
+
+        string json = RotationFormat.ToJson(gated);
+        var back = RotationFormat.FromJson(json);
+
+        Assert.Contains("\"kind\": \"any\"", json);
+        Assert.Contains("\"kind\": \"all\"", json);
+        Assert.Equal(gate, Assert.Single(back.Phases[1].When));
+        Assert.Equal(json, RotationFormat.ToJson(RotationFormat.FromShareCode(RotationFormat.ToShareCode(gated))));
     }
 
     [Theory]
@@ -84,16 +125,38 @@ public sealed class RotationFormatTests : IDisposable
         var broken = guide with
         {
             Squad = ["Laevatain", "Camille", "Arcane"],
-            Phases = [.. guide.Phases, new RotationPhase("empty", "空轴", [])],
-            Sequence = [.. guide.Sequence, new PhaseUse("missing"), new PhaseUse("burst", 0)],
+            Phases =
+            [
+                .. guide.Phases,
+                new RotationPhase("empty", "空轴", []),
+                new RotationPhase("odd", "怪轴", [new RotationStep("Camille", StepAction.Combo, WithPrevious: true)], [new AnyCondition([])]),
+            ],
         };
         var kinds = broken.Problems().Select(p => p.Kind).ToList();
 
         Assert.Contains(RotationProblemKind.SquadNotFourOperators, kinds);
         Assert.Contains(RotationProblemKind.PhaseHasNoSteps, kinds);
-        Assert.Contains(RotationProblemKind.UnknownPhase, kinds);
-        Assert.Contains(RotationProblemKind.TimesOutOfRange, kinds);
+        Assert.Contains(RotationProblemKind.FirstStepWithPrevious, kinds);
+        Assert.Contains(new RotationProblem(RotationProblemKind.EmptyConditionGroup, "怪轴", null), broken.Problems());
         Assert.Contains(new RotationProblem(RotationProblemKind.StepOperatorNotInSquad, "充能轴", 1), broken.Problems()); // Ardelia left the squad
+    }
+
+    [Fact]
+    public void Every_phase_behind_an_entry_condition_leaves_nothing_to_play_otherwise()
+    {
+        var guide = Guide();
+        var allGated = guide with { Phases = [.. guide.Phases.Select(p => p with { When = [new SkillPointsCondition(Comparison.AtLeast, 1)] })] };
+
+        Assert.Contains(RotationProblemKind.NoDefaultPhase, allGated.Problems().Select(p => p.Kind));
+    }
+
+    [Fact]
+    public void An_operator_outside_the_squad_in_an_entry_condition_or_a_group_is_pointed_out()
+    {
+        var guide = Guide();
+        var gated = guide with { Phases = [guide.Phases[0], guide.Phases[2] with { When = [new AnyCondition([new UltimateCondition("Perlica", true)])] }] };
+
+        Assert.Contains(new RotationProblem(RotationProblemKind.ConditionOperatorNotInSquad, "爆发轴", null), gated.Problems());
     }
 
     [Fact]
@@ -136,7 +199,7 @@ public sealed class RotationFormatTests : IDisposable
     [Theory]
     [InlineData("""{ "name": "x" }""", RotationReadError.NotARotation)]
     [InlineData("not json", RotationReadError.NotARotation)]
-    [InlineData("""{ "format": 2, "id": "x" }""", RotationReadError.NewerFormat)]
+    [InlineData("""{ "format": 3, "id": "x" }""", RotationReadError.NewerFormat)]
     public void A_file_that_isnt_a_rotation_this_build_can_read_is_refused(string json, RotationReadError expected) =>
         Assert.Equal(expected, Assert.Throws<RotationReadException>(() => RotationFormat.FromJson(json)).Error);
 
@@ -198,7 +261,10 @@ public sealed class RotationFormatTests : IDisposable
 
         Assert.Empty(rotation.Problems());
         Assert.Equal(["Laevatain", "Camille", "Arcane", "Ardelia"], rotation.Squad);
-        Assert.Equal(9, rotation.Played().Count); // 充能轴 (4 steps) twice, then 爆发轴 (1 step)
+        Assert.Equal(4 + 2 + 1, rotation.Played().Count); // 充能轴 (4 steps), 充能轴 (2), 爆发轴 (1)
+        Assert.Equal([false, false, true], rotation.Phases.Select(p => p.Gated));
+        var gate = Assert.IsType<AnyCondition>(Assert.Single(rotation.Phases[2].When));
+        Assert.IsType<AllCondition>(gate.Of[1]);
         var flame = rotation.Phases[0].Steps[3];
         Assert.Equal([new BossStatusCondition("Heat Infliction", true), new CounterCondition("Laevatain", "melting-flame", Comparison.AtMost, 3)], flame.Expect);
         Assert.True(rotation.Phases[0].Steps[2].WithPrevious);

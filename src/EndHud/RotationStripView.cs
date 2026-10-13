@@ -9,22 +9,22 @@ namespace EndHud;
 /// <summary>What the rotation strip shows for a tracker position: the steps around the current one, and why it isn't ready.</summary>
 internal static class RotationStripView
 {
-    /// <summary>What to draw: the current phase's steps, then the next phase's first two.</summary>
+    /// <summary>What to draw: the current phase's steps, then the first two of the phase the flow plays next.</summary>
     public static StripView Build(Rotation rotation, RotationPosition position, PartyState? state, OperatorLibrary? library,
         Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar)
     {
         var played = rotation.Played();
         int current = position.Step.Index;
-        var shown = played.Where(p => p.PhaseLabel == position.Step.PhaseLabel).ToList();
-        int after = shown.Count > 0 ? shown[^1].Index + 1 : current + 1;
-        for (int i = 0; i < 2 && played.Count > 0; i++) shown.Add(played[(after + i) % played.Count]);
+        int phase = position.Step.PhaseIndex;
+        var shown = played.Where(p => p.PhaseIndex == phase).ToList();
+        if (rotation.NextInFlow(phase) is { } next) shown.AddRange(played.Where(p => p.PhaseIndex == next).Take(2));
 
         var steps = new List<StripStep>();
         foreach (var p in shown)
         {
             var op = library?.Find(p.Step.OperatorId);
             var look = p.Index == current ? (position.Ready ? StripStepState.Ready : StripStepState.Waiting)
-                : p.Index < current && p.PhaseLabel == position.Step.PhaseLabel ? StripStepState.Done
+                : p.Index < current && p.PhaseIndex == phase ? StripStepState.Done
                 : StripStepState.Upcoming;
             steps.Add(new StripStep(op is null ? null : skillIcon(op, p.Step.Action), op is null ? null : avatar(op),
                 p.Step.Label ?? Loc.Get($"Rotation.Action.{p.Step.Action}"), p.Step.Note, look, p.Step.WithPrevious));
@@ -60,8 +60,18 @@ internal static class RotationStripView
             BossStatusCondition c => Loc.Format(c.Present ? "Rotation.Reason.BossLacks" : "Rotation.Reason.BossHas",
                 StatusNames.Zh(c.StatusId) ?? c.StatusId),
             ControllingCondition c => Loc.Format("Rotation.Reason.Controlling", Name(c.OperatorId)),
+            // An unmet "all": its parts that don't hold. An unmet "any": every part, as alternatives.
+            AllCondition all => JoinReasons(all.Of.Where(part => state is null || RotationTracker.Evaluate(part, state) == false), "　", step, state, library),
+            AnyCondition any => JoinReasons(any.Of, Loc.Get("Rotation.Reason.Or"), step, state, library) is { } alternatives ? Loc.Format("Rotation.Reason.AnyOf", alternatives) : null,
             _ => null,
         };
+    }
+
+    /// <summary>The reasons for these conditions, as if each were unmet, joined.</summary>
+    private static string? JoinReasons(IEnumerable<StateCondition> parts, string separator, RotationStep step, PartyState? state, OperatorLibrary? library)
+    {
+        var texts = parts.Select(part => Reason(new ConditionCheck(CheckKind.Expected, part, false), step, state, library)).Where(t => t is not null).ToList();
+        return texts.Count == 0 ? null : string.Join(separator, texts);
     }
 
     /// <summary>

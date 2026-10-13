@@ -20,7 +20,7 @@ public sealed class RotationEditorTests : IDisposable
     }
 
     private static Rotation Published() => new(Rotation.CurrentFormat, "laevatain-standard", "标准轴", ["Laevatain", "Camille", "Arcane", "Ardelia"],
-        [new RotationPhase("p", "充能轴", [new RotationStep("Ardelia", StepAction.BattleSkill)])], [new PhaseUse("p")]);
+        [new RotationPhase("p", "充能轴", [new RotationStep("Ardelia", StepAction.BattleSkill)])]);
 
     [Fact]
     public void Saving_a_recommended_rotation_saves_the_players_own_copy_and_leaves_it_as_it_was()
@@ -55,18 +55,59 @@ public sealed class RotationEditorTests : IDisposable
         Assert.Contains("laevatain-standard", library.Hidden());
     }
 
+    [Fact]
+    public void An_or_entry_condition_built_with_the_pickers_is_saved()
+    {
+        var library = new RotationLibrary(_folder);
+        var two = Published() with { Id = "mine" };
+        library.Own.Save(two with { Phases = [.. two.Phases, new RotationPhase("burst", "爆发轴", [new RotationStep("Laevatain", StepAction.Ultimate)])] });
+
+        string said = "";
+        OnEditor(library, _ => { }, editor =>
+        {
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;             // 爆发轴
+            Click(editor, "AddGateButton");                                   // one condition: an operator's ultimate ready
+            var gate = (StackPanel)editor.FindName("GateRows");
+            var kind = (ComboBox)((Panel)gate.Children[0]).Children[0];
+            kind.SelectedItem = kind.Items.Cast<ComboBoxItem>().Single(i => (string)i.Tag == "Group"); // → a group: "any of"
+            var group = (StackPanel)gate.Children[0];
+            var inner = (StackPanel)((Border)group.Children[1]).Child;
+            ((Button)inner.Children[^1]).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent)); // a second condition in it
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        });
+
+        Assert.True(library.Own.Load().Rotations.Count == 1, $"not saved: {said}");
+        var saved = Assert.Single(library.Own.Load().Rotations);
+        Assert.True(saved.Phases[1].When.Count == 1, $"editor said: {said}");
+        var phase = saved.Phases[1];
+        var any = Assert.IsType<AnyCondition>(Assert.Single(phase.When));
+        Assert.Equal(2, any.Of.Count);
+        Assert.True(phase.Gated);
+    }
+
     private static void Click(Window window, string name) =>
         ((Button)window.FindName(name)).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
 
     private void OnEditor(RotationLibrary library, Action<Rotation?> changed, Action<RotationEditor> act)
     {
+        // The squad's operators, without any art: enough for the pickers.
+        string reference = Path.Combine(_folder, "reference");
+        Directory.CreateDirectory(reference);
+        string[] squad = ["Laevatain", "Camille", "Arcane", "Ardelia"];
+        File.WriteAllText(Path.Combine(reference, "operators.json"), System.Text.Json.JsonSerializer.Serialize(
+            squad.Select(id => new OperatorInfo(id, id, id, id + ".png"))));
+        Directory.CreateDirectory(Path.Combine(reference, "icons"));
+        byte[] pixel = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
+        foreach (string id in squad) File.WriteAllBytes(Path.Combine(reference, "icons", id + ".png"), pixel);
+        // Decoded here, not on the editor's thread (the image decoder fails on it).
+        var operators = OperatorLibrary.LoadAsync(Path.Combine(_folder, "user"), reference).GetAwaiter().GetResult();
         Exception? failure = null;
         var thread = new Thread(() =>
         {
             try
             {
                 if (Application.Current is null) _ = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-                var operators = OperatorLibrary.LoadAsync(Path.Combine(_folder, "user"), Path.Combine(_folder, "reference")).GetAwaiter().GetResult();
                 var editor = new RotationEditor(library, operators, [null, null, null, null], null, () => Task.FromResult<RotationSyncResult?>(null), changed);
                 act(editor);
             }
