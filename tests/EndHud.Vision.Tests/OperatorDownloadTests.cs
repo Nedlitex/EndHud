@@ -172,6 +172,20 @@ public sealed class OperatorDownloadTests : IDisposable
         Assert.NotNull(await OperatorReference.EnsureAsync(Library, TimeSpan.FromDays(7), wiki.Client(), Fast));
     }
 
+    [Fact]
+    public async Task A_fresh_copy_from_before_status_icons_is_downloaded_again()
+    {
+        var wiki = await FakeWiki.CreateAsync("Alpha");
+        await wiki.AddStatusAsync("Heat Infliction");
+        await OperatorReference.UpdateAsync(Library, wiki.Client(), Fast);
+        File.Delete(Path.Combine(Library, "statuses.json")); // as EndHud 0.1.0 left it, a day ago
+
+        Assert.True(OperatorReference.IsDue(Library, TimeSpan.FromDays(7)));
+        Assert.NotNull(await OperatorReference.EnsureAsync(Library, TimeSpan.FromDays(7), wiki.Client(), Fast));
+        Assert.False(OperatorReference.IsDue(Library, TimeSpan.FromDays(7)));
+        Assert.NotEmpty((await OperatorLibrary.LoadAsync(Path.Combine(_root, "user"), Library)).Statuses);
+    }
+
     // ---- Status icons (for rotation conditions) ----
 
     [Fact]

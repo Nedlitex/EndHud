@@ -32,7 +32,7 @@ public sealed class OperatorLibrary
     public const string IconFolderName = "icons";
     public const string SkillFolderName = "skills";
     public const string StatusFolderName = "statuses";
-    private const string StatusManifestName = "statuses.json";
+    internal const string StatusManifestName = "statuses.json";
     public const string LearnedFolderName = "learned";
     public const string ReferenceFolderName = "reference";
     private const string ManifestName = "operators.json";

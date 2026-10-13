@@ -78,13 +78,22 @@ public static class OperatorReference
     }
 
     /// <summary>
-    /// <see cref="UpdateAsync"/> if there's no copy yet or it's older than <paramref name="maxAge"/>.
-    /// Returns null when the current copy is fresh enough.
+    /// True when <paramref name="folder"/> should be downloaded again: there's no copy, it's older than
+    /// <paramref name="maxAge"/>, or it's from before status icons were downloaded (EndHud 0.1.0), which
+    /// rotations need.
+    /// </summary>
+    public static bool IsDue(string folder, TimeSpan maxAge) =>
+        DownloadedAtUtc(folder) is not { } at
+        || DateTime.UtcNow - at >= maxAge
+        || !File.Exists(Path.Combine(folder, OperatorLibrary.StatusManifestName));
+
+    /// <summary>
+    /// <see cref="UpdateAsync"/> if <see cref="IsDue"/>. Returns null when the current copy is fresh enough.
     /// </summary>
     public static async Task<OperatorUpdate?> EnsureAsync(string folder, TimeSpan maxAge, HttpClient http,
         WikiPoliteness? politeness = null, CancellationToken ct = default)
     {
-        if (DownloadedAtUtc(folder) is { } at && DateTime.UtcNow - at < maxAge) return null;
+        if (!IsDue(folder, maxAge)) return null;
         return await UpdateAsync(folder, http, politeness, ct);
     }
 

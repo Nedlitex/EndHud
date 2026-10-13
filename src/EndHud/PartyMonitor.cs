@@ -128,7 +128,7 @@ internal sealed class PartyMonitor : IDisposable
 
             while (!_cts.IsCancellationRequested)
             {
-                if (DateTime.UtcNow - OperatorReference.DownloadedAtUtc(ReferenceFolder) >= RefreshAfter
+                if (OperatorReference.IsDue(ReferenceFolder, RefreshAfter)
                     && DateTime.UtcNow - _lastWikiCheckUtc >= RefreshCheckEvery)
                 {
                     var (update, _) = await DownloadLibraryAsync(announce: false); // quiet: the current copy keeps working
