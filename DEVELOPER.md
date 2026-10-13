@@ -50,8 +50,12 @@ the recognised squad, styled after community rotation charts, and highlights the
 - **No start or reset.** Each step can say what the game should look like when it's that step's
   turn (its *expected state*). EndHud picks the step that matches the screen best, then moves on
   when it sees the step's skill used. See [Rotations](#rotations).
-- **When to press it.** The current step lights up when its expected state holds and its skill is
-  available; otherwise a line under it says what's missing ("技力 1.4/2", "敌人缺少：灼热附着").
+- **When to press it.** The current step has stacked chevrons above it: cyan (with a cyan ring) when
+  its expected state holds and its skill is available, white otherwise, with a line under the
+  band saying what's missing ("技力 1.4/2", "敌人缺少：灼热附着").
+- **Looks like the guides' charts:** a see-through grey band that fades out at both ends, no
+  backdrop box, the phase name large on the left, a line through the icons. Centred at the top by
+  default, and it stays centred as its width changes.
 - **Move it**: open the menu and drag the strip; "reset position" puts it back.
 - **Recommended rotations** come from the repository's [`rotations/`](rotations) folder and are
   kept up to date daily, without a release (see [Recommended rotations](#recommended-rotations)).
@@ -222,7 +226,7 @@ edit it by hand, restart EndHud. Delete the file to reset.
 | `ComboHintSeconds` | `3` | How long a `WhenReady` hint stays up. |
 | `ComboHintX`, `ComboHintY` | `0.2`, `0.36` | Where the hint sits: its top-left corner as a fraction of the game window's width and height. |
 | `RotationEnabled` | `true` | Show the rotation strip when the recognised squad has a rotation. |
-| `RotationX`, `RotationY` | `0.3`, `0.13` | Where the strip sits (top-left corner, as a fraction of the game window). |
+| `RotationCenterX`, `RotationY` | `0.5`, `0.13` | Where the strip sits, as a fraction of the game window: the middle of its width (it stays centred as it changes width) and its top. |
 | `ActiveRotations` | `{}` | The rotation chosen for each squad: squad key (the four operator ids, sorted, joined by `\|`) → rotation id. Set by saving in the editor. |
 
 ### Command-line options

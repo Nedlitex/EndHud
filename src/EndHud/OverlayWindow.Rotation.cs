@@ -200,8 +200,17 @@ public partial class OverlayWindow
         PlaceRotationFromConfig();
     }
 
+    /// <summary>The strip's width on screen (after scaling).</summary>
+    private double RotationWidth() => RotationFrame.ActualWidth * ((RotationFrame.LayoutTransform as ScaleTransform)?.ScaleX ?? 1);
+
     private void PlaceRotationFromConfig() =>
-        PlaceRotation(_config.RotationX * HintCanvas.ActualWidth, _config.RotationY * HintCanvas.ActualHeight);
+        PlaceRotation(_config.RotationCenterX * HintCanvas.ActualWidth - RotationWidth() / 2, _config.RotationY * HintCanvas.ActualHeight);
+
+    /// <summary>The strip changed width (a new phase, a step done): keep it centred where it was.</summary>
+    private void RotationFrame_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_rotationDragOffset is null) PlaceRotationFromConfig();
+    }
 
     private void PlaceRotation(double left, double top)
     {
@@ -212,7 +221,7 @@ public partial class OverlayWindow
 
     private void RotationResetButton_Click(object sender, RoutedEventArgs e)
     {
-        _config.RotationX = HudConfig.DefaultRotationX;
+        _config.RotationCenterX = HudConfig.DefaultRotationCenterX;
         _config.RotationY = HudConfig.DefaultRotationY;
         ConfigStore.Save(_config);
         PlaceRotationFromConfig();
@@ -239,7 +248,7 @@ public partial class OverlayWindow
         _rotationDragOffset = null;
         RotationFrame.ReleaseMouseCapture();
         if (HintCanvas.ActualWidth <= 0 || HintCanvas.ActualHeight <= 0) return;
-        _config.RotationX = System.Windows.Controls.Canvas.GetLeft(RotationFrame) / HintCanvas.ActualWidth;
+        _config.RotationCenterX = (System.Windows.Controls.Canvas.GetLeft(RotationFrame) + RotationWidth() / 2) / HintCanvas.ActualWidth;
         _config.RotationY = System.Windows.Controls.Canvas.GetTop(RotationFrame) / HintCanvas.ActualHeight;
         ConfigStore.Save(_config);
     }

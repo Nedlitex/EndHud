@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 
@@ -17,9 +18,9 @@ internal sealed record StripStep(BitmapSource? Icon, BitmapSource? Avatar, strin
 internal enum StripStepState
 {
     Done,
-    /// <summary>The current step, ready to use: bright, with a gold ring.</summary>
+    /// <summary>The current step, ready to use: cyan chevrons and ring.</summary>
     Ready,
-    /// <summary>The current step, not ready yet: dim, with the reasons under the strip.</summary>
+    /// <summary>The current step, not ready yet: white chevrons and ring, with the reasons under the strip.</summary>
     Waiting,
     Upcoming,
 }
@@ -28,26 +29,33 @@ internal enum StripStepState
 internal sealed record StripView(string Phase, IReadOnlyList<StripStep> Steps, IReadOnlyList<string> Reasons);
 
 /// <summary>
-/// The rotation strip (排轴), drawn like the guides do: a band with the phase's name and its steps as
-/// skill icons. The current step has a chevron above it; it's bright with a gold ring when it's
-/// time to use it, dim otherwise, with the reasons (in words) under the band. Done steps fade.
-/// Drawn at the size for a 1080p game window and scaled with the window (see ComboHintLayout).
+/// The rotation strip (排轴), drawn like the community's rotation charts: a see-through grey band that
+/// fades out at both ends, a line through the skill icons, the phase's name large on the left. The
+/// current step has stacked chevrons above it: cyan when it's time to use it, white when it isn't
+/// yet (the reasons, in words, under the band). Done steps fade. Text has a dark outline so it reads
+/// over any scene. Drawn at the size for a 1080p game window and scaled with the window (see
+/// ComboHintLayout).
 /// </summary>
 internal static class RotationStrip
 {
-    private const double IconSize = 56;
-    private const double AvatarSize = 22;
-    private const double StepWidth = 76;
-    private const double Overlap = 30;
+    private const double IconSize = 80;
+    private const double AvatarSize = 30;
+    private const double StepWidth = 104;
+    private const double Overlap = 42;
+    private const double FadeWidth = 90;
 
     // Frozen: shared by every strip drawn, from any thread.
-    private static readonly Brush Band = Frozen(Color.FromArgb(0xB4, 0x14, 0x18, 0x1C));
-    private static readonly Brush Gold = Frozen(Color.FromRgb(0xE6, 0xC2, 0x29));
-    private static readonly Brush Dim = Frozen(Color.FromArgb(0xC0, 0x7A, 0x7A, 0x7A));
-    private static readonly Brush Text = Frozen(Color.FromArgb(0xEE, 0xFF, 0xFF, 0xFF));
-    private static readonly Brush Faint = Frozen(Color.FromArgb(0x99, 0xFF, 0xFF, 0xFF));
-    private static readonly Brush Warning = Frozen(Color.FromRgb(0xFF, 0x7A, 0x6B));
-    private static readonly Brush StepFill = Frozen(Color.FromArgb(0xCC, 0x22, 0x26, 0x2B));
+    internal static readonly Color CyanColor = Color.FromRgb(0x3C, 0xD2, 0xF0);
+    private static readonly Brush Cyan = Frozen(CyanColor);
+    private static readonly Brush Ring = Frozen(Color.FromArgb(0x99, 0xD8, 0xD8, 0xD8));
+    private static readonly Brush Text = Frozen(Color.FromArgb(0xF2, 0xFF, 0xFF, 0xFF));
+    private static readonly Brush Label = Frozen(Color.FromArgb(0xCC, 0xD0, 0xD0, 0xD0));
+    private static readonly Brush Line = Frozen(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF));
+    internal static readonly Color WarningColor = Color.FromRgb(0xFF, 0x8A, 0x7A);
+    private static readonly Brush Warning = Frozen(WarningColor);
+    private static readonly Brush StepFill = Frozen(Color.FromArgb(0x8C, 0x26, 0x28, 0x2C));
+    private static readonly Brush CurrentFill = Frozen(Color.FromArgb(0xE0, 0x18, 0x1A, 0x1E));
+    private static readonly Brush Band = FrozenBand();
 
     private static Brush Frozen(Color color)
     {
@@ -55,6 +63,23 @@ internal static class RotationStrip
         brush.Freeze();
         return brush;
     }
+
+    /// <summary>See-through grey, fading out at the left and right ends.</summary>
+    private static Brush FrozenBand()
+    {
+        var grey = Color.FromArgb(0x9C, 0x50, 0x54, 0x5A);
+        var clear = Color.FromArgb(0x00, 0x50, 0x54, 0x5A);
+        var brush = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 0), MappingMode = BrushMappingMode.RelativeToBoundingBox };
+        brush.GradientStops.Add(new GradientStop(clear, 0));
+        brush.GradientStops.Add(new GradientStop(grey, 0.08));
+        brush.GradientStops.Add(new GradientStop(grey, 0.92));
+        brush.GradientStops.Add(new GradientStop(clear, 1));
+        brush.Freeze();
+        return brush;
+    }
+
+    /// <summary>A dark outline around text, so it reads over bright scenes through the see-through band.</summary>
+    private static Effect Outline() => new DropShadowEffect { Color = Colors.Black, BlurRadius = 4, ShadowDepth = 0, Opacity = 0.85 };
 
     public static UIElement Build(StripView view)
     {
@@ -72,63 +97,87 @@ internal static class RotationStrip
         {
             Text = view.Phase,
             Foreground = Text,
-            FontSize = 22,
-            FontWeight = FontWeights.SemiBold,
+            FontSize = 40,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(18, 0, 18, 0),
-            MinWidth = 96,
+            Margin = new Thickness(0, 0, 28, 0),
+            Effect = Outline(),
         });
         row.Children.Add(steps);
 
-        // Why the current step isn't ready goes inside the band, readable over any scene.
-        var body = new StackPanel { Children = { row } };
+        // The line runs through the icons' centres, behind them.
+        var grid = new Grid();
+        grid.Children.Add(new Rectangle { Height = 1, Fill = Line, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, LineY, 0, 0) });
+        grid.Children.Add(row);
+
+        var body = new StackPanel { Children = { grid } };
         if (view.Reasons.Count > 0)
         {
             body.Children.Add(new TextBlock
             {
                 Text = string.Join("　", view.Reasons),
                 Foreground = Warning,
-                FontSize = 14,
-                Margin = new Thickness(18, 2, 0, 0),
+                FontSize = 19,
+                FontWeight = FontWeights.SemiBold,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 2, 0, 0),
+                Effect = Outline(),
             });
         }
-        return new Border { Background = Band, CornerRadius = new CornerRadius(6), Padding = new Thickness(0, 6, 12, 6), Child = body };
+        return new Border { Background = Band, Padding = new Thickness(FadeWidth, 6, FadeWidth, 6), Child = body };
+    }
+
+    // Chevrons (26) + label (24) + the icon's top margin (2) + half the icon.
+    private const double LineY = 26 + 24 + 2 + IconSize / 2;
+
+    /// <summary>Two stacked chevrons pointing down at the current step, as the guides draw it; empty space otherwise.</summary>
+    private static UIElement Chevrons(Brush? brush)
+    {
+        var area = new Canvas { Width = 28, Height = 26, HorizontalAlignment = HorizontalAlignment.Center };
+        if (brush is null) return area;
+        foreach (double top in new[] { 3.0, 12.0 })
+        {
+            area.Children.Add(new Polyline
+            {
+                Points = [new Point(4, top), new Point(14, top + 8), new Point(24, top)],
+                Stroke = brush,
+                StrokeThickness = 3.5,
+                StrokeLineJoin = PenLineJoin.Miter,
+                Effect = Outline(),
+            });
+        }
+        return area;
     }
 
     private static UIElement Step(StripStep step)
     {
         bool current = step.State is StripStepState.Ready or StripStepState.Waiting;
+        var accent = step.State == StripStepState.Ready ? Cyan : Text;
         var panel = new StackPanel
         {
             Width = StepWidth,
             Margin = new Thickness(step.WithPrevious ? -Overlap : 0, 0, 0, 0),
-            Opacity = step.State == StripStepState.Done ? 0.35 : 1,
+            Opacity = step.State == StripStepState.Done ? 0.45 : 1,
         };
-        panel.Children.Add(new TextBlock
-        {
-            Text = current ? "⌄" : " ",
-            Foreground = step.State == StripStepState.Ready ? Gold : Faint,
-            FontSize = 22,
-            LineHeight = 16,
-            LineStackingStrategy = LineStackingStrategy.BlockLineHeight,
-            HorizontalAlignment = HorizontalAlignment.Center,
-        });
+        panel.Children.Add(Chevrons(current ? accent : null));
         panel.Children.Add(new TextBlock
         {
             Text = step.Action,
-            Foreground = current ? Text : Faint,
-            FontSize = 13,
-            FontWeight = current ? FontWeights.SemiBold : FontWeights.Normal,
+            Foreground = current ? Text : Label,
+            FontSize = 18,
+            FontWeight = current ? FontWeights.Bold : FontWeights.Normal,
+            Height = 24,
             HorizontalAlignment = HorizontalAlignment.Center,
+            Effect = Outline(),
         });
 
         var icon = new Grid { Width = IconSize, Height = IconSize, Margin = new Thickness(0, 2, 0, 2) };
         icon.Children.Add(new Ellipse
         {
-            Fill = StepFill,
-            // Gold: use it now. White: this is the step, but not yet. Grey: later.
-            Stroke = step.State switch { StripStepState.Ready => Gold, StripStepState.Waiting => Text, _ => Dim },
-            StrokeThickness = current ? 3 : 1.5,
+            Fill = current ? CurrentFill : StepFill,
+            // Cyan: use it now. White: this is the step, but not yet. Grey: later.
+            Stroke = current ? accent : Ring,
+            StrokeThickness = current ? 3.5 : 2,
+            Effect = step.State == StripStepState.Ready ? new DropShadowEffect { Color = CyanColor, BlurRadius = 12, ShadowDepth = 0, Opacity = 0.9 } : null,
         });
         if (step.Icon is not null)
         {
@@ -159,9 +208,10 @@ internal static class RotationStrip
         {
             Text = step.Note ?? " ",
             Foreground = Text,
-            FontSize = 13,
+            FontSize = 20,
             FontWeight = FontWeights.Bold,
             HorizontalAlignment = HorizontalAlignment.Center,
+            Effect = Outline(),
         });
         return panel;
     }

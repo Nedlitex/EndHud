@@ -72,9 +72,9 @@
                 <StackPanel x:Name="ComboHintStack" />
             </StackPanel>
         </Border>
-        <!-- The rotation strip (排轴), placed like the combo hint (config RotationX/Y). -->
+        <!-- The rotation strip (排轴), centred on config RotationCenterX, top at RotationY. -->
         <Border x:Name="RotationFrame" BorderThickness="2" Padding="6" CornerRadius="4" Background="Transparent"
-                Visibility="Collapsed"
+                Visibility="Collapsed" SizeChanged="RotationFrame_SizeChanged"
                 MouseLeftButtonDown="Rotation_MouseDown" MouseMove="Rotation_MouseMove"
                 MouseLeftButtonUp="Rotation_MouseUp">
             <StackPanel>

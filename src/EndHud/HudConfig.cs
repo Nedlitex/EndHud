@@ -57,16 +57,19 @@ internal sealed class HudConfig
     /// <summary>Show the rotation strip (排轴) when the recognised squad has a rotation.</summary>
     public bool RotationEnabled { get; set; } = true;
 
-    /// <summary>Top-left corner of the rotation strip, as a fraction of the game window.</summary>
-    public double RotationX { get; set; } = DefaultRotationX;
+    /// <summary>
+    /// Where the rotation strip sits, as a fraction of the game window: the middle of its width
+    /// (so it stays centred as steps come and go), and its top.
+    /// </summary>
+    public double RotationCenterX { get; set; } = DefaultRotationCenterX;
 
     public double RotationY { get; set; } = DefaultRotationY;
 
     /// <summary>The rotation chosen for each squad (several can be for the same one), by squad key.</summary>
     public Dictionary<string, string> ActiveRotations { get; set; } = [];
 
-    // Top centre, under the boss's name, bars and statuses.
-    public const double DefaultRotationX = 0.3;
+    // Centred, under the boss's name, bars and statuses.
+    public const double DefaultRotationCenterX = 0.5;
     public const double DefaultRotationY = 0.13;
 
     public const double DefaultComboHintSeconds = 3;

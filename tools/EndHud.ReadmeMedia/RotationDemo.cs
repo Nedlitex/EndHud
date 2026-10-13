@@ -144,8 +144,9 @@ static class RotationDemo
         double scale = ComboHintLayout.Scale(Height, 1.0);
         host.LayoutTransform = new ScaleTransform(scale, scale);
         var canvas = new Canvas { Width = Width, Height = Height, Children = { host } };
-        Canvas.SetLeft(host, HudConfig.DefaultRotationX * Width);
         Canvas.SetTop(host, HudConfig.DefaultRotationY * Height);
+        // Centred like the overlay: placed again whenever the strip's width changes.
+        host.SizeChanged += (_, _) => Canvas.SetLeft(host, HudConfig.DefaultRotationCenterX * Width - host.ActualWidth * scale / 2);
 
         var files = Directory.GetFiles(backgrounds, "*.png").Order(StringComparer.Ordinal).ToArray();
         string? lastKey = null;
@@ -166,6 +167,7 @@ static class RotationDemo
             canvas.Measure(new Size(Width, Height));
             canvas.Arrange(new Rect(0, 0, Width, Height));
             canvas.UpdateLayout();
+            canvas.UpdateLayout(); // again: centring moves the strip once its width is known
             var overlay = new RenderTargetBitmap(Width, Height, 96, 96, PixelFormats.Pbgra32);
             overlay.Render(canvas);
             var hud = new byte[Width * Height * 4];
