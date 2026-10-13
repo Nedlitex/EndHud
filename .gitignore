@@ -26,3 +26,4 @@ out/
 # Operator reference data (wiki avatars and skill icons): downloaded, never committed.
 # Tests, the CLI and tools fetch it into here on first use (see DEVELOPER.md).
 .cache/
+.tracking/
