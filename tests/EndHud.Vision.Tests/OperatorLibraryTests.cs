@@ -41,6 +41,17 @@ public sealed class OperatorLibraryTests : IDisposable
         Assert.True(PortraitReferences.BuiltIn.Select(r => r.OperatorId).Distinct().Count() >= 32);
     }
 
+    [Theory]
+    [InlineData("""{ "Model": "ccip-caformer-24-randaug-pruned-int8", "References": [] }""")] // an older layout
+    [InlineData("""{ "Model": "another-model", "Sizes": [] }""")]
+    [InlineData("""{ "Model": "ccip-caformer-24-randaug-pruned-int8", "Sizes": [ { "Screen": "1920x1080", "PortraitWidth": 64, "Operators": { "Akekuri": ["not base64!"] } } ] }""")]
+    [InlineData("not json")]
+    public void Unusable_portrait_references_mean_none_rather_than_an_error(string json)
+    {
+        // Recognition then falls back to the wiki avatars instead of failing altogether.
+        Assert.Empty(PortraitReferences.Read(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json))));
+    }
+
     [Fact]
     public async Task Downloaded_library_has_every_operator_with_avatar_and_skill_icons()
     {

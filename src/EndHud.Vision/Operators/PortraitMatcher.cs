@@ -87,7 +87,7 @@ public sealed class PortraitMatcher(OperatorLibrary library)
         int width = PortraitReferences.NearestWidth(screenPortrait.Width);
         var index = new Dictionary<string, int>();
         for (int j = 0; j < library.Operators.Count; j++) index[library.Operators[j].Id] = j;
-        var references = _references.Where(r => r.Width == width && index.ContainsKey(r.OperatorId)).ToList();
+        var references = _references.Where(r => r.PortraitWidth == width && index.ContainsKey(r.OperatorId)).ToList();
 
         var model = CharacterModel.Shared;
         var differences = model.Differences([model.Features(screenPortrait)],

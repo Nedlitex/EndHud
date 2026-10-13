@@ -3,9 +3,9 @@ using System.Text.Json;
 namespace EndHud.Vision.Operators;
 
 /// <summary>One operator's in-game squad portrait, as the character model describes it.</summary>
-/// <param name="Source">Where the portrait came from, e.g. "squad-5.png slot 4".</param>
-/// <param name="Width">The portrait's width in pixels when described (the screen size it stands for).</param>
-public sealed record PortraitReference(string OperatorId, string Source, int Width, float[] Features);
+/// <param name="PortraitWidth">How wide the portrait was, in pixels, when described: the squad
+/// portrait's width on the screen size this reference stands for (see <see cref="PortraitReferences.Sizes"/>).</param>
+public sealed record PortraitReference(string OperatorId, int PortraitWidth, float[] Features);
 
 /// <summary>
 /// EndHud's built-in portrait references (Assets/operator-portraits.json): each operator's squad
@@ -20,13 +20,26 @@ public static class PortraitReferences
     public const string ResourceName = "operator-portraits.json";
 
     /// <summary>
-    /// Portrait widths references are described at: the squad portrait on 4K, 2880x1800,
-    /// 1440p, 2256x1504, 1080p, 1600x900, 1366x768 and 720p screens (128 px at 4K, scaled).
+    /// The screen sizes references are made for, and the squad portrait's width in pixels on each
+    /// (128 px at 4K, scaled with the screen). A smaller screen draws a blurrier portrait, which is
+    /// compared best with a reference just as small, so a player's portrait is compared with the
+    /// references of the size closest to its own (<see cref="NearestWidth"/>).
     /// </summary>
-    public static readonly int[] Widths = [128, 96, 85, 75, 64, 53, 46, 43];
+    public static readonly (string Screen, int PortraitWidth)[] Sizes =
+    [
+        ("3840x2160", 128), ("2880x1800", 96), ("2560x1440", 85), ("2256x1504", 75),
+        ("1920x1080", 64), ("1600x900", 53), ("1366x768", 46), ("1280x720", 43),
+    ];
 
-    private sealed record Stored(string Model, List<StoredReference> References);
-    private sealed record StoredReference(string Operator, string Source, int Width, string Features);
+    private const string About =
+        "Built-in operator portrait references for EndHud (src/EndHud.Vision/Operators/PortraitReferences.cs). " +
+        "For each screen size, each operator's squad portrait as the game draws it, described by the character " +
+        "model named in Model: base64 of 768 little-endian float32 values per portrait (some operators have two). " +
+        "No image is stored. Made from tests/EndHud.Vision.Tests/Fixtures/squads by `endhud-cli build-portrait-references`.";
+
+    // File layout: { About, Model, Sizes: [ { Screen, PortraitWidth, Operators: { id: [features, ...] } } ] }
+    private sealed record Stored(string About, string Model, List<StoredSize> Sizes);
+    private sealed record StoredSize(string Screen, int PortraitWidth, SortedDictionary<string, List<string>> Operators);
 
     /// <summary>The built-in references; empty if they were made with another model.</summary>
     public static IReadOnlyList<PortraitReference> BuiltIn => Loaded.Value;
@@ -39,38 +52,56 @@ public static class PortraitReferences
 
     internal static IReadOnlyList<PortraitReference> Read(Stream json)
     {
-        var stored = JsonSerializer.Deserialize<Stored>(json);
-        if (stored is null || stored.Model != CharacterModel.Name) return [];
-        return stored.References
-            .Select(r => new PortraitReference(r.Operator, r.Source, r.Width, FromBase64(r.Features)))
-            .ToList();
+        // Unreadable, another layout or another model: no built-in references (the wiki avatars
+        // still recognise everyone), never an error that stops recognition.
+        try
+        {
+            var stored = JsonSerializer.Deserialize<Stored>(json);
+            if (stored?.Sizes is null || stored.Model != CharacterModel.Name) return [];
+            return stored.Sizes
+                .Where(size => size.Operators is not null)
+                .SelectMany(size => size.Operators.SelectMany(op =>
+                    (op.Value ?? []).Select(features => new PortraitReference(op.Key, size.PortraitWidth, FromBase64(features)))))
+                .ToList();
+        }
+        catch (Exception ex) when (ex is JsonException or FormatException)
+        {
+            return [];
+        }
     }
 
     /// <summary>
-    /// Describe labelled 4K squad portraits (<see cref="PartySlot.ScreenPortrait"/> of a 4K frame)
-    /// at every one of <see cref="Widths"/>, shrunk as a smaller screen would draw them, and write
-    /// them to <paramref name="file"/> in the built-in format.
+    /// Describe a labelled 4K squad portrait (<see cref="PartySlot.ScreenPortrait"/> of a 4K frame)
+    /// at each of <paramref name="widths"/> (default: every one of <see cref="Sizes"/>), shrunk as a
+    /// smaller screen would draw it.
     /// </summary>
-    public static int Build(IEnumerable<(string OperatorId, string Source, Frame Portrait4K)> portraits, string file)
+    public static IEnumerable<PortraitReference> Describe(string operatorId, Frame portrait4K, IEnumerable<int>? widths = null)
     {
         var model = CharacterModel.Shared;
-        var references = new List<StoredReference>();
-        foreach (var (id, source, portrait) in portraits)
+        foreach (int width in widths ?? Sizes.Select(s => s.PortraitWidth))
         {
-            foreach (int width in Widths)
-            {
-                int height = (int)Math.Round(portrait.Height * width / (double)portrait.Width);
-                var shrunk = width == portrait.Width ? portrait : portrait.Resize(width, height);
-                references.Add(new StoredReference(id, source, width, ToBase64(model.Features(shrunk))));
-            }
+            int height = (int)Math.Round(portrait4K.Height * width / (double)portrait4K.Width);
+            var shrunk = width == portrait4K.Width ? portrait4K : portrait4K.Resize(width, height);
+            yield return new PortraitReference(operatorId, width, model.Features(shrunk));
         }
-        File.WriteAllText(file, JsonSerializer.Serialize(new Stored(CharacterModel.Name, references),
+    }
+
+    /// <summary>Describe labelled 4K squad portraits (see <see cref="Describe"/>) and write them to <paramref name="file"/> in the built-in format.</summary>
+    public static int Build(IEnumerable<(string OperatorId, Frame Portrait4K)> portraits, string file)
+    {
+        var references = portraits.SelectMany(p => Describe(p.OperatorId, p.Portrait4K)).ToList();
+        var sizes = Sizes.Select(size => new StoredSize(size.Screen, size.PortraitWidth, new SortedDictionary<string, List<string>>(
+            references.Where(r => r.PortraitWidth == size.PortraitWidth)
+                .GroupBy(r => r.OperatorId)
+                .ToDictionary(g => g.Key, g => g.Select(r => ToBase64(r.Features)).ToList()),
+            StringComparer.Ordinal))).ToList();
+        File.WriteAllText(file, JsonSerializer.Serialize(new Stored(About, CharacterModel.Name, sizes),
             new JsonSerializerOptions { WriteIndented = true }));
         return references.Count;
     }
 
-    /// <summary>The width in <see cref="Widths"/> closest to <paramref name="width"/>.</summary>
-    public static int NearestWidth(int width) => Widths.MinBy(w => Math.Abs(w - width));
+    /// <summary>The portrait width in <see cref="Sizes"/> closest to <paramref name="width"/>.</summary>
+    public static int NearestWidth(int width) => Sizes.Select(s => s.PortraitWidth).MinBy(w => Math.Abs(w - width));
 
     private static string ToBase64(float[] values)
     {

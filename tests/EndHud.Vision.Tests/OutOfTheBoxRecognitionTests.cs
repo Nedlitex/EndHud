@@ -168,10 +168,17 @@ public sealed class OutOfTheBoxRecognitionTests : IDisposable
     [InlineData(9)]
     public async Task An_operator_is_named_from_a_reference_made_from_another_screenshot(int squad)
     {
-        // Leave this screenshot's own references out: operators also in another screenshot must
-        // still be named (from that one), at 1080p.
-        string file = Squads[squad - 1].File;
-        var references = PortraitReferences.BuiltIn.Where(r => !r.Source.StartsWith(file + " ", StringComparison.Ordinal)).ToList();
+        // References from every squad screenshot but this one, made as the built-in ones are:
+        // operators also in another screenshot must still be named (from that one), at 1080p.
+        var reader = new PartyReader(new TextRecognizer());
+        var references = new List<PortraitReference>();
+        for (int other = 1; other <= Squads.Length; other++)
+        {
+            if (other == squad) continue;
+            var state = await reader.ReadAsync(await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("squads", Squads[other - 1].File))));
+            for (int i = 0; i < 4; i++)
+                references.AddRange(PortraitReferences.Describe(Squads[other - 1].Slots[i], state.Slots[i].ScreenPortrait!, [64]));
+        }
         string[] elsewhere = Squads[squad - 1].Slots.Where(id => references.Any(r => r.OperatorId == id)).ToArray();
         Assert.NotEmpty(elsewhere);
 

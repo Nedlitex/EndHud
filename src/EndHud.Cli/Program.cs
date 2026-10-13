@@ -191,7 +191,7 @@ static async Task<int> BuildReferencesAsync(string squadsJson, string outFile)
     var squads = System.Text.Json.JsonSerializer.Deserialize<List<SquadScreenshot>>(File.ReadAllText(squadsJson),
         new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
     var reader = new PartyReader(new TextRecognizer());
-    var portraits = new List<(string, string, Frame)>();
+    var portraits = new List<(string, Frame)>();
     foreach (var squad in squads)
     {
         var frame = await ImageFile.LoadAsync(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(squadsJson))!, squad.File));
@@ -202,7 +202,7 @@ static async Task<int> BuildReferencesAsync(string squadsJson, string outFile)
         }
         var state = await reader.ReadAsync(frame);
         for (int i = 0; i < squad.Slots.Length; i++)
-            portraits.Add((squad.Slots[i], $"{squad.File} slot {i + 1}", state.Slots[i].ScreenPortrait ?? state.Slots[i].Portrait));
+            portraits.Add((squad.Slots[i], state.Slots[i].ScreenPortrait ?? state.Slots[i].Portrait));
     }
     int count = PortraitReferences.Build(portraits, outFile);
     Console.WriteLine($"{portraits.Count} portraits of {portraits.Select(p => p.Item1).Distinct().Count()} operators, {count} references -> {Path.GetFullPath(outFile)}");
