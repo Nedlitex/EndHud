@@ -16,7 +16,11 @@ namespace EndHud.Vision;
 /// (<see cref="Operators.PortraitMatcher.Differences"/>); null = use <paramref name="Portrait"/>.</param>
 public sealed record PartySlot(int Number, int? Level, double? Hp, string LevelText, Frame Portrait,
     ComboReading? Combo = null, UltimateReading? Ultimate = null, bool Dead = false,
-    Operators.OperatorMatch? Operator = null, Frame? ScreenPortrait = null);
+    Operators.OperatorMatch? Operator = null, Frame? ScreenPortrait = null)
+{
+    /// <summary>This slot's battle skill button (bottom right): available or cooling; null when unreadable or fallen.</summary>
+    public BattleSkillState? BattleSkill { get; init; }
+}
 
 /// <param name="PanelMarks">How many of the eight "-" marks beside the HP bars were found (see <see cref="PanelMarkers"/>).</param>
 /// <param name="ReadingsSinceSeen">0 when this reading saw the panel; otherwise how many readings in a row
@@ -68,7 +72,7 @@ public sealed partial class PartyReader(TextRecognizer ocr)
             // In combat the combo bar replaces the level text, so there's nothing to OCR.
             var (level, text) = combo is not null ? (null, "") : await ReadLevelAsync(frame, ui, i);
             slots.Add(new PartySlot(i + 1, level, hp, text, portrait, combo, UltimateGauge.Measure(frame, i),
-                ScreenPortrait: screenPortrait));
+                ScreenPortrait: screenPortrait) { BattleSkill = BattleSkillButton.Measure(frame, i) });
         }
         // Skill points are drawn in combat only (shown by the combo bars); out of combat the bar's
         // place shows the scenery, which can look like an empty bar.

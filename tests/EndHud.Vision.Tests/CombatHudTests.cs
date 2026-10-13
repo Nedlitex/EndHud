@@ -10,7 +10,8 @@ namespace EndHud.Vision.Tests;
 /// </summary>
 public class CombatHudTests
 {
-    private sealed record Label(string File, double? SkillPoints, int? ActiveSlot);
+    /// <param name="BattleSkills">Each slot's button; null where it's dimmed (under 1 skill point) or covered.</param>
+    private sealed record Label(string File, double? SkillPoints, int? ActiveSlot, BattleSkillState?[] BattleSkills);
 
     private static readonly Label[] Labels = JsonSerializer.Deserialize<Label[]>(
         File.ReadAllText(CombatFrameTests.Fixture(Path.Combine("battle-hud", "labels.json"))),
@@ -41,6 +42,16 @@ public class CombatHudTests
         Assert.Equal(label.ActiveSlot, state.ActiveSlot);
     }
 
+    [Theory]
+    [MemberData(nameof(Files))]
+    public async Task Reads_whether_each_battle_skill_is_available_or_cooling(string file)
+    {
+        var label = Labels.Single(l => l.File == file);
+        var state = await ReadAsync(await LoadAsync(file));
+
+        Assert.Equal(label.BattleSkills, state.Slots.Select(s => s.BattleSkill));
+    }
+
     public static TheoryData<string> Screens() =>
         [SimulatedScreen.Qhd.Name, SimulatedScreen.FullHd.Name, SimulatedScreen.LaptopHdPlus.Name, SimulatedScreen.Hd.Name];
 
@@ -60,6 +71,12 @@ public class CombatHudTests
             var state = await ReadAsync(screen.Render(await LoadAsync(label.File)));
             Assert.True(state.ActiveSlot is null || state.ActiveSlot == label.ActiveSlot,
                 $"{label.File} at {screen.Width}x{screen.Height}: slot {state.ActiveSlot}, expected {label.ActiveSlot}");
+            for (int i = 0; i < 4; i++)
+            {
+                var skill = state.Slots[i].BattleSkill;
+                Assert.True(skill is null || skill == label.BattleSkills[i],
+                    $"{label.File} at {screen.Width}x{screen.Height}: slot {i + 1} battle skill {skill}, expected {label.BattleSkills[i]}");
+            }
             if (label.SkillPoints is not { } sp) continue;
             expected++;
             if (state.SkillPoints is not { } got) continue;

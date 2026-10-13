@@ -125,7 +125,7 @@ static async Task<int> AnalyzeAsync(string imagePath, string? debugDir)
         string hp = slot.Hp is { } h ? $"{h:P0}" : "-";
         string combo = slot.Combo is { } c ? (c.Ready ? "ready" : $"{c.Progress:P0}") : "-";
         string ult = slot.Ultimate is { } u ? (u.Ready ? "ready" : $"{u.Progress:P0}") : "-";
-        Console.WriteLine($"slot {slot.Number}: level={slot.Level?.ToString() ?? "-",-3} hp={hp,-5} combo={combo,-6} ult={ult,-10} ocr=\"{slot.LevelText}\"");
+        Console.WriteLine($"slot {slot.Number}: level={slot.Level?.ToString() ?? "-",-3} hp={hp,-5} combo={combo,-6} ult={ult,-10} skill={slot.BattleSkill?.ToString() ?? "-",-9} ocr=\"{slot.LevelText}\"");
     }
     Console.WriteLine($"panel visible: {state.PanelVisible} (HP-bar marks found: {state.PanelMarks}/8)");
     Console.WriteLine($"skill points: {state.SkillPoints?.ToString("F2") ?? "-"}   controlled slot: {state.ActiveSlot?.ToString() ?? "-"}");
