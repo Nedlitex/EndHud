@@ -4,7 +4,9 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Threading;
+using System.IO;
 using EndHud.Vision;
+using EndHud.Vision.Rotations;
 
 namespace EndHud;
 
@@ -57,6 +59,8 @@ public partial class OverlayWindow : Window
         CheckForUpdatesCheckBox.IsChecked = config.CheckForUpdates;
         DebugRoot.Visibility = Visibility.Collapsed;
         InitComboHintSettings();
+        _rotationLibrary = new RotationLibrary(Path.Combine(ConfigStore.Folder, "rotations"));
+        _publishedRotations = new PublishedRotationService(_rotationLibrary);
         ReloadRotations();
         InitRotationSettings();
 

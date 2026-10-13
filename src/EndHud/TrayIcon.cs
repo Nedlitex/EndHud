@@ -4,6 +4,7 @@ using System.Drawing.Drawing2D;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using EndHud.Vision.Rotations;
 
 namespace EndHud;
 
@@ -77,6 +78,12 @@ internal sealed class TrayIcon : IDisposable
 
         // Found by the automatic checks (on worker threads).
         _updates.NewVersionFound += release => OnUi(() => Notify(AvailableText(release), () => _ = UpdateNowAsync(release)));
+        _overlay.PublishedRotations.Changed += (result, automatic) =>
+        {
+            // A manual check reports in its own balloon; removals alone aren't worth a notification.
+            if (automatic && result.Added.Count + result.Updated.Count > 0)
+                OnUi(() => Notify(PublishedText(result), _overlay.OpenRotationEditor));
+        };
         _overlay.NewOperatorsFound += added => OnUi(() =>
             Notify(Loc.Format("Operators.NewFound", string.Join("、", added.Select(o => o.NameZh))), null));
 
@@ -143,7 +150,10 @@ internal sealed class TrayIcon : IDisposable
     public void ShowUpdateFailed(string version) =>
         Notify(Loc.Format("Update.Failed.Install", version, ReleaseChecker.Current?.ToString(3) ?? "?"), () => OpenLink(ReleasesPage));
 
-    /// <summary>The tray's "check for updates": a newer EndHud, and new operators on the wiki.</summary>
+    private static string PublishedText(RotationSyncResult result) =>
+        Loc.Format("Rotation.Published.Updated", string.Join("、", result.Added.Concat(result.Updated)));
+
+    /// <summary>The tray's "check for updates": a newer EndHud, new operators on the wiki, and the recommended rotations.</summary>
     private async Task CheckForUpdatesAsync()
     {
         _checkUpdates.Enabled = false;
@@ -151,7 +161,8 @@ internal sealed class TrayIcon : IDisposable
         {
             var app = _updates.CheckAsync();
             var operators = _overlay.CheckOperatorsAsync();
-            var (update, check) = (await app, await operators);
+            var rotations = _overlay.PublishedRotations.SyncAsync();
+            var (update, check, published) = (await app, await operators, await rotations);
 
             string appLine = update.Status switch
             {
@@ -169,7 +180,13 @@ internal sealed class TrayIcon : IDisposable
                 OperatorCheckStatus.AlreadyChecking => Loc.Get("Operators.AlreadyChecking"),
                 _ => Loc.Get("Operators.UpdateFailed"),
             };
-            Notify(appLine + Environment.NewLine + operatorLine,
+            string rotationLine = published switch
+            {
+                null => Loc.Get("Rotation.Published.Unavailable"),
+                { Added.Count: > 0 } or { Updated.Count: > 0 } => PublishedText(published),
+                _ => Loc.Format("Rotation.Published.UpToDate", published.Total),
+            };
+            Notify(appLine + Environment.NewLine + operatorLine + Environment.NewLine + rotationLine,
                 update.Release is { } r && update.Status == UpdateStatus.NewVersion ? () => _ = UpdateNowAsync(r) : null);
         }
         finally

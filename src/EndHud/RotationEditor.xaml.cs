@@ -17,12 +17,13 @@ namespace EndHud;
 /// </summary>
 public partial class RotationEditor : Window
 {
-    private readonly RotationStore _store;
+    private readonly RotationLibrary _store;
+    private readonly Func<Task<RotationSyncResult?>> _restorePublished;
     private readonly OperatorLibrary _library;
     private readonly IReadOnlyList<string?> _currentSquad;
     private readonly Action<Rotation?> _changed;
     private readonly Dictionary<string, BitmapSource?> _icons = [];
-    private IReadOnlyList<Rotation> _rotations = [];
+    private IReadOnlyList<LibraryRotation> _rotations = [];
     private RotationDraft? _draft;
     private PhaseDraft? _phase;
     private StepDraft? _step;
@@ -31,11 +32,13 @@ public partial class RotationEditor : Window
 
     /// <param name="currentSquad">The squad EndHud recognises now (for "use the current squad"), null slots unknown.</param>
     /// <param name="select">The rotation to open with, if any.</param>
+    /// <param name="restorePublished">Bring back deleted recommended rotations and download them again.</param>
     /// <param name="changed">Called after a rotation is saved (with it) or deleted (with null).</param>
-    internal RotationEditor(RotationStore store, OperatorLibrary library, IReadOnlyList<string?> currentSquad, string? select,
-        Action<Rotation?> changed)
+    internal RotationEditor(RotationLibrary store, OperatorLibrary library, IReadOnlyList<string?> currentSquad, string? select,
+        Func<Task<RotationSyncResult?>> restorePublished, Action<Rotation?> changed)
     {
         _store = store;
+        _restorePublished = restorePublished;
         _library = library;
         _currentSquad = currentSquad;
         _changed = changed;
@@ -61,15 +64,15 @@ public partial class RotationEditor : Window
         _rotations = rotations;
         _loading = true;
         RotationPicker.Items.Clear();
-        foreach (var r in rotations)
-            RotationPicker.Items.Add(Item($"{r.Name}（{string.Join("·", r.Squad.Select(OperatorName))}）", r.Id));
+        foreach (var (r, published) in rotations)
+            RotationPicker.Items.Add(Item(Loc.Format(published ? "Editor.PublishedItem" : "Editor.OwnItem", r.Name, string.Join("·", r.Squad.Select(OperatorName))), r.Id));
         _loading = false;
 
         UnreadableText.Visibility = unreadable.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         UnreadableText.Text = string.Join("\n", unreadable.Select(u =>
             Loc.Format("Editor.Unreadable", Path.GetFileName(u.File), Loc.Get($"Editor.ReadError.{u.Error}"))));
 
-        var selected = rotations.FirstOrDefault(r => r.Id == select) ?? rotations.FirstOrDefault();
+        var selected = rotations.FirstOrDefault(r => r.Rotation.Id == select)?.Rotation ?? rotations.FirstOrDefault()?.Rotation;
         if (selected is null)
         {
             ShowDraft(null);
@@ -87,7 +90,7 @@ public partial class RotationEditor : Window
             Reselect(_draft?.Id);
             return;
         }
-        if (_rotations.FirstOrDefault(r => r.Id == id) is { } rotation) ShowDraft(RotationDraft.From(rotation));
+        if (_rotations.FirstOrDefault(r => r.Rotation.Id == id) is { } entry) ShowDraft(RotationDraft.From(entry.Rotation));
     }
 
     private void Reselect(string? id)
@@ -116,17 +119,22 @@ public partial class RotationEditor : Window
         MarkDirty();
     }
 
-    private void DeleteButton_Click(object sender, RoutedEventArgs e)
+    private void DeleteButton_Click(object sender, RoutedEventArgs e) => DeleteSelected(confirm: true);
+
+    /// <summary>Delete the rotation shown (hide it, if it's a recommended one), asking first when <paramref name="confirm"/>.</summary>
+    internal void DeleteSelected(bool confirm)
     {
         if (_draft is null) return;
-        if (!_store.Exists(_draft.Id))
+        bool published = IsPublished(_draft.Id);
+        if (!_store.Own.Exists(_draft.Id) && !published)
         {
             // Never saved: just drop it.
             _dirty = false;
             LoadRotations(null);
             return;
         }
-        if (MessageBox.Show(this, Loc.Format("Editor.ConfirmDelete", _draft.Name), Title, MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+        string question = Loc.Format(published ? "Editor.ConfirmHide" : "Editor.ConfirmDelete", _draft.Name);
+        if (confirm && MessageBox.Show(this, question, Title, MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
             return;
         _store.Delete(_draft.Id);
         _dirty = false;
@@ -142,6 +150,7 @@ public partial class RotationEditor : Window
         _draft = draft;
         _dirty = false;
         bool has = draft is not null;
+        PublishedNote.Visibility = draft is not null && IsPublished(draft.Id) ? Visibility.Visible : Visibility.Collapsed;
         EmptyText.Visibility = _rotations.Count == 0 && !has ? Visibility.Visible : Visibility.Collapsed;
         Body.IsEnabled = has;
         NameBox.IsEnabled = CopyButton.IsEnabled = DeleteButton.IsEnabled = SaveButton.IsEnabled = has;
@@ -699,12 +708,14 @@ public partial class RotationEditor : Window
         if (_draft is null) return true;
         if (!Problems()) return false;
         var rotation = _draft.ToRotation();
-        _store.Save(rotation);
+        // A recommended rotation isn't changed in place: the player gets their own copy, and the original keeps updating.
+        bool copied = IsPublished(rotation.Id);
+        if (copied) rotation = RotationStore.AsCopy(rotation, Loc.Format("Editor.OwnCopyName", rotation.Name));
+        _store.Own.Save(rotation);
         _dirty = false;
         _changed(rotation);
-        string id = rotation.Id;
-        LoadRotations(id);
-        Status(Loc.Get("Editor.Saved"));
+        LoadRotations(rotation.Id);
+        Status(Loc.Get(copied ? "Editor.SavedAsOwn" : "Editor.Saved"));
         return true;
     }
 
@@ -753,12 +764,14 @@ public partial class RotationEditor : Window
             return;
         }
 
-        if (!_store.Import(rotation))
+        // A recommended rotation shared back in becomes the player's own copy; the original stays as it is.
+        if (IsPublished(rotation.Id)) rotation = RotationStore.AsCopy(rotation, rotation.Name);
+        if (!_store.Own.Import(rotation))
         {
             var answer = MessageBox.Show(this, Loc.Format("Editor.ImportClash", rotation.Name), Title, MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
             if (answer == MessageBoxResult.Cancel) return;
-            if (answer == MessageBoxResult.Yes) _store.Save(rotation);
-            else _store.Save(rotation = RotationStore.AsCopy(rotation, Loc.Format("Editor.CopyName", rotation.Name)));
+            if (answer == MessageBoxResult.Yes) _store.Own.Save(rotation);
+            else _store.Own.Save(rotation = RotationStore.AsCopy(rotation, Loc.Format("Editor.CopyName", rotation.Name)));
         }
         _dirty = false;
         _changed(rotation);
@@ -788,6 +801,39 @@ public partial class RotationEditor : Window
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
+
+    private async void RestorePublished_Click(object sender, RoutedEventArgs e)
+    {
+        if (!ConfirmDiscard()) return;
+        RestorePublishedButton.IsEnabled = false;
+        Status(Loc.Get("Editor.Restoring"));
+        try
+        {
+            var result = await _restorePublished();
+            LoadRotations(_draft?.Id);
+            if (result is null) Error(Loc.Get("Editor.RestoreFailed"));
+            else Status(Loc.Format("Editor.Restored", result.Total));
+        }
+        finally
+        {
+            RestorePublishedButton.IsEnabled = true;
+        }
+    }
+
+    /// <summary>The recommended rotations were updated from GitHub while the editor is open.</summary>
+    internal void PublishedChanged()
+    {
+        if (_dirty)
+        {
+            Status(Loc.Get("Editor.PublishedUpdatedLater"));
+            return;
+        }
+        LoadRotations(_draft?.Id);
+        Status(Loc.Get("Editor.PublishedUpdated"));
+    }
+
+    /// <summary>A recommended rotation (and not one of the player's own with the same id).</summary>
+    private bool IsPublished(string id) => !_store.Own.Exists(id) && _store.IsPublished(id);
 
     /// <summary>With unsaved changes: save, discard, or stay. True to go on.</summary>
     private bool ConfirmDiscard()

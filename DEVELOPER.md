@@ -53,6 +53,8 @@ the recognised squad, styled after community rotation charts, and highlights the
 - **When to press it.** The current step lights up when its expected state holds and its skill is
   available; otherwise a line under it says what's missing ("技力 1.4/2", "敌人缺少：灼热附着").
 - **Move it**: open the menu and drag the strip; "reset position" puts it back.
+- **Recommended rotations** come from the repository's [`rotations/`](rotations) folder and are
+  kept up to date daily, without a release (see [Recommended rotations](#recommended-rotations)).
 - **Edit and share** in the rotation editor (menu → 排轴 → 编辑排轴…, or the tray): phases,
   steps, expected states picked from lists, a live preview, and import/export as a file or a share
   code (`EHR1:` + compressed JSON, short enough for a chat message).
@@ -209,7 +211,7 @@ edit it by hand, restart EndHud. Delete the file to reset.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `CheckForUpdates` | `true` | Check GitHub for a newer EndHud a minute after start and then daily (a notification; nothing is installed). |
+| `CheckForUpdates` | `true` | Check GitHub a minute after start and then daily: for a newer EndHud (a notification; nothing is installed) and for changed recommended rotations (downloaded). |
 | `AutoShowOnGameFocus` | `true` | Show the HUD when the game has focus and hide it otherwise. When `false`, the HUD only shows after Ctrl+Shift+H. |
 | `PartyOcrEnabled` | `true` | Read the squad panel (names, HP, skills, levels). |
 | `OcrIntervalMs` | `250` | How often the screen is read, in milliseconds (minimum 250). Rotations need it fast: skill points are spent and refilled quickly. |
@@ -381,6 +383,36 @@ entry changes:
 | Remove | the editor's "delete" (asks first): the file is deleted |
 | Import | never overwrites: when the id exists the player picks replace or keep both (a copy under a new id) |
 
+### Recommended rotations
+
+Every `<id>.json` in [`rotations/`](rotations) on `main` is published to every player
+([`RotationSync`](src/EndHud.Vision/Rotations/RotationSync.cs),
+[`PublishedRotationService`](src/EndHud/PublishedRotationService.cs)). Adding, fixing or deleting
+one is a commit; no release is needed. EndHud checks a minute after start and then daily (when
+`CheckForUpdates` is on), with the tray's "check for updates", and when the player presses
+"恢复推荐排轴" in the editor.
+
+- One request lists the folder through GitHub's contents API, which gives each file's git blob
+  SHA-1. Only new or changed files are downloaded, and each must match its SHA, be readable by
+  this build and carry the id in its file name, or the previous copy is kept.
+- A file deleted from the repository is deleted locally, but only after a complete listing; an
+  unreachable GitHub, a 404 or an unexpected answer changes nothing.
+- Local copies live in `%APPDATA%\EndHud\rotations\published`, apart from the player's own
+  rotations, which the sync never writes.
+
+How a published rotation changes ([`RotationLibrary`](src/EndHud.Vision/Rotations/RotationLibrary.cs)):
+
+| | How |
+|---|---|
+| Create | only the sync, from the repository |
+| Read | listed after the player's own, marked 【推荐】 in the editor; an own rotation with the same id wins |
+| Correct | the publisher edits the file; the next sync replaces the local copy. A player's edits are saved as their own copy under a new id, and the original keeps updating |
+| Remove | the publisher deletes the file. A player's delete hides it: the file goes and its id is kept in `published\hidden.txt`, so it isn't downloaded again until "恢复推荐排轴" |
+| Import | a share code or file of a published rotation becomes the player's own copy |
+
+`dotnet test` checks every file in `rotations/`: readable, id matching the file name, no
+problems, and every operator in the operator library.
+
 ### What's read for it
 
 All in combat, from the same capture as the squad panel. Positions are measured on 4K and scaled
@@ -463,6 +495,11 @@ exception: hosted runners can't capture windows, so they only run on a developer
   labels in `labels.json`): skill points, the controlled operator, battle skill buttons, 熔火 and
   enemy statuses on labelled 4K battle frames (UID blacked out), including a cutscene that must
   read as nothing.
+- **Recommended rotations:** synced against a stand-in for GitHub (new, unchanged, corrected and
+  removed files; a SHA or id that doesn't match; a 404, an unexpected answer or an unreachable
+  GitHub changing nothing; the player's own rotations never touched; deleted ones staying deleted
+  until restored); the editor saving a recommended rotation as the player's copy and hiding a
+  deleted one; and every file in `rotations/` being valid.
 - **Rotations:** the file format and share codes (round trip, damaged codes, newer formats,
   imports never overwriting); the tracker (picking a step with no reset, moving only on seen use,
   steps used together, going off-script, looping, nothing on screen); the editor's working copy;
@@ -509,7 +546,7 @@ src/EndHud/              the tray app: overlay window (debug panel, combo-ready 
 src/EndHud.Vision/       everything that reads the screen
   Capture/               Windows.Graphics.Capture of a single window
   Operators/             operator library, recognition (character model), learning, operator counters, status icons
-  Rotations/             rotation format, store, and the tracker that finds the current step
+  Rotations/             rotation format, store, recommended-rotation sync, and the tracker that finds the current step
   Assets/ccip/           the character recognition model (Git LFS; see tools/ccip-model)
   Assets/operator-portraits.json  in-game portrait references (the model's numbers; built from test fixtures)
   PartyReader.cs         squad panel: level, HP, combo, portraits
@@ -523,6 +560,7 @@ tests/EndHud.Tests/      tests of the tray app (banner layout at any display sca
 .github/workflows/       CI: tests on every push (tests.yml); releases from version tags (release.yml)
 installer/               the MSI installer (WiX)
 tools/EndHud.ReadmeMedia/ renders the README's animated pictures from a recording
+rotations/               recommended rotations, published to every player from main
 ```
 
 Screen positions are measured on 3840×2160 and scaled to the game window's size, each element

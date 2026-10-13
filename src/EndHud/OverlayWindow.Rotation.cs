@@ -18,7 +18,8 @@ namespace EndHud;
 /// </summary>
 public partial class OverlayWindow
 {
-    private readonly RotationStore _rotationStore = new(Path.Combine(ConfigStore.Folder, "rotations"));
+    private readonly RotationLibrary _rotationLibrary;
+    private readonly PublishedRotationService _publishedRotations;
     private IReadOnlyList<Rotation> _rotations = [];
     private readonly Dictionary<string, RotationTracker> _trackers = [];
     private readonly Dictionary<string, BitmapSource?> _skillIcons = [];
@@ -26,12 +27,13 @@ public partial class OverlayWindow
     private string? _stripKey;
     private Point? _rotationDragOffset;
 
-    internal RotationStore RotationStore => _rotationStore;
+    /// <summary>Keeps the recommended rotations up to date from GitHub (started by App).</summary>
+    internal PublishedRotationService PublishedRotations => _publishedRotations;
 
     /// <summary>(Re)load the rotations from disk, e.g. after the editor saved one.</summary>
     internal void ReloadRotations()
     {
-        _rotations = _rotationStore.Load().Rotations;
+        _rotations = _rotationLibrary.Load().Rotations.Select(r => r.Rotation).ToList();
         _trackers.Clear();
         _rotationPosition = null;
         RenderRotation();
@@ -85,61 +87,8 @@ public partial class OverlayWindow
         RotationFrame.Visibility = view is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    /// <summary>What to draw: the current phase's steps, then the next phase's first two.</summary>
-    private StripView View(Rotation rotation, RotationPosition position)
-    {
-        var played = rotation.Played();
-        int current = position.Step.Index;
-        var shown = played.Where(p => p.PhaseLabel == position.Step.PhaseLabel).ToList();
-        int after = shown.Count > 0 ? shown[^1].Index + 1 : current + 1;
-        for (int i = 0; i < 2 && played.Count > 0; i++) shown.Add(played[(after + i) % played.Count]);
-
-        var steps = new List<StripStep>();
-        foreach (var p in shown)
-        {
-            var op = _party.Identifier?.Library.Find(p.Step.OperatorId);
-            var state = p.Index == current ? (position.Ready ? StripStepState.Ready : StripStepState.Waiting)
-                : p.Index < current && p.PhaseLabel == position.Step.PhaseLabel ? StripStepState.Done
-                : StripStepState.Upcoming;
-            steps.Add(new StripStep(op is null ? null : SkillIcon(op, p.Step.Action), op is null ? null : Avatar(op),
-                p.Step.Label ?? Loc.Get($"Rotation.Action.{p.Step.Action}"), p.Step.Note, state, p.Step.WithPrevious));
-        }
-        var reasons = position.Ready ? [] : position.Checks.Where(c => c.Holds == false && c.Kind != CheckKind.PreviousStepUsed)
-            .Select(c => Reason(c, position.Step.Step)).Where(r => r is not null).Select(r => r!).ToList();
-        return new StripView(position.Step.PhaseLabel, steps, reasons);
-    }
-
-    /// <summary>Why the current step isn't ready, in words.</summary>
-    private string? Reason(ConditionCheck check, RotationStep step)
-    {
-        var library = _party.Identifier?.Library;
-        string Name(string id) => library?.Find(id)?.NameZh ?? id;
-        var state = _lastState;
-        if (check.Kind == CheckKind.OwnAbility)
-        {
-            return step.Action switch
-            {
-                StepAction.BattleSkill => state?.SkillPoints is < 1 ? Loc.Format("Rotation.Reason.SkillPoints", $"{state.SkillPoints:0.#}", 1)
-                    : Loc.Format("Rotation.Reason.Cooling", Name(step.OperatorId), Loc.Get("Rotation.Action.BattleSkill")),
-                StepAction.Combo => Loc.Format("Rotation.Reason.Cooling", Name(step.OperatorId), Loc.Get("Rotation.Action.Combo")),
-                _ => Loc.Format("Rotation.Reason.UltimateCharging", Name(step.OperatorId)),
-            };
-        }
-        return check.Condition switch
-        {
-            SkillPointsCondition c => Loc.Format("Rotation.Reason.SkillPoints", $"{state?.SkillPoints:0.#}", $"{c.Value:0.#}"),
-            ComboCondition c => Loc.Format(c.Ready ? "Rotation.Reason.NeedComboReady" : "Rotation.Reason.NeedComboCooling", Name(c.OperatorId)),
-            UltimateCondition c => Loc.Format(c.Ready ? "Rotation.Reason.NeedUltimateReady" : "Rotation.Reason.NeedUltimateUsed", Name(c.OperatorId)),
-            CounterCondition c => Loc.Format("Rotation.Reason.Counter", Name(c.OperatorId),
-                OperatorCounters.Definitions.FirstOrDefault(d => d.Id == c.CounterId)?.NameZh ?? c.CounterId,
-                c.Is switch { Comparison.AtLeast => "≥", Comparison.AtMost => "≤", _ => "=" } + c.Value,
-                state?.Counters.FirstOrDefault(r => r.CounterId == c.CounterId)?.Value?.ToString() ?? "?"),
-            BossStatusCondition c => Loc.Format(c.Present ? "Rotation.Reason.BossLacks" : "Rotation.Reason.BossHas",
-                StatusNames.Zh(c.StatusId) ?? c.StatusId),
-            ControllingCondition c => Loc.Format("Rotation.Reason.Controlling", Name(c.OperatorId)),
-            _ => null,
-        };
-    }
+    private StripView View(Rotation rotation, RotationPosition position) =>
+        RotationStripView.Build(rotation, position, _lastState, _party.Identifier?.Library, SkillIcon, Avatar);
 
     /// <summary>The operator's icon for this action, from the library; loaded once, in the background.</summary>
     private BitmapSource? SkillIcon(OperatorInfo op, StepAction action)
@@ -176,7 +125,15 @@ public partial class OverlayWindow
 
     private RotationEditor? _editor;
 
-    private void InitRotationSettings() => RotationCheckBox.IsChecked = _config.RotationEnabled;
+    private void InitRotationSettings()
+    {
+        RotationCheckBox.IsChecked = _config.RotationEnabled;
+        _publishedRotations.Changed += (_, _) => Dispatcher.BeginInvoke(() =>
+        {
+            ReloadRotations();
+            _editor?.PublishedChanged();
+        });
+    }
 
     private void RotationCheckBox_Click(object sender, RoutedEventArgs e)
     {
@@ -202,7 +159,7 @@ public partial class OverlayWindow
             return;
         }
         var squad = _lastState?.Slots.Select(s => s.Operator?.Operator.Id).ToList() ?? [null, null, null, null];
-        _editor = new RotationEditor(_rotationStore, library, squad, RotationFor(squad)?.Id, saved =>
+        _editor = new RotationEditor(_rotationLibrary, library, squad, RotationFor(squad)?.Id, RestorePublishedAsync, saved =>
         {
             // A saved rotation becomes the one used for its squad.
             if (saved is not null)
@@ -215,6 +172,15 @@ public partial class OverlayWindow
         _editor.Closed += (_, _) => _editor = null;
         if (_menuOpen) SetMenuOpen(false); // hand the screen to the editor
         _editor.Show();
+    }
+
+    /// <summary>The editor's "restore recommended rotations": bring back deleted ones and sync now.</summary>
+    private async Task<RotationSyncResult?> RestorePublishedAsync()
+    {
+        _rotationLibrary.ShowHidden();
+        var result = await _publishedRotations.SyncAsync();
+        ReloadRotations();
+        return result;
     }
 
     // ---- Placing the strip ----

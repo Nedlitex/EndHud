@@ -130,6 +130,22 @@
     <sys:String x:Key="Editor.CodeCopied">已复制分享码，可以粘贴给别人。</sys:String>
     <sys:String x:Key="Editor.Unsaved">有未保存的修改。是：保存；否：不保存；取消：继续编辑。</sys:String>
     <sys:String x:Key="Editor.NoLibrary">干员库还没有下载完成，请稍后再打开排轴编辑器。</sys:String>
+    <sys:String x:Key="Editor.OwnItem">{0}（{1}）</sys:String>
+    <sys:String x:Key="Editor.PublishedItem">【推荐】{0}（{1}）</sys:String>
+    <sys:String x:Key="Editor.PublishedNote">这是 EndHud 推荐排轴，会自动更新到最新版本。可以直接修改：保存时会另存为你自己的排轴，推荐排轴本身继续保持更新。</sys:String>
+    <sys:String x:Key="Editor.OwnCopyName">{0}（我的）</sys:String>
+    <sys:String x:Key="Editor.SavedAsOwn">已另存为你自己的排轴，推荐排轴保持不变。</sys:String>
+    <sys:String x:Key="Editor.ConfirmHide">删除推荐排轴“{0}”？以后不会再自动下载它；需要时点击“恢复推荐排轴”即可找回。</sys:String>
+    <sys:String x:Key="Editor.RestorePublished">恢复推荐排轴</sys:String>
+    <sys:String x:Key="Editor.RestorePublished.Hint">找回删除过的推荐排轴，并立即从 GitHub 获取最新版本。</sys:String>
+    <sys:String x:Key="Editor.Restoring">正在从 GitHub 获取推荐排轴…</sys:String>
+    <sys:String x:Key="Editor.Restored">已获取最新的推荐排轴（共 {0} 个）。</sys:String>
+    <sys:String x:Key="Editor.RestoreFailed">无法连接 GitHub，请检查网络后再试。已有的排轴不受影响。</sys:String>
+    <sys:String x:Key="Editor.PublishedUpdated">推荐排轴已更新到最新版本。</sys:String>
+    <sys:String x:Key="Editor.PublishedUpdatedLater">推荐排轴有更新，保存或放弃当前修改后重新打开编辑器即可看到。</sys:String>
+    <sys:String x:Key="Rotation.Published.Updated">推荐排轴已更新：{0}</sys:String>
+    <sys:String x:Key="Rotation.Published.UpToDate">推荐排轴已是最新（共 {0} 个）。</sys:String>
+    <sys:String x:Key="Rotation.Published.Unavailable">推荐排轴：暂时无法连接 GitHub。</sys:String>
 
     <!-- Menu: rotation strip -->
     <sys:String x:Key="Menu.Rotation">排轴</sys:String>
@@ -168,7 +184,7 @@
     <sys:String x:Key="Menu.AutoShow.Hint">关闭后，需按 Ctrl+Shift+H 或在托盘菜单中手动显示。</sys:String>
     <sys:String x:Key="Menu.PartyOcr">识别小队栏（连携就绪提示需要此项）</sys:String>
     <sys:String x:Key="Menu.DebugPanel">显示调试面板（识别到的等级、生命值和技能）</sys:String>
-    <sys:String x:Key="Menu.CheckForUpdates">自动检查 EndHud 新版本（每天一次，只提示，不会自动安装）</sys:String>
+    <sys:String x:Key="Menu.CheckForUpdates">自动检查更新（每天一次）：EndHud 新版本只提示，不会自动安装；推荐排轴会自动更新</sys:String>
     <sys:String x:Key="Menu.ComboHint">连携就绪提示</sys:String>
     <sys:String x:Key="Menu.ComboHint.Hint">战斗中干员的连携技冷却结束时，在屏幕上提示。菜单打开时，可直接拖动屏幕上的提示框调整位置。</sys:String>
     <sys:String x:Key="Menu.ComboHint.Enabled">显示连携就绪提示</sys:String>

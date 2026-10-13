@@ -50,6 +50,7 @@ public partial class App : Application
         if (updatedTo is not null) _tray.ShowUpdated(updatedTo);
         else if (updateFailed is not null) _tray.ShowUpdateFailed(updateFailed);
         _updates.Start(() => config.CheckForUpdates);
+        overlay.PublishedRotations.Start(() => config.CheckForUpdates);
     }
 
     /// <summary>Started by the version being replaced (portable update): wait for it to exit.</summary>
@@ -74,6 +75,7 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         _updates?.Dispose();
+        (MainWindow as OverlayWindow)?.PublishedRotations.Dispose();
         _tray?.Dispose();
         _singleInstance?.Dispose();
         base.OnExit(e);

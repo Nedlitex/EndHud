@@ -46,6 +46,8 @@
         <!-- Name and squad -->
         <StackPanel Grid.Row="1" x:Name="Header" Margin="0,0,0,8">
             <TextBlock x:Name="EmptyText" Text="{DynamicResource Editor.Empty}" Foreground="#666" Margin="0,0,0,6" TextWrapping="Wrap" />
+            <TextBlock x:Name="PublishedNote" Text="{DynamicResource Editor.PublishedNote}" Foreground="#1F5FAF"
+                       TextWrapping="Wrap" Visibility="Collapsed" Margin="0,0,0,6" />
             <TextBlock x:Name="UnreadableText" Foreground="#B04030" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,0,0,6" />
             <StackPanel Orientation="Horizontal">
                 <TextBlock Text="{DynamicResource Editor.Name}" Style="{StaticResource Label}" />
@@ -165,6 +167,8 @@
             <Button Content="{DynamicResource Editor.PasteCode}" Click="PasteCode_Click" />
             <Button Content="{DynamicResource Editor.ExportFile}" Click="ExportFile_Click" />
             <Button Content="{DynamicResource Editor.CopyCode}" Click="CopyCode_Click" />
+            <Button x:Name="RestorePublishedButton" Content="{DynamicResource Editor.RestorePublished}" Click="RestorePublished_Click"
+                    ToolTip="{DynamicResource Editor.RestorePublished.Hint}" Margin="18,0,6,0" />
             <Button DockPanel.Dock="Right" Content="{DynamicResource Editor.Close}" Click="CloseButton_Click" Margin="0" />
             <Button DockPanel.Dock="Right" x:Name="SaveButton" Content="{DynamicResource Editor.Save}" Click="SaveButton_Click" IsDefault="True" />
         </DockPanel>
