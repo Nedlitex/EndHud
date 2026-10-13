@@ -153,7 +153,10 @@
         <!-- Preview -->
         <GroupBox Grid.Row="3" Header="{DynamicResource Editor.Preview}">
             <Border Background="#5A646E" Padding="8" CornerRadius="4">
-                <ContentControl x:Name="PreviewHost" HorizontalAlignment="Left" />
+                <!-- Shrinks to fit: the strip is drawn at its in-game size. -->
+                <Viewbox Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Left" MaxHeight="150">
+                    <ContentControl x:Name="PreviewHost" />
+                </Viewbox>
             </Border>
         </GroupBox>
 

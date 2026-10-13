@@ -12,7 +12,9 @@ fixed by committing a file, without a new release.
   and this one keeps updating. A player who deletes one doesn't get it back until they press
   "restore recommended rotations" in the editor.
 
-There are none yet.
+| File | Squad | Source |
+|---|---|---|
+| `laevatain-arcane-ardelia-camille.json` | 莱万汀, 诀 (李织烟), 艾尔黛拉 (小羊), 卡缪 | a Bilibili guide's rotation charts (充能轴 一阶段 / 二阶段); its 重击 steps are left out, since EndHud tracks only battle skills, combos and ultimates |
 
 `dotnet test` checks every file here: it must be readable by this build, its id must match its file
 name, and every operator in it must exist.
