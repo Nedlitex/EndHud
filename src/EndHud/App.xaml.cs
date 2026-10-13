@@ -12,9 +12,17 @@ public partial class App : Application
     private TrayIcon? _tray;
     private UpdateService? _updates;
 
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        if (SelfTest.Requested(e.Args))
+        {
+            // No window, no tray icon, no user data; runs alongside an EndHud in the tray.
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            Shutdown(await SelfTest.RunAsync(e.Args));
+            return;
+        }
 
         _singleInstance = new Mutex(true, @"Local\EndHud.SingleInstance", out bool isFirst);
         if (!isFirst)

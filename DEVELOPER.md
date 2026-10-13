@@ -22,7 +22,7 @@ sends input to it.
 ### Combo-ready hint
 
 In combat, when an operator's combo skill comes off cooldown, a banner slides in showing that
-operator's avatar and combo skill icon (both from the built-in operator library), their name and
+operator's avatar and combo skill icon (both from the downloaded operator library), their name and
 "combo ready". It's styled after the game's own combo banner, slides in from the left with its gold
 edge flaring, slides out when it ends, and sits left of the screen's centre by default. An operator
 EndHud hasn't recognised gets a banner with just their slot number.
@@ -58,7 +58,7 @@ Squad
 
 | Field | Where it's read from | How |
 |---|---|---|
-| Operator name | squad portraits, bottom-left | matched against built-in references (see [Recognising operators](#recognising-operators)) |
+| Operator name | squad portraits, bottom-left | compared with every operator's wiki avatar by a character recognition model (see [Recognising operators](#recognising-operators)) |
 | Level | "LV.90" under each portrait (outside combat) | Windows' built-in OCR |
 | HP | HP bar under each portrait | how much of the bar is coloured |
 | Combo skill | thin bar above each HP bar (in combat) | grey refill → "cooling NN%", white → "ready" |
@@ -83,7 +83,7 @@ dotnet build -c Release
 dotnet run --project src/EndHud -c Release
 ```
 
-Or produce a single `EndHud.exe` with everything inside it, operator icons included:
+Or produce a single `EndHud.exe` with everything inside it (the operator library is still downloaded on first start):
 
 ```powershell
 dotnet publish src/EndHud -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish
@@ -101,8 +101,12 @@ git tag v1.2.0
 git push origin v1.2.0
 ```
 
-[`.github/workflows/release.yml`](.github/workflows/release.yml) runs the tests, then attaches two
-files to a new release on the repository's Releases page:
+[`.github/workflows/release.yml`](.github/workflows/release.yml) runs the tests, builds the two
+files below, and checks them on a clean Windows machine before publishing anything: it installs
+the MSI, runs the installed EndHud's self-test (download the operators from the wiki, name the
+squad in a test screenshot), does the same with the portable exe, and uninstalls, checking nothing
+is left behind. Only then are the files attached to a new release on the repository's Releases
+page:
 
 - `EndHud-1.2.0.msi`: the installer. It installs for the current user (no administrator prompt),
   adds a Start menu shortcut, and upgrades an older version in place. See
@@ -110,8 +114,21 @@ files to a new release on the repository's Releases page:
 - `EndHud-1.2.0-portable.exe`: the same program as one file, to run without installing.
 
 Both include .NET, so nothing else needs installing. Tags must look like `v1.2.0`. "Run workflow"
-on the Actions tab does a dry run: it builds both files and attaches them to the run without
-creating a release. The files aren't code-signed yet, so Windows SmartScreen warns about an
+on the Actions tab does a dry run: it builds and checks both files and attaches them (and the
+self-test logs) to the run without creating a release.
+
+The self-test is part of EndHud itself and can be run on any machine; it never touches your own
+EndHud data:
+
+```powershell
+./installer/self-test.ps1 -Exe "$env:LOCALAPPDATA\Programs\EndHud\EndHud.exe" -Folder "$env:TEMP\endhud-self-test" `
+    -Screenshot tests/EndHud.Vision.Tests/Fixtures/exploration-levels-visible.png -Squad Laevatain,Camille,Arcane,Ardelia
+```
+
+It runs `EndHud.exe --self-test <folder> [--screenshot <image> --expect <ids>]` (no window), which
+downloads the operator library into `<folder>` as on first start, loads it, and names the squad in
+the screenshot; the steps are logged to `<folder>\self-test.log`, and the exit code is 0 when all
+passed. The files aren't code-signed yet, so Windows SmartScreen warns about an
 unrecognised app the first time.
 
 ---
@@ -169,6 +186,7 @@ edit it by hand, restart EndHud. Delete the file to reset.
 |---|---|
 | `--target "<title text>"` | Track any window whose title contains this text instead of the game. Useful to try EndHud without the game, for example over a video of gameplay. |
 | `--hide-from-capture` | Keep the HUD out of screenshots and recordings. |
+| `--self-test <folder>` | Check this build without a window (see [Releases](#releases)). |
 
 EndHud finds the game as a Unity window whose title contains "Endfield" or the game's Chinese title.
 
@@ -182,17 +200,44 @@ The game shows no operator names in the squad panel, so EndHud identifies each p
    icons and Chinese name come from [endfield.wiki.gg](https://endfield.wiki.gg/wiki/Operator).
    They're the game's art, so **EndHud ships none of it**: the first start downloads them (about
    1 MB) into your user data, for the MSI and the portable exe alike. A copy older than 7 days is
-   refreshed in the background, which picks up new operators; the tray's **update the operator
-   library** refreshes it now. Without internet on the first start, slots show "slot n" and the
-   download is retried (after 1, 5, 15 and then every 30 minutes); the menu says so.
-   The only built-in operator data is where an avatar sits inside a squad portrait
-   (`src/EndHud.Vision/Assets/calibration.json`, a few numbers).
-2. **First guess.** Portraits are compared with the avatars by face/hair layout and colour.
-   A guess is shown only when it clearly wins; otherwise the slot shows **"slot n"**.
-3. **Learning from you.** In the menu (Ctrl+Shift+M) each slot has a dropdown, sorted by most
-   likely operator first. Picking a name saves that in-game portrait, and from then on that
-   operator is recognised reliably, at any resolution. EndHud never learns from its own
-   guesses, so a wrong guess can't make itself permanent.
+   refreshed in the background, which picks up new operators; the tray's **check for updates**
+   refreshes it now. Without internet on the first start, slots show "slot n" and the download is
+   retried (after 1, 5, 15 and then every 30 minutes); the menu says so.
+2. **Recognised out of the box.** The squad panel shows the game's 3D model; the wiki avatar is a
+   drawing. Comparing their pixels doesn't work (it got 0 of 60 slots right on the test frames),
+   so EndHud uses a model trained to tell anime characters apart across different art: CCIP,
+   compiled in (38 MB, not game art; see [tools/ccip-model](tools/ccip-model/README.md) and
+   [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)). In
+   [`SquadIdentifier`](src/EndHud.Vision/Operators/SquadIdentifier.cs):
+   - Each portrait is compared with two references per operator, and the closer one counts:
+     - **The operator's in-game portrait**, built in
+       ([`PortraitReferences`](src/EndHud.Vision/Operators/PortraitReferences.cs)): the model's
+       description of each operator's squad portrait, made from 4K screenshots of nine squads
+       covering all 32 operators ([the squad fixtures](tests/EndHud.Vision.Tests/Fixtures/squads/README.md)),
+       at the common portrait sizes. Numbers only (1.3 MB); no image is shipped. Same art as the
+       screen, so the most reliable.
+     - **The wiki avatar**, so an operator with no in-game reference yet (a new one) is still
+       recognised. To add one: put a screenshot with them in the squad into the squad fixtures,
+       name them in `squads.json`, and run `endhud-cli build-portrait-references` (see that folder's README).
+   - Each wiki avatar is shrunk to the portrait's size on your screen before comparing, so both
+     are equally sharp. The model describes the avatars once per screen size (about 8 s, in the
+     background, on first use) and caches that in `features/`.
+   - One frame can mislead (the HUD dims, the low-HP tint, a small screen), so each slot keeps its
+     last 6 comparisons and is named after the operator closest over all of them, once it has 3.
+     A slot shows "slot n" until then: a few seconds after the squad panel first appears.
+   - A portrait unlike the slot's last one is another operator (squad changed): the slot starts
+     over rather than mixing the two.
+   - The model takes about 0.2 s per portrait on two CPU threads, so each reading runs it at most
+     once (for the slot that needs it most), and not at all once every slot is settled, unless a
+     portrait changes.
+
+   On the recordings (held out: none of their frames made the references), every slot is named
+   right, with no wrong name at any reading, on all 16 simulated screens from 1280×720 to 5K;
+   also with the wiki avatars alone, as a new operator would be.
+3. **Correcting it.** If a name is ever wrong, the menu (Ctrl+Shift+M) has a dropdown per slot,
+   sorted by most likely operator first. Picking a name saves that in-game portrait, and from then
+   on it's recognised from that portrait first. EndHud never learns from its own answers, so a
+   wrong one can't make itself permanent.
 4. **Correcting and clearing.** Picking a different name later removes the wrong learned
    portraits and saves the right one. "Forget all learned portraits" clears everything learned.
 
@@ -202,7 +247,7 @@ Your own data lives in `%APPDATA%\EndHud\operators\`:
 |---|---|
 | `reference/` | the roster, avatars and skill icons downloaded from the wiki (`wiki-sha1.json` records the wiki's checksums, so unchanged files aren't downloaded again) |
 | `learned/<operator>/*.png` | portraits learned from your picks |
-| `calibration.json` | where avatars sit inside a squad portrait, if yours differs from the built-in measurement |
+| `features/*.json` | the avatars as the recognition model describes them, per screen size (a cache: safe to delete) |
 
 How a download stays polite to the wiki, which volunteers run
 ([`WikiPoliteness`](src/EndHud.Vision/Operators/WikiPoliteness.cs)):
@@ -247,7 +292,13 @@ exception: hosted runners can't capture windows, so they only run on a developer
   a 4K exploration screenshot and frames from gameplay recordings, UID blacked out. They cover
   level, HP, combo and ultimate readings in exploration, combat, low HP, a dimmed squad, a heal,
   and with operators fallen.
-- **Recognition:** guessing, learning, correcting and clearing.
+- **Recognition out of the box** (nothing taught): every recording fixture (with the built-in
+  references and with the wiki avatars alone), and a session of readings on every simulated
+  screen, must name the whole squad without ever showing a wrong name; all nine squad
+  screenshots (32 operators) at 4K, 1440p, 1080p and 1600×900; operators in two screenshots named
+  from the other one's reference; a swapped operator is renamed without showing the old name; a
+  damaged feature cache is rebuilt.
+- **Learning:** correcting and clearing.
 - **Operator library:** the downloaded roster and icons, learning on top of them, and that the
   build contains no game art. Downloading and updating are tested against a stand-in for the wiki
   (new operators, changed and unchanged images, busy or broken wiki, broken images, interrupted
@@ -296,8 +347,9 @@ exception: hosted runners can't capture windows, so they only run on a developer
 | `analyze <screenshot>` `[--debug-dir <dir>]` | Read the squad panel from a screenshot. `--debug-dir` saves the exact images given to OCR. |
 | `analyze-video <video>` `[--every <s>]` | HP, combo cooldown and ultimate charge per slot over a recording. |
 | `capture <window title text> <out.png>` | Grab one frame from a window (e.g. the game) through the HUD's capture path. |
-| `identify <screenshot> --library <dir>` | Show the top operator candidates for each slot. |
+| `identify <screenshot> --library <dir>` | Show each slot's learned match and closest wiki avatars (model differences, lower = closer). |
 | `learn <screenshot> --library <dir> --slots A,B,C,D` | Teach a library the squad in a screenshot (operator ids, slot order). |
+| `build-portrait-references <squads.json> <out.json>` | Rebuild EndHud's built-in in-game portrait references from labelled 4K squad screenshots. |
 | `fetch-operators <dir>` | Download or update the roster, avatars and skill icons from the wiki into `<dir>/reference`, as the app does (`identify` and `learn` use the same layout). |
 
 
@@ -309,8 +361,9 @@ exception: hosted runners can't capture windows, so they only run on a developer
 src/EndHud/              the tray app: overlay window (debug panel, combo-ready hint), menu, tray icon, config, i18n
 src/EndHud.Vision/       everything that reads the screen
   Capture/               Windows.Graphics.Capture of a single window
-  Operators/             operator library, portrait matching, learning
-  Assets/calibration.json  where avatars sit in a squad portrait (the only built-in operator data)
+  Operators/             operator library, recognition (character model), learning
+  Assets/ccip/           the character recognition model (Git LFS; see tools/ccip-model)
+  Assets/operator-portraits.json  in-game portrait references (the model's numbers; built from test fixtures)
   PartyReader.cs         squad panel: level, HP, combo, portraits
   UltimateGauge.cs       ultimate circles
   PartyTracker.cs        carries readings over (deaths, values that are briefly unreadable)
