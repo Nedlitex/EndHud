@@ -9,7 +9,8 @@
    "Available",
    "Available"
   ],
-  "meltingFlame": 0
+  "meltingFlame": 0,
+  "bossStatuses": []
  },
  {
   "file": "battle-25s.jpg",
@@ -21,7 +22,8 @@
    "Available",
    "Available"
   ],
-  "meltingFlame": 0
+  "meltingFlame": 0,
+  "bossStatuses": []
  },
  {
   "file": "battle-28s.jpg",
@@ -33,7 +35,8 @@
    "Available",
    "Available"
   ],
-  "meltingFlame": 2
+  "meltingFlame": 2,
+  "bossStatuses": []
  },
  {
   "file": "battle-30_5s.jpg",
@@ -45,7 +48,8 @@
    "Available",
    "Available"
   ],
-  "meltingFlame": 2
+  "meltingFlame": 2,
+  "bossStatuses": []
  },
  {
   "file": "battle-33s.jpg",
@@ -57,7 +61,10 @@
    "Available",
    "Available"
   ],
-  "meltingFlame": 2
+  "meltingFlame": 2,
+  "bossStatuses": [
+   "Corrosion"
+  ]
  },
  {
   "file": "battle-36s.jpg",
@@ -69,7 +76,10 @@
    "Available",
    "Cooling"
   ],
-  "meltingFlame": 3
+  "meltingFlame": 3,
+  "bossStatuses": [
+   "Susceptibility"
+  ]
  },
  {
   "file": "battle-41s.jpg",
@@ -81,7 +91,11 @@
    "Available",
    "Available"
   ],
-  "meltingFlame": 3
+  "meltingFlame": 3,
+  "bossStatuses": [
+   "Electrification",
+   "Susceptibility"
+  ]
  },
  {
   "file": "battle-47s.jpg",
@@ -93,7 +107,12 @@
    null,
    null
   ],
-  "meltingFlame": 4
+  "meltingFlame": 4,
+  "bossStatuses": [
+   "Electrification",
+   "Combustion",
+   "Susceptibility"
+  ]
  },
  {
   "file": "battle-50s.jpg",
@@ -105,7 +124,12 @@
    null,
    null
   ],
-  "meltingFlame": 4
+  "meltingFlame": 4,
+  "bossStatuses": [
+   "Electrification",
+   "Combustion",
+   "Susceptibility"
+  ]
  },
  {
   "file": "battle-55s.jpg",
@@ -117,7 +141,13 @@
    null,
    null
   ],
-  "meltingFlame": 0
+  "meltingFlame": 0,
+  "bossStatuses": [
+   "Electrification",
+   "Combustion",
+   "Corrosion",
+   "Susceptibility"
+  ]
  },
  {
   "file": "battle-60s.jpg",
@@ -129,7 +159,11 @@
    null,
    null
   ],
-  "meltingFlame": 1
+  "meltingFlame": 1,
+  "bossStatuses": [
+   "Corrosion",
+   "Susceptibility"
+  ]
  },
  {
   "file": "battle-66s.jpg",
@@ -141,7 +175,11 @@
    null,
    null
   ],
-  "meltingFlame": 1
+  "meltingFlame": 1,
+  "bossStatuses": [
+   "Susceptibility",
+   "Electrification"
+  ]
  },
  {
   "file": "battle-72s.jpg",
@@ -153,7 +191,11 @@
    null,
    null
   ],
-  "meltingFlame": 3
+  "meltingFlame": 3,
+  "bossStatuses": [
+   "Susceptibility",
+   "Electrification"
+  ]
  },
  {
   "file": "battle-78s.jpg",
@@ -165,7 +207,11 @@
    "Available",
    "Available"
   ],
-  "meltingFlame": 3
+  "meltingFlame": 3,
+  "bossStatuses": [
+   "Susceptibility",
+   "Electrification"
+  ]
  },
  {
   "file": "battle-84s.jpg",
@@ -177,7 +223,11 @@
    null,
    null
   ],
-  "meltingFlame": 4
+  "meltingFlame": 4,
+  "bossStatuses": [
+   "Susceptibility",
+   "Corrosion"
+  ]
  },
  {
   "file": "battle-96s.jpg",
@@ -189,7 +239,11 @@
    null,
    null
   ],
-  "meltingFlame": 4
+  "meltingFlame": 4,
+  "bossStatuses": [
+   "Electrification",
+   "Susceptibility"
+  ]
  },
  {
   "file": "battle-90s.jpg",
@@ -201,6 +255,7 @@
    null,
    null
   ],
-  "meltingFlame": null
+  "meltingFlame": null,
+  "bossStatuses": []
  }
 ]

@@ -38,6 +38,13 @@ public readonly struct UiScaler
         Math.Max(1, (int)Math.Round(reference.Width * _scale)),
         Math.Max(1, (int)Math.Round(reference.Height * _scale)));
 
+    /// <summary>A rectangle anchored to the top centre of the window (the boss's name, bars and statuses).</summary>
+    public PixelRect TopCenter(PixelRect reference) => new(
+        (int)Math.Round(_width / 2.0 - (ReferenceWidth / 2.0 - reference.X) * _scale),
+        (int)Math.Round(reference.Y * _scale),
+        Math.Max(1, (int)Math.Round(reference.Width * _scale)),
+        Math.Max(1, (int)Math.Round(reference.Height * _scale)));
+
     /// <summary>A rectangle anchored to the bottom-left corner of the window.</summary>
     public PixelRect BottomLeft(PixelRect reference) => new(
         (int)Math.Round(reference.X * _scale),

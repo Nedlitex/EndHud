@@ -12,7 +12,8 @@ internal static class OperatorCache
     private static readonly Lazy<Task<string>> Folder = new(async () =>
     {
         string folder = Path.Combine(RepositoryRoot(), ".cache", "operator-library");
-        if (!OperatorReference.Exists(folder))
+        // Also refresh a copy from before status icons were downloaded (no statuses.json).
+        if (!OperatorReference.Exists(folder) || !File.Exists(Path.Combine(folder, "statuses.json")))
         {
             using var http = WikiOperatorSource.CreateHttpClient();
             await OperatorReference.UpdateAsync(folder, http);
