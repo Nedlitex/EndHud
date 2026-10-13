@@ -18,9 +18,14 @@ internal sealed class TrayIcon : IDisposable
     private readonly ToolStripMenuItem _autoShow;
     private readonly ToolStripMenuItem _debugPanel;
     private readonly ToolStripMenuItem _checkUpdates;
-    private readonly ToolStripMenuItem _downloadUpdate;
+    private readonly ToolStripMenuItem _updateNow;
+    private readonly ToolStripMenuItem _releaseNotes;
     private readonly UpdateService _updates;
-    private string? _balloonLink; // opened when the current notification is clicked
+    private Action? _balloonClick; // what clicking the current notification does
+    private bool _updating;
+
+    /// <summary>The releases page, for updating by hand when updating in place didn't work.</summary>
+    private const string ReleasesPage = $"https://github.com/{ReleaseChecker.Repository}/releases/latest";
 
     public TrayIcon(OverlayWindow overlay, UpdateService updates)
     {
@@ -35,7 +40,11 @@ internal sealed class TrayIcon : IDisposable
         _debugPanel = new ToolStripMenuItem(Loc.Get("Tray.DebugPanel"), null, (_, _) => _overlay.ToggleDebugPanel());
         _checkUpdates = new ToolStripMenuItem(Loc.Get("Tray.CheckUpdates"), null, async (_, _) => await CheckForUpdatesAsync());
         // Shown only when a newer release has been found.
-        _downloadUpdate = new ToolStripMenuItem("", null, (_, _) => OpenLink(_updates.Available?.PageUrl)) { Visible = false };
+        _updateNow = new ToolStripMenuItem("", null, async (_, _) =>
+        {
+            if (_updates.Available is { } release) await UpdateNowAsync(release);
+        }) { Visible = false };
+        _releaseNotes = new ToolStripMenuItem("", null, (_, _) => OpenLink(_updates.Available?.PageUrl)) { Visible = false };
 
         var menu = new ContextMenuStrip();
         menu.Items.AddRange(new ToolStripItem[]
@@ -47,7 +56,8 @@ internal sealed class TrayIcon : IDisposable
             _autoShow,
             _debugPanel,
             new ToolStripSeparator(),
-            _downloadUpdate,
+            _updateNow,
+            _releaseNotes,
             _checkUpdates,
             new ToolStripMenuItem(Loc.Get("Tray.OpenConfig"), null, (_, _) => OpenConfigFolder()),
             new ToolStripMenuItem(Loc.Get("Tray.Quit"), null, (_, _) => System.Windows.Application.Current.Shutdown()),
@@ -62,11 +72,10 @@ internal sealed class TrayIcon : IDisposable
             Visible = true,
         };
         _icon.DoubleClick += (_, _) => _overlay.ToggleMenu();
-        _icon.BalloonTipClicked += (_, _) => OpenLink(_balloonLink);
+        _icon.BalloonTipClicked += (_, _) => _balloonClick?.Invoke();
 
         // Found by the automatic checks (on worker threads).
-        _updates.NewVersionFound += release => OnUi(() =>
-            Notify(Loc.Format("Update.Available", release.Version.ToString(3), ReleaseChecker.Current?.ToString(3) ?? "?"), release.PageUrl));
+        _updates.NewVersionFound += release => OnUi(() => Notify(AvailableText(release), () => _ = UpdateNowAsync(release)));
         _overlay.NewOperatorsFound += added => OnUi(() =>
             Notify(Loc.Format("Operators.NewFound", string.Join("、", added.Select(o => o.NameZh))), null));
 
@@ -82,10 +91,56 @@ internal sealed class TrayIcon : IDisposable
         _debugPanel.Checked = _overlay.DebugPanel;
         if (_updates.Available is { } release)
         {
-            _downloadUpdate.Text = Loc.Format("Tray.DownloadUpdate", release.Version.ToString(3));
-            _downloadUpdate.Visible = true;
+            _updateNow.Text = Loc.Format(_updating ? "Tray.Updating" : "Tray.UpdateNow", release.Version.ToString(3));
+            _updateNow.Enabled = !_updating;
+            _releaseNotes.Text = Loc.Format("Tray.ReleaseNotes", release.Version.ToString(3));
+            _updateNow.Visible = _releaseNotes.Visible = true;
         }
     }
+
+    private static string AvailableText(ReleaseInfo release) =>
+        Loc.Format("Update.Available", release.Version.ToString(3), ReleaseChecker.Current?.ToString(3) ?? "?");
+
+    /// <summary>
+    /// "Update now": download, check and install <paramref name="release"/> in place, then EndHud
+    /// exits and the new version starts (see <see cref="Updater"/>). On failure nothing has changed;
+    /// the notification says why and links to the releases page.
+    /// </summary>
+    private async Task UpdateNowAsync(ReleaseInfo release)
+    {
+        if (_updating) return;
+        _updating = true;
+        string version = release.Version.ToString(3);
+        Notify(Loc.Format("Update.Downloading", version), null);
+        try
+        {
+            var outcome = await new Updater().InstallAsync(release, restart: true);
+            if (outcome.Started)
+            {
+                System.Windows.Application.Current.Shutdown();
+                return;
+            }
+            string reason = outcome.Failure switch
+            {
+                UpdateFailure.Download => Loc.Format("Update.Failed.Download", version),
+                UpdateFailure.Checksum => Loc.Format("Update.Failed.Checksum", version),
+                UpdateFailure.Replace => Loc.Format("Update.Failed.Replace", version, outcome.Detail ?? ""),
+                _ => Loc.Format("Update.Failed.NoPackage", version),
+            };
+            Notify(reason, () => OpenLink(release.PageUrl));
+        }
+        finally
+        {
+            _updating = false;
+        }
+    }
+
+    /// <summary>Started by the updater after installing <paramref name="version"/>.</summary>
+    public void ShowUpdated(string version) => Notify(Loc.Format("Update.Done", version), null);
+
+    /// <summary>Started by the updater after the installer failed: this is still the old version.</summary>
+    public void ShowUpdateFailed(string version) =>
+        Notify(Loc.Format("Update.Failed.Install", version, ReleaseChecker.Current?.ToString(3) ?? "?"), () => OpenLink(ReleasesPage));
 
     /// <summary>The tray's "check for updates": a newer EndHud, and new operators on the wiki.</summary>
     private async Task CheckForUpdatesAsync()
@@ -113,7 +168,8 @@ internal sealed class TrayIcon : IDisposable
                 OperatorCheckStatus.AlreadyChecking => Loc.Get("Operators.AlreadyChecking"),
                 _ => Loc.Get("Operators.UpdateFailed"),
             };
-            Notify(appLine + Environment.NewLine + operatorLine, update.Release is { } r && update.Status == UpdateStatus.NewVersion ? r.PageUrl : null);
+            Notify(appLine + Environment.NewLine + operatorLine,
+                update.Release is { } r && update.Status == UpdateStatus.NewVersion ? () => _ = UpdateNowAsync(r) : null);
         }
         finally
         {
@@ -121,9 +177,9 @@ internal sealed class TrayIcon : IDisposable
         }
     }
 
-    private void Notify(string text, string? link)
+    private void Notify(string text, Action? onClick)
     {
-        _balloonLink = link;
+        _balloonClick = onClick;
         _icon.ShowBalloonTip(8000, Loc.Get("Update.Title"), text, ToolTipIcon.Info);
     }
 

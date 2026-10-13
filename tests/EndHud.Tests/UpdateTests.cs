@@ -24,11 +24,19 @@ public class UpdateTests
     [Fact]
     public async Task Reads_the_latest_release_from_GitHub()
     {
-        var github = new FakeGitHub(HttpStatusCode.OK, """{"tag_name":"v1.4.0","html_url":"https://github.com/Nedlitex/EndHud/releases/tag/v1.4.0"}""");
+        var github = new FakeGitHub(HttpStatusCode.OK, """
+            {"tag_name":"v1.4.0","html_url":"https://github.com/Nedlitex/EndHud/releases/tag/v1.4.0","assets":[
+              {"name":"EndHud-1.4.0.msi","browser_download_url":"https://github.com/Nedlitex/EndHud/releases/download/v1.4.0/EndHud-1.4.0.msi","digest":"sha256:AB12"},
+              {"name":"EndHud-1.4.0-portable.exe","browser_download_url":"https://github.com/Nedlitex/EndHud/releases/download/v1.4.0/EndHud-1.4.0-portable.exe"}]}
+            """);
 
         var latest = await ReleaseChecker.LatestAsync(new HttpClient(github));
 
-        Assert.Equal(new ReleaseInfo(new Version(1, 4, 0), "https://github.com/Nedlitex/EndHud/releases/tag/v1.4.0"), latest);
+        Assert.NotNull(latest);
+        Assert.Equal(new Version(1, 4, 0), latest.Version);
+        Assert.Equal("https://github.com/Nedlitex/EndHud/releases/tag/v1.4.0", latest.PageUrl);
+        Assert.Equal(new ReleaseAsset("EndHud-1.4.0.msi", "https://github.com/Nedlitex/EndHud/releases/download/v1.4.0/EndHud-1.4.0.msi", "ab12"), latest.Msi);
+        Assert.Null(latest.Portable!.Sha256); // no digest given: it can't be verified, so it won't be installed
         var request = Assert.Single(github.Requests);
         Assert.Equal("https://api.github.com/repos/Nedlitex/EndHud/releases/latest", request.Url);
         Assert.Contains("EndHud/", request.UserAgent); // GitHub requires a User-Agent

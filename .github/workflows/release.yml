@@ -10,10 +10,14 @@ name: Release
 # 3. verify   on a clean Windows machine: install the MSI, run the installed EndHud's self-test
 #             (download the operators from the wiki and name the squad in a screenshot), the same
 #             for the portable exe, then uninstall and check nothing is left behind.
+#    update   on another clean machine: install an old EndHud (0.0.1, built from the same code),
+#             and let it update itself to this release from a stand-in for GitHub, as a player's
+#             "update now" does; the same for the portable exe.
 # 4. release  only if all of that passed: a GitHub Release with both files.
 #
-# "Run workflow" on the Actions tab does a dry run: steps 1-3, with the files and the self-test
-# logs attached to the run, and no release.
+# Release versions must be above 0.0.1 (the old build the update test starts from).
+# "Run workflow" on the Actions tab does a dry run: steps 1-3, with the files and the logs
+# attached to the run, and no release.
 
 on:
   push:
@@ -52,9 +56,12 @@ jobs:
             if ($version -notmatch '^\d+\.\d+\.\d+$') {
               throw "Release tags look like v1.2.0 (three numbers); got '${{ github.ref_name }}'."
             }
+            if ([version]$version -le [version]'0.0.1') {
+              throw "Release versions must be above 0.0.1, the old build the update test starts from."
+            }
           } else {
             # Dry run: an MSI version must be numbers only.
-            $version = "0.0.${{ github.run_number }}"
+            $version = "0.1.${{ github.run_number }}"
           }
           "VERSION=$version" >> $env:GITHUB_ENV
           "version=$version" >> $env:GITHUB_OUTPUT
@@ -85,6 +92,20 @@ jobs:
         with:
           name: EndHud-${{ env.VERSION }}
           path: out/release
+
+      # The same code as an old version, for the update job to update from.
+      - name: Build an old EndHud (0.0.1) to update from
+        run: |
+          dotnet publish src/EndHud -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:Version=0.0.1 -o out/old/publish
+          dotnet wix build installer/EndHud.wxs -arch x64 -define "Version=0.0.1" -define "PublishDir=${{ github.workspace }}\out\old\publish" -o "out\old\EndHud-0.0.1.msi"
+          Copy-Item out/old/publish/EndHud.exe out/old/EndHud-0.0.1-portable.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EndHud-0.0.1-update-test
+          path: |
+            out/old/EndHud-0.0.1.msi
+            out/old/EndHud-0.0.1-portable.exe
 
   verify:
     needs: build
@@ -159,8 +180,112 @@ jobs:
             ${{ runner.temp }}/install.log
             ${{ runner.temp }}/self-test-*/self-test.log
 
+  update:
+    needs: build
+    runs-on: windows-2022
+    timeout-minutes: 30
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      FEED: http://127.0.0.1:8765/latest.json
+    steps:
+      - uses: actions/checkout@v4 # for the screenshot and installer/self-test.ps1
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: EndHud-${{ env.VERSION }}
+          path: release
+      - uses: actions/download-artifact@v4
+        with:
+          name: EndHud-0.0.1-update-test
+          path: old
+
+      # Answers like GitHub's latest-release API (tag, page, files with their SHA-256), serving
+      # this release's files from this machine. EndHud only takes plain HTTP from this computer.
+      - name: Stand in for GitHub
+        shell: pwsh
+        run: |
+          $assets = Get-ChildItem release | ForEach-Object { @{
+            name = $_.Name
+            browser_download_url = "http://127.0.0.1:8765/$($_.Name)"
+            digest = "sha256:" + (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+          } }
+          @{ tag_name = "v$env:VERSION"; html_url = "https://github.com/${{ github.repository }}/releases"; assets = @($assets) } |
+            ConvertTo-Json -Depth 4 | Set-Content release/latest.json
+          Get-Content release/latest.json
+          Start-Process python -ArgumentList '-m', 'http.server', '8765', '--bind', '127.0.0.1', '--directory', (Resolve-Path release) -WindowStyle Hidden
+          Start-Sleep 3
+          (Invoke-WebRequest $env:FEED).StatusCode
+
+      - name: Install EndHud 0.0.1
+        shell: pwsh
+        run: |
+          $p = Start-Process msiexec -ArgumentList "/i `"$(Resolve-Path old/EndHud-0.0.1.msi)`" /qn" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "msiexec exited with $($p.ExitCode)" }
+          (Get-Item "$env:LOCALAPPDATA\Programs\EndHud\EndHud.exe").VersionInfo.ProductVersion
+
+      # What "update now" does, without the tray: download, verify, install quietly.
+      - name: The installed EndHud updates itself
+        shell: pwsh
+        run: |
+          $exe = "$env:LOCALAPPDATA\Programs\EndHud\EndHud.exe"
+          $work = Join-Path ([IO.Path]::GetTempPath()) 'EndHud-update'
+          $p = Start-Process $exe -ArgumentList '--update-now', '--from', $env:FEED -Wait -PassThru
+          Get-Content "$work\update-now.log"
+          if ($p.ExitCode -ne 0) { throw "--update-now exited with $($p.ExitCode)" }
+
+          # The installer runs once EndHud has exited; it writes its exit code when done.
+          $deadline = (Get-Date).AddMinutes(5)
+          while (-not (Test-Path "$work\install-result.txt")) {
+            if ((Get-Date) -gt $deadline) { throw 'The installer did not finish within 5 minutes' }
+            Start-Sleep 2
+          }
+          $result = (Get-Content "$work\install-result.txt").Trim()
+          if ($result -ne '0') { Get-Content "$work\install.log" -Tail 60; throw "msiexec exited with $result" }
+
+          $installed = (Get-Item $exe).VersionInfo.ProductVersion
+          if (-not $installed.StartsWith($env:VERSION)) { throw "Installed version $installed, expected $env:VERSION" }
+          # Exactly one EndHud registered with Windows, at the new version (the MSI replaced the old one).
+          $msi = New-Object -ComObject WindowsInstaller.Installer
+          $products = @($msi.RelatedProducts('{DE14780C-8881-4E6D-A8A7-7227CF00E8EE}'))
+          $versions = @($products | ForEach-Object { $msi.ProductInfo($_, 'VersionString') })
+          "Registered: $($versions -join ', ')"
+          if ($products.Count -ne 1 -or $versions[0] -ne $env:VERSION) { throw "Expected one EndHud $env:VERSION registered" }
+
+      - name: The updated EndHud works
+        shell: pwsh
+        run: ./installer/self-test.ps1 -Exe "$env:LOCALAPPDATA\Programs\EndHud\EndHud.exe" -Folder "$env:RUNNER_TEMP\self-test-updated" -Screenshot tests/EndHud.Vision.Tests/Fixtures/exploration-levels-visible.png -Squad Laevatain,Camille,Arcane,Ardelia
+
+      - name: The portable exe updates itself
+        shell: pwsh
+        run: |
+          $dir = New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\portable"
+          Copy-Item old/EndHud-0.0.1-portable.exe "$dir\EndHud.exe"
+          $p = Start-Process "$dir\EndHud.exe" -ArgumentList '--update-now', '--from', $env:FEED -Wait -PassThru
+          Get-Content (Join-Path ([IO.Path]::GetTempPath()) 'EndHud-update\update-now.log')
+          if ($p.ExitCode -ne 0) { throw "--update-now exited with $($p.ExitCode)" }
+          $now = (Get-FileHash "$dir\EndHud.exe").Hash
+          $expected = (Get-FileHash "release/EndHud-$env:VERSION-portable.exe").Hash
+          if ($now -ne $expected) { throw 'EndHud.exe is not the new portable exe' }
+          if (-not (Test-Path "$dir\EndHud.exe.old")) { throw 'The old exe was not kept aside' }
+          "Portable EndHud.exe is now $((Get-Item "$dir\EndHud.exe").VersionInfo.ProductVersion)"
+
+      - name: Collect the logs
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\update-logs" | Out-Null
+          Get-ChildItem (Join-Path ([IO.Path]::GetTempPath()) 'EndHud-update') -Include *.log, *.txt -Recurse -ErrorAction SilentlyContinue |
+            Copy-Item -Destination "$env:RUNNER_TEMP\update-logs"
+      - name: Keep the logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: update-test-logs
+          path: ${{ runner.temp }}/update-logs
+          if-no-files-found: ignore
+
   release:
-    needs: [build, verify]
+    needs: [build, verify, update]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     permissions:

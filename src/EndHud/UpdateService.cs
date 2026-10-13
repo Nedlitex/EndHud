@@ -36,16 +36,19 @@ internal sealed class UpdateService : IDisposable
     private readonly CancellationTokenSource _cts = new();
     private readonly Func<HttpClient> _http;
     private readonly Version? _current;
+    private readonly string _api;
     private UpdateCheck? _last;
     private DateTime _lastAtUtc = DateTime.MinValue;
 
-    /// <summary>Checks for the running build (<see cref="ReleaseChecker.Current"/>) against GitHub.</summary>
-    public UpdateService() : this(() => new HttpClient { Timeout = TimeSpan.FromSeconds(20) }, ReleaseChecker.Current)
+    /// <summary>Checks for the running build (<see cref="ReleaseChecker.Current"/>) against GitHub (or <paramref name="api"/>).</summary>
+    public UpdateService(string api = ReleaseChecker.LatestReleaseApi)
+        : this(() => new HttpClient { Timeout = TimeSpan.FromSeconds(20) }, ReleaseChecker.Current, api)
     {
     }
 
     /// <param name="current">This build's version; null for a development build.</param>
-    internal UpdateService(Func<HttpClient> http, Version? current) => (_http, _current) = (http, current);
+    internal UpdateService(Func<HttpClient> http, Version? current, string api = ReleaseChecker.LatestReleaseApi) =>
+        (_http, _current, _api) = (http, current, api);
 
     /// <summary>The newer release found by the last check, if any.</summary>
     public ReleaseInfo? Available => _last is { Status: UpdateStatus.NewVersion } c ? c.Release : null;
@@ -79,7 +82,7 @@ internal sealed class UpdateService : IDisposable
         try
         {
             using var http = _http();
-            var latest = await ReleaseChecker.LatestAsync(http, _cts.Token);
+            var latest = await ReleaseChecker.LatestAsync(http, _cts.Token, _api);
             check = latest is null ? new UpdateCheck(UpdateStatus.Unavailable, null)
                 : latest.Version > current ? new UpdateCheck(UpdateStatus.NewVersion, latest)
                 : new UpdateCheck(UpdateStatus.UpToDate, latest);

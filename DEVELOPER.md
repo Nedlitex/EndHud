@@ -105,7 +105,11 @@ git push origin v1.2.0
 files below, and checks them on a clean Windows machine before publishing anything: it installs
 the MSI, runs the installed EndHud's self-test (download the operators from the wiki, name the
 squad in a test screenshot), does the same with the portable exe, and uninstalls, checking nothing
-is left behind. Only then are the files attached to a new release on the repository's Releases
+is left behind. On another clean machine it installs an old EndHud (0.0.1, built from the same
+code) and lets it update itself to the new release, as "update now" does, from a stand-in for
+GitHub serving the new files: the installed copy (then exactly one EndHud, at the new version, is
+registered with Windows, and its self-test passes) and the portable exe. Release versions must
+therefore be above 0.0.1. Only then are the files attached to a new release on the repository's Releases
 page:
 
 - `EndHud-1.2.0.msi`: the installer. It installs for the current user (no administrator prompt),
@@ -153,11 +157,27 @@ Right-click the tray icon for: status, show HUD, open menu, auto-show on/off, de
 - **A newer EndHud.** [`UpdateService`](src/EndHud/UpdateService.cs) asks GitHub for the
   repository's latest published release (`/releases/latest`: drafts and pre-releases don't count)
   a minute after start and then daily, when `CheckForUpdates` is on (the default; a menu checkbox).
-  A newer version shows a notification and a "download new version" tray item, both opening the
-  release page; nothing is downloaded or installed. Development builds (version 0.0.0, a plain
-  `dotnet build`) don't check. GitHub answers "not found" while the repository is private, which
-  EndHud reports as "can't check". A manual check reuses an answer under a minute old (GitHub allows
-  60 unauthenticated requests an hour).
+  Development builds (version 0.0.0, a plain `dotnet build`) don't check. GitHub answers "not
+  found" while the repository is private, which EndHud reports as "can't check". A manual check
+  reuses an answer under a minute old (GitHub allows 60 unauthenticated requests an hour).
+- **Updating in one click.** A newer version shows a notification ("click to update now") and an
+  "update now to x.y.z" tray item, plus one for the release notes. Nothing changes until the player
+  clicks; then [`Updater`](src/EndHud/Updater.cs):
+  1. downloads the release's file for this install and checks its SHA-256 against the one GitHub
+     reports for it (the `digest` of each release asset); a mismatch is deleted, never run, and a
+     file without a checksum isn't downloaded at all. HTTPS only.
+  2. **Installed with the MSI** (in `%LocalAppData%\Programs\EndHud`): EndHud exits and a hidden
+     script runs the new MSI quietly (per-user, no administrator prompt), then starts EndHud
+     again, which says "updated to x.y.z". Windows' installed-apps list stays right. If the
+     installer fails, the old version starts again and says so (the installer's log is kept in
+     `%TEMP%\EndHud-update`).
+  3. **Portable exe:** renames itself to `EndHud.exe.old` (Windows allows renaming a running
+     program), moves the new exe into its place and starts it; the next start deletes the .old
+     file. In a folder EndHud can't write to, it says so and nothing changes.
+
+  Settings, learned portraits and the operator library are in `%APPDATA%\EndHud`, which neither
+  touches. On any failure before the hand-over nothing has changed and the notification links to
+  the releases page.
 - **New operators.** The weekly background refresh announces operators that weren't there before.
 - **Check for updates** (tray) does both at once and shows the result in a notification. It asks
   the wiki at most every 15 minutes; within that it reports the last result.
@@ -187,6 +207,7 @@ edit it by hand, restart EndHud. Delete the file to reset.
 | `--target "<title text>"` | Track any window whose title contains this text instead of the game. Useful to try EndHud without the game, for example over a video of gameplay. |
 | `--hide-from-capture` | Keep the HUD out of screenshots and recordings. |
 | `--self-test <folder>` | Check this build without a window (see [Releases](#releases)). |
+| `--update-now [--from <api>]` | Update in place if a newer release is out, without a window or restarting EndHud ("update now" for scripts). Exit code 0 started, 3 up to date, 1 failed; log in `%TEMP%\EndHud-update\update-now.log`. `--from` asks a stand-in for GitHub (plain HTTP only on this computer). |
 
 EndHud finds the game as a Unity window whose title contains "Endfield" or the game's Chinese title.
 
