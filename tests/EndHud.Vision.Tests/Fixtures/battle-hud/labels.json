@@ -8,7 +8,8 @@
    "Available",
    "Available",
    "Available"
-  ]
+  ],
+  "meltingFlame": 0
  },
  {
   "file": "battle-25s.jpg",
@@ -19,7 +20,8 @@
    "Cooling",
    "Available",
    "Available"
-  ]
+  ],
+  "meltingFlame": 0
  },
  {
   "file": "battle-28s.jpg",
@@ -30,7 +32,8 @@
    "Cooling",
    "Available",
    "Available"
-  ]
+  ],
+  "meltingFlame": 2
  },
  {
   "file": "battle-30_5s.jpg",
@@ -41,7 +44,8 @@
    "Cooling",
    "Available",
    "Available"
-  ]
+  ],
+  "meltingFlame": 2
  },
  {
   "file": "battle-33s.jpg",
@@ -52,7 +56,8 @@
    "Cooling",
    "Available",
    "Available"
-  ]
+  ],
+  "meltingFlame": 2
  },
  {
   "file": "battle-36s.jpg",
@@ -63,7 +68,8 @@
    "Cooling",
    "Available",
    "Cooling"
-  ]
+  ],
+  "meltingFlame": 3
  },
  {
   "file": "battle-41s.jpg",
@@ -74,7 +80,8 @@
    "Available",
    "Available",
    "Available"
-  ]
+  ],
+  "meltingFlame": 3
  },
  {
   "file": "battle-47s.jpg",
@@ -85,7 +92,8 @@
    "Cooling",
    null,
    null
-  ]
+  ],
+  "meltingFlame": 4
  },
  {
   "file": "battle-50s.jpg",
@@ -96,7 +104,8 @@
    "Cooling",
    null,
    null
-  ]
+  ],
+  "meltingFlame": 4
  },
  {
   "file": "battle-55s.jpg",
@@ -107,7 +116,8 @@
    "Cooling",
    null,
    null
-  ]
+  ],
+  "meltingFlame": 0
  },
  {
   "file": "battle-60s.jpg",
@@ -118,7 +128,8 @@
    null,
    null,
    null
-  ]
+  ],
+  "meltingFlame": 1
  },
  {
   "file": "battle-66s.jpg",
@@ -129,7 +140,8 @@
    null,
    null,
    null
-  ]
+  ],
+  "meltingFlame": 1
  },
  {
   "file": "battle-72s.jpg",
@@ -140,7 +152,8 @@
    "Cooling",
    null,
    null
-  ]
+  ],
+  "meltingFlame": 3
  },
  {
   "file": "battle-78s.jpg",
@@ -151,7 +164,8 @@
    "Cooling",
    "Available",
    "Available"
-  ]
+  ],
+  "meltingFlame": 3
  },
  {
   "file": "battle-84s.jpg",
@@ -162,7 +176,8 @@
    null,
    null,
    null
-  ]
+  ],
+  "meltingFlame": 4
  },
  {
   "file": "battle-96s.jpg",
@@ -173,7 +188,8 @@
    null,
    null,
    null
-  ]
+  ],
+  "meltingFlame": 4
  },
  {
   "file": "battle-90s.jpg",
@@ -184,6 +200,7 @@
    null,
    null,
    null
-  ]
+  ],
+  "meltingFlame": null
  }
 ]

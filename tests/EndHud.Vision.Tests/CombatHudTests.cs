@@ -11,7 +11,8 @@ namespace EndHud.Vision.Tests;
 public class CombatHudTests
 {
     /// <param name="BattleSkills">Each slot's button; null where it's dimmed (under 1 skill point) or covered.</param>
-    private sealed record Label(string File, double? SkillPoints, int? ActiveSlot, BattleSkillState?[] BattleSkills);
+    /// <param name="MeltingFlame">Laevatain's 熔火 (she's controlled throughout), read from the flower by eye.</param>
+    private sealed record Label(string File, double? SkillPoints, int? ActiveSlot, BattleSkillState?[] BattleSkills, int? MeltingFlame);
 
     private static readonly Label[] Labels = JsonSerializer.Deserialize<Label[]>(
         File.ReadAllText(CombatFrameTests.Fixture(Path.Combine("battle-hud", "labels.json"))),
@@ -52,6 +53,33 @@ public class CombatHudTests
         Assert.Equal(label.BattleSkills, state.Slots.Select(s => s.BattleSkill));
     }
 
+    [Theory]
+    [MemberData(nameof(Files))]
+    public async Task Reads_Laevatains_melting_flame(string file)
+    {
+        var label = Labels.Single(l => l.File == file);
+        var frame = await LoadAsync(file);
+        var state = await ReadAsync(frame);
+        state = state with { Slots = [state.Slots[0] with { Operator = new(new("Laevatain", "Laevatain", "莱万汀", "Laevatain.png"), 1, true) }, .. state.Slots.Skip(1)] };
+
+        var readings = Operators.OperatorCounters.ReadControlled(frame, state);
+
+        if (label.ActiveSlot is null)
+        {
+            Assert.Empty(readings); // nobody controlled (a cutscene): no counter
+            return;
+        }
+        var reading = Assert.Single(readings);
+        Assert.Equal("melting-flame", reading.CounterId);
+        Assert.Equal(label.MeltingFlame, reading.Value);
+    }
+
+    [Fact]
+    public async Task An_operator_without_a_known_counter_has_no_reading()
+    {
+        Assert.Empty(Operators.OperatorCounters.Read(await LoadAsync("battle-21s.jpg"), "Camille"));
+    }
+
     public static TheoryData<string> Screens() =>
         [SimulatedScreen.Qhd.Name, SimulatedScreen.FullHd.Name, SimulatedScreen.LaptopHdPlus.Name, SimulatedScreen.Hd.Name];
 
@@ -77,6 +105,9 @@ public class CombatHudTests
                 Assert.True(skill is null || skill == label.BattleSkills[i],
                     $"{label.File} at {screen.Width}x{screen.Height}: slot {i + 1} battle skill {skill}, expected {label.BattleSkills[i]}");
             }
+            int? flame = state.ActiveSlot is null ? null : Operators.OperatorCounters.Read(screen.Render(await LoadAsync(label.File)), "Laevatain")[0].Value;
+            Assert.True(flame is null || flame == label.MeltingFlame,
+                $"{label.File} at {screen.Width}x{screen.Height}: 熔火 {flame}, expected {label.MeltingFlame}");
             if (label.SkillPoints is not { } sp) continue;
             expected++;
             if (state.SkillPoints is not { } got) continue;

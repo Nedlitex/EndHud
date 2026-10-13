@@ -34,6 +34,10 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
     /// <summary>The controlled operator's slot, 1–4 (see <see cref="Vision.ActiveSlot"/>); null when not shown.</summary>
     public int? ActiveSlot { get; init; }
 
+    /// <summary>The controlled operator's own counters (see <see cref="Operators.OperatorCounters"/>),
+    /// once the squad is identified; empty when unknown.</summary>
+    public IReadOnlyList<Operators.CounterReading> Counters { get; init; } = [];
+
     /// <summary>
     /// False when the squad panel isn't on screen (menus, map, cutscenes). Mainly the HP-bar
     /// marks, which show in every state; the level text (exploration) and combo bars (combat)

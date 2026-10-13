@@ -223,8 +223,15 @@ internal sealed class PartyMonitor : IDisposable
                     var client = Native.ClientAreaInCapture(hwnd, frame.Width, frame.Height);
                     if (client.IsEmpty) continue;
                     // Death first, so a fallen operator's death mark is never matched as a portrait.
-                    var state = tracker.Track(await reader.ReadAsync(frame.Crop(client)));
-                    if (_identifier is { } identifier) state = await identifier.IdentifyAsync(state);
+                    var gameFrame = frame.Crop(client);
+                    var state = tracker.Track(await reader.ReadAsync(gameFrame));
+                    if (_identifier is { } identifier)
+                    {
+                        state = await identifier.IdentifyAsync(state);
+                        // The controlled operator's own counter (e.g. 熔火): drawn differently per
+                        // operator, so read once we know who it is.
+                        state = state with { Counters = OperatorCounters.ReadControlled(gameFrame, state) };
+                    }
                     Updated?.Invoke(state, null);
                 }
                 catch (TimeoutException)
