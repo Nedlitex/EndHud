@@ -528,6 +528,24 @@ exception: hosted runners can't capture windows, so they only run on a developer
   distance from its own corner), so they test EndHud's handling of that layout, not that the game
   uses it. A real screenshot at 16:10 or 21:9 would confirm it.
 
+## Python tools
+
+The app is .NET only. A few developer tools are Python; they all share one virtual environment
+at the repository root, set up from [`requirements.txt`](requirements.txt):
+
+```powershell
+python -m venv .venv
+.venv/Scripts/pip install -r requirements.txt
+```
+
+Run them with `.venv/Scripts/python`, never the system Python. When a tool needs another
+package, add it to `requirements.txt` with an exact version.
+
+| Tool | Purpose |
+|---|---|
+| [`tools/guide-video/fetch.py`](tools/guide-video) | Download a rotation guide video (Bilibili, YouTube, …) into `.cache/guide-videos/` with its source and contact sheets. |
+| [`tools/ccip-model/prepare.py`](tools/ccip-model) | Rebuild the character recognition model from the original. |
+
 ## Developer tool
 
 `endhud-cli` (in `src/EndHud.Cli`) runs the same readers outside the app:
@@ -566,6 +584,7 @@ tests/EndHud.Tests/      tests of the tray app (banner layout at any display sca
 .github/workflows/       CI: tests on every push (tests.yml); releases from version tags (release.yml)
 installer/               the MSI installer (WiX)
 tools/EndHud.ReadmeMedia/ renders the README's animated pictures from a recording
+tools/guide-video/       downloads rotation guide videos (Python, see requirements.txt)
 rotations/               recommended rotations, published to every player from main
 ```
 

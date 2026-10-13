@@ -1,7 +1,7 @@
 """
 Rebuilds src/EndHud.Vision/Assets/ccip/ from the published CCIP model (see README.md).
 
-    python -m venv .venv && .venv/Scripts/pip install onnx onnxruntime==1.20.1
+    python -m venv .venv && .venv/Scripts/pip install -r requirements.txt
     .venv/Scripts/python tools/ccip-model/prepare.py
 """
 import hashlib

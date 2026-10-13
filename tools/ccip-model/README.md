@@ -22,7 +22,7 @@ and prints their SHA-256 for comparison:
 
 ```
 python -m venv .venv
-.venv/Scripts/pip install onnx onnxruntime==1.20.1
+.venv/Scripts/pip install -r requirements.txt
 .venv/Scripts/python tools/ccip-model/prepare.py
 ```
 

@@ -1,0 +1,12 @@
+# Python tools for EndHud developers (the app itself is .NET and needs none of this).
+# Set up once, from the repository root:
+#   python -m venv .venv
+#   .venv/Scripts/pip install -r requirements.txt
+# Then run every Python tool with .venv/Scripts/python, never the system Python.
+
+# tools/guide-video: download a rotation guide video (Bilibili, YouTube, ...) to study or ingest.
+yt-dlp==2026.8.19
+
+# tools/ccip-model: rebuild the character recognition model from the original.
+onnx==1.23.2
+onnxruntime==1.20.1
