@@ -27,6 +27,21 @@ How it works, and why it shows exactly what EndHud would:
 
 The clips (time range, crop, mode) are listed at the top of `Program.cs`.
 
+## The rotation strip over a recording
+
+```powershell
+dotnet run --project tools/EndHud.ReadmeMedia -c Release -- rotation <recording.mp4> out/rotation-demo rotations/laevatain-standard.json
+```
+
+Replays the recording through the same steps as the app (four readings a second: squad panel,
+operator recognition, the controlled operator's counter, the boss's statuses and elemental
+infliction once a second) and moves a `RotationTracker` on with each reading. Every frame then gets
+the real strip (`RotationStripView`, `RotationStrip`) at its default spot, off-screen, with the UID
+blacked out. Writes `rotation-demo.mp4`, `readings.tsv` (what was read at each reading and which
+step the strip was on, with each check) and stills of the first ready and waiting moments. The
+strip only shows for a squad the rotation is for. Use it to see the strip's style over real
+gameplay, and to check a rotation against a recording before publishing it.
+
 ## The README's gameplay clips
 
 Cut from `original-recordings/boss-battle-with-endhud-combo-hints.mp4` (4K, EndHud running in

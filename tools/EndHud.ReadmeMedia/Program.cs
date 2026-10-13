@@ -18,6 +18,8 @@ using EndHud;
 using EndHud.Vision;
 using EndHud.Vision.Operators;
 
+if (args.Length > 0 && args[0] == "rotation") return await RotationDemo.RunAsync(args[1..]);
+
 if (args.Length < 2)
 {
     Console.Error.WriteLine("usage: EndHud.ReadmeMedia <original-recording.mp4> <out-dir>");
