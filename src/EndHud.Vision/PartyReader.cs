@@ -23,6 +23,13 @@ public sealed record PartySlot(int Number, int? Level, double? Hp, string LevelT
 /// have missed it and this is the last one kept by <see cref="PartyTracker"/>.</param>
 public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks = 0, int ReadingsSinceSeen = 0)
 {
+    /// <summary>The team's skill points (技力), 0–3 with a fraction for the filling segment (see
+    /// <see cref="SkillPointBar"/>); null out of combat or when unreadable.</summary>
+    public double? SkillPoints { get; init; }
+
+    /// <summary>The controlled operator's slot, 1–4 (see <see cref="Vision.ActiveSlot"/>); null when not shown.</summary>
+    public int? ActiveSlot { get; init; }
+
     /// <summary>
     /// False when the squad panel isn't on screen (menus, map, cutscenes). Mainly the HP-bar
     /// marks, which show in every state; the level text (exploration) and combo bars (combat)
@@ -63,7 +70,14 @@ public sealed partial class PartyReader(TextRecognizer ocr)
             slots.Add(new PartySlot(i + 1, level, hp, text, portrait, combo, UltimateGauge.Measure(frame, i),
                 ScreenPortrait: screenPortrait));
         }
-        return new PartyState(slots, PanelMarkers.Count(frame));
+        // Skill points are drawn in combat only (shown by the combo bars); out of combat the bar's
+        // place shows the scenery, which can look like an empty bar.
+        bool inCombat = slots.Any(s => s.Combo is not null);
+        return new PartyState(slots, PanelMarkers.Count(frame))
+        {
+            ActiveSlot = Vision.ActiveSlot.Find(frame, ui),
+            SkillPoints = inCombat ? SkillPointBar.Measure(frame, ui) : null,
+        };
     }
 
     /// <summary>
