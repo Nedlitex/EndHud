@@ -186,4 +186,21 @@ public sealed class RotationFormatTests : IDisposable
         Assert.EndsWith("broken.json", bad.File);
         Assert.Equal(RotationReadError.NotARotation, bad.Error);
     }
+
+    [Fact]
+    public void The_example_in_the_developer_guide_is_a_valid_rotation()
+    {
+        string guide = File.ReadAllText(Path.Combine(OperatorCache.RepositoryRoot(), "DEVELOPER.md"));
+        int start = guide.IndexOf("```json", StringComparison.Ordinal) + "```json".Length;
+        string json = guide[start..guide.IndexOf("```", start, StringComparison.Ordinal)];
+
+        var rotation = RotationFormat.FromJson(json);
+
+        Assert.Empty(rotation.Problems());
+        Assert.Equal(["Laevatain", "Camille", "Arcane", "Ardelia"], rotation.Squad);
+        Assert.Equal(9, rotation.Played().Count); // 充能轴 (4 steps) twice, then 爆发轴 (1 step)
+        var flame = rotation.Phases[0].Steps[3];
+        Assert.Equal([new BossStatusCondition("Heat Infliction", true), new CounterCondition("Laevatain", "melting-flame", Comparison.AtMost, 3)], flame.Expect);
+        Assert.True(rotation.Phases[0].Steps[2].WithPrevious);
+    }
 }

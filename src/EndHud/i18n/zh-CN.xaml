@@ -106,7 +106,6 @@
     <sys:String x:Key="Editor.Used">已使用</sys:String>
     <sys:String x:Key="Editor.Has">有</sys:String>
     <sys:String x:Key="Editor.HasNot">没有</sys:String>
-    <sys:String x:Key="Editor.Stacks">至少 {0} 层</sys:String>
     <sys:String x:Key="Editor.NoCounters">小队中没有已支持的干员资源（目前支持莱万汀的熔火）</sys:String>
     <sys:String x:Key="Editor.NoStatuses">敌人状态图标还没有下载，请在托盘菜单中检查更新后再试。</sys:String>
     <sys:String x:Key="Editor.Preview">预览</sys:String>

@@ -548,11 +548,10 @@ public partial class RotationEditor : Window
                     break;
                 }
                 var status = Picker(statuses, s => s.NameZh, statuses.FirstOrDefault(s => s.Id == c.StatusId) ?? statuses[0]);
-                var stacks = Picker([1, 2, 3, 4], n => Loc.Format("Editor.Stacks", n), Math.Clamp(c.MinStacks, 1, 4));
                 row.Children.Add(present);
                 row.Children.Add(status);
-                row.Children.Add(stacks);
-                read = () => new BossStatusCondition(((StatusInfo)Picked(status)).Id, (bool)Picked(present), (int)Picked(stacks));
+                // Stack badges aren't read yet, so stacks aren't offered; an imported value is kept as it is.
+                read = () => new BossStatusCondition(((StatusInfo)Picked(status)).Id, (bool)Picked(present), c.MinStacks);
                 break;
             }
             case ControllingCondition c:

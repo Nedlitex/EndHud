@@ -28,7 +28,7 @@ internal static class OperatorCache
     public static async Task<OperatorLibrary> LoadAsync(string userFolder) =>
         await OperatorLibrary.LoadAsync(userFolder, await FolderAsync());
 
-    private static string RepositoryRoot()
+    internal static string RepositoryRoot()
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
             if (File.Exists(Path.Combine(dir.FullName, "EndHud.sln"))) return dir.FullName;

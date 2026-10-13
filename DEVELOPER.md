@@ -37,6 +37,26 @@ EndHud hasn't recognised gets a banner with just their slot number.
 - No hint out of combat, for a fallen operator, or for a combo skill that is simply ready when a
   fight starts.
 
+### Rotation strip (排轴)
+
+A rotation is the order a squad's skills are used in: battle skills, combos and ultimates (basic
+attacks aren't tracked). In combat, a strip at the top centre of the screen shows the rotation for
+the recognised squad, styled after community rotation charts, and highlights the step to use now.
+
+- **One per squad, any slot order.** The strip shows the rotation chosen for those four operators
+  in the editor (or the first one made for them).
+- **Built from phases.** Reusable phases (e.g. 充能轴, 爆发轴) are played in a sequence (e.g.
+  充能轴 ×2, then 爆发轴 ×1) that loops.
+- **No start or reset.** Each step can say what the game should look like when it's that step's
+  turn (its *expected state*). EndHud picks the step that matches the screen best, then moves on
+  when it sees the step's skill used. See [Rotations](#rotations).
+- **When to press it.** The current step lights up when its expected state holds and its skill is
+  available; otherwise a line under it says what's missing ("技力 1.4/2", "敌人缺少：灼热附着").
+- **Move it**: open the menu and drag the strip; "reset position" puts it back.
+- **Edit and share** in the rotation editor (menu → 排轴 → 编辑排轴…, or the tray): phases,
+  steps, expected states picked from lists, a live preview, and import/export as a file or a share
+  code (`EHR1:` + compressed JSON, short enough for a chat message).
+
 ### Debug panel
 
 Everything EndHud reads, for checking it (the "debug panel" checkbox in the menu, the tray, or
@@ -192,12 +212,16 @@ edit it by hand, restart EndHud. Delete the file to reset.
 | `CheckForUpdates` | `true` | Check GitHub for a newer EndHud a minute after start and then daily (a notification; nothing is installed). |
 | `AutoShowOnGameFocus` | `true` | Show the HUD when the game has focus and hide it otherwise. When `false`, the HUD only shows after Ctrl+Shift+H. |
 | `PartyOcrEnabled` | `true` | Read the squad panel (names, HP, skills, levels). |
-| `OcrIntervalMs` | `1000` | How often the squad panel is read (minimum 250). |
+| `OcrIntervalMs` | `250` | How often the screen is read, in milliseconds (minimum 250). Rotations need it fast: skill points are spent and refilled quickly. |
+| `SettingsVersion` | current | The file's version, to update old defaults the player never chose: a file from before version 2 with `OcrIntervalMs` 1000 (the old default) gets 250. |
 | `Language` | `zh-CN` | UI language: picks `i18n/<Language>.xaml`. |
 | `ComboHintEnabled` | `true` | Show the combo-ready hint (needs `PartyOcrEnabled`). |
 | `ComboHintMode` | `WhenReady` | `WhenReady`: for `ComboHintSeconds` after the cooldown finishes. `WhileReady`: until the combo skill is used. |
 | `ComboHintSeconds` | `3` | How long a `WhenReady` hint stays up. |
 | `ComboHintX`, `ComboHintY` | `0.2`, `0.36` | Where the hint sits: its top-left corner as a fraction of the game window's width and height. |
+| `RotationEnabled` | `true` | Show the rotation strip when the recognised squad has a rotation. |
+| `RotationX`, `RotationY` | `0.3`, `0.13` | Where the strip sits (top-left corner, as a fraction of the game window). |
+| `ActiveRotations` | `{}` | The rotation chosen for each squad: squad key (the four operator ids, sorted, joined by `\|`) → rotation id. Set by saving in the editor. |
 
 ### Command-line options
 
@@ -295,6 +319,100 @@ Si and Argent Flow have no skill icons on the wiki yet; they're recognised by po
 
 ---
 
+## Rotations
+
+### The file
+
+A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
+([`Rotation`](src/EndHud.Vision/Rotations/Rotation.cs),
+[`RotationFormat`](src/EndHud.Vision/Rotations/RotationStore.cs)):
+
+```json
+{
+  "format": 1,
+  "id": "6f1c…",
+  "name": "标准轴",
+  "squad": ["Laevatain", "Camille", "Arcane", "Ardelia"],
+  "phases": [
+    {
+      "id": "charge",
+      "name": "充能轴",
+      "steps": [
+        { "operatorId": "Ardelia", "action": "BattleSkill",
+          "expect": [ { "kind": "skillPoints", "is": "AtLeast", "value": 2 } ] },
+        { "operatorId": "Camille", "action": "Combo" },
+        { "operatorId": "Arcane", "action": "Combo", "withPrevious": true },
+        { "operatorId": "Laevatain", "action": "BattleSkill", "label": "战技·意", "note": "飞天",
+          "expect": [ { "kind": "bossStatus", "statusId": "Heat Infliction", "present": true },
+                      { "kind": "counter", "operatorId": "Laevatain", "counterId": "melting-flame", "is": "AtMost", "value": 3 } ] }
+      ]
+    },
+    { "id": "burst", "name": "爆发轴", "steps": [ { "operatorId": "Laevatain", "action": "Ultimate" } ] }
+  ],
+  "sequence": [ { "phaseId": "charge", "times": 2 }, { "phaseId": "burst", "times": 1 } ]
+}
+```
+
+- `squad`: operator ids from the operator library, in any slot order.
+- `action`: `BattleSkill`, `Combo` or `Ultimate`. The skill being available (a skill point for a
+  battle skill, the combo or ultimate ready) is implied; `expect` lists anything else.
+- `withPrevious`: used right after the previous step, drawn overlapping it.
+- `expect` conditions (`kind`):
+
+  | `kind` | Fields | Holds when |
+  |---|---|---|
+  | `skillPoints` | `is` (`AtLeast`, `AtMost`, `Exactly`), `value` (0–3, halves allowed) | the skill point bar compares so |
+  | `combo` | `operatorId`, `ready` | that operator's combo is ready (`true`) or cooling (`false`) |
+  | `ultimate` | `operatorId`, `ready` | that operator's ultimate is ready or charging |
+  | `counter` | `operatorId`, `counterId`, `is`, `value` | an operator's own resource compares so (see below) |
+  | `bossStatus` | `statusId` (the wiki's English name), `present`, `minStacks` | the enemy shows (or doesn't show) that status |
+  | `controlling` | `operatorId` | that operator is the one being controlled |
+
+- `format`: a file from a newer EndHud is refused with a message instead of being misread.
+
+The store ([`RotationStore`](src/EndHud.Vision/Rotations/RotationStore.cs)) covers every way an
+entry changes:
+
+| | How |
+|---|---|
+| Create | the editor's "new" or "copy" (a new id), or an import |
+| Read | every `*.json` in the folder; a file that can't be read is listed in the editor with why, never dropped silently |
+| Correct | edit and save in the editor: the file is rewritten under the same id |
+| Remove | the editor's "delete" (asks first): the file is deleted |
+| Import | never overwrites: when the id exists the player picks replace or keep both (a copy under a new id) |
+
+### What's read for it
+
+All in combat, from the same capture as the squad panel. Positions are measured on 4K and scaled
+like everything else.
+
+| Reading | Where | How |
+|---|---|---|
+| Skill points ([`SkillPointBar`](src/EndHud.Vision/SkillPointBar.cs)) | the segmented bar above the battle skill buttons, bottom centre | yellow segments are full; the white fill of the next one gives the fraction (e.g. 1.4) |
+| Controlled operator ([`ActiveSlot`](src/EndHud.Vision/ActiveSlot.cs)) | the chevron over the controlled operator's portrait | shape match against the chevron |
+| Battle skill ([`BattleSkillButton`](src/EndHud.Vision/BattleSkillButton.cs)) | each battle skill button, bottom right | a dark disc with white digits is cooling; the white icon is available |
+| Operator counters ([`OperatorCounters`](src/EndHud.Vision/Operators/OperatorCounters.cs)) | the controlled operator's resource, bottom centre | Laevatain's 熔火 (0–4): lit petals of the flower; pink petals mean full |
+| Enemy statuses ([`BossStatusReader`](src/EndHud.Vision/BossStatusReader.cs)) | the icon row under the boss's bars, top centre | each square is matched against the wiki's status icons; read at most once a second and only when the current rotation asks about statuses (about 70 ms a read at 4K) |
+
+Status icons come from the wiki's glossary module along with the operators (`statuses.json` in the
+operator library), so new statuses need no release. Chinese names are in
+[`StatusNames`](src/EndHud.Vision/Operators/StatusInfo.cs).
+
+### Finding the current step
+
+[`RotationTracker`](src/EndHud.Vision/Rotations/RotationTracker.cs), once per reading:
+
+1. For every step, each check is *holding*, *not holding* or *unknown*: the step's own skill
+   available; its expected state; and whether the step before it was seen used recently (within
+   the last 40 readings, about 10 s). A value that isn't on screen is unknown, never a guess.
+2. Each step's score is (holding + 0.5) / (known + 1), so one holding check doesn't outrank three.
+3. On the first reading the best-scoring step becomes current. After that the strip moves on only
+   when it sees the current step's skill used (steps drawn together may be used in either order),
+   or when another step beats the current one by 0.34 for two readings in a row (the player went
+   off-script). After the last step it loops to the first.
+
+The current step is "ready" (lit) when all its known checks hold.
+
 ## Tests
 
 ```powershell
@@ -341,6 +459,15 @@ exception: hosted runners can't capture windows, so they only run on a developer
     never for an operator who falls mid-cooldown.
 
   See that folder's README for what each recording contains.
+- **Combat HUD for rotations** ([`Fixtures/battle-hud`](tests/EndHud.Vision.Tests/Fixtures/battle-hud),
+  labels in `labels.json`): skill points, the controlled operator, battle skill buttons, 熔火 and
+  enemy statuses on labelled 4K battle frames (UID blacked out), including a cutscene that must
+  read as nothing.
+- **Rotations:** the file format and share codes (round trip, damaged codes, newer formats,
+  imports never overwriting); the tracker (picking a step with no reset, moving only on seen use,
+  steps used together, going off-script, looping, nothing on screen); the editor's working copy;
+  the strip's layout; every UI string translated, including keys built at run time.
+
 - **Other screen sizes**, simulated from the 4K fixtures and recordings (see
   [`SimulatedScreen`](tests/EndHud.Vision.Tests/SimulatedScreen.cs)): desktop monitors (5K,
   2560×1440, 1920×1080, 1920×1200, 21:9 and 32:9 ultrawides), laptop panels (1280×720, 1366×768,
@@ -364,7 +491,7 @@ exception: hosted runners can't capture windows, so they only run on a developer
 
 | Command | Purpose |
 |---|---|
-| `analyze <screenshot>` `[--debug-dir <dir>]` | Read the squad panel from a screenshot. `--debug-dir` saves the exact images given to OCR. |
+| `analyze <screenshot>` `[--debug-dir <dir>]` | Read the squad panel from a screenshot, plus the combat readings rotations use (skill points, controlled slot, battle skills). `--debug-dir` saves the exact images given to OCR. |
 | `analyze-video <video>` `[--every <s>]` | HP, combo cooldown and ultimate charge per slot over a recording. |
 | `capture <window title text> <out.png>` | Grab one frame from a window (e.g. the game) through the HUD's capture path. |
 | `identify <screenshot> --library <dir>` | Show each slot's learned match and closest wiki avatars (model differences, lower = closer). |
@@ -378,16 +505,18 @@ exception: hosted runners can't capture windows, so they only run on a developer
 ## Project layout
 
 ```
-src/EndHud/              the tray app: overlay window (debug panel, combo-ready hint), menu, tray icon, config, i18n
+src/EndHud/              the tray app: overlay window (debug panel, combo-ready hint, rotation strip), rotation editor, menu, tray icon, config, i18n
 src/EndHud.Vision/       everything that reads the screen
   Capture/               Windows.Graphics.Capture of a single window
-  Operators/             operator library, recognition (character model), learning
+  Operators/             operator library, recognition (character model), learning, operator counters, status icons
+  Rotations/             rotation format, store, and the tracker that finds the current step
   Assets/ccip/           the character recognition model (Git LFS; see tools/ccip-model)
   Assets/operator-portraits.json  in-game portrait references (the model's numbers; built from test fixtures)
   PartyReader.cs         squad panel: level, HP, combo, portraits
   UltimateGauge.cs       ultimate circles
   PartyTracker.cs        carries readings over (deaths, values that are briefly unreadable)
   ComboHints.cs          when to show the combo-ready hint
+  SkillPointBar.cs, ActiveSlot.cs, BattleSkillButton.cs, BossStatusReader.cs   combat readings for rotations
 src/EndHud.Cli/          endhud-cli developer tool
 tests/EndHud.Vision.Tests/ tests of everything that reads the screen (fixtures, recordings, screen sizes)
 tests/EndHud.Tests/      tests of the tray app (banner layout at any display scaling, windowed capture)
@@ -434,8 +563,13 @@ Copy `src/EndHud/i18n/zh-CN.xaml` to, for example, `en-US.xaml`, translate the v
 - The combo-ready hint needs two "cooling" readings in a row before it trusts that a combo skill was used,
   because the bar is briefly drawn as an empty track while the HUD fades in. A cooldown
   refreshed within about two seconds of being used therefore gets no hint.
-- Hints follow the squad panel reading, once a second by default (`OcrIntervalMs`), so a hint can
-  appear up to a second after the cooldown finishes.
+- Hints and the rotation strip follow the screen reading, four times a second by default
+  (`OcrIntervalMs`), so they can lag the game by up to a quarter of a second.
+- Rotations: only Laevatain's 熔火 is read as an operator counter so far (Typhoeus and Zhuang Fangyi
+  have counters too; they need combat screenshots). Enemy status stack counts aren't read, so the
+  editor doesn't offer them, and a shared rotation asking for 2+ stacks treats that check as unknown.
+  Elemental infliction rings have only been seen at one stack. A few boss icons aren't on the
+  wiki's glossary and aren't recognised.
 
 ## Game art
 
