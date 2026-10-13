@@ -172,6 +172,41 @@ public sealed class OperatorDownloadTests : IDisposable
         Assert.NotNull(await OperatorReference.EnsureAsync(Library, TimeSpan.FromDays(7), wiki.Client(), Fast));
     }
 
+    // ---- Status icons (for rotation conditions) ----
+
+    [Fact]
+    public async Task Status_icons_come_from_the_wiki_glossary_with_their_Chinese_names()
+    {
+        var wiki = await FakeWiki.CreateAsync("Alpha");
+        await wiki.AddStatusAsync("Heat Infliction");
+        await wiki.AddStatusAsync("Vulnerable");
+        await wiki.AddStatusAsync("Haste"); // no Chinese name known yet: shown in English
+
+        await OperatorReference.UpdateAsync(Library, wiki.Client(), Fast);
+        var library = await OperatorLibrary.LoadAsync(Path.Combine(_root, "user"), Library);
+
+        Assert.Equal(["Heat Infliction", "Vulnerable", "Haste"], library.Statuses.Select(s => s.Id));
+        Assert.Equal(["灼热附着", "破防", "Haste"], library.Statuses.Select(s => s.NameZh));
+        Assert.All(library.Statuses, s => Assert.NotNull(library.StatusIcon(s.Id)));
+    }
+
+    [Fact]
+    public async Task Without_the_glossary_the_previous_statuses_are_kept_and_operators_still_update()
+    {
+        var wiki = await FakeWiki.CreateAsync("Alpha");
+        await wiki.AddStatusAsync("Heat Infliction");
+        await OperatorReference.UpdateAsync(Library, wiki.Client(), Fast);
+
+        wiki.GlossaryBroken = true;
+        await wiki.AddOperatorAsync("Beta");
+        await OperatorReference.UpdateAsync(Library, wiki.Client(), Fast);
+        var library = await OperatorLibrary.LoadAsync(Path.Combine(_root, "user"), Library);
+
+        Assert.Equal(["Alpha", "Beta"], library.Operators.Select(o => o.Id));
+        Assert.Equal(["Heat Infliction"], library.Statuses.Select(s => s.Id));
+        Assert.NotNull(library.StatusIcon("Heat Infliction"));
+    }
+
     // ---- Being polite to the wiki ----
 
     [Fact]
@@ -251,6 +286,12 @@ public sealed class OperatorDownloadTests : IDisposable
         private int _variant;
 
         public List<string> Listed { get; set; } = [];
+
+        /// <summary>Statuses the glossary module lists with an icon (none unless a test adds some).</summary>
+        public List<string> Statuses { get; } = [];
+
+        /// <summary>The glossary module has no content (as if it were deleted or renamed).</summary>
+        public bool GlossaryBroken { get; set; }
         public HashSet<string> Broken { get; } = [];
         public HashSet<string> NotImages { get; } = [];
         public int BusyFor { get; set; }
@@ -276,6 +317,14 @@ public sealed class OperatorDownloadTests : IDisposable
             Listed.Add(name);
             foreach (string file in FilesOf(name)) await UploadAsync(file);
         }
+
+        public async Task AddStatusAsync(string id)
+        {
+            Statuses.Add(id);
+            await UploadAsync(StatusFile(id));
+        }
+
+        public static string StatusFile(string id) => $"{id.Replace(' ', '_')}_icon.png";
 
         public Task ChangeImageAsync(string file) => UploadAsync(file);
 
@@ -347,6 +396,15 @@ public sealed class OperatorDownloadTests : IDisposable
             object json = (q["action"], q["prop"]) switch
             {
                 ("parse", _) => new { parse = new { images = Listed.Select(n => $"{n}_icon.png").Append("Something_facility_icon.png") } },
+                ("query", "revisions") when titles.SequenceEqual([WikiOperatorSource.GlossaryModule]) => GlossaryBroken
+                    ? new { query = new { pages = new object[] { new { title = titles[0], missing = true } } } }
+                    : new { query = new { pages = new object[] { new
+                    {
+                        title = titles[0],
+                        // As the real module maps icon tags to files.
+                        revisions = new[] { new { slots = new { main = new { content = string.Join("\n",
+                            Statuses.Select((id, i) => $"\ttext = text:gsub(\"<is{i}>\", \"[[File:{id} icon.png|15px|link=]]\")")) } } } },
+                    } } } },
                 ("query", "revisions") => new { query = new { pages = titles.Select(t => new
                 {
                     title = t,

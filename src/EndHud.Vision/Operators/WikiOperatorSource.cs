@@ -115,7 +115,30 @@ public static partial class WikiOperatorSource
             roster.Add(new OperatorInfo(id, names[i], chinese.GetValueOrDefault(names[i], names[i]), iconFile, skills));
         }
 
+        // 5. Status icons (enemy debuffs, team buffs) for rotation conditions. The wiki's glossary
+        //    module maps every status to its icon, so a new status needs nothing here. If the glossary
+        //    can't be read, the previous copy's statuses are kept; the operators still update.
+        var statuses = new List<StatusInfo>();
+        IReadOnlyList<StatusInfo> wanted;
+        Dictionary<string, WikiFile> statusFiles;
+        try
+        {
+            wanted = await StatusIconsAsync(wiki, ct);
+            statusFiles = await ResolveFilesAsync(wiki, wanted.Select(s => s.IconFile), ct);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidDataException or JsonException && !ct.IsCancellationRequested)
+        {
+            wanted = previous is null ? [] : OperatorLibrary.ReadStatuses(previous);
+            statusFiles = [];
+        }
+        foreach (var status in wanted)
+        {
+            if (await FetchAsync(statusFiles.GetValueOrDefault(status.IconFile), $"{OperatorLibrary.StatusFolderName}/{status.IconFile}"))
+                statuses.Add(status);
+        }
+
         OperatorLibrary.SaveManifest(folder, roster);
+        OperatorLibrary.SaveStatuses(folder, statuses);
         File.WriteAllText(Path.Combine(folder, ChecksumsName), JsonSerializer.Serialize(checksums, new JsonSerializerOptions { WriteIndented = true }));
         return new WikiDownload(roster.Count, downloaded, reused, failed);
 
@@ -178,6 +201,34 @@ public static partial class WikiOperatorSource
             return []; // everything is downloaded again
         }
     }
+
+    /// <summary>The wiki module holding the glossary, including which icon each status has.</summary>
+    internal const string GlossaryModule = "Module:Glossary/misc";
+
+    /// <summary>
+    /// Every status with an icon, from the glossary module's icon tags (lines like
+    /// <c>text:gsub("&lt;iheat&gt;", "[[File:Heat Infliction icon.png|15px|link=]]")</c>). The status is
+    /// named after its icon file ("Heat Infliction icon.png" → "Heat Infliction").
+    /// </summary>
+    private static async Task<IReadOnlyList<StatusInfo>> StatusIconsAsync(WikiClient wiki, CancellationToken ct)
+    {
+        var json = await wiki.GetJsonAsync(
+            $"{Api}?action=query&prop=revisions&rvprop=content&rvslots=main&format=json&formatversion=2&titles="
+            + Uri.EscapeDataString(GlossaryModule), ct);
+        string text = json["query"]?["pages"]?[0]?["revisions"]?[0]?["slots"]?["main"]?["content"]?.GetValue<string>()
+                      ?? throw new InvalidDataException($"{GlossaryModule} has no content.");
+        var statuses = new List<StatusInfo>();
+        foreach (Match m in StatusIconTag().Matches(text))
+        {
+            string file = m.Groups[1].Value.Trim().Replace(' ', '_');
+            string id = file[..^"_icon.png".Length].Replace('_', ' ');
+            if (statuses.All(s => s.Id != id)) statuses.Add(new StatusInfo(id, file));
+        }
+        return statuses;
+    }
+
+    [GeneratedRegex(@"""<i\w+>""\s*,\s*""\[\[File:\s*([^|\]]+? icon\.png)\s*[|\]]")]
+    private static partial Regex StatusIconTag();
 
     /// <summary>"Skill-Laevatain.png" → battle skill, "Combo-…" → combo, "Ult-…" → ultimate; anything else → null.</summary>
     internal static SkillKind? ClassifySkillFile(string file)

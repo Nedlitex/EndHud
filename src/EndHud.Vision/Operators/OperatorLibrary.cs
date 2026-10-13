@@ -31,6 +31,8 @@ public sealed class OperatorLibrary
 {
     public const string IconFolderName = "icons";
     public const string SkillFolderName = "skills";
+    public const string StatusFolderName = "statuses";
+    private const string StatusManifestName = "statuses.json";
     public const string LearnedFolderName = "learned";
     public const string ReferenceFolderName = "reference";
     private const string ManifestName = "operators.json";
@@ -55,14 +57,20 @@ public sealed class OperatorLibrary
     private readonly string _userFolder;
     private readonly List<Learned> _learned;
 
+    private readonly IReadOnlyList<StatusInfo> _statuses;
+    private readonly IReadOnlyDictionary<string, Frame> _statusIcons;
+
     private OperatorLibrary(FolderAssets reference, string userFolder, IReadOnlyList<OperatorInfo> operators,
-        IReadOnlyDictionary<string, Frame> icons, List<Learned> learned)
+        IReadOnlyDictionary<string, Frame> icons, List<Learned> learned,
+        IReadOnlyList<StatusInfo> statuses, IReadOnlyDictionary<string, Frame> statusIcons)
     {
         _reference = reference;
         _userFolder = userFolder;
         Operators = operators;
         Icons = icons;
         _learned = learned;
+        _statuses = statuses;
+        _statusIcons = statusIcons;
     }
 
     public IReadOnlyList<OperatorInfo> Operators { get; }
@@ -109,7 +117,17 @@ public sealed class OperatorLibrary
             }
         }
 
-        return new OperatorLibrary(reference, userFolder, operators, icons, learned);
+        var statusIcons = new Dictionary<string, Frame>();
+        var statuses = new List<StatusInfo>();
+        foreach (var status in ReadStatuses(reference.Root))
+        {
+            string icon = $"{StatusFolderName}/{status.IconFile}";
+            if (!reference.Exists(icon)) continue;
+            statusIcons[status.Id] = await ImageFile.LoadAsync(reference.Read(icon));
+            statuses.Add(status);
+        }
+
+        return new OperatorLibrary(reference, userFolder, operators, icons, learned, statuses, statusIcons);
     }
 
     // "learned/Laevatain/2026….png" → "Laevatain"
@@ -117,6 +135,32 @@ public sealed class OperatorLibrary
     {
         var parts = path.Split('/');
         return parts.Length == 3 ? parts[1] : null;
+    }
+
+    /// <summary>Status effects with their icons (enemy debuffs, team buffs), from the downloaded library.</summary>
+    public IReadOnlyList<StatusInfo> Statuses => _statuses;
+
+    /// <summary>A status's icon, or null if the library has none.</summary>
+    public Frame? StatusIcon(string id) => _statusIcons.GetValueOrDefault(id);
+
+    internal static void SaveStatuses(string folder, IEnumerable<StatusInfo> statuses)
+    {
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, StatusManifestName), JsonSerializer.Serialize(statuses, Json));
+    }
+
+    /// <summary>The statuses listed in a library folder (none if it has no list or it can't be read).</summary>
+    internal static IReadOnlyList<StatusInfo> ReadStatuses(string folder)
+    {
+        string path = Path.Combine(folder, StatusManifestName);
+        try
+        {
+            return File.Exists(path) ? JsonSerializer.Deserialize<List<StatusInfo>>(File.ReadAllText(path)) ?? [] : [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
     }
 
     internal static void SaveManifest(string folder, IEnumerable<OperatorInfo> operators)
