@@ -57,6 +57,7 @@ public partial class OverlayWindow : Window
         CheckForUpdatesCheckBox.IsChecked = config.CheckForUpdates;
         DebugRoot.Visibility = Visibility.Collapsed;
         InitComboHintSettings();
+        ReloadRotations();
 
         _party = new PartyMonitor(TimeSpan.FromMilliseconds(Math.Max(250, config.OcrIntervalMs)));
         _party.Updated += (state, error) => Dispatcher.BeginInvoke(() => ShowParty(state, error));
@@ -174,6 +175,7 @@ public partial class OverlayWindow : Window
 
         MenuPanel.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
         SetComboHintEditing(open);
+        SetRotationEditing(open);
 
         if (open)
         {
@@ -306,6 +308,7 @@ public partial class OverlayWindow : Window
     {
         _lastState = state;
         UpdateComboHints();
+        TrackRotation(state);
 
         if (errorKey is not null)
         {

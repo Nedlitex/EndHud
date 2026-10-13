@@ -182,6 +182,7 @@ public partial class OverlayWindow
         double scale = ComboHintLayout.Scale(HintCanvas.ActualHeight, VisualTreeHelper.GetDpi(this).DpiScaleY);
         ComboHintFrame.LayoutTransform = new ScaleTransform(scale, scale);
         PlaceComboHintsFromConfig();
+        ScaleRotationStrip(scale);
     }
 
     private void PlaceComboHintsFromConfig() =>

@@ -17,8 +17,20 @@ internal sealed class HudConfig
     /// <summary>Read the squad panel (bottom-left): HP, combo cooldowns, ultimates, levels.</summary>
     public bool PartyOcrEnabled { get; set; } = true;
 
-    /// <summary>How often the squad panel is read, in milliseconds (minimum 250).</summary>
-    public int OcrIntervalMs { get; set; } = 1000;
+    /// <summary>How often the screen is read, in milliseconds (minimum 250). Rotations need it fast:
+    /// skill points are spent and refilled quickly.</summary>
+    public int OcrIntervalMs { get; set; } = DefaultOcrIntervalMs;
+
+    public const int DefaultOcrIntervalMs = 250;
+
+    /// <summary>
+    /// The settings file's version; null in files from before versions were kept. Used to update
+    /// old defaults the player never chose: files from before version 2 have the old reading
+    /// interval, 1000 ms, which becomes 250.
+    /// </summary>
+    public int? SettingsVersion { get; set; }
+
+    public const int CurrentSettingsVersion = 2;
 
     /// <summary>UI language; picks the file i18n/&lt;Language&gt;.xaml.</summary>
     public string Language { get; set; } = "zh-CN";
@@ -41,6 +53,21 @@ internal sealed class HudConfig
     public double ComboHintX { get; set; } = DefaultComboHintX;
 
     public double ComboHintY { get; set; } = DefaultComboHintY;
+
+    /// <summary>Show the rotation strip (排轴) when the recognised squad has a rotation.</summary>
+    public bool RotationEnabled { get; set; } = true;
+
+    /// <summary>Top-left corner of the rotation strip, as a fraction of the game window.</summary>
+    public double RotationX { get; set; } = DefaultRotationX;
+
+    public double RotationY { get; set; } = DefaultRotationY;
+
+    /// <summary>The rotation chosen for each squad (several can be for the same one), by squad key.</summary>
+    public Dictionary<string, string> ActiveRotations { get; set; } = [];
+
+    // Top centre, under the boss's name, bars and statuses.
+    public const double DefaultRotationX = 0.3;
+    public const double DefaultRotationY = 0.13;
 
     public const double DefaultComboHintSeconds = 3;
     // Left of the screen's centre, where the game shows its own combo banner.
@@ -71,7 +98,7 @@ internal static class ConfigStore
     {
         if (!File.Exists(FilePath))
         {
-            var defaults = new HudConfig();
+            var defaults = new HudConfig { SettingsVersion = HudConfig.CurrentSettingsVersion };
             Save(defaults);
             return defaults;
         }
@@ -89,7 +116,17 @@ internal static class ConfigStore
     }
 
     /// <summary>A config file's text; settings it doesn't mention keep their defaults, and ones EndHud no longer has are ignored.</summary>
-    internal static HudConfig Parse(string json) => JsonSerializer.Deserialize<HudConfig>(json, Json) ?? new HudConfig();
+    internal static HudConfig Parse(string json)
+    {
+        var config = JsonSerializer.Deserialize<HudConfig>(json, Json) ?? new HudConfig();
+        if (config.SettingsVersion is null or < 2)
+        {
+            // 1000 ms was the default before version 2; rotations need the new default.
+            if (config.OcrIntervalMs == 1000) config.OcrIntervalMs = HudConfig.DefaultOcrIntervalMs;
+            config.SettingsVersion = HudConfig.CurrentSettingsVersion;
+        }
+        return config;
+    }
 
     internal static string Serialize(HudConfig config) => JsonSerializer.Serialize(config, Json);
 

@@ -72,6 +72,17 @@
                 <StackPanel x:Name="ComboHintStack" />
             </StackPanel>
         </Border>
+        <!-- The rotation strip (排轴), placed like the combo hint (config RotationX/Y). -->
+        <Border x:Name="RotationFrame" BorderThickness="2" Padding="6" CornerRadius="4" Background="Transparent"
+                Visibility="Collapsed"
+                MouseLeftButtonDown="Rotation_MouseDown" MouseMove="Rotation_MouseMove"
+                MouseLeftButtonUp="Rotation_MouseUp">
+            <StackPanel>
+                <TextBlock x:Name="RotationDragLabel" Visibility="Collapsed" Text="{DynamicResource Rotation.Drag}"
+                           Foreground="{StaticResource Accent}" Margin="0,0,0,4" />
+                <ContentControl x:Name="RotationContent" />
+            </StackPanel>
+        </Border>
     </Canvas>
     </Grid>
 
