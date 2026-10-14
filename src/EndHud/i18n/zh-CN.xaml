@@ -15,6 +15,7 @@
     <!-- 连携就绪提示 -->
     <sys:String x:Key="ComboHint.Ready">连携就绪</sys:String>
     <sys:String x:Key="ComboHint.Soon">{0:0.0} 秒后就绪</sys:String>
+    <sys:String x:Key="ComboHint.Almost">即将就绪</sys:String>
     <sys:String x:Key="ComboHint.Sample">连携提示</sys:String>
     <sys:String x:Key="ComboHint.Drag">按住拖动，调整提示位置</sys:String>
 

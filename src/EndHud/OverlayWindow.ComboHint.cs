@@ -20,6 +20,7 @@ public partial class OverlayWindow
     private static readonly double[] ComboHintSecondsChoices = [2, 3, 5];
     private static readonly double[] ComboHintLeadChoices = [0, 0.5, 1, 2, 3];
     private readonly Dictionary<int, string> _bannerStatus = []; // slot → the status line each banner shows
+    private readonly Dictionary<int, bool> _bannerSoon = []; // slot → counting down (not ready yet)
 
 
     private readonly ComboHints _hints = new();
@@ -110,9 +111,14 @@ public partial class OverlayWindow
         // Each banner's status line: ready, or the seconds left while it's shown early.
         var now = _clock.Elapsed;
         foreach (var (number, _, _) in wanted)
-            _bannerStatus[number] = _hints.SecondsLeft(number, now) is { } left && state?.Slots[number - 1].Combo is { Ready: false }
-                ? Loc.Format("ComboHint.Soon", Math.Max(0.1, left))
-                : Loc.Get("ComboHint.Ready");
+        {
+            bool soon = _hints.SecondsLeft(number, now) is { } left && state?.Slots[number - 1].Combo is { Ready: false };
+            _bannerSoon[number] = soon;
+            double secondsLeft = soon ? _hints.SecondsLeft(number, now)!.Value : 0;
+            _bannerStatus[number] = !soon ? Loc.Get("ComboHint.Ready")
+                : secondsLeft < 0.1 ? Loc.Get("ComboHint.Almost")
+                : Loc.Format("ComboHint.Soon", secondsLeft);
+        }
 
         foreach (var banner in _banners.Where(b => !wanted.Any(w => w.Number == b.Slot && w.Key == b.Key)).ToList())
         {
@@ -126,8 +132,10 @@ public partial class OverlayWindow
                 // Up already: the countdown moves on, or it became ready; changed in place, no slide.
                 if (shown.Element.Tag as string != Status(number))
                 {
+                    bool wasSoon = shown.Element.Tag is string before && before != Loc.Get("ComboHint.Ready");
                     shown.Element.Child = shown.BuildContent();
                     shown.Element.Tag = Status(number);
+                    if (wasSoon && !Soon(number)) ComboBanner.BecomeReady(shown.Element); // it counted down to ready
                 }
                 continue;
             }
@@ -136,6 +144,7 @@ public partial class OverlayWindow
                 : () => OperatorBannerContent(slot);
             var element = ComboBanner.Create(build());
             element.Tag = Status(number);
+            ComboBanner.SetSoon(element, Soon(number));
             var holder = ComboBanner.Holder(element, number);
             // In slot order; banners still sliding out count too.
             int index = ComboHintStack.Children.OfType<FrameworkElement>().Count(c => c.Tag is int n && n < number);
@@ -160,8 +169,10 @@ public partial class OverlayWindow
         var op = slot.Operator?.Operator;
         // The roster's avatar and combo icon; an unrecognised operator gets just the slot number.
         return ComboBanner.Content(op is null ? null : Avatar(op), ComboIcon(op),
-            op?.NameZh ?? Loc.Format("Party.SlotNumber", slot.Number), Status(slot.Number));
+            op?.NameZh ?? Loc.Format("Party.SlotNumber", slot.Number), Status(slot.Number), Soon(slot.Number));
     }
+
+    private bool Soon(int slot) => _bannerSoon.TryGetValue(slot, out bool soon) && soon;
 
     private string Status(int slot) => _bannerStatus.TryGetValue(slot, out var status) ? status : Loc.Get("ComboHint.Ready");
 

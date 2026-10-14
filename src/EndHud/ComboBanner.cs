@@ -19,6 +19,15 @@ internal static class ComboBanner
     public static readonly Brush Accent = Frozen(new SolidColorBrush(Color.FromRgb(0xE6, 0xC2, 0x29)));
 
     private static readonly Brush TextBrush = Frozen(new SolidColorBrush(Color.FromArgb(0xEE, 0xFF, 0xFF, 0xFF)));
+
+    // A combo about to be ready (counting down) is drawn muted, in a cool grey-blue, so it reads
+    // apart from a ready one at a glance; turning ready plays a gold pulse (BecomeReady).
+    private static readonly Color AccentColor = Color.FromRgb(0xE6, 0xC2, 0x29);
+    private static readonly Color SoonEdgeColor = Color.FromRgb(0x7F, 0x9C, 0xB8);
+    private static readonly Brush SoonCaption = Frozen(new SolidColorBrush(Color.FromRgb(0xA8, 0xCB, 0xEA)));
+    private const double SoonContentOpacity = 0.6;
+    private static readonly TimeSpan PulseTime = TimeSpan.FromMilliseconds(600), PopTime = TimeSpan.FromMilliseconds(350);
+    private const double PopScale = 1.08;
     private static readonly FontFamily Font = new("Microsoft YaHei UI, Segoe UI");
 
     // ---- The animation, in one place ----
@@ -37,8 +46,11 @@ internal static class ComboBanner
     /// <summary>How long a banner takes to slide out and close its space.</summary>
     public static TimeSpan OutDuration => CloseStart + GapTime;
 
-    /// <summary>The banner's content: the operator's avatar and combo icon (either may be missing), name and caption.</summary>
-    public static UIElement Content(BitmapSource? avatar, BitmapSource? icon, string name, string caption)
+    /// <summary>
+    /// The banner's content: the operator's avatar and combo icon (either may be missing), name and
+    /// caption. <paramref name="soon"/>: about to be ready (the caption a countdown), drawn muted.
+    /// </summary>
+    public static UIElement Content(BitmapSource? avatar, BitmapSource? icon, string name, string caption, bool soon = false)
     {
         // The banner is slanted like the game's; its content is slanted back upright.
         var content = new StackPanel { Orientation = Orientation.Horizontal, RenderTransform = new SkewTransform(12, 0) };
@@ -48,9 +60,40 @@ internal static class ComboBanner
             content.Children.Add(new Image { Source = icon, Width = 44, Height = 44, Margin = new Thickness(avatar is null ? 14 : 0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center });
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(avatar is null && icon is null ? 18 : 0, 0, 28, 0) };
         text.Children.Add(new TextBlock { Text = name, FontSize = 20, FontWeight = FontWeights.Bold, Foreground = TextBrush, FontFamily = Font });
-        text.Children.Add(new TextBlock { Text = caption, FontSize = 14, Foreground = Accent, FontFamily = Font });
+        text.Children.Add(new TextBlock { Text = caption, FontSize = 14, Foreground = soon ? SoonCaption : Accent, FontFamily = Font });
         content.Children.Add(text);
+        if (soon) content.Opacity = SoonContentOpacity;
         return content;
+    }
+
+    /// <summary>Gives the banner's edge the look of <paramref name="soon"/> (grey-blue) or ready (gold), without animating.</summary>
+    public static void SetSoon(Border banner, bool soon) =>
+        banner.BorderBrush = new SolidColorBrush(soon ? SoonEdgeColor : AccentColor);
+
+    /// <summary>The combo it counted down to is ready: the edge turns gold and flares, and the banner pops.</summary>
+    public static void BecomeReady(Border banner)
+    {
+        var edge = new SolidColorBrush(SoonEdgeColor);
+        banner.BorderBrush = edge;
+        edge.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(AccentColor, PopTime) { EasingFunction = EaseOut });
+        banner.BeginAnimation(Border.BorderThicknessProperty, new ThicknessAnimation(
+            new Thickness(FlareWidth, 0, 0, 0), new Thickness(EdgeWidth, 0, 0, 0), PulseTime) { EasingFunction = EaseOut });
+        var pop = new DoubleAnimation(PopScale, 1, PopTime) { EasingFunction = EaseOut };
+        Scale(banner).BeginAnimation(ScaleTransform.ScaleXProperty, pop);
+        Scale(banner).BeginAnimation(ScaleTransform.ScaleYProperty, pop);
+    }
+
+    /// <summary>The banner as it looks <paramref name="sinceReady"/> after <see cref="BecomeReady"/>, without running it (for the tools).</summary>
+    public static void PoseBecomeReady(Border banner, TimeSpan sinceReady)
+    {
+        double Part(TimeSpan duration) => EaseOut.Ease(Math.Clamp(sinceReady.TotalMilliseconds / duration.TotalMilliseconds, 0, 1));
+        double c = Part(PopTime);
+        byte Mix(byte from, byte to) => (byte)Math.Round(from + (to - from) * c);
+        banner.BorderBrush = new SolidColorBrush(Color.FromRgb(Mix(SoonEdgeColor.R, AccentColor.R), Mix(SoonEdgeColor.G, AccentColor.G), Mix(SoonEdgeColor.B, AccentColor.B)));
+        banner.BorderThickness = new Thickness(FlareWidth + (EdgeWidth - FlareWidth) * Part(PulseTime), 0, 0, 0);
+        double scale = PopScale + (1 - PopScale) * c;
+        Scale(banner).ScaleX = scale;
+        Scale(banner).ScaleY = scale;
     }
 
     /// <summary>The slanted banner around <paramref name="content"/>.</summary>
@@ -62,7 +105,8 @@ internal static class ComboBanner
         Background = new LinearGradientBrush(Color.FromArgb(0xE6, 0x10, 0x14, 0x18), Color.FromArgb(0x30, 0x10, 0x14, 0x18), 0),
         BorderBrush = Accent,
         BorderThickness = new Thickness(EdgeWidth, 0, 0, 0),
-        RenderTransform = new TransformGroup { Children = { new SkewTransform(-12, 0), new TranslateTransform() } },
+        RenderTransformOrigin = new Point(0, 0.5),
+        RenderTransform = new TransformGroup { Children = { new ScaleTransform(1, 1), new SkewTransform(-12, 0), new TranslateTransform() } },
         Child = content,
     };
 
@@ -121,6 +165,9 @@ internal static class ComboBanner
         banner.BorderThickness = new Thickness(edge, 0, 0, 0);
         Translation(banner).X = x;
     }
+
+    private static ScaleTransform Scale(Border banner) =>
+        ((TransformGroup)banner.RenderTransform).Children.OfType<ScaleTransform>().Single();
 
     private static TranslateTransform Translation(Border banner) =>
         ((TransformGroup)banner.RenderTransform).Children.OfType<TranslateTransform>().Single();

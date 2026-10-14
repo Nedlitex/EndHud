@@ -12,15 +12,16 @@ public sealed record CounterReading(string OperatorId, string CounterId, int? Va
 /// Operators' own counters, drawn left of the skill-point bar for the controlled operator. Each
 /// operator draws theirs differently, so each has its own reader here; an operator without one has
 /// no counter reading (conditions on it count as unknown). Confirmed on screen so far: Laevatain's
-/// 熔火, and Typhoeus's 猎矢 and 启示. Zhuang Fangyi's 青霆剑 is known but not read yet.
+/// 熔火, Typhoeus's 猎矢 and 启示, and Zhuang Fangyi's 青霆剑.
 /// </summary>
 public static class OperatorCounters
 {
     public static readonly CounterDefinition MeltingFlame = new("Laevatain", "melting-flame", "熔火", "Melting Flame", 4);
     public static readonly CounterDefinition HuntingArrow = new("Typhoeus", "hunting-arrow", "猎矢", "Hunting Arrow", 4);
     public static readonly CounterDefinition Sign = new("Typhoeus", "sign", "启示", "Sign", 8);
+    public static readonly CounterDefinition Sunderblade = new("Zhuang_Fangyi", "sunderblade", "青霆剑", "Sunderblade", 9);
 
-    public static IReadOnlyList<CounterDefinition> Definitions { get; } = [MeltingFlame, HuntingArrow, Sign];
+    public static IReadOnlyList<CounterDefinition> Definitions { get; } = [MeltingFlame, HuntingArrow, Sign, Sunderblade];
 
     public static IEnumerable<CounterDefinition> For(string operatorId) => Definitions.Where(d => d.OperatorId == operatorId);
 
@@ -43,6 +44,7 @@ public static class OperatorCounters
             int? value = counter == MeltingFlame ? ReadPetals(frame)
                 : counter == HuntingArrow ? ReadArrows(frame)
                 : counter == Sign ? ReadSigns(frame)
+                : counter == Sunderblade ? ReadSunderblades(frame)
                 : null;
             readings.Add(new CounterReading(operatorId, counter.Id, value));
         }
@@ -157,6 +159,42 @@ public static class OperatorCounters
         int count = lit.Count(l => l);
         return lit.Take(count).All(l => l) ? count : null; // the first ones, bottom up
     }
+
+    /// <summary>
+    /// Zhuang Fangyi's 青霆剑: a diamond-shaped grid of nine cells (rows of 1, 2, 3, 2, 1) left of the
+    /// skill-point bar, one lit cyan per sword, dark grey otherwise; the game prints the count beside
+    /// it. Null when any cell is neither (the HUD hidden by an animation, a flash over it).
+    /// </summary>
+    private static int? ReadSunderblades(Frame frame)
+    {
+        var ui = new UiScaler(frame.Width, frame.Height);
+        int lit = 0;
+        foreach (var (cx, cy) in SunderbladeCells)
+        {
+            var r = ui.BottomCenter(new PixelRect(cx - SunderbladeHalfSize, cy - SunderbladeHalfSize, 2 * SunderbladeHalfSize + 1, 2 * SunderbladeHalfSize + 1))
+                .ClampTo(frame.Width, frame.Height);
+            if (r.IsEmpty) return null;
+            int n = 0, cyan = 0, grey = 0;
+            for (int y = r.Y; y < r.Bottom; y++)
+            for (int x = r.X; x < r.Right; x++)
+            {
+                var (cr, cg, cb) = frame.GetPixel(x, y);
+                int max = Math.Max(cr, Math.Max(cg, cb)), min = Math.Min(cr, Math.Min(cg, cb));
+                n++;
+                if (cg >= 200 && cb >= 170 && cg - cr >= 40) cyan++;
+                else if (max - min <= 25 && max >= 70 && max <= 150) grey++;
+            }
+            if (cyan > n * ArrowBarShare) lit++;
+            else if (grey <= n * ArrowBarShare) return null;
+        }
+        return lit;
+    }
+
+    // The nine cells' centres, measured at 4K on the owner's recording (Fixtures/counters, zhuang-*),
+    // bottom-centre anchored. Lit: G 220-255, B 190-233, R 145-180; unlit grey 100-125.
+    private static readonly (int X, int Y)[] SunderbladeCells =
+        [(1523, 1948), (1510, 1961), (1536, 1961), (1496, 1974), (1523, 1974), (1548, 1973), (1510, 1987), (1535, 1987), (1523, 2000)];
+    private const int SunderbladeHalfSize = 2;
 
     // Measured at 4K on a recording of the owner's fight (Fixtures/counters, native-*), bottom-centre
     // anchored: the bars' middle rows (the dots share them) and the straight part of each bar.

@@ -32,7 +32,10 @@ still being recognised (the first second or so), a hint waits for the name inste
   finishes (2, 3 or 5 s; default 3 s), or show for as long as the combo skill stays ready.
 - **Early, counting down** (提前提示; off, 0.5, 1, 2 or 3 s; default 1 s): the banner appears that
   long before the cooldown finishes, saying "0.5 秒后就绪", then "连携就绪". The time left comes from
-  how fast the bar filled over the last 3 s ([`ComboHints`](src/EndHud.Vision/ComboHints.cs)).
+  how fast the bar filled over the last 3 s ([`ComboHints`](src/EndHud.Vision/ComboHints.cs)); once
+  up, it stays until the combo is ready, never counts back up, and says "即将就绪" below 0.1 s. A
+  combo counting down is drawn muted (grey-blue edge, pale-blue text); turning ready, the edge
+  flares gold and the banner pops.
 - **Move it**: open the menu (Ctrl+Shift+M) and drag the banner. "Reset position" puts it back.
   The spot is saved relative to the game window, so it survives resizing.
 - A cooldown refreshed early by a skill (the bar jumps straight to ready) counts the same as one
@@ -469,7 +472,7 @@ like everything else.
 | Skill points ([`SkillPointBar`](src/EndHud.Vision/SkillPointBar.cs)) | the segmented bar above the battle skill buttons, bottom centre | yellow segments are full; the white fill of the next one gives the fraction (e.g. 1.4) |
 | Controlled operator ([`ActiveSlot`](src/EndHud.Vision/ActiveSlot.cs)) | the chevron over the controlled operator's portrait | shape match against the chevron |
 | Battle skill ([`BattleSkillButton`](src/EndHud.Vision/BattleSkillButton.cs)) | each battle skill button, bottom right | a dark disc with white digits is cooling; the white icon is available |
-| Operator counters ([`OperatorCounters`](src/EndHud.Vision/Operators/OperatorCounters.cs)) | the controlled operator's resource, bottom centre | Laevatain's 熔火 (0–4): lit petals of the flower; pink petals mean full. Typhoeus's 猎矢 (`hunting-arrow`, 0–4): bars lit cyan (with a white streak over them when full); and 启示 (`sign`, 0–8): dots lit white, filling from the bottom row. Unknown when a bar or dot is neither lit nor grey, or the lit ones aren't in their fill order (the HUD moving) |
+| Operator counters ([`OperatorCounters`](src/EndHud.Vision/Operators/OperatorCounters.cs)) | the controlled operator's resource, bottom centre | Laevatain's 熔火 (0–4): lit petals of the flower; pink petals mean full. Typhoeus's 猎矢 (`hunting-arrow`, 0–4): bars lit cyan (with a white streak over them when full); and 启示 (`sign`, 0–8): dots lit white, filling from the bottom row. Unknown when a bar or dot is neither lit nor grey, or the lit ones aren't in their fill order (the HUD moving). Zhuang Fangyi's 青霆剑 (`sunderblade`, 0–9): cells of a diamond grid lit cyan |
 | Elemental infliction ([`InflictionRing`](src/EndHud.Vision/InflictionRing.cs)) | the ring at the right end of the boss's HP bar, top centre | present when the white stack segment on top of the ring shows; the element from the colour of the icon inside (heat, cryo, electric, nature) |
 | Enemy statuses ([`BossStatusReader`](src/EndHud.Vision/BossStatusReader.cs)) | the icon row under the boss's bars, top centre | each square is matched against the wiki's status icons; read at most once a second and only when the current rotation asks about statuses (about 70 ms a read at 4K) |
 
@@ -694,8 +697,8 @@ Copy `src/EndHud/i18n/zh-CN.xaml` to, for example, `en-US.xaml`, translate the v
   refreshed within about two seconds of being used therefore gets no hint.
 - Hints and the rotation strip follow the screen reading, four times a second by default
   (`OcrIntervalMs`), so they can lag the game by up to a quarter of a second.
-- Rotations: Laevatain's 熔火 and Typhoeus's 猎矢 and 启示 are read as operator counters so far
-  (Zhuang Fangyi's 青霆剑 isn't yet); counters are read for the controlled operator only. A battle
+- Rotations: Laevatain's 熔火, Typhoeus's 猎矢 and 启示, and Zhuang Fangyi's 青霆剑 are read as
+  operator counters so far; counters are read for the controlled operator only. A battle
   skill's cooldown is read as available or cooling, not its seconds. Stack counts aren't read (the status row's
   badges, or the infliction ring's segments), so the editor doesn't offer them, and a shared
   rotation asking for 2+ stacks treats that check as unknown. Infliction rings have been seen at one

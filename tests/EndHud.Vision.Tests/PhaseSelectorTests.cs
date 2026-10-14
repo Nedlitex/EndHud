@@ -95,4 +95,27 @@ public class PhaseSelectorTests
         Assert.Equal("充能轴 II", Shown(selector, Reading(4, 4, arcane: 0.5, liino: 0.5)));
         Assert.Equal("爆发轴 I", Shown(selector, Reading(4, 4, arcane: 1, liino: 0.5)));
     }
+
+    /// <summary>Zhuang Fangyi controlled with this many swords (青霆剑) and her ultimate ready or not.</summary>
+    private static PartyState Zhuang(int? swords, bool ultimateReady)
+    {
+        string[] squad = ["Zhuang_Fangyi", "Liino", "Arcane", "Perlica"];
+        var slots = squad.Select((id, i) => new PartySlot(i + 1, null, 1.0, "", new Frame(1, 1, new byte[4]),
+            Ultimate: new UltimateReading(i == 0 && ultimateReady, i == 0 && ultimateReady ? 1 : 0.5),
+            Operator: new OperatorMatch(new OperatorInfo(id, id, id, id + ".png"), 1, true))).ToList();
+        return new PartyState(slots, PanelMarks: 8) { ActiveSlot = 1, Counters = [new CounterReading("Zhuang_Fangyi", OperatorCounters.Sunderblade.Id, swords)] };
+    }
+
+    [Fact]
+    public void Zhuang_fangyi_charges_on_swords_and_bursts_at_nine_with_her_ultimate()
+    {
+        var selector = new PhaseSelector(Load("zhuang-fangyi-liino-arcane-perlica"));
+
+        Assert.Equal("充能轴 I", Shown(selector, Zhuang(3, false)));
+        Assert.Equal("充能轴 II", Shown(selector, Zhuang(5, false)));
+        Assert.Equal("充能轴 II", Shown(selector, Zhuang(9, false))); // nine, ultimate still charging
+        Assert.Equal("爆发轴 III", Shown(selector, Zhuang(9, true)));
+        Assert.Equal("爆发轴 III", Shown(selector, Zhuang(7, true))); // spending: nothing else holds yet
+        Assert.Equal("充能轴 I", Shown(selector, Zhuang(0, false))); // swords spent: charging again
+    }
 }

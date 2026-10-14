@@ -28,7 +28,9 @@ public enum ComboHintMode
 /// </list>
 /// <item>Early (<see cref="Lead"/>): a combo about to come off cooldown is hinted that long before,
 /// with the seconds left (<see cref="SecondsLeft"/>), worked out from how fast its bar has been
-/// filling over the last <see cref="SpeedWindow"/>.</item>
+/// filling over the last <see cref="SpeedWindow"/>. Once shown it stays until the combo is ready
+/// (or used again, or the fight ends), and the seconds shown never go back up: a bar that slows
+/// down near the end shows 0 ("about to be ready") until it's full.</item>
 /// Calling <see cref="Update"/> again with the same reading only re-checks the timing, so a
 /// display can refresh on a timer between readings.
 /// </summary>
@@ -42,6 +44,8 @@ public sealed class ComboHints
     private PartyState? _lastReading;
     private readonly TimeSpan?[] _readyAt = new TimeSpan?[PartyLayout.SlotCount];
     private readonly List<(TimeSpan At, double Progress)>[] _filling = Enumerable.Range(0, PartyLayout.SlotCount).Select(_ => new List<(TimeSpan, double)>()).ToArray();
+    private readonly bool[] _countingDown = new bool[PartyLayout.SlotCount];
+    private readonly (double Left, TimeSpan At)?[] _shownLeft = new (double, TimeSpan)?[PartyLayout.SlotCount];
 
     /// <summary>The readings a bar's filling speed is worked out from, and the least time they must span.</summary>
     public static readonly TimeSpan SpeedWindow = TimeSpan.FromSeconds(3);
@@ -56,21 +60,51 @@ public sealed class ComboHints
     public TimeSpan Lead { get; set; } = TimeSpan.Zero;
 
     /// <summary>
-    /// Seconds until this slot's (1–4) combo is ready, while it's hinted early; null when it's ready,
-    /// or when there's no estimate (the bar's speed isn't known yet).
+    /// Seconds until this slot's (1–4) combo is ready, while it's counting down (hinted early): never
+    /// more than shown before less the time since (it ticks down even while the bar stalls), 0 when
+    /// it has run out but the bar isn't full yet. Null when
+    /// it's ready or not counting down, or there's no estimate (the bar's speed isn't known yet).
     /// </summary>
     public double? SecondsLeft(int slotNumber, TimeSpan now)
     {
         if (slotNumber is < 1 or > PartyLayout.SlotCount) return null;
-        var filling = _filling[slotNumber - 1];
+        int i = slotNumber - 1;
+        double? estimate = Estimate(i, now);
+        if (!_countingDown[i]) return estimate;
+        double left = estimate ?? double.MaxValue;
+        if (_shownLeft[i] is { } shown) left = Math.Min(left, shown.Left - (now - shown.At).TotalSeconds);
+        left = Math.Max(0, left == double.MaxValue ? 0 : left);
+        _shownLeft[i] = (left, now);
+        return left;
+    }
+
+    /// <summary>When the bar will be full at the speed it filled over the last few seconds.</summary>
+    private double? Estimate(int slot, TimeSpan now)
+    {
+        var filling = _filling[slot];
         if (filling.Count < 2 || filling[^1].At - filling[0].At < MinSpeedSpan) return null;
         double perSecond = (filling[^1].Progress - filling[0].Progress) / (filling[^1].At - filling[0].At).TotalSeconds;
         if (perSecond <= 0) return null;
         return (1 - filling[^1].Progress) / perSecond - (now - filling[^1].At).TotalSeconds;
     }
 
-    private bool Soon(int slot, TimeSpan now) =>
-        Lead > TimeSpan.Zero && SecondsLeft(slot + 1, now) is { } left && left > 0 && left <= Lead.TotalSeconds + 1e-6;
+    /// <summary>Hinted early: already counting down, or due within the lead now (then it starts).</summary>
+    private bool Soon(int slot, TimeSpan now)
+    {
+        if (Lead <= TimeSpan.Zero) return false;
+        if (!_countingDown[slot] && Estimate(slot, now) is { } left && left > 0 && left <= Lead.TotalSeconds + 1e-6)
+        {
+            _countingDown[slot] = true;
+            _shownLeft[slot] = (left, now); // counts down from here
+        }
+        return _countingDown[slot];
+    }
+
+    private void StopCountdown(int slot)
+    {
+        _countingDown[slot] = false;
+        _shownLeft[slot] = null;
+    }
 
     /// <summary>Slot numbers (1–4) that should show a hint now. <paramref name="now"/> is any steady clock.</summary>
     public IReadOnlyList<int> Update(PartyState state, TimeSpan now)
@@ -99,6 +133,7 @@ public sealed class ComboHints
                 {
                     (_sawCooling[i], _coolingReadings[i], _readyAt[i]) = (false, 0, null);
                     _filling[i].Clear();
+                    StopCountdown(i);
                 }
                 continue;
             }
@@ -107,7 +142,11 @@ public sealed class ComboHints
                 _readyAt[i] = null;
                 if (++_coolingReadings[i] >= CoolingReadingsNeeded) _sawCooling[i] = true;
                 var filling = _filling[i];
-                if (filling.Count > 0 && combo.Progress < filling[^1].Progress - 0.05) filling.Clear(); // used again: a new cooldown
+                if (filling.Count > 0 && combo.Progress < filling[^1].Progress - 0.05)
+                {
+                    filling.Clear(); // used again: a new cooldown
+                    StopCountdown(i);
+                }
                 filling.Add((now, combo.Progress));
                 filling.RemoveAll(f => now - f.At > SpeedWindow);
                 if (Soon(i, now)) show.Add(slot.Number);
@@ -115,6 +154,7 @@ public sealed class ComboHints
             }
             _coolingReadings[i] = 0;
             _filling[i].Clear();
+            StopCountdown(i);
             if (_sawCooling[i])
             {
                 _sawCooling[i] = false;

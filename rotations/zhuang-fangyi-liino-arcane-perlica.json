@@ -1,0 +1,184 @@
+{
+  "format": 2,
+  "id": "zhuang-fangyi-liino-arcane-perlica",
+  "name": "庄方宜 梨诺 诀 佩丽卡",
+  "squad": [
+    "Zhuang_Fangyi",
+    "Liino",
+    "Arcane",
+    "Perlica"
+  ],
+  "phases": [
+    {
+      "id": "charge-1",
+      "name": "充能轴",
+      "when": [
+        {
+          "kind": "counter",
+          "operatorId": "Zhuang_Fangyi",
+          "counterId": "sunderblade",
+          "is": "AtMost",
+          "value": 4
+        }
+      ],
+      "steps": [
+        {
+          "operatorId": "Liino",
+          "action": "BattleSkill"
+        },
+        {
+          "operatorId": "Perlica",
+          "action": "Combo",
+          "note": "重击后 导电"
+        },
+        {
+          "operatorId": "Liino",
+          "action": "Combo"
+        },
+        {
+          "operatorId": "Zhuang_Fangyi",
+          "action": "BattleSkill"
+        },
+        {
+          "operatorId": "Perlica",
+          "action": "BattleSkill",
+          "note": "⚡+1"
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "Combo",
+          "label": "连携技·意",
+          "note": "⚡+1"
+        },
+        {
+          "operatorId": "Zhuang_Fangyi",
+          "action": "Combo",
+          "note": "重击后 导电"
+        },
+        {
+          "operatorId": "Liino",
+          "action": "Combo"
+        },
+        {
+          "operatorId": "Zhuang_Fangyi",
+          "action": "BattleSkill"
+        }
+      ]
+    },
+    {
+      "id": "charge-2",
+      "name": "充能轴",
+      "when": [
+        {
+          "kind": "counter",
+          "operatorId": "Zhuang_Fangyi",
+          "counterId": "sunderblade",
+          "is": "AtLeast",
+          "value": 5
+        },
+        {
+          "kind": "ultimate",
+          "operatorId": "Zhuang_Fangyi",
+          "ready": false
+        }
+      ],
+      "steps": [
+        {
+          "operatorId": "Perlica",
+          "action": "Combo",
+          "note": "重击后 导电"
+        },
+        {
+          "operatorId": "Liino",
+          "action": "Combo"
+        },
+        {
+          "operatorId": "Zhuang_Fangyi",
+          "action": "BattleSkill"
+        },
+        {
+          "operatorId": "Perlica",
+          "action": "BattleSkill",
+          "note": "⚡+1"
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "Combo",
+          "label": "连携技·意",
+          "note": "⚡+1"
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "Ultimate",
+          "label": "终结技·意",
+          "note": "⚡+1"
+        },
+        {
+          "operatorId": "Zhuang_Fangyi",
+          "action": "Combo",
+          "note": "重击后 导电"
+        },
+        {
+          "operatorId": "Liino",
+          "action": "Combo"
+        },
+        {
+          "operatorId": "Zhuang_Fangyi",
+          "action": "BattleSkill"
+        }
+      ]
+    },
+    {
+      "id": "burst",
+      "name": "爆发轴",
+      "when": [
+        {
+          "kind": "counter",
+          "operatorId": "Zhuang_Fangyi",
+          "counterId": "sunderblade",
+          "is": "Exactly",
+          "value": 9
+        },
+        {
+          "kind": "ultimate",
+          "operatorId": "Zhuang_Fangyi",
+          "ready": true
+        }
+      ],
+      "steps": [
+        {
+          "operatorId": "Perlica",
+          "action": "Combo",
+          "note": "重击后 导电"
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "Ultimate",
+          "label": "终结技·意"
+        },
+        {
+          "operatorId": "Zhuang_Fangyi",
+          "action": "Ultimate"
+        },
+        {
+          "operatorId": "Liino",
+          "action": "Ultimate"
+        },
+        {
+          "operatorId": "Zhuang_Fangyi",
+          "action": "BattleSkill"
+        },
+        {
+          "operatorId": "Zhuang_Fangyi",
+          "action": "BattleSkill",
+          "note": "重击后"
+        },
+        {
+          "operatorId": "Zhuang_Fangyi",
+          "action": "Combo",
+          "note": "导电 再重击"
+        }
+      ]
+    }
+  ]
+}

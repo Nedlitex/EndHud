@@ -96,5 +96,69 @@
     "huntingArrows": 0,
     "signs": null,
     "signsUnreadable": true
+  },
+  {
+    "file": "zhuang-10s.jpg",
+    "sunderblades": 0
+  },
+  {
+    "file": "zhuang-12s.jpg",
+    "sunderblades": 3
+  },
+  {
+    "file": "zhuang-26s.jpg",
+    "sunderblades": 6
+  },
+  {
+    "file": "zhuang-30s.jpg",
+    "sunderblades": 6
+  },
+  {
+    "file": "zhuang-40s.jpg",
+    "sunderblades": 8
+  },
+  {
+    "file": "zhuang-50s.jpg",
+    "sunderblades": null
+  },
+  {
+    "file": "zhuang-54s.jpg",
+    "sunderblades": 5
+  },
+  {
+    "file": "zhuang-62s.jpg",
+    "sunderblades": null
+  },
+  {
+    "file": "zhuang-66s.jpg",
+    "sunderblades": 8
+  },
+  {
+    "file": "zhuang-80s.jpg",
+    "sunderblades": 8
+  },
+  {
+    "file": "zhuang-86s.jpg",
+    "sunderblades": 6
+  },
+  {
+    "file": "zhuang-88s.jpg",
+    "sunderblades": 6
+  },
+  {
+    "file": "zhuang-96s.jpg",
+    "sunderblades": 9
+  },
+  {
+    "file": "zhuang-100s.jpg",
+    "sunderblades": 9
+  },
+  {
+    "file": "zhuang-120s.jpg",
+    "sunderblades": 8
+  },
+  {
+    "file": "zhuang-140s.jpg",
+    "sunderblades": 4
   }
 ]

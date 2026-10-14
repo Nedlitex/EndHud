@@ -157,6 +157,8 @@ static class RotationDemo
         var hintStack = new StackPanel { LayoutTransform = new ScaleTransform(scale, scale) };
         var hintLog = new StringBuilder("seconds\thints\n");
         string lastHints = "";
+        var soonUntil = new Dictionary<int, double>(); // slot → when its countdown turned ready (for the pulse)
+        var wasSoon = new HashSet<int>();
         var canvas = new Canvas { Width = Width, Height = Height, Children = { host, hintStack } };
         Canvas.SetLeft(hintStack, HudConfig.DefaultComboHintX * Width);
         Canvas.SetTop(hintStack, HudConfig.DefaultComboHintY * Height);
@@ -190,10 +192,17 @@ static class RotationDemo
                 {
                     var slot = reading.State.Slots[number - 1];
                     if (slot.Operator?.Operator is not { } op) continue;
-                    string status = hints.SecondsLeft(number, TimeSpan.FromSeconds(t)) is { } left && slot.Combo is { Ready: false }
-                        ? string.Format(System.Globalization.CultureInfo.InvariantCulture, (string)app.Resources["ComboHint.Soon"], Math.Max(0.1, left))
-                        : (string)app.Resources["ComboHint.Ready"];
-                    hintStack.Children.Add(new Grid { Children = { ComboBanner.Create(ComboBanner.Content(Avatar(op), Icon(op, StepAction.Combo), op.NameZh, status)) } });
+                    bool soon = hints.SecondsLeft(number, TimeSpan.FromSeconds(t)) is { } left && slot.Combo is { Ready: false };
+                    double secondsLeft = soon ? hints.SecondsLeft(number, TimeSpan.FromSeconds(t))!.Value : 0;
+                    string status = !soon ? (string)app.Resources["ComboHint.Ready"]
+                        : secondsLeft < 0.1 ? (string)app.Resources["ComboHint.Almost"]
+                        : string.Format(System.Globalization.CultureInfo.InvariantCulture, (string)app.Resources["ComboHint.Soon"], secondsLeft);
+                    var banner = ComboBanner.Create(ComboBanner.Content(Avatar(op), Icon(op, StepAction.Combo), op.NameZh, status, soon));
+                    ComboBanner.SetSoon(banner, soon);
+                    if (soon) wasSoon.Add(number);
+                    else if (wasSoon.Remove(number)) soonUntil[number] = t;
+                    if (!soon && soonUntil.TryGetValue(number, out double readyAt)) ComboBanner.PoseBecomeReady(banner, TimeSpan.FromSeconds(t - readyAt));
+                    hintStack.Children.Add(new Grid { Children = { banner } });
                     shown.Add($"{op.Id}:{status}");
                 }
             }
