@@ -49,6 +49,9 @@ internal sealed class HudConfig
 
     public double ComboHintSeconds { get; set; } = DefaultComboHintSeconds;
 
+    /// <summary>How many seconds before a combo comes off cooldown to show its hint already, counting down; 0: only once ready.</summary>
+    public double ComboHintLeadSeconds { get; set; } = DefaultComboHintLeadSeconds;
+
     /// <summary>Top-left corner of the hints, as a fraction of the game window's width and height.</summary>
     public double ComboHintX { get; set; } = DefaultComboHintX;
 
@@ -65,6 +68,18 @@ internal sealed class HudConfig
 
     public double RotationY { get; set; } = DefaultRotationY;
 
+    /// <summary>
+    /// How far the menu and the debug panel have been dragged from their usual spots (the menu
+    /// centred, the debug panel at the left), as a fraction of the game window's width and height.
+    /// </summary>
+    public double MenuOffsetX { get; set; }
+
+    public double MenuOffsetY { get; set; }
+
+    public double DebugOffsetX { get; set; }
+
+    public double DebugOffsetY { get; set; }
+
     /// <summary>The rotation chosen for each squad (several can be for the same one), by squad key.</summary>
     public Dictionary<string, string> ActiveRotations { get; set; } = [];
 
@@ -73,6 +88,7 @@ internal sealed class HudConfig
     public const double DefaultRotationY = 0.13;
 
     public const double DefaultComboHintSeconds = 3;
+    public const double DefaultComboHintLeadSeconds = 1;
     // Left of the screen's centre, where the game shows its own combo banner.
     public const double DefaultComboHintX = 0.2;
     public const double DefaultComboHintY = 0.36;

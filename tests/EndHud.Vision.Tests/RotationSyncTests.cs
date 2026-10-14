@@ -201,8 +201,19 @@ public sealed class RotationSyncTests : IDisposable
             Assert.Empty(rotation.Problems());
             var named = rotation.Squad.Concat(rotation.Phases.SelectMany(p => p.Steps.Select(s => s.OperatorId)));
             Assert.All(named, id => Assert.NotNull(operators.Find(id)));
+            // A counter EndHud doesn't read would stay unknown for good, so a phase gated on it never opens.
+            var conditions = rotation.Phases.SelectMany(p => p.When.Concat(p.Steps.SelectMany(s => s.Expect)));
+            Assert.All(Flatten(conditions).OfType<CounterCondition>(), c =>
+                Assert.Contains(Operators.OperatorCounters.For(c.OperatorId), d => d.Id == c.CounterId));
         }
     }
+
+    private static IEnumerable<StateCondition> Flatten(IEnumerable<StateCondition> conditions) => conditions.SelectMany(c => c switch
+    {
+        AllCondition all => Flatten(all.Of),
+        AnyCondition any => Flatten(any.Of),
+        _ => [c],
+    });
 
     /// <summary>GitHub's contents API and raw downloads for one folder.</summary>
     private sealed class FakeGitHub : HttpMessageHandler

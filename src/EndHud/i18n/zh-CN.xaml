@@ -14,12 +14,13 @@
 
     <!-- 连携就绪提示 -->
     <sys:String x:Key="ComboHint.Ready">连携就绪</sys:String>
+    <sys:String x:Key="ComboHint.Soon">{0:0.0} 秒后就绪</sys:String>
     <sys:String x:Key="ComboHint.Sample">连携提示</sys:String>
     <sys:String x:Key="ComboHint.Drag">按住拖动，调整提示位置</sys:String>
 
     <!-- Rotation strip (排轴) -->
-    <sys:String x:Key="Rotation.Sample">排轴</sys:String>
     <sys:String x:Key="Rotation.Drag">按住拖动，调整排轴位置</sys:String>
+    <sys:String x:Key="DebugPanel.Drag">按住拖动，调整调试面板位置</sys:String>
     <sys:String x:Key="Rotation.Action.BattleSkill">战技</sys:String>
     <sys:String x:Key="Rotation.Action.Combo">连携技</sys:String>
     <sys:String x:Key="Rotation.Action.Ultimate">终结技</sys:String>
@@ -88,7 +89,10 @@
     <sys:String x:Key="Editor.RemoveCondition">删除条件</sys:String>
     <sys:String x:Key="Editor.Condition.SkillPoints">技力</sys:String>
     <sys:String x:Key="Editor.Condition.Combo">连携技</sys:String>
+    <sys:String x:Key="Editor.Condition.ComboCharge">连携技冷却</sys:String>
+    <sys:String x:Key="Editor.Condition.BattleSkill">战技</sys:String>
     <sys:String x:Key="Editor.Condition.Ultimate">终结技</sys:String>
+    <sys:String x:Key="Editor.Condition.UltimateCharge">终结技充能</sys:String>
     <sys:String x:Key="Editor.Condition.Counter">干员资源</sys:String>
     <sys:String x:Key="Editor.Condition.BossStatus">敌人状态</sys:String>
     <sys:String x:Key="Editor.Condition.Controlling">当前操控</sys:String>
@@ -97,6 +101,7 @@
     <sys:String x:Key="Editor.Compare.Exactly">等于</sys:String>
     <sys:String x:Key="Editor.Ready">就绪</sys:String>
     <sys:String x:Key="Editor.Used">已使用</sys:String>
+    <sys:String x:Key="Editor.Cooling">冷却中</sys:String>
     <sys:String x:Key="Editor.Has">有</sys:String>
     <sys:String x:Key="Editor.HasNot">没有</sys:String>
     <sys:String x:Key="Editor.NoCounters">小队中没有已支持的干员资源（目前支持莱万汀的熔火）</sys:String>
@@ -133,7 +138,6 @@
     <sys:String x:Key="Editor.AddToGroup">在组内添加条件</sys:String>
     <sys:String x:Key="Rotation.Reason.AnyOf">满足其一即可：{0}</sys:String>
     <sys:String x:Key="Rotation.Reason.Or"> 或 </sys:String>
-    <sys:String x:Key="Rotation.Problem.NoDefaultPhase">所有轴段都设置了进入条件：条件都不满足时没有可进行的轴段。请让至少一个轴段不设进入条件。</sys:String>
     <sys:String x:Key="Rotation.Problem.FirstStepWithPrevious">轴段“{0}”的第一步不能“与上一步连放”：轴段里它前面没有步骤。</sys:String>
     <sys:String x:Key="Rotation.Problem.GateOperator">轴段“{0}”的进入条件中有不在小队中的干员。</sys:String>
     <sys:String x:Key="Rotation.Problem.EmptyGateGroup">轴段“{0}”的进入条件中有空的条件组，请添加条件或删除它。</sys:String>
@@ -157,7 +161,7 @@
 
     <!-- Menu: rotation strip -->
     <sys:String x:Key="Menu.Rotation">排轴</sys:String>
-    <sys:String x:Key="Menu.Rotation.Hint">按识别到的小队自动加载排轴，战斗中提示当前该用哪个技能。</sys:String>
+    <sys:String x:Key="Menu.Rotation.Hint">按识别到的小队自动加载排轴，小队栏可见时按当前状态显示该打的轴段。</sys:String>
     <sys:String x:Key="Menu.Rotation.Edit">编辑排轴…</sys:String>
     <sys:String x:Key="Menu.Rotation.ResetPosition">恢复默认位置</sys:String>
     <sys:String x:Key="Tray.EditRotations">编辑排轴</sys:String>
@@ -170,6 +174,7 @@
     <sys:String x:Key="Party.Combo.Cooling">冷却中 {0}</sys:String>
     <sys:String x:Key="Party.Ultimate.Ready">就绪</sys:String>
     <sys:String x:Key="Party.Ultimate.Charging">充能 {0}</sys:String>
+    <sys:String x:Key="Party.Counters">　　资源 {0}</sys:String>
     <sys:String x:Key="Party.SlotNumber">{0} 号位</sys:String>
     <sys:String x:Key="Party.Dead">{0}　阵亡</sys:String>
     <sys:String x:Key="Party.Unknown">—</sys:String>
@@ -180,6 +185,7 @@
 
     <!-- 菜单 -->
     <sys:String x:Key="Menu.Title">ENDHUD — 菜单</sys:String>
+    <sys:String x:Key="Menu.DragHint">按住菜单的空白处可以拖动菜单。</sys:String>
     <sys:String x:Key="Menu.Hotkeys">快捷键</sys:String>
     <sys:String x:Key="Menu.Key.Menu">打开/关闭此菜单</sys:String>
     <sys:String x:Key="Menu.Key.Toggle">显示/隐藏 HUD</sys:String>
@@ -200,6 +206,8 @@
     <sys:String x:Key="Menu.ComboHint.WhenReady">冷却结束时提示</sys:String>
     <sys:String x:Key="Menu.ComboHint.WhileReady">冷却结束后一直显示，直到再次使用</sys:String>
     <sys:String x:Key="Menu.ComboHint.Seconds">{0} 秒</sys:String>
+    <sys:String x:Key="Menu.ComboHint.Lead">提前提示（倒计时）</sys:String>
+    <sys:String x:Key="Menu.ComboHint.LeadOff">关闭</sys:String>
     <sys:String x:Key="Menu.ComboHint.ResetPosition">恢复默认位置</sys:String>
     <sys:String x:Key="Menu.Operators">干员识别</sys:String>
     <sys:String x:Key="Menu.Operators.Hint">头像来自 Endfield Wiki，首次识别可能不准。请为每个位置选择正确的干员，EndHud 会记住该干员在游戏中的样子，之后就能准确识别。</sys:String>

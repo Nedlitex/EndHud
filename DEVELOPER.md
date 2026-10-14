@@ -25,10 +25,14 @@ In combat, when an operator's combo skill comes off cooldown, a banner slides in
 operator's avatar and combo skill icon (both from the downloaded operator library), their name and
 "combo ready". It's styled after the game's own combo banner, slides in from the left with its gold
 edge flaring, slides out when it ends, and sits left of the screen's centre by default. An operator
-EndHud hasn't recognised gets a banner with just their slot number.
+EndHud has no operator library for gets a banner with just their slot number; while the squad is
+still being recognised (the first second or so), a hint waits for the name instead.
 
 - **Two modes** (menu → combo-ready hint section): show for a few seconds when the cooldown
   finishes (2, 3 or 5 s; default 3 s), or show for as long as the combo skill stays ready.
+- **Early, counting down** (提前提示; off, 0.5, 1, 2 or 3 s; default 1 s): the banner appears that
+  long before the cooldown finishes, saying "0.5 秒后就绪", then "连携就绪". The time left comes from
+  how fast the bar filled over the last 3 s ([`ComboHints`](src/EndHud.Vision/ComboHints.cs)).
 - **Move it**: open the menu (Ctrl+Shift+M) and drag the banner. "Reset position" puts it back.
   The spot is saved relative to the game window, so it survives resizing.
 - A cooldown refreshed early by a skill (the bar jumps straight to ready) counts the same as one
@@ -40,19 +44,20 @@ EndHud hasn't recognised gets a banner with just their slot number.
 ### Rotation strip (排轴)
 
 A rotation is the order a squad's skills are used in: battle skills, combos and ultimates (basic
-attacks aren't tracked). In combat, a strip at the top centre of the screen shows the rotation for
-the recognised squad, styled after community rotation charts, and highlights the step to use now.
+attacks aren't tracked). While the squad panel is on screen, a strip at the top centre shows the
+phase of the recognised squad's rotation that fits the game right now, styled after community
+rotation charts.
 
 - **One per squad, any slot order.** The strip shows the rotation chosen for those four operators
   in the editor (or the first one made for them).
-- **Built from phases.** Reusable phases (e.g. 充能轴, 爆发轴) are played in a sequence (e.g.
-  充能轴 ×2, then 爆发轴 ×1) that loops.
-- **No start or reset.** Each step can say what the game should look like when it's that step's
-  turn (its *expected state*). EndHud picks the step that matches the screen best, then moves on
-  when it sees the step's skill used. See [Rotations](#rotations).
-- **When to press it.** The current step has stacked chevrons above it: cyan (with a cyan ring) when
-  its expected state holds and its skill is available, white otherwise, with a line under the
-  band saying what's missing ("技力 1.4/2", "敌人缺少：灼热附着").
+- **Phases chosen by the game's state.** A rotation is a list of phases (e.g. 充能轴 I, 充能轴 II,
+  爆发轴), each with a condition for when it applies ("4 arrows and no ultimate ready"). The strip
+  shows the first phase whose condition holds; in between, the one it showed. See
+  [Rotations](#rotations).
+- **Every step alike.** EndHud can't see which button was pressed, so it doesn't mark a current
+  step: the strip shows the phase's steps in order, with their notes.
+- **Shown while the squad panel is.** In battle or out; not in menus, login or loading screens. The
+  panel may be covered for up to 2 s (effects) before the strip goes.
 - **Looks like the guides' charts:** a see-through grey band that fades out at both ends, no
   backdrop box, the phase name large on the left, a line through the icons. Centred at the top by
   default, and it stays centred as its width changes.
@@ -378,13 +383,10 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
 ```
 
 - `squad`: operator ids from the operator library, in any slot order.
-- `phases`, in order. A phase without `when` is part of the **flow**: the flow plays those phases
-  one after another in list order and loops (here 充能轴 then 充能轴: charge twice, again and
-  again). A phase with `when` is never reached by the flow: it's entered **the moment** its entry
-  condition turns true, even in the middle of another phase, and played to its end; then the flow
-  carries on with the next phase without `when`. Its condition isn't checked again inside it (using
-  the ultimate makes "ultimate ready" false; the burst phase still finishes). At least one phase
-  must have no `when`.
+- `phases`, in order. `when` says when a phase applies: each reading, the first phase whose `when`
+  holds is shown; when none holds (in between, or something can't be read), the phase already shown
+  stays. Before any has held, the first phase without `when` is shown (or the first phase, when all
+  have one). See [Choosing the phase](#choosing-the-phase).
 - `action`: `BattleSkill`, `Combo` or `Ultimate`. The skill being available (a skill point for a
   battle skill, the combo or ultimate ready) is implied; `expect` lists anything else.
 - `withPrevious`: used right after the previous step of the same phase, drawn overlapping it.
@@ -396,7 +398,10 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   |---|---|---|
   | `skillPoints` | `is` (`AtLeast`, `AtMost`, `Exactly`), `value` (0–3, halves allowed) | the skill point bar compares so |
   | `combo` | `operatorId`, `ready` | that operator's combo is ready (`true`) or cooling (`false`) |
+  | `comboCharge` | `operatorId`, `is`, `percent` (0–100) | that operator's combo cooldown bar has refilled so far (ready is 100) |
+  | `battleSkill` | `operatorId`, `ready` | that operator's battle skill button is available (`true`) or cooling (its countdown seconds aren't read) |
   | `ultimate` | `operatorId`, `ready` | that operator's ultimate is ready or charging |
+  | `ultimateCharge` | `operatorId`, `is`, `percent` (0–100) | that operator's ultimate is charged so far (ready is 100) |
   | `counter` | `operatorId`, `counterId`, `is`, `value` | an operator's own resource compares so (see below) |
   | `bossStatus` | `statusId` (the wiki's English name), `present`, `minStacks` | the enemy shows (or doesn't show) that status |
   | `controlling` | `operatorId` | that operator is the one being controlled |
@@ -406,7 +411,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   `all` and `any` nest to any depth. Something the screen doesn't show right now (a cutscene, an
   operator's counter while someone else is controlled) is *unknown*, not false: `all` is false if a
   part is false, else unknown if a part is unknown; `any` is true if a part is true, else unknown if
-  a part is unknown. An entry condition only opens on a *seen* change to true.
+  a part is unknown. A phase's `when` that is unknown doesn't switch to it.
 
 - `format`: 2. A file from a newer EndHud is refused with a message instead of being misread
   (builds from before format 2 say so about a format 2 file or share code). A format 1 file (a fixed
@@ -456,7 +461,7 @@ problems, and every operator in the operator library.
 
 ### What's read for it
 
-All in combat, from the same capture as the squad panel. Positions are measured on 4K and scaled
+From the same capture as the squad panel. Positions are measured on 4K and scaled
 like everything else.
 
 | Reading | Where | How |
@@ -464,7 +469,7 @@ like everything else.
 | Skill points ([`SkillPointBar`](src/EndHud.Vision/SkillPointBar.cs)) | the segmented bar above the battle skill buttons, bottom centre | yellow segments are full; the white fill of the next one gives the fraction (e.g. 1.4) |
 | Controlled operator ([`ActiveSlot`](src/EndHud.Vision/ActiveSlot.cs)) | the chevron over the controlled operator's portrait | shape match against the chevron |
 | Battle skill ([`BattleSkillButton`](src/EndHud.Vision/BattleSkillButton.cs)) | each battle skill button, bottom right | a dark disc with white digits is cooling; the white icon is available |
-| Operator counters ([`OperatorCounters`](src/EndHud.Vision/Operators/OperatorCounters.cs)) | the controlled operator's resource, bottom centre | Laevatain's 熔火 (0–4): lit petals of the flower; pink petals mean full |
+| Operator counters ([`OperatorCounters`](src/EndHud.Vision/Operators/OperatorCounters.cs)) | the controlled operator's resource, bottom centre | Laevatain's 熔火 (0–4): lit petals of the flower; pink petals mean full. Typhoeus's 猎矢 (`hunting-arrow`, 0–4): bars lit cyan (with a white streak over them when full); and 启示 (`sign`, 0–8): dots lit white, filling from the bottom row. Unknown when a bar or dot is neither lit nor grey, or the lit ones aren't in their fill order (the HUD moving) |
 | Elemental infliction ([`InflictionRing`](src/EndHud.Vision/InflictionRing.cs)) | the ring at the right end of the boss's HP bar, top centre | present when the white stack segment on top of the ring shows; the element from the colour of the icon inside (heat, cryo, electric, nature) |
 | Enemy statuses ([`BossStatusReader`](src/EndHud.Vision/BossStatusReader.cs)) | the icon row under the boss's bars, top centre | each square is matched against the wiki's status icons; read at most once a second and only when the current rotation asks about statuses (about 70 ms a read at 4K) |
 
@@ -472,9 +477,16 @@ Status icons come from the wiki's glossary module along with the operators (`sta
 operator library), so new statuses need no release. Chinese names are in
 [`StatusNames`](src/EndHud.Vision/Operators/StatusInfo.cs).
 
-### Finding the current step
+### Choosing the phase
 
-[`RotationTracker`](src/EndHud.Vision/Rotations/RotationTracker.cs), once per reading:
+[`PhaseSelector`](src/EndHud.Vision/Rotations/PhaseSelector.cs), once per reading: the first phase in
+the list whose `when` holds becomes the one shown (unknown counts as not holding); when none holds,
+the phase shown stays; before any has held, the first phase without `when` (or the first phase).
+Conditions are evaluated by `RotationTracker.Evaluate`.
+
+[`RotationTracker`](src/EndHud.Vision/Rotations/RotationTracker.cs) also follows the steps inside a
+phase from skills it sees used, as below. The app doesn't use that part while the strip shows no
+current step (it couldn't tell reliably which button was pressed):
 
 1. **Entry conditions first.** Every `when` is checked; the value last *seen* is remembered
    (unknown readings change nothing). A condition that turns true (it wasn't seen true before)
@@ -546,6 +558,12 @@ exception: hosted runners can't capture windows, so they only run on a developer
   labels in `labels.json`): skill points, the controlled operator, battle skill buttons, 熔火 and
   enemy statuses on labelled 4K battle frames (UID blacked out), including a cutscene that must
   read as nothing.
+- **Operator counters** ([`Fixtures/counters`](tests/EndHud.Vision.Tests/Fixtures/counters)):
+  Typhoeus's 猎矢 (0–4) and 启示 (0–8) on 4K frames of the owner's fight, including the glow over
+  full arrows, the fill flash and the HUD sliding away; all but the middle of the HUD band blacked out.
+- **Faded portraits** ([`Fixtures/faded-squad`](tests/EndHud.Vision.Tests/Fixtures/faded-squad)):
+  readings four a second through a fight where the game draws portraits see-through; the squad
+  must stay named.
 - **Elemental infliction** ([`Fixtures/infliction`](tests/EndHud.Vision.Tests/Fixtures/infliction)):
   heat and nature rings, and frames with no ring (a white background, a cutscene, blue effects
   filling the ring's place), at 4K and on simulated 1440p, 1080p and 16:10 screens.
@@ -676,8 +694,9 @@ Copy `src/EndHud/i18n/zh-CN.xaml` to, for example, `en-US.xaml`, translate the v
   refreshed within about two seconds of being used therefore gets no hint.
 - Hints and the rotation strip follow the screen reading, four times a second by default
   (`OcrIntervalMs`), so they can lag the game by up to a quarter of a second.
-- Rotations: only Laevatain's 熔火 is read as an operator counter so far (Typhoeus and Zhuang Fangyi
-  have counters too; they need combat screenshots). Stack counts aren't read (the status row's
+- Rotations: Laevatain's 熔火 and Typhoeus's 猎矢 and 启示 are read as operator counters so far
+  (Zhuang Fangyi's 青霆剑 isn't yet); counters are read for the controlled operator only. A battle
+  skill's cooldown is read as available or cooling, not its seconds. Stack counts aren't read (the status row's
   badges, or the infliction ring's segments), so the editor doesn't offer them, and a shared
   rotation asking for 2+ stacks treats that check as unknown. Infliction rings have been seen at one
   and two stacks, and only for heat and nature; cryo and electric are told apart by colour from the

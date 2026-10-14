@@ -18,6 +18,8 @@ namespace EndHud;
 public partial class OverlayWindow
 {
     private static readonly double[] ComboHintSecondsChoices = [2, 3, 5];
+    private static readonly double[] ComboHintLeadChoices = [0, 0.5, 1, 2, 3];
+    private readonly Dictionary<int, string> _bannerStatus = []; // slot → the status line each banner shows
 
 
     private readonly ComboHints _hints = new();
@@ -42,6 +44,13 @@ public partial class OverlayWindow
             ComboHintSecondsPicker.Items.Add(new ComboBoxItem { Content = Loc.Format("Menu.ComboHint.Seconds", seconds), Tag = seconds });
         ComboHintSecondsPicker.SelectedItem = ComboHintSecondsPicker.Items.Cast<ComboBoxItem>()
             .First(i => (double)i.Tag == _config.ComboHintSeconds);
+        foreach (double seconds in ComboHintLeadChoices.Append(_config.ComboHintLeadSeconds).Distinct().Order())
+            ComboHintLeadPicker.Items.Add(new ComboBoxItem
+            {
+                Content = seconds == 0 ? Loc.Get("Menu.ComboHint.LeadOff") : Loc.Format("Menu.ComboHint.Seconds", seconds),
+                Tag = seconds,
+            });
+        ComboHintLeadPicker.SelectedItem = ComboHintLeadPicker.Items.Cast<ComboBoxItem>().First(i => (double)i.Tag == _config.ComboHintLeadSeconds);
         ComboHintCheckBox.IsChecked = _config.ComboHintEnabled;
         ComboHintWhenReady.IsChecked = _config.ComboHintMode == ComboHintMode.WhenReady;
         ComboHintWhileReady.IsChecked = _config.ComboHintMode == ComboHintMode.WhileReady;
@@ -55,6 +64,7 @@ public partial class OverlayWindow
         _config.ComboHintEnabled = ComboHintCheckBox.IsChecked == true;
         _config.ComboHintMode = ComboHintWhileReady.IsChecked == true ? ComboHintMode.WhileReady : ComboHintMode.WhenReady;
         if (ComboHintSecondsPicker.SelectedItem is ComboBoxItem { Tag: double seconds }) _config.ComboHintSeconds = seconds;
+        if (ComboHintLeadPicker.SelectedItem is ComboBoxItem { Tag: double lead }) _config.ComboHintLeadSeconds = lead;
         ConfigStore.Save(_config);
         ApplyComboHintSettings();
     }
@@ -71,6 +81,7 @@ public partial class OverlayWindow
     {
         _hints.Mode = _config.ComboHintMode;
         _hints.ShowFor = TimeSpan.FromSeconds(_config.ComboHintSeconds);
+        _hints.Lead = TimeSpan.FromSeconds(_config.ComboHintLeadSeconds);
         // The hint is worked out from the squad panel, so it needs that reading on; its settings
         // are dimmed while it's off.
         ComboHintNeedsPartyOcr.Visibility = _config.PartyOcrEnabled ? Visibility.Collapsed : Visibility.Visible;
@@ -89,12 +100,19 @@ public partial class OverlayWindow
     {
         var state = _lastState;
         var wanted = (state is not null && _config.ComboHintEnabled && _config.PartyOcrEnabled
-                ? _hints.Update(state, _clock.Elapsed).Select(n => state.Slots[n - 1])
+                ? _hints.Update(state, _clock.Elapsed).Select(n => state.Slots[n - 1]).Where(Nameable)
                 : [])
             .Select(s => (s.Number, Key: s.Operator?.Operator.Id ?? $"slot{s.Number}", Slot: (PartySlot?)s))
             .ToList();
         // Something to drag while placing it.
         if (_menuOpen && wanted.Count == 0) wanted.Add((0, "sample", null));
+
+        // Each banner's status line: ready, or the seconds left while it's shown early.
+        var now = _clock.Elapsed;
+        foreach (var (number, _, _) in wanted)
+            _bannerStatus[number] = _hints.SecondsLeft(number, now) is { } left && state?.Slots[number - 1].Combo is { Ready: false }
+                ? Loc.Format("ComboHint.Soon", Math.Max(0.1, left))
+                : Loc.Get("ComboHint.Ready");
 
         foreach (var banner in _banners.Where(b => !wanted.Any(w => w.Number == b.Slot && w.Key == b.Key)).ToList())
         {
@@ -103,11 +121,21 @@ public partial class OverlayWindow
         }
         foreach (var (number, key, slot) in wanted)
         {
-            if (_banners.Any(b => b.Slot == number && b.Key == key)) continue;
+            if (_banners.FirstOrDefault(b => b.Slot == number && b.Key == key) is { } shown)
+            {
+                // Up already: the countdown moves on, or it became ready; changed in place, no slide.
+                if (shown.Element.Tag as string != Status(number))
+                {
+                    shown.Element.Child = shown.BuildContent();
+                    shown.Element.Tag = Status(number);
+                }
+                continue;
+            }
             Func<UIElement> build = slot is null
                 ? () => ComboBanner.Content(null, null, Loc.Get("ComboHint.Sample"), Loc.Get("ComboHint.Ready"))
                 : () => OperatorBannerContent(slot);
             var element = ComboBanner.Create(build());
+            element.Tag = Status(number);
             var holder = ComboBanner.Holder(element, number);
             // In slot order; banners still sliding out count too.
             int index = ComboHintStack.Children.OfType<FrameworkElement>().Count(c => c.Tag is int n && n < number);
@@ -118,13 +146,24 @@ public partial class OverlayWindow
         }
     }
 
+    /// <summary>
+    /// Whether a hint can go up for this slot now. While the squad is still being recognised (a
+    /// battle just started) an unnamed slot waits for its name, rather than showing "1 号位". The
+    /// slot number is shown only when recognition isn't possible: no operator library, or the player
+    /// marked the slot as not recognised.
+    /// </summary>
+    private bool Nameable(PartySlot slot) =>
+        slot.Operator is not null || _party.Identifier is not { } identifier || identifier.MarkedUnrecognised(slot.Number);
+
     private UIElement OperatorBannerContent(PartySlot slot)
     {
         var op = slot.Operator?.Operator;
         // The roster's avatar and combo icon; an unrecognised operator gets just the slot number.
         return ComboBanner.Content(op is null ? null : Avatar(op), ComboIcon(op),
-            op?.NameZh ?? Loc.Format("Party.SlotNumber", slot.Number), Loc.Get("ComboHint.Ready"));
+            op?.NameZh ?? Loc.Format("Party.SlotNumber", slot.Number), Status(slot.Number));
     }
+
+    private string Status(int slot) => _bannerStatus.TryGetValue(slot, out var status) ? status : Loc.Get("ComboHint.Ready");
 
     /// <summary>The operator's avatar from the library (the wiki icon), converted once.</summary>
     private BitmapSource? Avatar(OperatorInfo op)
@@ -171,7 +210,11 @@ public partial class OverlayWindow
         UpdateComboHints();
     }
 
-    private void HintCanvas_SizeChanged(object sender, SizeChangedEventArgs e) => ScaleComboHints();
+    private void HintCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        ScaleComboHints();
+        PlacePanelsFromConfig();
+    }
 
     protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
     {

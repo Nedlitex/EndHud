@@ -380,7 +380,7 @@ public partial class RotationEditor : Window
 
     // ---- Conditions: a step's expected state, a phase's entry condition ----
 
-    private static readonly string[] ConditionKinds = ["SkillPoints", "Combo", "Ultimate", "Counter", "BossStatus", "Controlling", "Group"];
+    private static readonly string[] ConditionKinds = ["SkillPoints", "Combo", "ComboCharge", "BattleSkill", "Ultimate", "UltimateCharge", "Counter", "BossStatus", "Controlling", "Group"];
 
     private void AddCondition_Click(object sender, RoutedEventArgs e)
     {
@@ -403,6 +403,9 @@ public partial class RotationEditor : Window
         {
             "Combo" => new ComboCondition(first, true),
             "Ultimate" => new UltimateCondition(first, true),
+            "UltimateCharge" => new UltimateChargeCondition(first, Comparison.AtLeast, 80),
+            "ComboCharge" => new ComboChargeCondition(first, Comparison.AtLeast, 80),
+            "BattleSkill" => new BattleSkillCondition(first, true),
             "Counter" => Counters().FirstOrDefault() is { } c ? new CounterCondition(c.OperatorId, c.Id, Comparison.AtLeast, c.Max) : new SkillPointsCondition(Comparison.AtLeast, 2),
             "BossStatus" => new BossStatusCondition(_library.Statuses.FirstOrDefault()?.Id ?? "", true),
             "Controlling" => new ControllingCondition(first),
@@ -412,10 +415,27 @@ public partial class RotationEditor : Window
         };
     }
 
+    /// <summary>Who, at least / at most, and a percentage (10% steps; a value from a file is kept as it is).</summary>
+    private (ComboBox Who, ComboBox Compare, ComboBox Value) ChargePickers(Panel row, string operatorId, Comparison comparison, int percent)
+    {
+        var who = OperatorPicker(operatorId);
+        var compare = ComparePicker(comparison);
+        var percents = Enumerable.Range(1, 10).Select(n => n * 10).ToList();
+        if (!percents.Contains(percent)) percents = [.. percents.Append(percent).Order()];
+        var value = Picker(percents, v => $"{v}%", percent);
+        row.Children.Add(who);
+        row.Children.Add(compare);
+        row.Children.Add(value);
+        return (who, compare, value);
+    }
+
     private static string KindOf(StateCondition c) => c switch
     {
         ComboCondition => "Combo",
         UltimateCondition => "Ultimate",
+        UltimateChargeCondition => "UltimateCharge",
+        ComboChargeCondition => "ComboCharge",
+        BattleSkillCondition => "BattleSkill",
         CounterCondition => "Counter",
         BossStatusCondition => "BossStatus",
         ControllingCondition => "Controlling",
@@ -543,6 +563,27 @@ public partial class RotationEditor : Window
                 row.Children.Add(who);
                 row.Children.Add(state);
                 read = () => new UltimateCondition((string)Picked(who), (bool)Picked(state));
+                break;
+            }
+            case UltimateChargeCondition c:
+            {
+                var (who, compare, value) = ChargePickers(row, c.OperatorId, c.Is, c.Percent);
+                read = () => new UltimateChargeCondition((string)Picked(who), (Comparison)Picked(compare), (int)Picked(value));
+                break;
+            }
+            case ComboChargeCondition c:
+            {
+                var (who, compare, value) = ChargePickers(row, c.OperatorId, c.Is, c.Percent);
+                read = () => new ComboChargeCondition((string)Picked(who), (Comparison)Picked(compare), (int)Picked(value));
+                break;
+            }
+            case BattleSkillCondition c:
+            {
+                var who = OperatorPicker(c.OperatorId);
+                var state = Picker([true, false], r => Loc.Get(r ? "Editor.Ready" : "Editor.Cooling"), c.Ready);
+                row.Children.Add(who);
+                row.Children.Add(state);
+                read = () => new BattleSkillCondition((string)Picked(who), (bool)Picked(state));
                 break;
             }
             case CounterCondition c:

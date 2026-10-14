@@ -135,6 +135,11 @@ public partial class OverlayWindow : Window
         ex |= Native.WS_EX_LAYERED | Native.WS_EX_TOOLWINDOW | PassThroughStyles;
         Native.SetWindowLongPtr(_hwnd, Native.GWL_EXSTYLE, new IntPtr(ex));
 
+        // An always-on-top window covering the whole screen counts to Windows as a fullscreen app,
+        // which keeps the taskbar behind it even after switching to another app (it's judged at the
+        // switch, before the overlay hides). This property tells Explorer not to count the overlay.
+        Native.SetProp(_hwnd, "NonRudeHWND", new IntPtr(1));
+
         if (_options.HideFromCapture)
             Native.SetWindowDisplayAffinity(_hwnd, Native.WDA_EXCLUDEFROMCAPTURE);
 
@@ -184,10 +189,15 @@ public partial class OverlayWindow : Window
         MenuPanel.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
         SetComboHintEditing(open);
         SetRotationEditing(open);
+        SetPanelDragging(open);
 
         if (open)
         {
             RefreshOperatorPickers();
+            // The game hides and pins the mouse while it has focus (in battle especially): the
+            // menu must really take focus, and free the cursor, or nothing in it can be clicked or dragged.
+            Native.ForceForeground(_hwnd);
+            Native.ClipCursor(IntPtr.Zero);
             Activate();
             CloseMenuButton.Focus();
         }
@@ -296,6 +306,18 @@ public partial class OverlayWindow : Window
         HudRoot.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
         _party.SetTarget(_game, show && _config.PartyOcrEnabled);
 
+        // Nothing to show (the game isn't focused): take the window away altogether. Left up, an
+        // always-on-top window the size of a fullscreen game makes Windows treat it as a fullscreen
+        // app and keep the taskbar behind it, so the game's bottom edge shows instead of the taskbar.
+        // Asked of Windows, not remembered: WPF shows the window itself once at startup.
+        bool hide = !show && !_menuOpen;
+        if (_hwnd != IntPtr.Zero && hide == Native.IsWindowVisible(_hwnd))
+        {
+            Native.ShowWindow(_hwnd, hide ? Native.SW_HIDE : Native.SW_SHOWNOACTIVATE);
+            reassertTopmost |= !hide;
+        }
+        if (hide) return;
+
         if (w <= 0 || h <= 0) return;
 
         var rect = (x, y, w, h);
@@ -366,6 +388,12 @@ public partial class OverlayWindow : Window
                 };
                 sb.AppendLine(Loc.Format("Party.Skills", combo, ultimate));
             }
+
+            // The operator's own counters (read for the controlled one), e.g. 猎矢 4　启示 8.
+            var counters = state.Counters.Where(r => r.OperatorId == operatorId).ToList();
+            if (counters.Count > 0)
+                sb.AppendLine(Loc.Format("Party.Counters", string.Join("　", counters.Select(r =>
+                    $"{EndHud.Vision.Operators.OperatorCounters.Definitions.FirstOrDefault(d => d.OperatorId == r.OperatorId && d.Id == r.CounterId)?.NameZh ?? r.CounterId} {r.Value?.ToString() ?? unknown}"))));
         }
         PartyText.Text = sb.ToString().TrimEnd();
     }

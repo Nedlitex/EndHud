@@ -15,14 +15,24 @@ public sealed record SlotIdentity(Frame Portrait, OperatorMatch? Match, IReadOnl
 /// last <see cref="Window"/> comparisons and names the operator closest over all of them, once it
 /// has <see cref="MinReadings"/>.</item>
 /// <item>A portrait unlike the slot's last one (pixel similarity under
-/// <see cref="OtherOperatorThreshold"/>) is a different operator: the slot starts over.</item>
+/// <see cref="OtherOperatorThreshold"/>) when the squad panel comes back after being gone is a
+/// different operator: the slot starts over. While the panel stays, it's an effect over the same one.</item>
+/// <item>Except while the squad panel stays on screen (<see cref="PresenceMemory"/>): the squad is
+/// changed in the team menu, which hides the panel, while in battle the game draws portraits
+/// see-through over bright effects, which look like someone else or no one. So a slot whose answer
+/// is settled (a taught portrait, or a full <see cref="Window"/> of comparisons) keeps its name
+/// for as long as the panel stays; an early answer still firms up first. When the panel comes back
+/// after being gone (a menu, a loading screen), a kept answer is checked once against the portrait
+/// the slot shows then.</item>
 /// <item><see cref="CorrectAsync"/> — the user picking the right operator for a slot — unlearns
 /// any wrong portraits and learns this one. Portraits are only learned from the user: a wrong
 /// answer learned automatically would repeat itself forever.</item>
 /// </list>
-/// The model takes about 0.2 s per portrait, so each reading compares at most one slot (the one
-/// that needs it most), and a slot is compared only while its window fills, when another operator
-/// appears, or when its portrait changes (at most every <see cref="RecheckInterval"/>).
+/// The model takes about 0.2 s per portrait, so each reading compares one slot (the one that needs
+/// it most), and a slot is compared only while its window fills, when another operator appears, or
+/// when its portrait changes (at most every <see cref="RecheckInterval"/>). Except while slots have
+/// no name yet (a battle just started, a new squad): then every such slot is compared each reading,
+/// so the squad is named in about <see cref="MinReadings"/> readings instead of four times that.
 /// </summary>
 public sealed class SquadIdentifier(OperatorLibrary library)
 {
@@ -58,6 +68,9 @@ public sealed class SquadIdentifier(OperatorLibrary library)
     private readonly SlotIdentity?[] _last = new SlotIdentity?[PartyLayout.SlotCount];
     private readonly SlotEvidence[] _evidence = Enumerable.Range(0, PartyLayout.SlotCount).Select(_ => new SlotEvidence()).ToArray();
     private readonly Func<DateTime> _now = () => DateTime.UtcNow;
+    private readonly PresenceMemory _panel = new();
+    private readonly bool[] _kept = new bool[PartyLayout.SlotCount]; // named while the panel stays
+    private bool _panelWasThere;
 
     internal SquadIdentifier(OperatorLibrary library, Func<DateTime> now, IReadOnlyList<PortraitReference>? references = null)
         : this(library)
@@ -88,19 +101,35 @@ public sealed class SquadIdentifier(OperatorLibrary library)
 
     private PartyState Identify(PartyState state)
     {
-        if (!state.PanelVisible || library.IsEmpty) return state;
-
         lock (_evidence)
         {
+            // The tracker repeats the last reading while the panel is out of sight: not "seen".
+            bool panelThere = _panel.Update(state.PanelVisible && state.ReadingsSinceSeen == 0);
+            bool panelReturns = panelThere && !_panelWasThere;
+            _panelWasThere = panelThere;
+            if (!panelThere) Array.Clear(_kept);
+            if (!state.PanelVisible || library.IsEmpty) return KeepNames(state, panelThere);
+
             var now = _now();
             var answers = new SlotIdentity?[state.Slots.Count];
             int compare = -1, comparePriority = 0;
+            var unnamed = new List<int>();
             for (int k = 0; k < state.Slots.Count; k++)
             {
                 var slot = state.Slots[k];
                 // A fallen operator's portrait is the death mark: nothing to match. They're still
                 // whoever was in the slot (answers[k] stays null: keep the last answer).
                 if (slot.Dead) continue;
+
+                // Settled, panel still there: stays named (see the class summary), and isn't compared.
+                int i = slot.Number - 1;
+                if (panelThere && !_kept[i] && Settled(i) is not null)
+                    _kept[i] = !panelReturns || SamePortrait(_evidence[i], slot.Portrait);
+                if (_kept[i] && Settled(i) is { } named)
+                {
+                    answers[k] = named;
+                    continue;
+                }
 
                 if (_matcher.MatchLearned(slot.Portrait) is { } learned)
                 {
@@ -109,17 +138,21 @@ public sealed class SquadIdentifier(OperatorLibrary library)
                     continue;
                 }
 
-                int priority = Priority(_evidence[slot.Number - 1], slot.Portrait, now);
+                // Another operator can only have come in while the panel was gone (the team menu).
+                int priority = Priority(_evidence[slot.Number - 1], slot.Portrait, now, mayBeAnother: !panelThere || panelReturns);
                 if (priority > comparePriority) (compare, comparePriority) = (k, priority);
+                if (priority > 0 && _evidence[slot.Number - 1].Differences.Count < MinReadings) unnamed.Add(k);
             }
 
-            // One model run per reading, for the slot that needs it most.
-            if (compare >= 0 && _matcher.Differences(ScreenPortrait(state.Slots[compare])) is { } differences)
+            // One model run per reading, for the slot that needs it most; every slot still without
+            // enough comparisons for a name, when there are any.
+            foreach (int k in unnamed.Count > 0 ? unnamed : compare >= 0 ? [compare] : [])
             {
-                var evidence = _evidence[state.Slots[compare].Number - 1];
+                if (_matcher.Differences(ScreenPortrait(state.Slots[k])) is not { } differences) continue;
+                var evidence = _evidence[state.Slots[k].Number - 1];
                 evidence.Differences.Enqueue(differences);
                 while (evidence.Differences.Count > Window) evidence.Differences.Dequeue();
-                evidence.Portrait = state.Slots[compare].Portrait;
+                evidence.Portrait = state.Slots[k].Portrait;
                 evidence.ComparedAt = now;
             }
 
@@ -142,11 +175,36 @@ public sealed class SquadIdentifier(OperatorLibrary library)
         }
     }
 
+    /// <summary>Whether the player said the operator in this slot (1–4) isn't recognised (see <see cref="CorrectAsync"/>).</summary>
+    public bool MarkedUnrecognised(int slotNumber)
+    {
+        lock (_evidence) return slotNumber is >= 1 and <= PartyLayout.SlotCount && _evidence[slotNumber - 1].Cleared is not null;
+    }
+
+    /// <summary>The slot's answer, if it's settled: from a taught portrait, or over a full window of comparisons.</summary>
+    private SlotIdentity? Settled(int i)
+    {
+        lock (_lock)
+            return _last[i] is { Match: { } match } last && (match.FromLearned || _evidence[i].Differences.Count >= Window) ? last : null;
+    }
+
+    /// <summary>Whether the portrait is still the one the slot's answer was worked out from (not another operator).</summary>
+    private bool SamePortrait(SlotEvidence evidence, Frame portrait) =>
+        evidence.Portrait is not null && _matcher.SimilarityToLearned(portrait, evidence.Portrait) >= OtherOperatorThreshold;
+
+    /// <summary>The panel can't be read this time: while it counts as there, the slots keep their names.</summary>
+    private PartyState KeepNames(PartyState state, bool panelThere)
+    {
+        if (!panelThere) return state;
+        lock (_lock)
+            return state with { Slots = state.Slots.Select(s => s.Operator is null && s.Number <= _last.Length ? s with { Operator = _last[s.Number - 1]?.Match } : s).ToList() };
+    }
+
     /// <summary>
     /// How much the slot needs a model run now (0 = not at all): another operator appeared (it
     /// starts over), then a window still filling (emptiest first), then a changed portrait due a recheck.
     /// </summary>
-    private int Priority(SlotEvidence evidence, Frame portrait, DateTime now)
+    private int Priority(SlotEvidence evidence, Frame portrait, DateTime now, bool mayBeAnother)
     {
         if (evidence.Cleared is { } cleared)
         {
@@ -155,7 +213,7 @@ public sealed class SquadIdentifier(OperatorLibrary library)
         }
 
         double similarity = evidence.Portrait is null ? 0 : _matcher.SimilarityToLearned(portrait, evidence.Portrait);
-        if (evidence.Portrait is not null && similarity < OtherOperatorThreshold)
+        if (mayBeAnother && evidence.Portrait is not null && similarity < OtherOperatorThreshold)
         {
             evidence.Differences.Clear();
             evidence.Portrait = null;

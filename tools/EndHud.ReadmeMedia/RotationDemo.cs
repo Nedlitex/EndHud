@@ -55,7 +55,7 @@ static class RotationDemo
         var tracker = new PartyTracker();
         var identifier = new SquadIdentifier(library);
         var boss = new BossStatusReader(library);
-        var rotationTracker = new RotationTracker(rotation);
+        var rotationTracker = new PhaseSelector(rotation);
         bool readBoss = rotation.Phases.Any(p => p.Steps.Any(s => s.Expect.Any(c => c is BossStatusCondition)));
         var readings = new List<Reading>();
         double lastBoss = double.MinValue;
@@ -77,9 +77,10 @@ static class RotationDemo
                 state = state with { BossStatuses = readings[^1].State.BossStatuses }; // as the app keeps the last one
             }
 
-            // As the overlay: only in combat, only for the squad the rotation is for.
-            bool inCombat = state.Slots.Any(s => s.Combo is not null);
-            RotationPosition? position = inCombat && rotation.IsFor(state.Slots.Select(s => s.Operator?.Operator.Id).ToList())
+            // As the overlay: while the squad panel is on screen (or covered for at most 2 s), only
+            // for the squad the rotation is for.
+            bool panel = state.PanelVisible && state.ReadingsSinceSeen <= 8;
+            RotationPosition? position = panel && rotation.IsFor(state.Slots.Select(s => s.Operator?.Operator.Id).ToList())
                 ? rotationTracker.Update(state) : null;
             readings.Add(new Reading(t, state, position));
             if (readings.Count % 40 == 0) Console.WriteLine($"read {t:0} / {duration:0} s ({clock.Elapsed.TotalSeconds:0} s)");
@@ -95,6 +96,13 @@ static class RotationDemo
             avatars[op.Id] = library.FindAvatar(op.Id);
             var kind = step.Action switch { StepAction.Combo => SkillKind.Combo, StepAction.Ultimate => SkillKind.Ultimate, _ => SkillKind.BattleSkill };
             if (op.Skills.FirstOrDefault(s => s.Kind == kind) is { } icon) icons[(op.Id, step.Action)] = await library.LoadSkillIconAsync(icon);
+        }
+        foreach (string id in rotation.Squad)
+        {
+            if (library.Find(id) is not { } op) continue;
+            avatars[op.Id] = library.FindAvatar(op.Id);
+            if (!icons.ContainsKey((op.Id, StepAction.Combo)) && op.Skills.FirstOrDefault(s => s.Kind == SkillKind.Combo) is { } combo)
+                icons[(op.Id, StepAction.Combo)] = await library.LoadSkillIconAsync(combo);
         }
 
         // ---- 2. Background frames, downscaled ----
@@ -143,7 +151,15 @@ static class RotationDemo
         var host = new ContentControl();
         double scale = ComboHintLayout.Scale(Height, 1.0);
         host.LayoutTransform = new ScaleTransform(scale, scale);
-        var canvas = new Canvas { Width = Width, Height = Height, Children = { host } };
+        // The combo-ready hints as the overlay shows them by default: 3 s once ready, 1 s ahead with a countdown.
+        var hints = new ComboHints { Mode = ComboHintMode.WhenReady, ShowFor = TimeSpan.FromSeconds(HudConfig.DefaultComboHintSeconds),
+            Lead = TimeSpan.FromSeconds(HudConfig.DefaultComboHintLeadSeconds) };
+        var hintStack = new StackPanel { LayoutTransform = new ScaleTransform(scale, scale) };
+        var hintLog = new StringBuilder("seconds\thints\n");
+        string lastHints = "";
+        var canvas = new Canvas { Width = Width, Height = Height, Children = { host, hintStack } };
+        Canvas.SetLeft(hintStack, HudConfig.DefaultComboHintX * Width);
+        Canvas.SetTop(hintStack, HudConfig.DefaultComboHintY * Height);
         Canvas.SetTop(host, HudConfig.DefaultRotationY * Height);
         // Centred like the overlay: placed again whenever the strip's width changes.
         host.SizeChanged += (_, _) => Canvas.SetLeft(host, HudConfig.DefaultRotationCenterX * Width - host.ActualWidth * scale / 2);
@@ -163,6 +179,29 @@ static class RotationDemo
             {
                 host.Content = view is null ? null : RotationStrip.Build(view);
                 lastKey = key;
+            }
+
+            // Combo hints, re-checked every frame like the overlay's timer (named slots only, as the overlay).
+            var shown = new List<string>();
+            hintStack.Children.Clear();
+            if (reading is not null)
+            {
+                foreach (int number in hints.Update(reading.State, TimeSpan.FromSeconds(t)))
+                {
+                    var slot = reading.State.Slots[number - 1];
+                    if (slot.Operator?.Operator is not { } op) continue;
+                    string status = hints.SecondsLeft(number, TimeSpan.FromSeconds(t)) is { } left && slot.Combo is { Ready: false }
+                        ? string.Format(System.Globalization.CultureInfo.InvariantCulture, (string)app.Resources["ComboHint.Soon"], Math.Max(0.1, left))
+                        : (string)app.Resources["ComboHint.Ready"];
+                    hintStack.Children.Add(new Grid { Children = { ComboBanner.Create(ComboBanner.Content(Avatar(op), Icon(op, StepAction.Combo), op.NameZh, status)) } });
+                    shown.Add($"{op.Id}:{status}");
+                }
+            }
+            string hintsNow = string.Join(" ", shown);
+            if (hintsNow != lastHints)
+            {
+                hintLog.Append($"{t:0.00}\t{(hintsNow.Length == 0 ? "-" : hintsNow)}\n");
+                lastHints = hintsNow;
             }
             canvas.Measure(new Size(Width, Height));
             canvas.Arrange(new Rect(0, 0, Width, Height));
@@ -186,6 +225,7 @@ static class RotationDemo
             }
             if (n % 150 == 0) Console.WriteLine($"rendered {t:0} s");
         }
+        File.WriteAllText(Path.Combine(outDir, "hints.tsv"), hintLog.ToString());
     }
 
     private static void WriteLog(List<Reading> readings, string path)

@@ -21,8 +21,11 @@ public partial class OverlayWindow
     private readonly RotationLibrary _rotationLibrary;
     private readonly PublishedRotationService _publishedRotations;
     private IReadOnlyList<Rotation> _rotations = [];
-    private readonly Dictionary<string, RotationTracker> _trackers = [];
+    private readonly Dictionary<string, PhaseSelector> _trackers = [];
     private readonly Dictionary<string, BitmapSource?> _skillIcons = [];
+
+    /// <summary>Readings the squad panel can be out of sight before the strip goes (2 s at four a second).</summary>
+    private const int RotationPanelGrace = 8;
     private (Rotation Rotation, RotationPosition Position)? _rotationPosition;
     private string? _stripKey;
     private Point? _rotationDragOffset;
@@ -56,15 +59,17 @@ public partial class OverlayWindow
     /// <summary>A new reading: move the tracker on, then redraw.</summary>
     private void TrackRotation(PartyState? state)
     {
-        _rotationPosition = null;
         Rotation? rotation = null;
-        bool inCombat = state is not null && state.Slots.Any(s => s.Combo is not null);
-        if (state is not null && inCombat && _config.RotationEnabled && _config.PartyOcrEnabled)
+        _rotationPosition = null;
+        // Whenever the squad panel is on screen (in battle or not; not in menus, login or loading
+        // screens), for a rotation made for the recognised squad. The tracker repeats the last
+        // reading while the panel is covered for a moment, for up to RotationPanelGrace readings.
+        if (state is { PanelVisible: true, ReadingsSinceSeen: <= RotationPanelGrace } && _config.RotationEnabled && _config.PartyOcrEnabled)
         {
             rotation = RotationFor(state.Slots.Select(s => s.Operator?.Operator.Id).ToList());
             if (rotation is not null)
             {
-                if (!_trackers.TryGetValue(rotation.Id, out var tracker)) _trackers[rotation.Id] = tracker = new RotationTracker(rotation);
+                if (!_trackers.TryGetValue(rotation.Id, out var tracker)) _trackers[rotation.Id] = tracker = new PhaseSelector(rotation);
                 if (tracker.Update(state) is { } position) _rotationPosition = (rotation, position);
             }
         }
@@ -75,9 +80,8 @@ public partial class OverlayWindow
 
     private void RenderRotation()
     {
-        StripView? view = _rotationPosition is { } at ? View(at.Rotation, at.Position) : null;
-        if (view is null && _menuOpen && _config.RotationEnabled)
-            view = new StripView(Loc.Get("Rotation.Sample"), [new StripStep(null, null, Loc.Get("Rotation.Action.BattleSkill"), null, StripStepState.Ready, false)], []);
+        // No sample while the menu is open: the strip is placed by dragging it in a battle.
+        StripView? view = _rotationPosition is { } at && _config.RotationEnabled ? View(at.Rotation, at.Position) : null;
 
         string? key = view is null ? null
             : $"{view.Phase}|{string.Join(",", view.Steps.Select(s => $"{s.Action}{s.State}{s.Icon is not null}{s.Avatar is not null}{s.Note}"))}|{string.Join(",", view.Reasons)}";

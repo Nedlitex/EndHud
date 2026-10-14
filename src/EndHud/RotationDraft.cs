@@ -65,7 +65,6 @@ internal sealed class RotationDraft
             {
                 RotationProblemKind.SquadNotFourOperators => Loc.Get("Rotation.Problem.Squad"),
                 RotationProblemKind.NoPhases => Loc.Get("Rotation.Problem.NoPhases"),
-                RotationProblemKind.NoDefaultPhase => Loc.Get("Rotation.Problem.NoDefaultPhase"),
                 RotationProblemKind.PhaseHasNoSteps => Loc.Format("Rotation.Problem.NoSteps", problem.Phase ?? ""),
                 RotationProblemKind.FirstStepWithPrevious => Loc.Format("Rotation.Problem.FirstStepWithPrevious", problem.Phase ?? ""),
                 RotationProblemKind.StepOperatorNotInSquad => Loc.Format("Rotation.Problem.StepOperator", problem.Phase ?? "", problem.Step ?? 0),

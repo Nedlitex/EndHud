@@ -55,12 +55,12 @@ public class RotationDraftTests
     }
 
     [Fact]
-    public void Every_phase_behind_an_entry_condition_is_explained_in_words()
+    public void Every_phase_may_have_a_condition()
     {
         var draft = RotationDraft.From(Guide());
-        draft.Phases[0].When.Add(new SkillPointsCondition(Comparison.AtLeast, 1));
+        foreach (var phase in draft.Phases) phase.When.Add(new SkillPointsCondition(Comparison.AtLeast, 1));
 
-        Assert.Contains("Rotation.Problem.NoDefaultPhase", draft.Problems());
+        Assert.Empty(draft.Problems());
     }
 
     [Fact]

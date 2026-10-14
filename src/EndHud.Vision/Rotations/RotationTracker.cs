@@ -338,6 +338,18 @@ public sealed class RotationTracker(Rotation rotation)
                 return slots.TryGetValue(c.OperatorId, out int cs) && state.Slots[cs].Combo is { } combo ? combo.Ready == c.Ready : null;
             case UltimateCondition c:
                 return slots.TryGetValue(c.OperatorId, out int us) && state.Slots[us].Ultimate is { } ult ? ult.Ready == c.Ready : null;
+            case UltimateChargeCondition c:
+                return slots.TryGetValue(c.OperatorId, out int ucs) && state.Slots[ucs].Ultimate is { } charge
+                    ? Compare(charge.Ready ? 100 : charge.Progress * 100, c.Is, c.Percent)
+                    : null;
+            case ComboChargeCondition c:
+                return slots.TryGetValue(c.OperatorId, out int ccs) && state.Slots[ccs].Combo is { } bar
+                    ? Compare(bar.Ready ? 100 : bar.Progress * 100, c.Is, c.Percent)
+                    : null;
+            case BattleSkillCondition c:
+                return slots.TryGetValue(c.OperatorId, out int bss) && state.Slots[bss].BattleSkill is { } skill
+                    ? (skill == BattleSkillState.Available) == c.Ready
+                    : null;
             case CounterCondition c:
                 var reading = state.Counters.FirstOrDefault(r => r.OperatorId == c.OperatorId && r.CounterId == c.CounterId);
                 return reading?.Value is { } value ? Compare(value, c.Is, c.Value) : null;

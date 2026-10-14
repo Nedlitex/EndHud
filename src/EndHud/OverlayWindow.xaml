@@ -36,10 +36,17 @@
               HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="4" />
 
         <!-- Status panel. Left-centre: the free strip between the game's minimap/quest text and the squad panel. -->
-        <Border HorizontalAlignment="Left" VerticalAlignment="Center" Margin="36,0,0,0"
+        <!-- Draggable while the menu is open (config DebugOffsetX/Y). -->
+        <Border x:Name="StatusPanel" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="36,0,0,0"
                 Padding="14,10" CornerRadius="4" MinWidth="240"
-                Background="#B0101418" BorderBrush="{StaticResource Accent}" BorderThickness="3,0,0,0">
+                Background="#B0101418" BorderBrush="{StaticResource Accent}" BorderThickness="3,0,0,0"
+                SizeChanged="DraggablePanel_SizeChanged"
+                PreviewMouseLeftButtonDown="DraggablePanel_MouseDown" PreviewMouseMove="DraggablePanel_MouseMove"
+                PreviewMouseLeftButtonUp="DraggablePanel_MouseUp">
+            <Border.RenderTransform><TranslateTransform /></Border.RenderTransform>
             <StackPanel>
+                <TextBlock x:Name="DebugPanelDragLabel" Visibility="Collapsed" Text="{DynamicResource DebugPanel.Drag}"
+                           Foreground="{StaticResource Accent}" Margin="0,0,0,4" />
                 <TextBlock Text="{DynamicResource Hud.Title}" Foreground="{StaticResource Accent}" FontWeight="Bold"
                            FontSize="15" Margin="0,0,0,6" />
                 <TextBlock x:Name="StatusText" />
@@ -86,11 +93,16 @@
     </Canvas>
     </Grid>
 
-    <!-- Menu: while open, the overlay accepts mouse/keyboard input; closed, it is click-through again. -->
+    <!-- Menu: while open, the overlay accepts mouse/keyboard input; closed, it is click-through again.
+         Dragged by any part that isn't a control (config MenuOffsetX/Y). -->
     <Border x:Name="MenuPanel" Visibility="Collapsed"
             HorizontalAlignment="Center" VerticalAlignment="Center" Width="480" Margin="0,16"
             Padding="0,16" CornerRadius="6"
-            Background="#E6101418" BorderBrush="{StaticResource Accent}" BorderThickness="0,3,0,0">
+            Background="#E6101418" BorderBrush="{StaticResource Accent}" BorderThickness="0,3,0,0"
+            SizeChanged="DraggablePanel_SizeChanged"
+            PreviewMouseLeftButtonDown="DraggablePanel_MouseDown" PreviewMouseMove="DraggablePanel_MouseMove"
+            PreviewMouseLeftButtonUp="DraggablePanel_MouseUp">
+        <Border.RenderTransform><TranslateTransform /></Border.RenderTransform>
         <Border.Resources>
             <Style TargetType="CheckBox">
                 <Setter Property="Foreground" Value="#EEFFFFFF" />
@@ -126,6 +138,7 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20,0">
         <StackPanel>
             <TextBlock Text="{DynamicResource Menu.Title}" Foreground="{StaticResource Accent}" FontWeight="Bold" FontSize="16" />
+            <TextBlock Text="{DynamicResource Menu.DragHint}" Foreground="#99FFFFFF" FontSize="11" TextWrapping="Wrap" />
 
             <TextBlock Text="{DynamicResource Menu.Hotkeys}" Style="{StaticResource SectionHeader}" />
             <Grid>
@@ -200,6 +213,12 @@
                             <RadioButton x:Name="ComboHintWhileReady" GroupName="ComboHintMode" Click="ComboHintSetting_Changed">
                                 <TextBlock Text="{DynamicResource Menu.ComboHint.WhileReady}" />
                             </RadioButton>
+                            <!-- Shown a little before the combo is ready, counting down. -->
+                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                <TextBlock Text="{DynamicResource Menu.ComboHint.Lead}" VerticalAlignment="Center" />
+                                <ComboBox x:Name="ComboHintLeadPicker" Margin="8,0,0,0" Width="80"
+                                          SelectionChanged="ComboHintSetting_Changed" />
+                            </StackPanel>
                             <Button x:Name="ComboHintResetButton" HorizontalAlignment="Left" Padding="10,2" Margin="0,4,0,0"
                                     Content="{DynamicResource Menu.ComboHint.ResetPosition}" Click="ComboHintResetButton_Click" />
                         </StackPanel>

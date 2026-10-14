@@ -11,15 +11,16 @@ public sealed record CounterReading(string OperatorId, string CounterId, int? Va
 /// <summary>
 /// Operators' own counters, drawn left of the skill-point bar for the controlled operator. Each
 /// operator draws theirs differently, so each has its own reader here; an operator without one has
-/// no counter reading (conditions on it count as unknown). Confirmed on screen so far: Laevatain.
-/// Typhoeus (猎矢, 启示) and Zhuang Fangyi (青霆剑) are known but need combat screenshots with
-/// their counters partly filled before their readers can be written and checked.
+/// no counter reading (conditions on it count as unknown). Confirmed on screen so far: Laevatain's
+/// 熔火, and Typhoeus's 猎矢 and 启示. Zhuang Fangyi's 青霆剑 is known but not read yet.
 /// </summary>
 public static class OperatorCounters
 {
     public static readonly CounterDefinition MeltingFlame = new("Laevatain", "melting-flame", "熔火", "Melting Flame", 4);
+    public static readonly CounterDefinition HuntingArrow = new("Typhoeus", "hunting-arrow", "猎矢", "Hunting Arrow", 4);
+    public static readonly CounterDefinition Sign = new("Typhoeus", "sign", "启示", "Sign", 8);
 
-    public static IReadOnlyList<CounterDefinition> Definitions { get; } = [MeltingFlame];
+    public static IReadOnlyList<CounterDefinition> Definitions { get; } = [MeltingFlame, HuntingArrow, Sign];
 
     public static IEnumerable<CounterDefinition> For(string operatorId) => Definitions.Where(d => d.OperatorId == operatorId);
 
@@ -39,7 +40,10 @@ public static class OperatorCounters
         var readings = new List<CounterReading>();
         foreach (var counter in For(operatorId))
         {
-            int? value = counter == MeltingFlame ? ReadPetals(frame) : null;
+            int? value = counter == MeltingFlame ? ReadPetals(frame)
+                : counter == HuntingArrow ? ReadArrows(frame)
+                : counter == Sign ? ReadSigns(frame)
+                : null;
             readings.Add(new CounterReading(operatorId, counter.Id, value));
         }
         return readings;
@@ -83,6 +87,89 @@ public static class OperatorCounters
         if (pinkPetals > 0 || lit + darkPetals < 4) return null; // not the flower: covered, or not shown
         return lit;
     }
+
+    /// <summary>
+    /// Typhoeus's 猎矢: four slanted bars stacked left of the skill-point bar, one lit cyan per
+    /// arrow; the others grey. Lit bars drain from the top as she shoots, but the count is what's
+    /// read, not which bars. With all four, a white streak sweeps over them: lit bars run from cyan
+    /// to near white, but always with green and blue at full. Null when any bar is neither lit nor
+    /// grey: the icon dims to a pale teal while she hovers, which can't be told apart reliably.
+    /// </summary>
+    private static int? ReadArrows(Frame frame)
+    {
+        var ui = new UiScaler(frame.Width, frame.Height);
+        int lit = 0;
+        bool litAbove = false; // a lit bar above a grey one: not the icon as drawn (it's moving, or covered)
+        foreach (int barY in ArrowBarY)
+        {
+            var r = ui.BottomCenter(new PixelRect(ArrowBarX, barY - ArrowBarHalfHeight, ArrowBarWidth, 2 * ArrowBarHalfHeight + 1))
+                .ClampTo(frame.Width, frame.Height);
+            if (r.IsEmpty) return null;
+            int n = 0, cyan = 0, grey = 0;
+            for (int y = r.Y; y < r.Bottom; y++)
+            for (int x = r.X; x < r.Right; x++)
+            {
+                var (cr, cg, cb) = frame.GetPixel(x, y);
+                int max = Math.Max(cr, Math.Max(cg, cb)), min = Math.Min(cr, Math.Min(cg, cb));
+                n++;
+                if (cg >= 220 && cb >= 190) cyan++;
+                else if (max - min <= 20 && max >= 70 && max <= 160) grey++;
+            }
+            if (cyan > n * ArrowBarShare)
+            {
+                lit++;
+                litAbove = true;
+            }
+            else if (grey <= n * ArrowBarShare || litAbove) return null;
+        }
+        return lit;
+    }
+
+    /// <summary>
+    /// Typhoeus's 启示: eight dots in two columns right of her arrow bars, lit white one per Sign
+    /// (filling from the bottom row up, left dot first), grey otherwise. Null when any dot is neither,
+    /// or when the lit ones aren't in that order (the HUD moving, or something over it).
+    /// </summary>
+    private static int? ReadSigns(Frame frame)
+    {
+        var ui = new UiScaler(frame.Width, frame.Height);
+        var lit = new List<bool>(8);
+        foreach (int rowY in ArrowBarY.Reverse())
+        foreach (int dotX in SignDotX)
+        {
+            var r = ui.BottomCenter(new PixelRect(dotX - SignDotHalfSize, rowY - SignDotHalfSize, 2 * SignDotHalfSize + 1, 2 * SignDotHalfSize + 1))
+                .ClampTo(frame.Width, frame.Height);
+            if (r.IsEmpty) return null;
+            int n = 0, white = 0, grey = 0;
+            for (int y = r.Y; y < r.Bottom; y++)
+            for (int x = r.X; x < r.Right; x++)
+            {
+                var (cr, cg, cb) = frame.GetPixel(x, y);
+                int max = Math.Max(cr, Math.Max(cg, cb)), min = Math.Min(cr, Math.Min(cg, cb));
+                n++;
+                if (min >= 190 && max - min <= 40) white++;
+                else if (max - min <= 40 && max >= 80 && max <= 175) grey++;
+            }
+            if (white > n * ArrowBarShare) lit.Add(true);
+            else if (grey > n * ArrowBarShare) lit.Add(false);
+            else return null;
+        }
+        int count = lit.Count(l => l);
+        return lit.Take(count).All(l => l) ? count : null; // the first ones, bottom up
+    }
+
+    // Measured at 4K on a recording of the owner's fight (Fixtures/counters, native-*), bottom-centre
+    // anchored: the bars' middle rows (the dots share them) and the straight part of each bar.
+    private static readonly int[] ArrowBarY = [1959, 1973, 1987, 2001];
+    private const int ArrowBarX = 1512;
+    private const int ArrowBarWidth = 28;
+    private const int ArrowBarHalfHeight = 2;
+    // Lit bars: G and B at or near 255 (R from 50 for cyan up to 250 under the white streak);
+    // empty ones neutral grey 85-130; the dimmed teal G about 190.
+    private const double ArrowBarShare = 0.6;
+    // The two dot columns' centres; lit dots measured 215-255 on every channel, unlit grey 100-150.
+    private static readonly int[] SignDotX = [1552, 1567];
+    private const int SignDotHalfSize = 2;
 
     // Measured on the battle recording at 4K (bottom-centre anchored).
     private const int FlowerCentreX = 1535;

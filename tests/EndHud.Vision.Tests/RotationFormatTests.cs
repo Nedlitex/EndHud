@@ -142,12 +142,13 @@ public sealed class RotationFormatTests : IDisposable
     }
 
     [Fact]
-    public void Every_phase_behind_an_entry_condition_leaves_nothing_to_play_otherwise()
+    public void Every_phase_may_have_a_condition()
     {
+        // The phase shown stays when none holds (see PhaseSelector), so a phase without one isn't needed.
         var guide = Guide();
         var allGated = guide with { Phases = [.. guide.Phases.Select(p => p with { When = [new SkillPointsCondition(Comparison.AtLeast, 1)] })] };
 
-        Assert.Contains(RotationProblemKind.NoDefaultPhase, allGated.Problems().Select(p => p.Kind));
+        Assert.Empty(allGated.Problems());
     }
 
     [Fact]

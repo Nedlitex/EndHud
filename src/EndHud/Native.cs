@@ -20,6 +20,8 @@ internal static class Native
     public const uint SWP_NOSIZE = 0x1;
     public const uint SWP_NOMOVE = 0x2;
     public const uint SWP_NOACTIVATE = 0x10;
+    public const int SW_HIDE = 0;
+    public const int SW_SHOWNOACTIVATE = 4;
 
     public const uint WDA_EXCLUDEFROMCAPTURE = 0x11;
 
@@ -85,6 +87,59 @@ internal static class Native
 
     [DllImport("user32.dll")]
     public static extern bool IsIconic(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+    [DllImport("kernel32.dll")]
+    public static extern uint GetCurrentThreadId();
+
+    [DllImport("user32.dll")]
+    public static extern bool BringWindowToTop(IntPtr hWnd);
+
+    /// <summary>With <see cref="IntPtr.Zero"/>: let the cursor move over the whole screen again.</summary>
+    [DllImport("user32.dll")]
+    public static extern bool ClipCursor(IntPtr lpRect);
+
+    [DllImport("user32.dll")]
+    public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+
+    public const byte VK_MENU = 0x12;
+    public const uint KEYEVENTF_KEYUP = 0x2;
+
+    /// <summary>
+    /// Bring <paramref name="hwnd"/> to the front with keyboard focus. Windows refuses a plain
+    /// SetForegroundWindow from a background app at times; joining the foreground window's input
+    /// queue for the call, and failing that a tap of Alt, are the usual ways it's allowed.
+    /// </summary>
+    public static bool ForceForeground(IntPtr hwnd)
+    {
+        IntPtr fg = GetForegroundWindow();
+        if (fg == hwnd) return true;
+        uint fgThread = GetWindowThreadProcessId(fg, out _), self = GetCurrentThreadId();
+        bool attached = fg != IntPtr.Zero && fgThread != self && AttachThreadInput(self, fgThread, true);
+        try
+        {
+            BringWindowToTop(hwnd);
+            SetForegroundWindow(hwnd);
+        }
+        finally
+        {
+            if (attached) AttachThreadInput(self, fgThread, false);
+        }
+        if (GetForegroundWindow() == hwnd) return true;
+
+        keybd_event(VK_MENU, 0, 0, UIntPtr.Zero);
+        keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+        SetForegroundWindow(hwnd);
+        return GetForegroundWindow() == hwnd;
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern bool SetProp(IntPtr hWnd, string lpString, IntPtr hData);
 
     [DllImport("user32.dll")]
     public static extern IntPtr GetForegroundWindow();

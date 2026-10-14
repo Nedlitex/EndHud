@@ -6,7 +6,11 @@ using Rotation = EndHud.Vision.Rotations.Rotation;
 
 namespace EndHud;
 
-/// <summary>What the rotation strip shows for a tracker position: the steps around the current one, and why it isn't ready.</summary>
+/// <summary>
+/// What the rotation strip shows for a tracker position: the phase it's in. Every step looks the
+/// same: EndHud can't see which button the player pressed, so it doesn't mark a current step (no
+/// chevrons, nothing greyed out as done, no reasons why "this" step isn't ready).
+/// </summary>
 internal static class RotationStripView
 {
     /// <summary>What to draw: the current phase's steps, then the first two of the phase the flow plays next.</summary>
@@ -14,7 +18,6 @@ internal static class RotationStripView
         Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar)
     {
         var played = rotation.Played();
-        int current = position.Step.Index;
         int phase = position.Step.PhaseIndex;
         var shown = played.Where(p => p.PhaseIndex == phase).ToList();
         if (rotation.NextInFlow(phase) is { } next) shown.AddRange(played.Where(p => p.PhaseIndex == next).Take(2));
@@ -23,15 +26,10 @@ internal static class RotationStripView
         foreach (var p in shown)
         {
             var op = library?.Find(p.Step.OperatorId);
-            var look = p.Index == current ? (position.Ready ? StripStepState.Ready : StripStepState.Waiting)
-                : p.Index < current && p.PhaseIndex == phase ? StripStepState.Done
-                : StripStepState.Upcoming;
             steps.Add(new StripStep(op is null ? null : skillIcon(op, p.Step.Action), op is null ? null : avatar(op),
-                p.Step.Label ?? Loc.Get($"Rotation.Action.{p.Step.Action}"), p.Step.Note, look, p.Step.WithPrevious));
+                p.Step.Label ?? Loc.Get($"Rotation.Action.{p.Step.Action}"), p.Step.Note, StripStepState.Upcoming, p.Step.WithPrevious));
         }
-        var reasons = position.Ready ? [] : position.Checks.Where(c => c.Holds == false && c.Kind != CheckKind.PreviousStepUsed)
-            .Select(c => Reason(c, position.Step.Step, state, library)).Where(r => r is not null).Select(r => r!).ToList();
-        return new StripView(position.Step.PhaseLabel, steps, reasons);
+        return new StripView(position.Step.PhaseLabel, steps, []);
     }
 
     /// <summary>Why the current step isn't ready, in words.</summary>

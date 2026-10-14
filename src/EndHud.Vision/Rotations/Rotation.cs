@@ -32,6 +32,9 @@ public enum Comparison
 [JsonDerivedType(typeof(SkillPointsCondition), "skillPoints")]
 [JsonDerivedType(typeof(ComboCondition), "combo")]
 [JsonDerivedType(typeof(UltimateCondition), "ultimate")]
+[JsonDerivedType(typeof(UltimateChargeCondition), "ultimateCharge")]
+[JsonDerivedType(typeof(ComboChargeCondition), "comboCharge")]
+[JsonDerivedType(typeof(BattleSkillCondition), "battleSkill")]
 [JsonDerivedType(typeof(CounterCondition), "counter")]
 [JsonDerivedType(typeof(BossStatusCondition), "bossStatus")]
 [JsonDerivedType(typeof(ControllingCondition), "controlling")]
@@ -47,6 +50,16 @@ public sealed record ComboCondition(string OperatorId, bool Ready) : StateCondit
 
 /// <summary>An operator's ultimate is ready (or not).</summary>
 public sealed record UltimateCondition(string OperatorId, bool Ready) : StateCondition;
+
+/// <summary>An operator's ultimate is charged to (at least, at most) this percentage; ready counts as 100.</summary>
+public sealed record UltimateChargeCondition(string OperatorId, Comparison Is, int Percent) : StateCondition;
+
+/// <summary>An operator's combo cooldown has refilled to (at least, at most) this percentage of its bar; ready counts as 100.</summary>
+public sealed record ComboChargeCondition(string OperatorId, Comparison Is, int Percent) : StateCondition;
+
+/// <summary>An operator's battle skill button is available (or cooling, when <paramref name="Ready"/> is false).
+/// The countdown seconds on a cooling button aren't read.</summary>
+public sealed record BattleSkillCondition(string OperatorId, bool Ready) : StateCondition;
 
 /// <summary>An operator's own counter, e.g. Laevatain's 熔火 at 4 (see OperatorCounters).</summary>
 public sealed record CounterCondition(string OperatorId, string CounterId, Comparison Is, int Value) : StateCondition;
@@ -186,8 +199,6 @@ public sealed record Rotation(
             problems.Add(new RotationProblem(RotationProblemKind.SquadNotFourOperators));
         if (Phases.Count == 0)
             problems.Add(new RotationProblem(RotationProblemKind.NoPhases));
-        else if (Phases.All(p => p.Gated))
-            problems.Add(new RotationProblem(RotationProblemKind.NoDefaultPhase));
         foreach (var phase in Phases)
         {
             if (phase.Steps.Count == 0)
@@ -226,6 +237,9 @@ public sealed record Rotation(
                     {
                         ComboCondition c => c.OperatorId,
                         UltimateCondition u => u.OperatorId,
+                        UltimateChargeCondition u => u.OperatorId,
+                        ComboChargeCondition c => c.OperatorId,
+                        BattleSkillCondition b => b.OperatorId,
                         CounterCondition c => c.OperatorId,
                         ControllingCondition c => c.OperatorId,
                         _ => null,
@@ -251,8 +265,6 @@ public enum RotationProblemKind
 {
     SquadNotFourOperators,
     NoPhases,
-    /// <summary>Every phase has an entry condition: nothing to play while none holds.</summary>
-    NoDefaultPhase,
     PhaseHasNoSteps,
     /// <summary>A phase's first step is marked "with the previous step": there is none in its phase.</summary>
     FirstStepWithPrevious,

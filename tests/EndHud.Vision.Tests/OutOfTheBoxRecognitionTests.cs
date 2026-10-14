@@ -196,10 +196,14 @@ public sealed class OutOfTheBoxRecognitionTests : IDisposable
         string[] swappedTruth = [Truth[2], Truth[1], Truth[0], Truth[3]];
         var identifier = await NewIdentifierAsync(squad);
 
-        for (int n = 0; n < SquadIdentifier.MinReadings * 4; n++) await ReadingAsync(identifier, squad);
+        for (int n = 0; n < SquadIdentifier.Window * 4; n++) await ReadingAsync(identifier, squad); // settled
 
-        // Slots 1 and 3 swap (as after changing the squad): they start over, so never show the
-        // old name, and are named again within MinReadings comparisons each.
+        // The squad is changed in the team menu, which hides the squad panel for a while.
+        var menu = await reader.ReadAsync(new Frame(screen.Width, screen.Height, new byte[screen.Width * screen.Height * 4]));
+        for (int n = 0; n < PresenceMemory.ReadingsToLeave; n++) await ReadingAsync(identifier, menu);
+
+        // Back from the menu, slots 1 and 3 swapped: they start over, so never show the old name, and
+        // are named again within MinReadings comparisons each.
         PartyState last = swapped;
         for (int n = 0; n < SquadIdentifier.MinReadings * 2; n++)
         {

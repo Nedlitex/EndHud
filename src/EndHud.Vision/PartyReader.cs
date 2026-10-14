@@ -53,6 +53,12 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
         // An empty combo track is just dark, so also require the HP bar under it.
         || Slots.Count(s => s.Combo is not null && s.Hp > 0.02) >= 2;
 
+    /// <summary>
+    /// In a battle: the squad panel is on screen with a combo bar and the skill-point bar, which the
+    /// game draws in combat only. Not in exploration, menus, login or loading screens.
+    /// </summary>
+    public bool InCombat => PanelVisible && SkillPoints is not null && Slots.Any(s => s.Combo is not null);
+
     private const int MinPanelMarks = 6;
 }
 
