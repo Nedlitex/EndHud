@@ -24,8 +24,7 @@ public partial class OverlayWindow
     private readonly Dictionary<string, PhaseSelector> _trackers = [];
     private readonly Dictionary<string, BitmapSource?> _skillIcons = [];
 
-    /// <summary>Readings the squad panel can be out of sight before the strip goes (2 s at four a second).</summary>
-    private const int RotationPanelGrace = 8;
+    private readonly StripVisibility _stripVisibility = new();
     private (Rotation Rotation, RotationPosition Position)? _rotationPosition;
     private string? _stripKey;
     private Point? _rotationDragOffset;
@@ -61,10 +60,9 @@ public partial class OverlayWindow
     {
         Rotation? rotation = null;
         _rotationPosition = null;
-        // Whenever the squad panel is on screen (in battle or not; not in menus, login or loading
-        // screens), for a rotation made for the recognised squad. The tracker repeats the last
-        // reading while the panel is covered for a moment, for up to RotationPanelGrace readings.
-        if (state is { PanelVisible: true, ReadingsSinceSeen: <= RotationPanelGrace } && _config.RotationEnabled && _config.PartyOcrEnabled)
+        // In battle only (through short gaps: see StripVisibility), for a rotation made for the recognised squad.
+        bool inBattle = state is not null && _stripVisibility.Update(state);
+        if (state is not null && inBattle && _config.RotationEnabled && _config.PartyOcrEnabled)
         {
             rotation = RotationFor(state.Slots.Select(s => s.Operator?.Operator.Id).ToList());
             if (rotation is not null)

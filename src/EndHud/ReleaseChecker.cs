@@ -38,6 +38,9 @@ internal static class ReleaseChecker
     public static Version? Current { get; } = ParseVersion(
         typeof(ReleaseChecker).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion);
 
+    /// <summary>This build's version for people: "版本 1.2.0", or "开发版本" for a development build.</summary>
+    public static string DisplayVersion => Current is { } version ? Loc.Format("App.Version", version) : Loc.Get("App.Version.Dev");
+
     /// <summary>"v1.2.0", "1.2.0", "1.2.0+3025454" → 1.2.0. Null for anything else, and for 0.0.0 (a development build).</summary>
     internal static Version? ParseVersion(string? text)
     {

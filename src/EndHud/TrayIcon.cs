@@ -35,6 +35,7 @@ internal sealed class TrayIcon : IDisposable
         _iconImage = DrawIcon();
 
         _status = new ToolStripMenuItem { Enabled = false };
+        var version = new ToolStripMenuItem($"EndHud {ReleaseChecker.DisplayVersion}") { Enabled = false };
         _showHud = new ToolStripMenuItem(Loc.Get("Tray.ShowHud"), null, (_, _) => _overlay.ToggleHud());
         _autoShow = new ToolStripMenuItem(Loc.Get("Tray.AutoShow"), null,
             (_, _) => _overlay.SetAutoShow(!_overlay.AutoShow));
@@ -50,6 +51,7 @@ internal sealed class TrayIcon : IDisposable
         var menu = new ContextMenuStrip();
         menu.Items.AddRange(new ToolStripItem[]
         {
+            version,
             _status,
             new ToolStripSeparator(),
             _showHud,

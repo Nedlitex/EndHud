@@ -138,6 +138,7 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20,0">
         <StackPanel>
             <TextBlock Text="{DynamicResource Menu.Title}" Foreground="{StaticResource Accent}" FontWeight="Bold" FontSize="16" />
+            <TextBlock x:Name="VersionText" Foreground="#CCFFFFFF" FontSize="11" />
             <TextBlock Text="{DynamicResource Menu.DragHint}" Foreground="#99FFFFFF" FontSize="11" TextWrapping="Wrap" />
 
             <TextBlock Text="{DynamicResource Menu.Hotkeys}" Style="{StaticResource SectionHeader}" />

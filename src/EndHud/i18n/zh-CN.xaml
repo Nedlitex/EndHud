@@ -162,7 +162,7 @@
 
     <!-- Menu: rotation strip -->
     <sys:String x:Key="Menu.Rotation">排轴</sys:String>
-    <sys:String x:Key="Menu.Rotation.Hint">按识别到的小队自动加载排轴，小队栏可见时按当前状态显示该打的轴段。</sys:String>
+    <sys:String x:Key="Menu.Rotation.Hint">按识别到的小队自动加载排轴，战斗中按当前状态显示该打的轴段。</sys:String>
     <sys:String x:Key="Menu.Rotation.Edit">编辑排轴…</sys:String>
     <sys:String x:Key="Menu.Rotation.ResetPosition">恢复默认位置</sys:String>
     <sys:String x:Key="Tray.EditRotations">编辑排轴</sys:String>
@@ -186,6 +186,8 @@
 
     <!-- 菜单 -->
     <sys:String x:Key="Menu.Title">ENDHUD — 菜单</sys:String>
+    <sys:String x:Key="App.Version">版本 {0}</sys:String>
+    <sys:String x:Key="App.Version.Dev">开发版本</sys:String>
     <sys:String x:Key="Menu.DragHint">按住菜单的空白处可以拖动菜单。</sys:String>
     <sys:String x:Key="Menu.Hotkeys">快捷键</sys:String>
     <sys:String x:Key="Menu.Key.Menu">打开/关闭此菜单</sys:String>

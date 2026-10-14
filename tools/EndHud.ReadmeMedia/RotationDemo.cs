@@ -56,6 +56,7 @@ static class RotationDemo
         var identifier = new SquadIdentifier(library);
         var boss = new BossStatusReader(library);
         var rotationTracker = new PhaseSelector(rotation);
+        var stripVisibility = new StripVisibility();
         bool readBoss = rotation.Phases.Any(p => p.Steps.Any(s => s.Expect.Any(c => c is BossStatusCondition)));
         var readings = new List<Reading>();
         double lastBoss = double.MinValue;
@@ -77,10 +78,9 @@ static class RotationDemo
                 state = state with { BossStatuses = readings[^1].State.BossStatuses }; // as the app keeps the last one
             }
 
-            // As the overlay: while the squad panel is on screen (or covered for at most 2 s), only
-            // for the squad the rotation is for.
-            bool panel = state.PanelVisible && state.ReadingsSinceSeen <= 8;
-            RotationPosition? position = panel && rotation.IsFor(state.Slots.Select(s => s.Operator?.Operator.Id).ToList())
+            // As the overlay: in battle (StripVisibility), only for the squad the rotation is for.
+            bool inBattle = stripVisibility.Update(state);
+            RotationPosition? position = inBattle && rotation.IsFor(state.Slots.Select(s => s.Operator?.Operator.Id).ToList())
                 ? rotationTracker.Update(state) : null;
             readings.Add(new Reading(t, state, position));
             if (readings.Count % 40 == 0) Console.WriteLine($"read {t:0} / {duration:0} s ({clock.Elapsed.TotalSeconds:0} s)");

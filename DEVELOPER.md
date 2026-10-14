@@ -47,7 +47,7 @@ still being recognised (the first second or so), a hint waits for the name inste
 ### Rotation strip (排轴)
 
 A rotation is the order a squad's skills are used in: battle skills, combos and ultimates (basic
-attacks aren't tracked). While the squad panel is on screen, a strip at the top centre shows the
+attacks aren't tracked). In battle, a strip at the top centre shows the
 phase of the recognised squad's rotation that fits the game right now, styled after community
 rotation charts.
 
@@ -59,8 +59,9 @@ rotation charts.
   [Rotations](#rotations).
 - **Every step alike.** EndHud can't see which button was pressed, so it doesn't mark a current
   step: the strip shows the phase's steps in order, with their notes.
-- **Shown while the squad panel is.** In battle or out; not in menus, login or loading screens. The
-  panel may be covered for up to 2 s (effects) before the strip goes.
+- **Shown in battle only** ([`StripVisibility`](src/EndHud.Vision/StripVisibility.cs)). A reading that
+  misses the battle signs, or the panel covered by an ultimate animation (up to 3 s), doesn't take
+  it down; it goes 2 s after the battle signs are gone (exploration, menus, loading).
 - **Looks like the guides' charts:** a see-through grey band that fades out at both ends, no
   backdrop box, the phase name large on the left, a line through the icons. Centred at the top by
   default, and it stays centred as its width changes.

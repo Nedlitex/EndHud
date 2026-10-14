@@ -63,6 +63,7 @@ public partial class OverlayWindow : Window
         _publishedRotations = new PublishedRotationService(_rotationLibrary);
         ReloadRotations();
         InitRotationSettings();
+        VersionText.Text = ReleaseChecker.DisplayVersion;
 
         _party = new PartyMonitor(TimeSpan.FromMilliseconds(Math.Max(250, config.OcrIntervalMs)));
         _party.Updated += (state, error) => Dispatcher.BeginInvoke(() => ShowParty(state, error));
