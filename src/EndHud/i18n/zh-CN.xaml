@@ -60,7 +60,7 @@
     <sys:String x:Key="Editor.UseCurrentSquad.Unavailable">进入游戏并显示小队栏、识别出全部干员后可用</sys:String>
     <sys:String x:Key="Editor.MoveUp">上移</sys:String>
     <sys:String x:Key="Editor.MoveDown">下移</sys:String>
-    <sys:String x:Key="Editor.Phases">轴段（按顺序进行；设置了进入条件的轴段，条件一满足就立刻切入）</sys:String>
+    <sys:String x:Key="Editor.Phases">轴段（战斗中显示满足条件的第一个轴段；都不满足时保持当前轴段）</sys:String>
     <sys:String x:Key="Editor.PhaseName">轴段名称</sys:String>
     <sys:String x:Key="Editor.NewPhase">新建轴段</sys:String>
     <sys:String x:Key="Editor.DeletePhase">删除轴段</sys:String>
@@ -130,9 +130,9 @@
     <sys:String x:Key="Editor.Unsaved">有未保存的修改。是：保存；否：不保存；取消：继续编辑。</sys:String>
     <sys:String x:Key="Editor.NoLibrary">干员库还没有下载完成，请稍后再打开排轴编辑器。</sys:String>
     <sys:String x:Key="Editor.PhaseItem">{0}. {1}</sys:String>
-    <sys:String x:Key="Editor.PhaseItemGated">{0}. {1}　· 满足进入条件时切入</sys:String>
-    <sys:String x:Key="Editor.Gate">进入条件（可选）</sys:String>
-    <sys:String x:Key="Editor.GateHint">留空：按上面的顺序进行（例如两个充能轴依次进行、循环）。设置后：不按顺序进行，而是条件一满足就立刻切到这个轴段并打完它（例如“莱万汀 终结技 就绪”时切到爆发轴）。</sys:String>
+    <sys:String x:Key="Editor.PhaseItemGated">{0}. {1}　· 有显示条件</sys:String>
+    <sys:String x:Key="Editor.Gate">显示条件（可选）</sys:String>
+    <sys:String x:Key="Editor.GateHint">满足这些条件时显示这个轴段（几个轴段同时满足时，显示最上面的那个）。都不满足时保持当前显示的轴段；还没有轴段满足过时，显示第一个没有条件的轴段（都有条件时显示第一个）。例如爆发轴：“青霆剑 等于 9”且“庄方宜 终结技 就绪”。</sys:String>
     <sys:String x:Key="Editor.Condition.Group">条件组</sys:String>
     <sys:String x:Key="Editor.Group.All">全部满足</sys:String>
     <sys:String x:Key="Editor.Group.Any">任一满足</sys:String>

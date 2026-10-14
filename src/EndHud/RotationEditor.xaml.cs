@@ -716,7 +716,7 @@ public partial class RotationEditor : Window
             return new StripStep(op is null ? null : SkillIcon(op, s.Action), op is null ? null : Avatar(op),
                 string.IsNullOrWhiteSpace(s.Label) ? Loc.Get($"Rotation.Action.{s.Action}") : s.Label,
                 string.IsNullOrWhiteSpace(s.Note) ? null : s.Note,
-                i == 0 ? StripStepState.Ready : StripStepState.Upcoming, i > 0 && s.WithPrevious);
+                StripStepState.Upcoming, i > 0 && s.WithPrevious); // as the strip: no current step marked
         }).ToList();
         // Numbered by its place in the list, as the strip shows it.
         string label = _draft?.ToRotation().Played().FirstOrDefault(p => p.PhaseIndex == _draft.Phases.IndexOf(_phase))?.PhaseLabel ?? _phase.Name;

@@ -68,8 +68,8 @@ rotation charts.
 - **Move it**: open the menu and drag the strip; "reset position" puts it back.
 - **Recommended rotations** come from the repository's [`rotations/`](rotations) folder and are
   kept up to date daily, without a release (see [Recommended rotations](#recommended-rotations)).
-- **Edit and share** in the rotation editor (menu → 排轴 → 编辑排轴…, or the tray): phases,
-  steps, expected states picked from lists, a live preview, and import/export as a file or a share
+- **Edit and share** in the rotation editor (menu → 排轴 → 编辑排轴…, or the tray): phases and
+  their conditions picked from lists, steps, a live preview, and import/export as a file or a share
   code (`EHR1:` + compressed JSON, short enough for a chat message).
 
 ### Debug panel

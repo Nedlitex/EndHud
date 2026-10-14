@@ -131,10 +131,14 @@
                                 <TextBox DockPanel.Dock="Left" x:Name="StepNote" Width="140" VerticalAlignment="Center" TextChanged="StepField_Changed" />
                                 <TextBlock Text="{DynamicResource Editor.NoteHint}" Foreground="#888" Margin="6,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
                             </DockPanel>
-                            <TextBlock Text="{DynamicResource Editor.Expect}" FontWeight="SemiBold" Margin="0,0,0,2" />
-                            <TextBlock Text="{DynamicResource Editor.ExpectHint}" Foreground="#888" TextWrapping="Wrap" Margin="0,0,0,6" />
-                            <StackPanel x:Name="ConditionRows" />
-                            <Button Content="{DynamicResource Editor.AddCondition}" HorizontalAlignment="Left" Margin="0,4,0,0" Click="AddCondition_Click" />
+                            <!-- A step's expected state: kept in files, but hidden, since nothing uses it while the
+                                 strip marks no current step (the phase shown comes from the phases' conditions). -->
+                            <StackPanel x:Name="ExpectSection" Visibility="Collapsed">
+                                <TextBlock Text="{DynamicResource Editor.Expect}" FontWeight="SemiBold" Margin="0,0,0,2" />
+                                <TextBlock Text="{DynamicResource Editor.ExpectHint}" Foreground="#888" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                <StackPanel x:Name="ConditionRows" />
+                                <Button Content="{DynamicResource Editor.AddCondition}" HorizontalAlignment="Left" Margin="0,4,0,0" Click="AddCondition_Click" />
+                            </StackPanel>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>
