@@ -1,0 +1,43 @@
+# Keeps operators/operator-library.zip (the operator library EndHud ships and updates from)
+# current: once a week, download the roster, avatars, skill icons and statuses from the wiki
+# (endfield.wiki.gg) and rebuild the package. The package is reproducible, so an unchanged wiki
+# gives the same bytes and nothing is committed. Players' EndHud picks a new package up from the
+# repository within a few hours (OperatorPackageSync), no release needed.
+name: Operator package
+
+on:
+  schedule:
+    - cron: "17 3 * * 1" # Mondays 03:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: operator-package
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Rebuild the package from the wiki
+        shell: pwsh
+        run: dotnet run --project src/EndHud.Cli -c Release -- build-operator-package operators/operator-library.zip
+      - name: Commit it if it changed
+        shell: bash
+        run: |
+          if git diff --quiet -- operators/operator-library.zip; then
+            echo "Unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add operators/operator-library.zip
+          git commit -m "Operator package: refreshed from the wiki"
+          git push

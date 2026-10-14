@@ -14,6 +14,8 @@ internal sealed class TrayIcon : IDisposable
     private readonly OverlayWindow _overlay;
     private readonly NotifyIcon _icon;
     private readonly Icon _iconImage;
+    private AutoInstaller _autoInstaller = null!;
+    private System.Windows.Threading.DispatcherTimer _autoInstallTimer = null!;
     private readonly ToolStripMenuItem _status;
     private readonly ToolStripMenuItem _showHud;
     private readonly ToolStripMenuItem _autoShow;
@@ -78,8 +80,20 @@ internal sealed class TrayIcon : IDisposable
         _icon.DoubleClick += (_, _) => _overlay.ToggleMenu();
         _icon.BalloonTipClicked += (_, _) => _balloonClick?.Invoke();
 
-        // Found by the automatic checks (on worker threads).
-        _updates.NewVersionFound += release => OnUi(() => Notify(AvailableText(release), () => _ = UpdateNowAsync(release)));
+        // Found by the automatic checks (on worker threads): installed by itself once the game isn't
+        // running (AutoInstaller), or offered.
+        _autoInstaller = new AutoInstaller(() => _overlay.AutoInstallUpdates, () => _overlay.GameFound);
+        _updates.NewVersionFound += release => OnUi(() =>
+        {
+            if (!_autoInstaller.Found(release))
+                Notify(AvailableText(release), () => _ = UpdateNowAsync(release));
+            else if (_overlay.GameFound)
+                Notify(Loc.Format("Update.AutoLater", release.Version.ToString(3)), () => _ = UpdateNowAsync(release));
+            InstallIfDue();
+        });
+        _autoInstallTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        _autoInstallTimer.Tick += (_, _) => InstallIfDue();
+        _autoInstallTimer.Start();
         _overlay.PublishedRotations.Changed += (result, automatic) =>
         {
             // A manual check reports in its own balloon; removals alone aren't worth a notification.
@@ -106,6 +120,11 @@ internal sealed class TrayIcon : IDisposable
             _releaseNotes.Text = Loc.Format("Tray.ReleaseNotes", release.Version.ToString(3));
             _updateNow.Visible = _releaseNotes.Visible = true;
         }
+    }
+
+    private void InstallIfDue()
+    {
+        if (!_updating && _autoInstaller.Due() is { } release) _ = UpdateNowAsync(release);
     }
 
     private static string AvailableText(ReleaseInfo release) =>

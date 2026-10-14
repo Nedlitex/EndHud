@@ -10,3 +10,6 @@ yt-dlp==2026.8.19
 # tools/ccip-model: rebuild the character recognition model from the original.
 onnx==1.23.2
 onnxruntime==1.20.1
+
+# README media: convert docs/images/*.webp to GIF for posting
+pillow==11.3.0

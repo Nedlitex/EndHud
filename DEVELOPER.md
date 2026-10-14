@@ -118,7 +118,7 @@ dotnet build -c Release
 dotnet run --project src/EndHud -c Release
 ```
 
-Or produce a single `EndHud.exe` with everything inside it (the operator library is still downloaded on first start):
+Or produce a single `EndHud.exe` with everything inside it (the operator library included):
 
 ```powershell
 dotnet publish src/EndHud -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish
@@ -138,7 +138,7 @@ git push origin v1.2.0
 
 [`.github/workflows/release.yml`](.github/workflows/release.yml) runs the tests, builds the two
 files below, and checks them on a clean Windows machine before publishing anything: it installs
-the MSI, runs the installed EndHud's self-test (download the operators from the wiki, name the
+the MSI, runs the installed EndHud's self-test (unpack the built-in operator package, name the
 squad in a test screenshot), does the same with the portable exe, and uninstalls, checking nothing
 is left behind. On another clean machine it installs an old EndHud (0.0.1, built from the same
 code) and lets it update itself to the new release, as "update now" does, from a stand-in for
@@ -165,7 +165,7 @@ EndHud data:
 ```
 
 It runs `EndHud.exe --self-test <folder> [--screenshot <image> --expect <ids>]` (no window), which
-downloads the operator library into `<folder>` as on first start, loads it, and names the squad in
+unpacks the built-in operator package into `<folder>` as on first start, loads it, and names the squad in
 the screenshot; the steps are logged to `<folder>\self-test.log`, and the exit code is 0 when all
 passed. The files aren't code-signed yet, so Windows SmartScreen warns about an
 unrecognised app the first time.
@@ -191,7 +191,7 @@ Right-click the tray icon for: status, show HUD, open menu, auto-show on/off, de
 
 - **A newer EndHud.** [`UpdateService`](src/EndHud/UpdateService.cs) asks GitHub for the
   repository's latest published release (`/releases/latest`: drafts and pre-releases don't count)
-  a minute after start and then daily, when `CheckForUpdates` is on (the default; a menu checkbox).
+  a few seconds after start and then daily, when `CheckForUpdates` is on (the default; a menu checkbox).
   Development builds (version 0.0.0, a plain `dotnet build`) don't check. GitHub answers "not
   found" while the repository is private, which EndHud reports as "can't check". A manual check
   reuses an answer under a minute old (GitHub allows 60 unauthenticated requests an hour).
@@ -213,9 +213,16 @@ Right-click the tray icon for: status, show HUD, open menu, auto-show on/off, de
   Settings, learned portraits and the operator library are in `%APPDATA%\EndHud`, which neither
   touches. On any failure before the hand-over nothing has changed and the notification links to
   the releases page.
-- **New operators.** The weekly background refresh announces operators that weren't there before.
-- **Check for updates** (tray) does both at once and shows the result in a notification. It asks
-  the wiki at most every 15 minutes; within that it reports the last result.
+- **Installed by itself** (`AutoInstallUpdates`, on by default): a newer version is installed as
+  above without a click, but only while the game isn't running; one found while playing waits until
+  the game is closed ([`AutoInstaller`](src/EndHud/AutoInstaller.cs)). Each version is tried once
+  per run; a failure is notified and waits for the next start.
+- **New operators.** A newer operator package from the repository (see
+  [Recognising operators](#recognising-operators)) is installed in the background and its new
+  operators announced.
+- **Check for updates** (tray) does all of it at once and shows the result in a notification. It
+  asks GitHub for the operator package at most every 15 minutes; within that it reports the last
+  result.
 
 ### Settings
 
@@ -224,7 +231,8 @@ edit it by hand, restart EndHud. Delete the file to reset.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `CheckForUpdates` | `true` | Check GitHub a minute after start and then daily: for a newer EndHud (a notification; nothing is installed) and for changed recommended rotations (downloaded). |
+| `CheckForUpdates` | `true` | Check GitHub a few seconds after start and then daily: for a newer EndHud, for changed recommended rotations and for a newer operator package (both downloaded). |
+| `AutoInstallUpdates` | `true` | Install a newer EndHud by itself while the game isn't running (needs `CheckForUpdates`). Off: a notification only. |
 | `AutoShowOnGameFocus` | `true` | Show the HUD when the game has focus and hide it otherwise. When `false`, the HUD only shows after Ctrl+Shift+H. |
 | `PartyOcrEnabled` | `true` | Read the squad panel (names, HP, skills, levels). |
 | `OcrIntervalMs` | `250` | How often the screen is read, in milliseconds (minimum 250). Rotations need it fast: skill points are spent and refilled quickly. |
@@ -255,13 +263,26 @@ EndHud finds the game as a Unity window whose title contains "Endfield" or the g
 
 The game shows no operator names in the squad panel, so EndHud identifies each portrait.
 
-1. **References, downloaded.** Every operator's avatar, their battle skill, combo and ultimate
-   icons and Chinese name come from [endfield.wiki.gg](https://endfield.wiki.gg/wiki/Operator).
-   They're the game's art, so **EndHud ships none of it**: the first start downloads them (about
-   1 MB) into your user data, for the MSI and the portable exe alike. A copy older than 7 days is
-   refreshed in the background, which picks up new operators; the tray's **check for updates**
-   refreshes it now. Without internet on the first start, slots show "slot n" and the download is
-   retried (after 1, 5, 15 and then every 30 minutes); the menu says so.
+1. **References, built in.** Every operator's avatar, their battle skill, combo and ultimate
+   icons, Chinese name and the enemy status icons come from
+   [endfield.wiki.gg](https://endfield.wiki.gg/wiki/Operator) (CC BY-SA 4.0; the images are the
+   game's art), as one package: [`operators/operator-library.zip`](operators) (about 0.9 MB,
+   [`OperatorPackage`](src/EndHud.Vision/Operators/OperatorPackage.cs)). It's built into EndHud,
+   so a first start needs no network (the wiki was slow or unreachable for many players in
+   mainland China). New operators come without a release:
+   - A weekly workflow ([`operator-package.yml`](.github/workflows/operator-package.yml)) rebuilds
+     the package from the wiki (`endhud-cli build-operator-package operators/operator-library.zip`)
+     and commits it only if the content changed: the package is reproducible (entries sorted, fixed
+     timestamps, its date kept when nothing changed).
+   - While EndHud runs (and `CheckForUpdates` is on), it looks at the repository's `operators/`
+     folder every 6 hours, as for recommended rotations
+     ([`OperatorPackageSync`](src/EndHud.Vision/Operators/OperatorPackageSync.cs)): downloaded only
+     when its git blob SHA-1 changed, which it must match; installed only if newer than the one in
+     use (built in or downloaded before, whichever is newer). The tray's **check for updates** asks
+     now.
+   - A package that isn't one, has a file outside its folder, or lists under 80% of the current
+     roster is refused and the current copy kept. Installing swaps the folder with two renames (an
+     interrupted swap is undone on the next start); learned portraits are never touched.
 2. **Recognised out of the box.** The squad panel shows the game's 3D model; the wiki avatar is a
    drawing. Comparing their pixels doesn't work (it got 0 of 60 slots right on the test frames),
    so EndHud uses a model trained to tell anime characters apart across different art: CCIP,
@@ -304,12 +325,14 @@ Your own data lives in `%APPDATA%\EndHud\operators\`:
 
 | Path | Contents |
 |---|---|
-| `reference/` | the roster, avatars and skill icons downloaded from the wiki (`wiki-sha1.json` records the wiki's checksums, so unchanged files aren't downloaded again) |
+| `reference/` | the operator package unpacked: roster, avatars, skill icons, statuses (`package.json` says when its content last changed) |
+| `package-seen.sha` | the last package listed on GitHub, so an unchanged one isn't downloaded again |
 | `learned/<operator>/*.png` | portraits learned from your picks |
 | `features/*.json` | the avatars as the recognition model describes them, per screen size (a cache: safe to delete) |
 
-How a download stays polite to the wiki, which volunteers run
-([`WikiPoliteness`](src/EndHud.Vision/Operators/WikiPoliteness.cs)):
+Players never contact the wiki: only the package build (the weekly workflow, or a developer
+running `endhud-cli build-operator-package`) does. How that stays polite to the wiki, which
+volunteers run ([`WikiPoliteness`](src/EndHud.Vision/Operators/WikiPoliteness.cs)):
 
 - One request at a time from the whole process, with a pause between them: 1 s between API calls,
   0.1 s between images (served from a CDN). A full first download is about 10 API calls and 133
@@ -317,10 +340,10 @@ How a download stays polite to the wiki, which volunteers run
 - API calls send `maxlag=5`: when the wiki's database is behind, it answers "busy" instead of doing
   the work, and EndHud waits (Retry-After, up to 60 s) and retries, giving up after three tries
   until the next scheduled check. Busy HTTP answers (429, 5xx) are treated the same.
-- How often: on first start, then weekly in the background, plus manual checks at most every 15
-  minutes. Requests name EndHud and its repository in the User-Agent.
+- How often: once a week, from the workflow. Requests name EndHud and its repository in the
+  User-Agent.
 
-How a download stays safe ([`OperatorReference`](src/EndHud.Vision/Operators/OperatorReference.cs),
+How the package build stays safe ([`OperatorReference`](src/EndHud.Vision/Operators/OperatorReference.cs),
 [`WikiOperatorSource`](src/EndHud.Vision/Operators/WikiOperatorSource.cs)):
 
 - New operators need nothing: the roster is whatever the wiki's Operator page lists.
@@ -438,7 +461,7 @@ entry changes:
 Every `<id>.json` in [`rotations/`](rotations) on `main` is published to every player
 ([`RotationSync`](src/EndHud.Vision/Rotations/RotationSync.cs),
 [`PublishedRotationService`](src/EndHud/PublishedRotationService.cs)). Adding, fixing or deleting
-one is a commit; no release is needed. EndHud checks a minute after start and then daily (when
+one is a commit; no release is needed. EndHud checks a few seconds after start and then daily (when
 `CheckForUpdates` is on), with the tray's "check for updates", and when the player presses
 "恢复推荐排轴" in the editor.
 
@@ -536,10 +559,12 @@ exception: hosted runners can't capture windows, so they only run on a developer
   from the other one's reference; a swapped operator is renamed without showing the old name; a
   damaged feature cache is rebuilt.
 - **Learning:** correcting and clearing.
-- **Operator library:** the downloaded roster and icons, learning on top of them, and that the
-  build contains no game art. Downloading and updating are tested against a stand-in for the wiki
-  (new operators, changed and unchanged images, busy or broken wiki, broken images, interrupted
-  swaps), so those tests need no network.
+- **Operator library:** the operator package (built in, equal to the repository's; same content,
+  same bytes; only a newer one replaces the installed one; broken, unsafe or shrunken packages
+  refused; learned portraits kept; updating from a stand-in for GitHub), learning on top of it. The
+  tests unpack the repository's package, so they need no network. The package build's wiki
+  download is tested against a stand-in for the wiki (new operators, changed and unchanged images,
+  busy or broken wiki, broken images, interrupted swaps).
 
   The other recognition tests use the real roster from `.cache/operator-library` (git-ignored: it's
   game art). A fresh clone downloads it the first time the tests run (about 10 s); CI keeps it in its
@@ -709,8 +734,8 @@ Copy `src/EndHud/i18n/zh-CN.xaml` to, for example, `en-US.xaml`, translate the v
 
 ## Game art
 
-EndHud ships no game art: operator avatars and skill icons are downloaded from the community wiki
-onto the user's machine, and the build contains none (a test checks). The repository's test
-fixtures, recordings and README pictures are frames of gameplay, kept for testing and
-documentation. Earlier commits did contain the wiki art; clean the history before making the
-repository public.
+EndHud carries the game's art in one place: the operator package
+(`operators/operator-library.zip`: avatars, skill icons, status icons from the community wiki,
+CC BY-SA 4.0), built in so a first start needs no network. A test checks the build carries exactly
+that and the recognition model. The repository's test fixtures, recordings and README pictures are
+frames of gameplay, kept for testing and documentation.

@@ -8,7 +8,7 @@ name: Release
 # 1. tests    the test suite (tests.yml).
 # 2. build    EndHud as a self-contained exe and an MSI installer.
 # 3. verify   on a clean Windows machine: install the MSI, run the installed EndHud's self-test
-#             (download the operators from the wiki and name the squad in a screenshot), the same
+#             (unpack the built-in operator package and name the squad in a screenshot), the same
 #             for the portable exe, then uninstall and check nothing is left behind.
 #    update   on another clean machine: install an old EndHud (0.0.1, built from the same code),
 #             and let it update itself to this release from a stand-in for GitHub, as a player's
@@ -147,13 +147,13 @@ jobs:
           if (-not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\EndHud.lnk")) { throw "No Start menu shortcut" }
           "Installed EndHud $installed"
 
-      # The self-test downloads the operators from the wiki, loads them, and names the squad in
-      # the screenshot; see src/EndHud/SelfTest.cs. Run as a player would: the installed exe.
+      # The self-test unpacks the operator package built into EndHud (no network, as on a player's
+      # first start), loads it, and names the squad in the screenshot; see src/EndHud/SelfTest.cs. Run as a player would: the installed exe.
       - name: Self-test the installed EndHud
         shell: pwsh
         run: ./installer/self-test.ps1 -Exe "$env:LOCALAPPDATA\Programs\EndHud\EndHud.exe" -Folder "$env:RUNNER_TEMP\self-test-msi" -Screenshot $env:SCREENSHOT -Squad $env:SQUAD
 
-      # Same folder: the roster is already there, so the wiki is only asked what changed.
+      # Same folder: the package is already installed there, so it's kept as it is.
       - name: Self-test the portable exe
         shell: pwsh
         run: |

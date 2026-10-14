@@ -30,13 +30,10 @@ public sealed class OperatorLibraryTests : IDisposable
     }
 
     [Fact]
-    public void EndHud_ships_no_game_art()
+    public void The_portrait_references_cover_the_roster()
     {
-        // The roster, avatars and skill icons are downloaded, never compiled in (they're the game's
-        // art). The only resources are the character recognition model (tools/ccip-model) and the
-        // in-game portrait references, which are the model's numbers, not images.
-        Assert.Equal(["ccip-features-int8.onnx", "ccip-metrics.onnx", PortraitReferences.ResourceName],
-            typeof(OperatorLibrary).Assembly.GetManifestResourceNames().Order());
+        // The in-game portrait references are the model's numbers, not images (the operator package
+        // with the art itself is OperatorPackageTests').
         Assert.All(PortraitReferences.BuiltIn, r => Assert.Equal(768, r.Features.Length));
         Assert.True(PortraitReferences.BuiltIn.Select(r => r.OperatorId).Distinct().Count() >= 32);
     }

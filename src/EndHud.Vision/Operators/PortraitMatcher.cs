@@ -76,31 +76,38 @@ public sealed class PortraitMatcher(OperatorLibrary library)
     /// How different <paramref name="screenPortrait"/> (the portrait at the screen's own size,
     /// <see cref="PartySlot.ScreenPortrait"/>) is from each operator, in
     /// <see cref="OperatorLibrary.Operators"/> order; 0 = the same character. Per operator, the
-    /// closer of its wiki avatar and its in-game portrait references (at the nearest size). Null
-    /// while the avatars for this portrait size are still being prepared (see <see cref="PrepareWikiAvatars"/>).
+    /// closer of its wiki avatar and its in-game portrait references (at the nearest size). While
+    /// the avatars for this portrait size are still being prepared (<see cref="PrepareWikiAvatars"/>,
+    /// up to a minute on a first start), the in-game references alone, so the squad is named right
+    /// away; an operator without one counts as <see cref="Unknown"/> until then. Null when neither
+    /// is there yet.
     /// </summary>
     public float[]? Differences(Frame screenPortrait)
     {
-        var avatars = PrepareWikiAvatars(screenPortrait.Width);
-        if (!avatars.IsCompletedSuccessfully) return null;
+        var prepared = PrepareWikiAvatars(screenPortrait.Width);
+        float[][] avatarFeatures = prepared.IsCompletedSuccessfully ? prepared.Result : [];
 
         int width = PortraitReferences.NearestWidth(screenPortrait.Width);
         var index = new Dictionary<string, int>();
         for (int j = 0; j < library.Operators.Count; j++) index[library.Operators[j].Id] = j;
         var references = _references.Where(r => r.PortraitWidth == width && index.ContainsKey(r.OperatorId)).ToList();
+        if (avatarFeatures.Length == 0 && references.Count == 0) return null;
 
         var model = CharacterModel.Shared;
         var differences = model.Differences([model.Features(screenPortrait)],
-            [.. avatars.Result, .. references.Select(r => r.Features)]);
-        var row = new float[avatars.Result.Length];
-        for (int j = 0; j < row.Length; j++) row[j] = differences[0, j];
+            [.. avatarFeatures, .. references.Select(r => r.Features)]);
+        var row = new float[library.Operators.Count];
+        for (int j = 0; j < row.Length; j++) row[j] = j < avatarFeatures.Length ? differences[0, j] : Unknown;
         for (int k = 0; k < references.Count; k++)
         {
             int j = index[references[k].OperatorId];
-            row[j] = Math.Min(row[j], differences[0, row.Length + k]);
+            row[j] = Math.Min(row[j], differences[0, avatarFeatures.Length + k]);
         }
         return row;
     }
+
+    /// <summary>The difference given to an operator with nothing to compare yet: far from any match.</summary>
+    public const float Unknown = 2f;
 
     /// <summary>
     /// Describe every wiki avatar for portraits <paramref name="width"/> pixels wide, in the

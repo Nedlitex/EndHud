@@ -180,6 +180,9 @@
             <CheckBox x:Name="CheckForUpdatesCheckBox" Click="CheckForUpdatesCheckBox_Click">
                 <TextBlock Text="{DynamicResource Menu.CheckForUpdates}" TextWrapping="Wrap" />
             </CheckBox>
+            <CheckBox x:Name="AutoInstallUpdatesCheckBox" Click="AutoInstallUpdatesCheckBox_Click" Margin="20,0,0,4">
+                <TextBlock Text="{DynamicResource Menu.AutoInstallUpdates}" TextWrapping="Wrap" />
+            </CheckBox>
 
             <!-- Feature: combo-ready hint. -->
             <Border Style="{StaticResource FeatureCard}">

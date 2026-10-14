@@ -10,6 +10,9 @@ using EndHud.Vision.Operators;
 //       Match each squad portrait against the library and print the top candidates.
 //   endhud-cli build-portrait-references <squads.json> <out.json>
 //       Describe the labelled 4K squad screenshots' portraits for EndHud's built-in references.
+//   endhud-cli build-operator-package <out.zip>
+//       Download the roster from the wiki and write the operator package EndHud ships and updates
+//       from (operators/operator-library.zip). Unchanged content keeps the same bytes.
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 
@@ -21,6 +24,7 @@ return args.FirstOrDefault() switch
     "analyze-video" when args.Length >= 2 => await AnalyzeVideoAsync(args[1], double.Parse(Option("--every") ?? "1")),
     "capture" when args.Length >= 3 => await CaptureAsync(args[1], args[2]),
     "build-portrait-references" when args.Length >= 3 => await BuildReferencesAsync(args[1], args[2]),
+    "build-operator-package" when args.Length >= 2 => await BuildPackageAsync(args[1]),
     "learn" when args.Length >= 2 && Option("--library") is { } lib && Option("--slots") is { } ids => await LearnAsync(args[1], lib, ids),
     _ => Usage(),
 };
@@ -42,6 +46,7 @@ static int Usage()
           endhud-cli learn <screenshot.png> --library <library-dir> --slots <id1>,<id2>,<id3>,<id4>
           endhud-cli capture <window-title-part> <out.png>
           endhud-cli build-portrait-references <squads.json> <out.json>
+          endhud-cli build-operator-package <out.zip>
         """);
     return 2;
 }
@@ -154,6 +159,26 @@ static async Task<int> FetchAsync(string libraryDir)
     foreach (var op in library.Operators) Console.WriteLine($"{op.Id,-16} {op.NameZh}");
     Console.WriteLine($"{result.Operators} operators, {result.Added.Count} new ({result.Download.Downloaded} images downloaded, {result.Download.Reused} unchanged, {result.Download.Failed} failed) -> {Path.GetFullPath(reference)}");
     return 0;
+}
+
+// The operator package: the wiki's roster zipped as EndHud ships it. Starts from the previous
+// package's files (so unchanged images aren't downloaded again) and keeps its date when nothing changed.
+static async Task<int> BuildPackageAsync(string outZip)
+{
+    string work = Path.Combine(Path.GetTempPath(), "endhud-operator-package", "reference");
+    if (Directory.Exists(work)) Directory.Delete(work, recursive: true);
+    byte[]? previous = File.Exists(outZip) ? File.ReadAllBytes(outZip) : null;
+    if (previous is not null) OperatorPackage.Install(work, previous);
+
+    using var http = WikiOperatorSource.CreateHttpClient();
+    var result = await OperatorReference.UpdateAsync(work, http);
+    byte[] zip = OperatorPackage.Build(work, DateTime.UtcNow, previous);
+    bool changed = previous is null || !zip.AsSpan().SequenceEqual(previous);
+    if (changed) File.WriteAllBytes(outZip, zip);
+    var info = OperatorPackage.ReadInfo(zip)!;
+    Console.WriteLine($"{info.Operators} operators ({result.Added.Count} new, {result.Download.Downloaded} images downloaded, {result.Download.Failed} failed), "
+        + $"content of {info.ContentAtUtc:yyyy-MM-dd HH:mm} UTC: {(changed ? "written" : "unchanged")} {Path.GetFullPath(outZip)} ({zip.Length / 1024} KB)");
+    return result.Download.Failed > 0 && result.Operators == 0 ? 1 : 0;
 }
 
 static async Task<int> IdentifyAsync(string imagePath, string libraryDir, string? debugDir)

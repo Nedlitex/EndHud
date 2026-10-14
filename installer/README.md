@@ -12,9 +12,10 @@
 - A newer version replaces an installed older one. Installing an older one over a newer one is
   refused with "A newer version of EndHud is already installed."
 
-The installer contains no game art. On first start EndHud downloads the operator avatars and skill
-icons from the wiki into `%APPDATA%\EndHud\operators\reference` (about 1 MB), so the first start
-needs internet; the portable exe does the same.
+The installer carries the operator package (avatars, skill icons, statuses: see
+[Recognising operators](../DEVELOPER.md#recognising-operators)). On first start EndHud unpacks it
+into `%APPDATA%\EndHud\operators\reference`, with no network needed; the portable exe does the
+same.
 
 Uninstalling removes the program, the shortcut and the installer's registry entry. Your settings,
 learned portraits and the downloaded icons in `%APPDATA%\EndHud` are kept.

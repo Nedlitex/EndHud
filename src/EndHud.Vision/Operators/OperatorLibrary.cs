@@ -35,7 +35,7 @@ public sealed class OperatorLibrary
     internal const string StatusManifestName = "statuses.json";
     public const string LearnedFolderName = "learned";
     public const string ReferenceFolderName = "reference";
-    private const string ManifestName = "operators.json";
+    internal const string ManifestName = "operators.json";
 
     /// <summary>
     /// User-learned portraits kept per operator. Beyond this the oldest is dropped (a size cap,

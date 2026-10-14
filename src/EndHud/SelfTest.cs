@@ -34,18 +34,16 @@ internal static class SelfTest
             var version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
             Log($"EndHud {version} at {Environment.ProcessPath}");
 
-            // 1. The operator library, from the wiki, exactly as on first start.
+            // 1. The operator library built into EndHud, unpacked exactly as on first start (no network).
             string reference = Path.Combine(folder, OperatorLibrary.ReferenceFolderName);
             var sw = Stopwatch.StartNew();
-            using (var http = WikiOperatorSource.CreateHttpClient())
-            {
-                var update = await OperatorReference.UpdateAsync(reference, http, WikiPoliteness.Default);
-                Log($"PASS download: {update.Operators} operators ({update.Download.Downloaded} images downloaded, " +
-                    $"{update.Download.Failed} failed) in {sw.Elapsed.TotalSeconds:F0} s");
-            }
+            if (OperatorPackage.BuiltIn() is not { } package) return Fail("package: no operator package built in");
+            OperatorPackage.InstallIfNewer(reference, package);
+            var info = OperatorPackage.Installed(reference)!;
+            Log($"PASS package: {info.Operators} operators, content of {info.ContentAtUtc:yyyy-MM-dd} (UTC), unpacked in {sw.Elapsed.TotalSeconds:F1} s");
 
             var library = await OperatorLibrary.LoadAsync(folder);
-            if (library.IsEmpty) return Fail("load: the downloaded library is empty");
+            if (library.IsEmpty) return Fail("load: the built-in library is empty");
             Log($"PASS load: {library.Operators.Count} operators, every one with an avatar");
 
             // 2. Recognition, if given a screenshot of the game.

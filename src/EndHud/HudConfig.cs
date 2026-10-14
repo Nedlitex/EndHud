@@ -38,6 +38,9 @@ internal sealed class HudConfig
     /// <summary>Look for a newer EndHud on GitHub soon after start and then daily; the player installs it in one click.</summary>
     public bool CheckForUpdates { get; set; } = true;
 
+    /// <summary>Install a newer EndHud by itself when the game isn't running (see AutoInstaller); needs <see cref="CheckForUpdates"/>.</summary>
+    public bool AutoInstallUpdates { get; set; } = true;
+
     // The debug panel isn't a setting: it's off at every start (OverlayWindow). A "DebugPanel" left
     // in an older config.json is ignored.
 

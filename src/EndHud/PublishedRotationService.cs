@@ -15,7 +15,8 @@ internal sealed class PublishedRotationService(RotationLibrary library) : IDispo
 {
     public static readonly string Api = RotationSync.ContentsApi(ReleaseChecker.Repository);
 
-    private static readonly TimeSpan FirstCheckAfter = TimeSpan.FromMinutes(1);
+    // Soon after start: a first start (e.g. a portable copy just downloaded) gets the latest right away.
+    private static readonly TimeSpan FirstCheckAfter = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan CheckEvery = TimeSpan.FromDays(1);
 
     private readonly CancellationTokenSource _cts = new();

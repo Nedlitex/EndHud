@@ -203,7 +203,7 @@
     <sys:String x:Key="Menu.AutoShow.Hint">关闭后，需按 Ctrl+Shift+H 或在托盘菜单中手动显示。</sys:String>
     <sys:String x:Key="Menu.PartyOcr">识别小队栏</sys:String>
     <sys:String x:Key="Menu.DebugPanel">显示调试面板（识别到的等级、生命值和技能）</sys:String>
-    <sys:String x:Key="Menu.CheckForUpdates">自动检查更新（每天一次）：EndHud 新版本只提示，不会自动安装；推荐排轴会自动更新</sys:String>
+    <sys:String x:Key="Menu.CheckForUpdates">自动检查更新（每天一次）：EndHud 新版本、推荐排轴和干员头像库</sys:String>
     <sys:String x:Key="Menu.ComboHint">连携就绪提示</sys:String>
     <sys:String x:Key="Menu.ComboHint.Hint">战斗中干员的连携技冷却结束时，在屏幕上提示。菜单打开时，可直接拖动屏幕上的提示框调整位置。</sys:String>
     <sys:String x:Key="Menu.ComboHint.WhenReady">冷却结束时提示</sys:String>
@@ -213,10 +213,10 @@
     <sys:String x:Key="Menu.ComboHint.LeadOff">关闭</sys:String>
     <sys:String x:Key="Menu.ComboHint.ResetPosition">恢复默认位置</sys:String>
     <sys:String x:Key="Menu.Operators">干员识别</sys:String>
-    <sys:String x:Key="Menu.Operators.Hint">头像来自 Endfield Wiki，首次识别可能不准。请为每个位置选择正确的干员，EndHud 会记住该干员在游戏中的样子，之后就能准确识别。</sys:String>
+    <sys:String x:Key="Menu.Operators.Hint">头像来自 Endfield Wiki，已随 EndHud 一起提供，首次识别可能不准。请为每个位置选择正确的干员，EndHud 会记住该干员在游戏中的样子，之后就能准确识别。</sys:String>
     <sys:String x:Key="Menu.Operators.Unrecognised">未识别（显示为“{0} 号位”）</sys:String>
     <sys:String x:Key="Menu.Operators.NoReading">切换到游戏画面、并能看到左下角的小队栏后，这里会列出识别结果。</sys:String>
-    <sys:String x:Key="Menu.Operators.NoLibrary">正在从 Endfield Wiki 下载干员头像库，请稍候（首次运行需要联网）。</sys:String>
+    <sys:String x:Key="Menu.Operators.NoLibrary">正在准备干员头像库，请稍候。</sys:String>
     <sys:String x:Key="Menu.Operators.Saved">已记住：{0} 号位是 {1}</sys:String>
     <sys:String x:Key="Menu.Operators.Cleared">已将 {0} 号位设为未识别</sys:String>
     <sys:String x:Key="Menu.Operators.Forget">清除所有已学习的头像</sys:String>
@@ -225,10 +225,8 @@
     <sys:String x:Key="Menu.Close">关闭</sys:String>
 
     <!-- 干员头像库 -->
-    <sys:String x:Key="Operators.Downloading">正在从 Endfield Wiki 下载干员头像和技能图标……</sys:String>
     <sys:String x:Key="Operators.Updated">干员头像库已更新，共 {0} 名干员</sys:String>
-    <sys:String x:Key="Operators.FirstDownloadFailed">无法下载干员头像库（请检查网络）。EndHud 会自动重试，也可在托盘菜单中选择“检查更新”。在此之前，干员显示为“n 号位”。</sys:String>
-    <sys:String x:Key="Operators.UpdateFailed">检查干员头像库失败（请检查网络），继续使用已下载的头像库。可稍后在托盘菜单中选择“检查更新”重试。</sys:String>
+    <sys:String x:Key="Operators.UpdateFailed">检查干员头像库更新失败（请检查网络），继续使用当前的头像库。可稍后在托盘菜单中选择“检查更新”重试。</sys:String>
 
     <!-- 系统托盘 -->
     <sys:String x:Key="Tray.Tooltip">EndHud 游戏辅助面板</sys:String>
@@ -246,6 +244,8 @@
     <!-- 检查更新 -->
     <sys:String x:Key="Update.Title">EndHud 检查更新</sys:String>
     <sys:String x:Key="Update.Checking">正在检查更新……</sys:String>
+    <sys:String x:Key="Menu.AutoInstallUpdates">自动安装 EndHud 新版本（游戏未运行时安装，安装后自动重启 EndHud）</sys:String>
+    <sys:String x:Key="Update.AutoLater">发现 EndHud 新版本 {0}，将在游戏关闭后自动安装。点击这里立即更新。</sys:String>
     <sys:String x:Key="Update.Available">发现 EndHud 新版本 {0}（当前 {1}），点击这里立即更新。</sys:String>
     <sys:String x:Key="Update.Downloading">正在下载 EndHud {0}……下载完成后 EndHud 会自动安装并重新启动。</sys:String>
     <sys:String x:Key="Update.Done">EndHud 已更新到 {0}。</sys:String>

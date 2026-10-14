@@ -29,7 +29,8 @@ internal sealed record UpdateCheck(UpdateStatus Status, ReleaseInfo? Release);
 /// </summary>
 internal sealed class UpdateService : IDisposable
 {
-    private static readonly TimeSpan FirstCheckAfter = TimeSpan.FromMinutes(1);
+    // Soon after start: a first start (e.g. a portable copy just downloaded) gets the latest right away.
+    private static readonly TimeSpan FirstCheckAfter = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan CheckEvery = TimeSpan.FromDays(1);
     private static readonly TimeSpan ReuseAnswerFor = TimeSpan.FromMinutes(1);
 

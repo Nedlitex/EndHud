@@ -15,29 +15,22 @@ namespace EndHud;
 internal sealed class PartyMonitor : IDisposable
 {
     /// <summary>
-    /// The operator library on this machine: the roster, avatars and skill icons downloaded from
-    /// the wiki (reference/), and the user's learned portraits and calibration. EndHud ships no
-    /// game art, so the first start downloads it.
+    /// The operator library on this machine: the roster, avatars and skill icons (reference/, from
+    /// the operator package EndHud carries and updates from GitHub: see OperatorPackage), and the
+    /// user's learned portraits and calibration.
     /// </summary>
     public static string LibraryFolder { get; } = Path.Combine(ConfigStore.Folder, "operators");
 
     private static string ReferenceFolder => Path.Combine(LibraryFolder, OperatorLibrary.ReferenceFolderName);
 
-    /// <summary>A downloaded roster older than this is refreshed in the background, to pick up new operators.</summary>
-    private static readonly TimeSpan RefreshAfter = TimeSpan.FromDays(7);
-
-    /// <summary>
-    /// A manual check doesn't ask the wiki again if it was asked this recently (polite to the wiki,
-    /// whose volunteers pay for it); it reports that it's up to date as of then.
-    /// </summary>
+    /// <summary>A manual check doesn't ask GitHub again if it was asked this recently; it reports that it's up to date as of then.</summary>
     public static readonly TimeSpan MinManualCheckInterval = TimeSpan.FromMinutes(15);
 
-    /// <summary>While EndHud runs, how often it looks whether the roster is due for its weekly refresh.</summary>
+    /// <summary>While EndHud runs, how often it looks for a newer operator package on GitHub (when updates are on).</summary>
     private static readonly TimeSpan RefreshCheckEvery = TimeSpan.FromHours(6);
 
-    /// <summary>With no roster at all (first start offline), the download is retried after these waits, then every 30 minutes.</summary>
-    private static readonly TimeSpan[] FirstDownloadRetries =
-        [TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(15), TimeSpan.FromMinutes(30)];
+    /// <summary>Whether to look for newer operator packages on GitHub (the "check for updates" setting); set by the overlay.</summary>
+    public Func<bool> UpdatesEnabled { get; set; } = () => true;
 
     private readonly TimeSpan _interval;
     private readonly CancellationTokenSource _cts = new();
@@ -51,7 +44,7 @@ internal sealed class PartyMonitor : IDisposable
 
     private static readonly TimeSpan BossStatusEvery = TimeSpan.FromSeconds(1);
     private int _libraryBusy;
-    private DateTime _lastWikiCheckUtc = DateTime.MinValue;
+    private DateTime _lastCheckUtc = DateTime.MinValue;
 
     public PartyMonitor(TimeSpan interval) => _interval = interval;
 
@@ -61,13 +54,10 @@ internal sealed class PartyMonitor : IDisposable
     /// <summary>Operator library progress: an i18n key and its format arguments.</summary>
     public event Action<string, object[]>? LibraryStatus;
 
-    /// <summary>Null until the operator library has been downloaded and loaded.</summary>
+    /// <summary>Null until the operator library has been loaded (a moment after start).</summary>
     public SquadIdentifier? Identifier => _identifier;
 
-    /// <summary>True when the first download of the operator library has failed and is being retried.</summary>
-    public bool LibraryDownloadFailed { get; private set; }
-
-    /// <summary>The weekly background refresh found operators that weren't there before.</summary>
+    /// <summary>A newer operator package from GitHub brought operators that weren't there before.</summary>
     public event Action<IReadOnlyList<OperatorInfo>>? NewOperators;
 
     /// <summary>Called from the UI thread whenever the game window or HUD visibility changes.</summary>
@@ -84,18 +74,19 @@ internal sealed class PartyMonitor : IDisposable
     }
 
     /// <summary>
-    /// Check the wiki for new operators now (and new icons), unless it was checked in the last
+    /// Look for a newer operator package on GitHub now, unless it was asked in the last
     /// <see cref="MinManualCheckInterval"/>. Learned portraits are kept.
     /// </summary>
     public async Task<OperatorCheck> CheckOperatorsAsync()
     {
-        var since = DateTime.UtcNow - _lastWikiCheckUtc;
+        var since = DateTime.UtcNow - _lastCheckUtc;
         int total = _identifier?.Library.Operators.Count ?? 0;
         if (since < MinManualCheckInterval) return new OperatorCheck(OperatorCheckStatus.CheckedRecently, [], total, since);
-        var (update, busy) = await DownloadLibraryAsync(announce: true);
+        var (result, busy) = await SyncPackageAsync(announce: true);
+        total = _identifier?.Library.Operators.Count ?? 0;
         return busy ? new OperatorCheck(OperatorCheckStatus.AlreadyChecking, [], total, TimeSpan.Zero)
-            : update is null ? new OperatorCheck(OperatorCheckStatus.Failed, [], total, TimeSpan.Zero)
-            : new OperatorCheck(OperatorCheckStatus.Checked, update.Added, update.Operators, TimeSpan.Zero);
+            : result is null ? new OperatorCheck(OperatorCheckStatus.Failed, [], total, TimeSpan.Zero)
+            : new OperatorCheck(OperatorCheckStatus.Checked, result.Added, total, TimeSpan.Zero);
     }
 
     public Task CorrectAsync(int slotNumber, OperatorInfo? actual) =>
@@ -109,30 +100,31 @@ internal sealed class PartyMonitor : IDisposable
     }
 
     /// <summary>
-    /// Load the downloaded library if there is one; download it if not (retrying while offline). Then,
-    /// while EndHud runs, refresh it in the background whenever it's older than a week, keeping the
-    /// current copy in use meanwhile and announcing new operators.
+    /// Install the operator package built into EndHud if it's newer than the library on this machine
+    /// (a first start, or a newer EndHud), and load it: no network needed. Then, while EndHud runs,
+    /// look for a newer package on GitHub every <see cref="RefreshCheckEvery"/> (when updates are on).
     /// </summary>
     private async Task KeepLibraryAsync()
     {
         try
         {
-            if (OperatorReference.Exists(ReferenceFolder)) await LoadLibraryAsync();
-
-            // First start: names are unknown until it's done, so it's announced and retried.
-            for (int attempt = 0; !OperatorReference.Exists(ReferenceFolder); attempt++)
+            try
             {
-                if ((await DownloadLibraryAsync(announce: true)).Update is not null) break;
-                await Task.Delay(FirstDownloadRetries[Math.Min(attempt, FirstDownloadRetries.Length - 1)], _cts.Token);
+                if (OperatorPackage.BuiltIn() is { } builtIn) OperatorPackage.InstallIfNewer(ReferenceFolder, builtIn);
             }
+            catch (InvalidDataException ex)
+            {
+                Debug.WriteLine($"EndHud operator package: {ex.Message}"); // keep what's installed
+            }
+            await LoadLibraryAsync();
 
             while (!_cts.IsCancellationRequested)
             {
-                if (OperatorReference.IsDue(ReferenceFolder, RefreshAfter)
-                    && DateTime.UtcNow - _lastWikiCheckUtc >= RefreshCheckEvery)
+                await Task.Delay(TimeSpan.FromSeconds(5), _cts.Token); // soon after start, like the other update checks
+                if (UpdatesEnabled() && DateTime.UtcNow - _lastCheckUtc >= RefreshCheckEvery)
                 {
-                    var (update, _) = await DownloadLibraryAsync(announce: false); // quiet: the current copy keeps working
-                    if (update is { Added.Count: > 0 }) NewOperators?.Invoke(update.Added);
+                    var (result, _) = await SyncPackageAsync(announce: false);
+                    if (result is { Added.Count: > 0 }) NewOperators?.Invoke(result.Added);
                 }
                 await Task.Delay(RefreshCheckEvery, _cts.Token);
             }
@@ -143,31 +135,32 @@ internal sealed class PartyMonitor : IDisposable
     }
 
     /// <summary>
-    /// Download (or refresh) the reference data and reload the library. Update is null if it failed;
-    /// Busy is true if another download was already running (that one reports).
+    /// Look for a newer operator package on GitHub and install it. Result is null if GitHub couldn't
+    /// be asked or the package couldn't be installed (the current library stays); Busy is true if a
+    /// check was already running (that one reports).
     /// </summary>
-    private async Task<(OperatorUpdate? Update, bool Busy)> DownloadLibraryAsync(bool announce)
+    private async Task<(OperatorPackageSyncResult? Result, bool Busy)> SyncPackageAsync(bool announce)
     {
         if (Interlocked.Exchange(ref _libraryBusy, 1) == 1) return (null, true);
         try
         {
-            _lastWikiCheckUtc = DateTime.UtcNow;
-            if (announce) LibraryStatus?.Invoke("Operators.Downloading", []);
-            using var http = WikiOperatorSource.CreateHttpClient();
-            var update = await OperatorReference.UpdateAsync(ReferenceFolder, http, WikiPoliteness.Default, _cts.Token);
-            LibraryDownloadFailed = false;
-            await LoadLibraryAsync();
-            if (announce) LibraryStatus?.Invoke("Operators.Updated", [update.Operators]);
-            return (update, false);
+            _lastCheckUtc = DateTime.UtcNow;
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+            var result = await OperatorPackageSync.SyncAsync(ReferenceFolder, http,
+                OperatorPackageSync.ContentsApi(ReleaseChecker.Repository), ReleaseChecker.UserAgent, _cts.Token);
+            if (result is { Installed: true })
+            {
+                await LoadLibraryAsync();
+                if (announce) LibraryStatus?.Invoke("Operators.Updated", [_identifier?.Library.Operators.Count ?? 0]);
+            }
+            if (result is null && announce) LibraryStatus?.Invoke("Operators.UpdateFailed", []);
+            return (result, false);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException
                                        or UnauthorizedAccessException or InvalidDataException or JsonException)
         {
-            Debug.WriteLine($"EndHud operator library: {ex}");
-            if (_cts.IsCancellationRequested) return (null, false);
-            bool haveCopy = _identifier is not null;
-            LibraryDownloadFailed = !haveCopy;
-            if (announce) LibraryStatus?.Invoke(haveCopy ? "Operators.UpdateFailed" : "Operators.FirstDownloadFailed", []);
+            Debug.WriteLine($"EndHud operator package: {ex}");
+            if (!_cts.IsCancellationRequested && announce) LibraryStatus?.Invoke("Operators.UpdateFailed", []);
             return (null, false);
         }
         finally

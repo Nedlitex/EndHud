@@ -26,6 +26,8 @@
     -->
     <EmbeddedResource Include="Assets\ccip\ccip-features-int8.onnx" LogicalName="ccip-features-int8.onnx" />
     <EmbeddedResource Include="Assets\ccip\ccip-metrics.onnx" LogicalName="ccip-metrics.onnx" />
+    <!-- The operator library (roster, avatars, skill icons, statuses) EndHud starts with: see OperatorPackage. -->
+    <EmbeddedResource Include="..\..\operators\operator-library.zip" LogicalName="operator-library.zip" />
     <!--
       Each operator's in-game squad portrait as the model describes it (numbers, not images),
       built from the test fixtures' squad screenshots; see PortraitReferences.

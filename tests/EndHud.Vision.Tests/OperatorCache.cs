@@ -3,22 +3,18 @@ using EndHud.Vision.Operators;
 namespace EndHud.Vision.Tests;
 
 /// <summary>
-/// The operator reference data the tests use: the roster, avatars and skill icons from the wiki,
-/// kept in the repository's .cache/operator-library (git-ignored: it's game art). A fresh clone
-/// downloads it the first time the tests run; CI keeps it in its cache.
+/// The operator reference data the tests use: the repository's operator package (roster, avatars,
+/// skill icons, statuses: what EndHud ships), unpacked into the git-ignored .cache/operator-package.
 /// </summary>
 internal static class OperatorCache
 {
-    private static readonly Lazy<Task<string>> Folder = new(async () =>
+    // The repository's operator package (what EndHud ships), unpacked once: no network needed.
+    private static readonly Lazy<Task<string>> Folder = new(() =>
     {
-        string folder = Path.Combine(RepositoryRoot(), ".cache", "operator-library");
-        // Also refresh a copy from before status icons were downloaded (no statuses.json).
-        if (!OperatorReference.Exists(folder) || !File.Exists(Path.Combine(folder, "statuses.json")))
-        {
-            using var http = WikiOperatorSource.CreateHttpClient();
-            await OperatorReference.UpdateAsync(folder, http);
-        }
-        return folder;
+        string folder = Path.Combine(RepositoryRoot(), ".cache", "operator-package");
+        byte[] package = File.ReadAllBytes(Path.Combine(RepositoryRoot(), "operators", OperatorPackage.FileName));
+        if (OperatorPackage.Installed(folder) != OperatorPackage.ReadInfo(package)) OperatorPackage.Install(folder, package);
+        return Task.FromResult(folder);
     });
 
     /// <summary>The folder, downloaded first if missing.</summary>

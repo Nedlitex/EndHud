@@ -24,6 +24,9 @@ EndHud includes the following third-party components.
 
 ## Operator art
 
-EndHud ships no game art. Operator avatars and skill icons are downloaded on first start from
-the community [Arknights: Endfield Wiki](https://endfield.wiki.gg) to the player's own computer;
-they belong to the game's developer and publisher.
+EndHud carries an operator package (`operators/operator-library.zip`): operator avatars, skill
+icons, Chinese names and enemy status icons, taken from the community
+[Endfield Talos Wiki](https://endfield.wiki.gg), whose content is licensed under
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0). The images are the game's art and
+belong to the game's developer and publisher; EndHud uses them only to recognise operators on the
+player's own computer.

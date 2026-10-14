@@ -50,7 +50,7 @@ public static class OperatorReference
         CancellationToken ct = default)
     {
         folder = Path.GetFullPath(folder.TrimEnd(Path.DirectorySeparatorChar, '/'));
-        string staging = folder + ".new", old = folder + ".old";
+        string staging = folder + ".new";
         bool hasCurrent = Exists(folder);
         var current = hasCurrent ? Roster(folder) : [];
         int currentCount = current.Count;
@@ -63,11 +63,7 @@ public static class OperatorReference
                 throw new InvalidDataException(
                     $"The wiki listed {result.Operators} operators (the current copy has {currentCount}); keeping the current copy.");
 
-            Directory.CreateDirectory(Path.GetDirectoryName(folder)!);
-            if (Directory.Exists(old)) Directory.Delete(old, recursive: true);
-            if (hasCurrent) Directory.Move(folder, old);
-            Directory.Move(staging, folder);
-            TryDelete(old);
+            Swap(folder, staging);
             var known = current.Select(o => o.Id).ToHashSet();
             return new OperatorUpdate(result, Roster(folder).Where(o => !known.Contains(o.Id)).ToList());
         }
@@ -96,6 +92,23 @@ public static class OperatorReference
         if (!IsDue(folder, maxAge)) return null;
         return await UpdateAsync(folder, http, politeness, ct);
     }
+
+    /// <summary>
+    /// Put <paramref name="staging"/> in place of <paramref name="folder"/> with two renames (the
+    /// current copy is moved aside first, and put back by <see cref="Exists"/> if the swap was cut short).
+    /// </summary>
+    internal static void Swap(string folder, string staging)
+    {
+        string old = folder + ".old";
+        Directory.CreateDirectory(Path.GetDirectoryName(folder)!);
+        if (Directory.Exists(old)) Directory.Delete(old, recursive: true);
+        if (Directory.Exists(folder)) Directory.Move(folder, old);
+        Directory.Move(staging, folder);
+        TryDelete(old);
+    }
+
+    /// <summary>The roster in <paramref name="folder"/> (empty if it can't be read).</summary>
+    internal static List<OperatorInfo> ReadRoster(string folder) => Roster(folder);
 
     private static List<OperatorInfo> Roster(string folder)
     {

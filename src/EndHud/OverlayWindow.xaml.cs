@@ -57,6 +57,8 @@ public partial class OverlayWindow : Window
         PartyText.Text = Loc.Get("Party.Waiting");
         DebugPanelCheckBox.IsChecked = false;
         CheckForUpdatesCheckBox.IsChecked = config.CheckForUpdates;
+        AutoInstallUpdatesCheckBox.IsChecked = config.AutoInstallUpdates;
+        AutoInstallUpdatesCheckBox.IsEnabled = config.CheckForUpdates;
         DebugRoot.Visibility = Visibility.Collapsed;
         InitComboHintSettings();
         _rotationLibrary = new RotationLibrary(Path.Combine(ConfigStore.Folder, "rotations"));
@@ -65,7 +67,7 @@ public partial class OverlayWindow : Window
         InitRotationSettings();
         VersionText.Text = ReleaseChecker.DisplayVersion;
 
-        _party = new PartyMonitor(TimeSpan.FromMilliseconds(Math.Max(250, config.OcrIntervalMs)));
+        _party = new PartyMonitor(TimeSpan.FromMilliseconds(Math.Max(250, config.OcrIntervalMs))) { UpdatesEnabled = () => _config.CheckForUpdates };
         _party.Updated += (state, error) => Dispatcher.BeginInvoke(() => ShowParty(state, error));
         _party.LibraryStatus += (key, args) => Dispatcher.BeginInvoke(() => ShowLibraryStatus(key, args));
         _party.NewOperators += added => NewOperatorsFound?.Invoke(added);
@@ -221,9 +223,19 @@ public partial class OverlayWindow : Window
     private void DebugPanelCheckBox_Click(object sender, RoutedEventArgs e) =>
         SetDebugPanel(DebugPanelCheckBox.IsChecked == true);
 
+    /// <summary>Install newer versions by itself (when the game isn't running); read by the tray.</summary>
+    public bool AutoInstallUpdates => _config.CheckForUpdates && _config.AutoInstallUpdates;
+
+    private void AutoInstallUpdatesCheckBox_Click(object sender, RoutedEventArgs e)
+    {
+        _config.AutoInstallUpdates = AutoInstallUpdatesCheckBox.IsChecked == true;
+        ConfigStore.Save(_config);
+    }
+
     private void CheckForUpdatesCheckBox_Click(object sender, RoutedEventArgs e)
     {
         _config.CheckForUpdates = CheckForUpdatesCheckBox.IsChecked == true;
+        AutoInstallUpdatesCheckBox.IsEnabled = _config.CheckForUpdates;
         ConfigStore.Save(_config);
     }
 
@@ -434,8 +446,7 @@ public partial class OverlayWindow : Window
             var current = identifier?.Current;
             if (identifier is null || current is null || current.All(c => c is null))
             {
-                OperatorPickersEmpty.Text = Loc.Get(identifier is not null ? "Menu.Operators.NoReading"
-                    : _party.LibraryDownloadFailed ? "Operators.FirstDownloadFailed" : "Menu.Operators.NoLibrary");
+                OperatorPickersEmpty.Text = Loc.Get(identifier is not null ? "Menu.Operators.NoReading" : "Menu.Operators.NoLibrary");
                 OperatorPickersEmpty.Visibility = Visibility.Visible;
                 ForgetLearnedButton.IsEnabled = identifier is not null;
                 return;
