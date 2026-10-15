@@ -60,9 +60,13 @@ jobs:
       # The real-capture tests (Category=Desktop) show a window and capture it with
       # Windows.Graphics.Capture, which hosted runners can't do: it fails there with "The service
       # did not respond" (no interactive desktop). They run on a developer machine only.
+      # --blame-hang: a test still running after 10 minutes (one test takes seconds) is stopped and
+      # named in the log, with a dump in the uploaded results. A run once sat 49 minutes in
+      # OutOfTheBoxRecognitionTests until the job's 60-minute limit cancelled it, naming nothing.
       - name: Test
         run: >
           dotnet test -c Release --no-build --filter "Category!=Desktop"
+          --blame-hang --blame-hang-timeout 10m --blame-hang-dump-type mini
           --logger trx --logger "console;verbosity=normal" --results-directory TestResults
 
       - name: Upload test results
