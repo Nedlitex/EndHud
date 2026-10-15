@@ -6,6 +6,14 @@ namespace EndHud.Tests;
 /// <summary>config.json (<see cref="ConfigStore"/>).</summary>
 public class ConfigTests
 {
+    [Theory]
+    [InlineData("{}", 1.0)]
+    [InlineData("{\"GaugesScale\": 1.35}", 1.35)]
+    [InlineData("{\"GaugesScale\": 10}", 2.0)]
+    [InlineData("{\"GaugesScale\": 0}", 0.5)]
+    public void The_gauges_size_defaults_to_100_percent_and_a_hand_edited_one_is_kept_in_range(string json, double expected) =>
+        Assert.Equal(expected, ConfigStore.Parse(json).GaugesScale);
+
     [Fact]
     public void The_debug_panel_is_not_a_setting_so_an_old_config_cannot_turn_it_on()
     {

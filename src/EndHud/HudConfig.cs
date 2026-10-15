@@ -72,6 +72,25 @@ internal sealed class HudConfig
     public double RotationY { get; set; } = DefaultRotationY;
 
     /// <summary>
+    /// Show the gauges in battle: team buffs such as Link, and each recognised operator's
+    /// ultimate charge and own counters, as circles.
+    /// </summary>
+    public bool GaugesEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Where the gauges sit, as a fraction of the game window: the middle of their width, and their
+    /// bottom edge, so a bigger size grows upwards, away from the game's own bars below them.
+    /// </summary>
+    public double GaugesCenterX { get; set; } = DefaultGaugesCenterX;
+
+    public double GaugesBottomY { get; set; } = DefaultGaugesBottomY;
+
+    /// <summary>The gauges' size, on top of following the game window: 1 is the usual size (the menu's Size slider, 50%–200%).</summary>
+    public double GaugesScale { get; set; } = 1;
+
+    public const double MinGaugesScale = 0.5, MaxGaugesScale = 2;
+
+    /// <summary>
     /// How far the menu and the debug panel have been dragged from their usual spots (the menu
     /// centred, the debug panel at the left), as a fraction of the game window's width and height.
     /// </summary>
@@ -89,6 +108,10 @@ internal sealed class HudConfig
     // Centred, under the boss's name, bars and statuses.
     public const double DefaultRotationCenterX = 0.5;
     public const double DefaultRotationY = 0.13;
+
+    // Bottom middle, just above the game's own HP and skill-point bars.
+    public const double DefaultGaugesCenterX = 0.5;
+    public const double DefaultGaugesBottomY = 0.885;
 
     public const double DefaultComboHintSeconds = 3;
     public const double DefaultComboHintLeadSeconds = 1;
@@ -147,6 +170,10 @@ internal static class ConfigStore
             if (config.OcrIntervalMs == 1000) config.OcrIntervalMs = HudConfig.DefaultOcrIntervalMs;
             config.SettingsVersion = HudConfig.CurrentSettingsVersion;
         }
+        // A hand-edited size outside what the slider offers would hide the gauges or fill the screen.
+        config.GaugesScale = double.IsFinite(config.GaugesScale)
+            ? Math.Clamp(config.GaugesScale, HudConfig.MinGaugesScale, HudConfig.MaxGaugesScale)
+            : 1;
         return config;
     }
 

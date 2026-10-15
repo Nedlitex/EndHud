@@ -38,6 +38,7 @@ internal sealed class PartyMonitor : IDisposable
     private volatile bool _active;
     private volatile SquadIdentifier? _identifier;
     private volatile BossStatusReader? _bossStatuses;
+    private volatile TeamBuffReader? _teamBuffs;
 
     /// <summary>Read the boss's statuses too (the loaded rotation asks about them); set by the overlay.</summary>
     public bool ReadBossStatuses { get; set; }
@@ -175,6 +176,7 @@ internal sealed class PartyMonitor : IDisposable
         // An empty library recognises nobody; leave the identifier unset so the menu says why.
         _identifier = library.IsEmpty ? null : new SquadIdentifier(library);
         _bossStatuses = library.IsEmpty ? null : new BossStatusReader(library);
+        _teamBuffs = library.IsEmpty ? null : new TeamBuffReader(library);
     }
 
     private async Task RunAsync()
@@ -232,6 +234,8 @@ internal sealed class PartyMonitor : IDisposable
                         // The controlled operator's own counter (e.g. 熔火): drawn differently per
                         // operator, so read once we know who it is.
                         state = state with { Counters = OperatorCounters.ReadControlled(gameFrame, state) };
+                        // Team buffs (Link) beside it: drawn in combat only.
+                        if (state.InCombat && _teamBuffs is { } buffs) state = state with { Buffs = buffs.Read(gameFrame) };
                         // The boss's statuses take ~70 ms to read at 4K: only when the rotation asks,
                         // and at most once a second (they change far more slowly than skill points).
                         if (ReadBossStatuses && _bossStatuses is { } boss && bossClock.Elapsed >= BossStatusEvery)

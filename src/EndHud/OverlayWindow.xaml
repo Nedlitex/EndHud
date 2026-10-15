@@ -90,6 +90,17 @@
                 <ContentControl x:Name="RotationContent" />
             </StackPanel>
         </Border>
+        <!-- The gauges, centred on config GaugesCenterX, standing on GaugesBottomY. -->
+        <Border x:Name="GaugeFrame" BorderThickness="2" Padding="6" CornerRadius="4" Background="Transparent"
+                Visibility="Collapsed" SizeChanged="GaugeFrame_SizeChanged"
+                MouseLeftButtonDown="Gauges_MouseDown" MouseMove="Gauges_MouseMove"
+                MouseLeftButtonUp="Gauges_MouseUp">
+            <StackPanel>
+                <TextBlock x:Name="GaugeDragLabel" Visibility="Collapsed" Text="{DynamicResource Gauge.Drag}"
+                           Foreground="{StaticResource Accent}" Margin="0,0,0,4" />
+                <ContentControl x:Name="GaugeContent" />
+            </StackPanel>
+        </Border>
     </Canvas>
     </Grid>
 
@@ -250,6 +261,33 @@
                         <Button x:Name="RotationResetButton" Padding="10,2"
                                 Content="{DynamicResource Menu.Rotation.ResetPosition}" Click="RotationResetButton_Click" />
                     </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Feature: gauges. -->
+            <Border Style="{StaticResource FeatureCard}">
+                <StackPanel>
+                    <DockPanel>
+                        <CheckBox x:Name="GaugesCheckBox" DockPanel.Dock="Right" Click="GaugesCheckBox_Click" Margin="0">
+                            <TextBlock Text="{DynamicResource Menu.Feature.On}" />
+                        </CheckBox>
+                        <TextBlock Text="{DynamicResource Menu.Gauges}" Style="{StaticResource FeatureTitle}" />
+                    </DockPanel>
+                    <TextBlock x:Name="GaugesNeedsPartyOcr" Text="{DynamicResource Menu.Feature.NeedsPartyOcr}"
+                               Style="{StaticResource FeatureNote}" Visibility="Collapsed" />
+                    <TextBlock Text="{DynamicResource Menu.Gauges.Hint}" Foreground="#99FFFFFF" FontSize="11"
+                               TextWrapping="Wrap" Margin="0,4,0,4" />
+                    <!-- Size: on top of following the game window. Applied while dragging. -->
+                    <DockPanel x:Name="GaugesSizeRow" Margin="0,4,0,0">
+                        <TextBlock Text="{DynamicResource Menu.Gauges.Size}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock x:Name="GaugesSizeText" DockPanel.Dock="Right" Width="44" TextAlignment="Right"
+                                   VerticalAlignment="Center" />
+                        <Slider x:Name="GaugesSizeSlider" Minimum="0.5" Maximum="2" TickFrequency="0.05"
+                                IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                                ValueChanged="GaugesSizeSlider_ValueChanged" />
+                    </DockPanel>
+                    <Button x:Name="GaugesResetButton" HorizontalAlignment="Left" Padding="10,2" Margin="0,4,0,0"
+                            Content="{DynamicResource Menu.Gauges.ResetPosition}" Click="GaugesResetButton_Click" />
                 </StackPanel>
             </Border>
 

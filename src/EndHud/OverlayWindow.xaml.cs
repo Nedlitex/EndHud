@@ -65,6 +65,7 @@ public partial class OverlayWindow : Window
         _publishedRotations = new PublishedRotationService(_rotationLibrary);
         ReloadRotations();
         InitRotationSettings();
+        InitGaugeSettings();
         VersionText.Text = ReleaseChecker.DisplayVersion;
 
         _party = new PartyMonitor(TimeSpan.FromMilliseconds(Math.Max(250, config.OcrIntervalMs))) { UpdatesEnabled = () => _config.CheckForUpdates };
@@ -125,6 +126,9 @@ public partial class OverlayWindow : Window
         ApplyRotationSettings();
         _rotationPosition = null;
         RenderRotation();
+        ApplyGaugeSettings();
+        _gauges = null;
+        RenderGauges();
         Refresh(reassertTopmost: false);
     }
 
@@ -192,6 +196,7 @@ public partial class OverlayWindow : Window
         MenuPanel.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
         SetComboHintEditing(open);
         SetRotationEditing(open);
+        SetGaugesEditing(open);
         SetPanelDragging(open);
 
         if (open)

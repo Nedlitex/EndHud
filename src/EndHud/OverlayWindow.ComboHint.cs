@@ -240,6 +240,7 @@ public partial class OverlayWindow
         ComboHintFrame.LayoutTransform = new ScaleTransform(scale, scale);
         PlaceComboHintsFromConfig();
         ScaleRotationStrip(scale);
+        ScaleGauges(scale);
     }
 
     private void PlaceComboHintsFromConfig() =>

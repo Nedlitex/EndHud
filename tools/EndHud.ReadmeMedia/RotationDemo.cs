@@ -1,12 +1,17 @@
 // The rotation strip (排轴) over a battle recording:
 //
 //   dotnet run --project tools/EndHud.ReadmeMedia -c Release -- rotation <recording.mp4> <out-dir> <rotation.json>
+//       [--stills <seconds,seconds,...>] [--clip <from>-<to>] [--gauges-size <0.5-2>]
+//
+// --stills: only those moments, as still-<seconds>s.png (no video). --clip: only that stretch, as
+// clip.mp4. Either way the whole recording is still read, so what's remembered (counters, buffs
+// seen) is as at that moment. --gauges-size: the menu's Size slider.
 //
 // The recording is read four times a second (EndHud's default) through the same steps as the app's
 // PartyMonitor: squad reader, tracker, operator recognition, the controlled operator's counter, and
 // the boss's statuses once a second. Each reading moves a RotationTracker on. Every frame of the
 // output video then has EndHud's real strip (RotationStripView, RotationStrip) drawn at its default
-// spot, as it was at that moment. Off-screen: no window is opened. The player UID is blacked out.
+// spot, as it was at that moment, with the combo hints and the gauges. Off-screen: no window is opened. The player UID is blacked out.
 // Writes rotation-demo.mp4 (the whole recording), readings.tsv (what was read and where the strip
 // was) and full-size PNGs of a few moments. Needs ffmpeg on PATH.
 
@@ -29,17 +34,29 @@ static class RotationDemo
     private const int Width = 1920, Height = 1080, Fps = 15;
     private static readonly TimeSpan Every = TimeSpan.FromMilliseconds(HudConfig.DefaultOcrIntervalMs);
 
-    private sealed record Reading(double At, PartyState State, RotationPosition? Position);
+    private sealed record Reading(double At, PartyState State, RotationPosition? Position, bool InBattle, IReadOnlyList<RememberedCounter> Counters,
+        IReadOnlyList<string> BuffsSeen);
 
     public static async Task<int> RunAsync(string[] args)
     {
         if (args.Length < 3)
         {
-            Console.Error.WriteLine("usage: EndHud.ReadmeMedia rotation <recording.mp4> <out-dir> <rotation.json>");
+            Console.Error.WriteLine("usage: EndHud.ReadmeMedia rotation <recording.mp4> <out-dir> <rotation.json> [--stills <s,s,...>] [--gauges-size <x>]");
             return 2;
         }
         string video = Path.GetFullPath(args[0]), outDir = Path.GetFullPath(args[1]);
         var rotation = RotationFormat.FromJson(File.ReadAllText(args[2]));
+        HashSet<int>? stillFrames = null;
+        (int From, int To)? clip = null;
+        double gaugesSize = 1;
+        for (int i = 3; i + 1 < args.Length; i += 2)
+        {
+            var invariant = System.Globalization.CultureInfo.InvariantCulture;
+            if (args[i] == "--stills") stillFrames = args[i + 1].Split(',').Select(s => (int)Math.Round(double.Parse(s, invariant) * Fps)).ToHashSet();
+            else if (args[i] == "--gauges-size") gaugesSize = double.Parse(args[i + 1], invariant);
+            else if (args[i] == "--clip" && args[i + 1].Split('-') is [var from, var to])
+                clip = ((int)Math.Round(double.Parse(from, invariant) * Fps), (int)Math.Round(double.Parse(to, invariant) * Fps));
+        }
         Directory.CreateDirectory(outDir);
 
         // ---- 1. Read the recording as the app would ----
@@ -55,8 +72,11 @@ static class RotationDemo
         var tracker = new PartyTracker();
         var identifier = new SquadIdentifier(library);
         var boss = new BossStatusReader(library);
+        var teamBuffs = new TeamBuffReader(library);
+        var buffsSeen = new List<string>(); // as the overlay: this battle's, in the order first seen
         var rotationTracker = new PhaseSelector(rotation);
         var stripVisibility = new StripVisibility();
+        var counterMemory = new CounterMemory(); // as the overlay: forgotten out of battle
         bool readBoss = rotation.Phases.Any(p => p.Steps.Any(s => s.Expect.Any(c => c is BossStatusCondition)));
         var readings = new List<Reading>();
         double lastBoss = double.MinValue;
@@ -68,6 +88,7 @@ static class RotationDemo
             var state = tracker.Track(await reader.ReadAsync(frame));
             state = await identifier.IdentifyAsync(state);
             state = state with { Counters = OperatorCounters.ReadControlled(frame, state) };
+            if (state.InCombat) state = state with { Buffs = teamBuffs.Read(frame) };
             if (readBoss && t - lastBoss >= 1)
             {
                 state = state with { BossStatuses = boss.Read(frame) };
@@ -82,7 +103,16 @@ static class RotationDemo
             bool inBattle = stripVisibility.Update(state);
             RotationPosition? position = inBattle && rotation.IsFor(state.Slots.Select(s => s.Operator?.Operator.Id).ToList())
                 ? rotationTracker.Update(state) : null;
-            readings.Add(new Reading(t, state, position));
+            if (!inBattle)
+            {
+                counterMemory.Clear();
+                buffsSeen.Clear();
+            }
+            else
+            {
+                buffsSeen.AddRange(state.Buffs.Except(buffsSeen).ToList());
+            }
+            readings.Add(new Reading(t, state, position, inBattle, counterMemory.Update(state), buffsSeen.ToList()));
             if (readings.Count % 40 == 0) Console.WriteLine($"read {t:0} / {duration:0} s ({clock.Elapsed.TotalSeconds:0} s)");
         }
         WriteLog(readings, Path.Combine(outDir, "readings.tsv"));
@@ -103,6 +133,8 @@ static class RotationDemo
             avatars[op.Id] = library.FindAvatar(op.Id);
             if (!icons.ContainsKey((op.Id, StepAction.Combo)) && op.Skills.FirstOrDefault(s => s.Kind == SkillKind.Combo) is { } combo)
                 icons[(op.Id, StepAction.Combo)] = await library.LoadSkillIconAsync(combo);
+            if (!icons.ContainsKey((op.Id, StepAction.Ultimate)) && op.Skills.FirstOrDefault(s => s.Kind == SkillKind.Ultimate) is { } ultimate)
+                icons[(op.Id, StepAction.Ultimate)] = await library.LoadSkillIconAsync(ultimate);
         }
 
         // ---- 2. Background frames, downscaled ----
@@ -118,7 +150,7 @@ static class RotationDemo
         {
             try
             {
-                Render(rotation, library, readings, avatars, icons, backgrounds, frames, outDir);
+                Render(rotation, library, readings, avatars, icons, backgrounds, frames, outDir, stillFrames, clip, gaugesSize);
             }
             catch (Exception ex)
             {
@@ -129,21 +161,24 @@ static class RotationDemo
         thread.Start();
         thread.Join();
         if (failure is not null) throw failure;
+        if (stillFrames is not null) return 0;
 
-        string mp4 = Path.Combine(outDir, "rotation-demo.mp4");
+        string mp4 = Path.Combine(outDir, clip is null ? "rotation-demo.mp4" : "clip.mp4");
         Run("ffmpeg", $"-v error -y -framerate {Fps} -i \"{Path.Combine(frames, "%05d.png")}\" -c:v libx264 -pix_fmt yuv420p -crf 22 \"{mp4}\"");
         Console.WriteLine($"{mp4}: {new FileInfo(mp4).Length / 1024 / 1024} MB");
         return 0;
     }
 
     private static void Render(Rotation rotation, OperatorLibrary library, List<Reading> readings,
-        Dictionary<string, Frame?> avatars, Dictionary<(string, StepAction), Frame?> icons, string backgrounds, string frames, string outDir)
+        Dictionary<string, Frame?> avatars, Dictionary<(string, StepAction), Frame?> icons, string backgrounds, string frames, string outDir,
+        HashSet<int>? stillFrames, (int From, int To)? clip, double gaugesSize)
     {
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("pack://application:,,,/EndHud;component/i18n/zh-CN.xaml") });
         var bitmaps = new Dictionary<object, BitmapSource?>();
         BitmapSource? Avatar(OperatorInfo op) => Cached(op.Id, () => avatars.GetValueOrDefault(op.Id));
         BitmapSource? Icon(OperatorInfo op, StepAction action) => Cached((op.Id, action), () => icons.GetValueOrDefault((op.Id, action)));
+        BitmapSource? Status(string id) => Cached(("status", id), () => library.StatusIcon(id));
         BitmapSource? Cached(object key, Func<Frame?> frame) =>
             bitmaps.TryGetValue(key, out var b) ? b : bitmaps[key] = frame() is { } f ? ComboBanner.ToBitmap(f) : null;
 
@@ -159,7 +194,16 @@ static class RotationDemo
         string lastHints = "";
         var soonUntil = new Dictionary<int, double>(); // slot → when its countdown turned ready (for the pulse)
         var wasSoon = new HashSet<int>();
-        var canvas = new Canvas { Width = Width, Height = Height, Children = { host, hintStack } };
+        // The gauges, centred at their default spot like the strip.
+        var gauges = new ContentControl { LayoutTransform = new ScaleTransform(scale * gaugesSize, scale * gaugesSize) };
+        gauges.SizeChanged += (_, _) =>
+        {
+            // Centred, standing on its bottom edge, like the overlay.
+            Canvas.SetLeft(gauges, HudConfig.DefaultGaugesCenterX * Width - gauges.ActualWidth * scale * gaugesSize / 2);
+            Canvas.SetTop(gauges, HudConfig.DefaultGaugesBottomY * Height - gauges.ActualHeight * scale * gaugesSize);
+        };
+        string? lastGauges = null;
+        var canvas = new Canvas { Width = Width, Height = Height, Children = { host, hintStack, gauges } };
         Canvas.SetLeft(hintStack, HudConfig.DefaultComboHintX * Width);
         Canvas.SetTop(hintStack, HudConfig.DefaultComboHintY * Height);
         Canvas.SetTop(host, HudConfig.DefaultRotationY * Height);
@@ -181,6 +225,14 @@ static class RotationDemo
             {
                 host.Content = view is null ? null : RotationStrip.Build(view);
                 lastKey = key;
+            }
+
+            GaugeBoard? board = reading is { InBattle: true } ? GaugesView.Build(reading.State, reading.Counters, reading.BuffsSeen, Icon, Avatar, Status) : null;
+            string? gaugeKey = board is null ? null : GaugesView.Key(board);
+            if (gaugeKey != lastGauges)
+            {
+                gauges.Content = board is null ? null : Gauges.Build(board);
+                lastGauges = gaugeKey;
             }
 
             // Combo hints, re-checked every frame like the overlay's timer (named slots only, as the overlay).
@@ -212,6 +264,8 @@ static class RotationDemo
                 hintLog.Append($"{t:0.00}\t{(hintsNow.Length == 0 ? "-" : hintsNow)}\n");
                 lastHints = hintsNow;
             }
+            if (stillFrames is not null && !stillFrames.Contains(n)) continue;
+            if (clip is { } c && (n < c.From || n >= c.To)) continue;
             canvas.Measure(new Size(Width, Height));
             canvas.Arrange(new Rect(0, 0, Width, Height));
             canvas.UpdateLayout();
@@ -224,7 +278,12 @@ static class RotationDemo
             var background = Decode(files[n]);
             Composite(background, hud);
             BlackOutUid(background);
-            Save(background, Path.Combine(frames, $"{n + 1:D5}.png"));
+            if (stillFrames is not null)
+            {
+                Save(background, Path.Combine(outDir, $"still-{t:000.0}s.png"));
+                continue;
+            }
+            Save(background, Path.Combine(frames, $"{(clip is { } range ? n - range.From : n) + 1:D5}.png"));
 
             // A still the first time each kind of moment shows (ready, waiting with a reason).
             if (view?.Steps.FirstOrDefault(s => s.State is StripStepState.Ready or StripStepState.Waiting) is { } current)
@@ -244,7 +303,7 @@ static class RotationDemo
         {
             var s = r.State;
             text.Append($"{r.At:0.00}\t{string.Join(",", s.Slots.Select(x => x.Operator?.Operator.Id ?? "?"))}\t{s.SkillPoints?.ToString("0.0") ?? "-"}\t{s.ActiveSlot?.ToString() ?? "-"}\t")
-                .Append($"{string.Join(",", s.Counters.Select(c => $"{c.CounterId}={c.Value?.ToString() ?? "?"}"))}\t{string.Join(",", s.BossStatuses?.Select(b => b.StatusId) ?? [])}\t")
+                .Append($"{string.Join(",", s.Counters.Select(c => $"{c.CounterId}={c.Value?.ToString() ?? "?"}"))}{string.Concat(s.Buffs.Select(b => " +" + b))}\t{string.Join(",", s.BossStatuses?.Select(b => b.StatusId) ?? [])}\t")
                 .Append(r.Position is { } p ? $"{p.Step.PhaseLabel} #{p.Step.StepInPhase + 1} {p.Step.Step.OperatorId} {p.Step.Step.Action}\t{p.Ready}\t{string.Join(" ", p.Checks.Select(c => $"{c.Kind}:{c.Holds?.ToString() ?? "?"}"))}" : "-\t-\t-")
                 .Append('\n');
         }

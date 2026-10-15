@@ -74,6 +74,7 @@ public partial class OverlayWindow
         // The boss's statuses take a while to read: only when this rotation asks about them.
         _party.ReadBossStatuses = rotation?.Phases.Any(p => p.Steps.Any(s => s.Expect.Any(c => c is BossStatusCondition))) == true;
         RenderRotation();
+        TrackGauges(state, inBattle);
     }
 
     private void RenderRotation()
@@ -115,6 +116,7 @@ public partial class OverlayWindow
             {
                 _skillIcons[icon.File] = ComboBanner.ToBitmap(await library.LoadSkillIconAsync(icon));
                 RenderRotation();
+                RedrawGauges();
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
