@@ -43,7 +43,7 @@ internal sealed class UpdateService : IDisposable
 
     /// <summary>Checks for the running build (<see cref="ReleaseChecker.Current"/>) against GitHub (or <paramref name="api"/>).</summary>
     public UpdateService(string api = ReleaseChecker.LatestReleaseApi)
-        : this(() => new HttpClient { Timeout = TimeSpan.FromSeconds(20) }, ReleaseChecker.Current, api)
+        : this(() => GitHubHttp.Create(TimeSpan.FromSeconds(20)), ReleaseChecker.Current, api)
     {
     }
 
@@ -65,8 +65,8 @@ internal sealed class UpdateService : IDisposable
             await Task.Delay(FirstCheckAfter, _cts.Token);
             while (!_cts.IsCancellationRequested)
             {
-                if (enabled()) await CheckAsync();
-                await Task.Delay(CheckEvery, _cts.Token);
+                bool failed = enabled() && (await CheckAsync()).Status == UpdateStatus.Unavailable;
+                await Task.Delay(failed ? GitHubHttp.RetryAfterFailure : CheckEvery, _cts.Token);
             }
         }
         catch (OperationCanceledException)
@@ -91,7 +91,7 @@ internal sealed class UpdateService : IDisposable
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException
                                        or JsonException or InvalidDataException && !_cts.IsCancellationRequested)
         {
-            Debug.WriteLine($"EndHud update check: {ex.Message}");
+            DiagnosticLog.Warn($"EndHud update check failed: {GitHubHttp.Explain(ex)}");
             check = new UpdateCheck(UpdateStatus.Unavailable, null);
         }
 

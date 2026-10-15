@@ -93,6 +93,31 @@ public class DiagnosticsTests : IDisposable
         Assert.Equal((byte)255, picture.GetPixel(uid.X + uid.Width / 2, uid.Y - 5).R);
     }
 
+    [Fact]
+    public void A_network_failure_is_explained_down_to_its_socket_error()
+    {
+        var ex = new System.Net.Http.HttpRequestException("The SSL connection could not be established, see inner exception.",
+            new IOException("Unable to read data from the transport connection.",
+                new System.Net.Sockets.SocketException((int)System.Net.Sockets.SocketError.ConnectionReset)));
+
+        Assert.Equal("HttpRequestException: The SSL connection could not be established, see inner exception. <- " +
+                     "IOException: Unable to read data from the transport connection. <- " +
+                     $"SocketException (ConnectionReset, 10054): {new System.Net.Sockets.SocketException(10054).Message}",
+            GitHubHttp.Explain(ex));
+    }
+
+    [Fact]
+    public async Task Every_github_request_is_logged_with_its_host_and_why_it_failed()
+    {
+        using var http = GitHubHttp.Create(TimeSpan.FromSeconds(10));
+        // Nothing listens on port 1: refused at once.
+        await Assert.ThrowsAsync<System.Net.Http.HttpRequestException>(() => http.GetAsync("http://127.0.0.1:1/repos/x/contents/operators"));
+
+        string log = File.ReadAllText(DiagnosticLog.FilePath);
+        Assert.Contains("GET 127.0.0.1/repos/x/contents/operators: failed after", log);
+        Assert.Contains("SocketException (ConnectionRefused, 10061)", log);
+    }
+
     private static Task OnSta(Func<Task> work)
     {
         var done = new TaskCompletionSource();

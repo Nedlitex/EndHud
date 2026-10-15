@@ -32,8 +32,8 @@ internal sealed class PublishedRotationService(RotationLibrary library) : IDispo
             await Task.Delay(FirstCheckAfter, _cts.Token);
             while (!_cts.IsCancellationRequested)
             {
-                if (enabled()) await SyncAsync(automatic: true);
-                await Task.Delay(CheckEvery, _cts.Token);
+                bool failed = enabled() && await SyncAsync(automatic: true) is null;
+                await Task.Delay(failed ? GitHubHttp.RetryAfterFailure : CheckEvery, _cts.Token);
             }
         }
         catch (OperationCanceledException)
@@ -47,7 +47,7 @@ internal sealed class PublishedRotationService(RotationLibrary library) : IDispo
         await _one.WaitAsync(_cts.Token);
         try
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+            using var http = GitHubHttp.Create(TimeSpan.FromSeconds(20));
             var result = await RotationSync.SyncAsync(library, http, Api, ReleaseChecker.UserAgent, _cts.Token);
             if (result is { Changed: true }) Changed?.Invoke(result, automatic);
             return result;
@@ -55,7 +55,7 @@ internal sealed class PublishedRotationService(RotationLibrary library) : IDispo
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException or UnauthorizedAccessException
                                        && !_cts.IsCancellationRequested)
         {
-            Debug.WriteLine($"EndHud published rotations: {ex.Message}");
+            DiagnosticLog.Warn($"recommended rotations check failed: {GitHubHttp.Explain(ex)}");
             return null;
         }
         finally

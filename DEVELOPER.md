@@ -112,6 +112,13 @@ window, what reading is doing, the last reading per slot, the operator library o
 `config.json` and `game.png`, the last game picture read with the UID area (bottom left, at 4K
 x 170–560, 15–95 px above the bottom) blacked out. Learned portraits aren't included.
 
+**Network.** Every GitHub request (EndHud updates, recommended rotations, the operator package)
+goes through [`GitHubHttp`](src/EndHud/GitHubHttp.cs), which logs the host and path, the status and
+time, or the failure with its whole chain of causes down to the socket error (a reset connection
+reads differently from a refused certificate). A failed check is retried after 30 minutes instead of
+the usual 6 hours (package) or a day (EndHud, rotations): players' logs show GitHub answering one
+minute and failing the SSL handshake six minutes later.
+
 **Reading the game off the screen.** On some Windows 10 22H2 PCs, Windows.Graphics.Capture sends
 no picture at all for the game window (two players' logs: windowed and full screen alike, no
 frame in minutes, everything else fine). After two silent captures in a row (2 s each) `PartyMonitor`

@@ -260,15 +260,20 @@ internal sealed class PartyMonitor : IDisposable
             }
             await LoadLibraryAsync();
 
+            bool failed = false;
             while (!_cts.IsCancellationRequested)
             {
                 await Task.Delay(TimeSpan.FromSeconds(5), _cts.Token); // soon after start, like the other update checks
-                if (UpdatesEnabled() && DateTime.UtcNow - _lastCheckUtc >= RefreshCheckEvery)
+                // After a failed check, again in RetryAfterFailure; otherwise every RefreshCheckEvery
+                // (unless the player checked by hand in the meantime).
+                var next = failed ? GitHubHttp.RetryAfterFailure : RefreshCheckEvery;
+                if (UpdatesEnabled() && DateTime.UtcNow - _lastCheckUtc >= next - TimeSpan.FromSeconds(10))
                 {
-                    var (result, _) = await SyncPackageAsync(announce: false);
+                    var (result, busy) = await SyncPackageAsync(announce: false);
                     if (result is { Added.Count: > 0 }) NewOperators?.Invoke(result.Added);
+                    if (!busy) failed = result is null;
                 }
-                await Task.Delay(RefreshCheckEvery, _cts.Token);
+                await Task.Delay(failed ? GitHubHttp.RetryAfterFailure : RefreshCheckEvery, _cts.Token);
             }
         }
         catch (OperationCanceledException)
@@ -292,7 +297,7 @@ internal sealed class PartyMonitor : IDisposable
         try
         {
             _lastCheckUtc = DateTime.UtcNow;
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+            using var http = GitHubHttp.Create(TimeSpan.FromSeconds(30));
             var result = await OperatorPackageSync.SyncAsync(ReferenceFolder, http,
                 OperatorPackageSync.ContentsApi(ReleaseChecker.Repository), ReleaseChecker.UserAgent, _cts.Token);
             DiagnosticLog.Info($"operator package check: {(result is null ? "failed" : result.Installed ? $"installed a newer one ({result.Added.Count} new operators)" : "up to date")}");
@@ -307,7 +312,7 @@ internal sealed class PartyMonitor : IDisposable
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException
                                        or UnauthorizedAccessException or InvalidDataException or JsonException)
         {
-            DiagnosticLog.Warn($"operator package check failed: {ex.GetType().Name}: {ex.Message}");
+            DiagnosticLog.Warn($"operator package check failed: {GitHubHttp.Explain(ex)}");
             if (!_cts.IsCancellationRequested && announce) LibraryStatus?.Invoke("Operators.UpdateFailed", []);
             return (null, false);
         }

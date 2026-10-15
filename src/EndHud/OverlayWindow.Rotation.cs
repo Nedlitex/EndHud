@@ -120,7 +120,7 @@ public partial class OverlayWindow
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
-                Debug.WriteLine($"EndHud: couldn't load {icon.File}: {ex.Message}");
+                DiagnosticLog.Warn($"couldn't load icon {icon.File}: {ex.Message}");
             }
         }
     }

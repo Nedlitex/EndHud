@@ -67,7 +67,7 @@ internal sealed class Updater
 
     /// <summary>Updates the running EndHud.</summary>
     public Updater() : this(
-        () => new HttpClient { Timeout = TimeSpan.FromMinutes(10) },
+        () => GitHubHttp.Create(TimeSpan.FromMinutes(10)),
         Environment.ProcessPath!, WorkFolder, DetectInstall(Environment.ProcessPath!),
         info => Process.Start(info) is not null)
     {
