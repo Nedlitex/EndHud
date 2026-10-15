@@ -149,6 +149,16 @@ public partial class OverlayWindow : Window
 
         if (_options.HideFromCapture)
             Native.SetWindowDisplayAffinity(_hwnd, Native.WDA_EXCLUDEFROMCAPTURE);
+        // When the game's own window capture sends nothing, the game is read off the screen, which
+        // must not include the HUD drawn over it: from then on the overlay stays out of captures
+        // (screenshots and recordings too).
+        _party.OverlayWindow = _hwnd;
+        _party.ExcludeOverlayFromCapture = () => Dispatcher.Invoke(() =>
+        {
+            bool excluded = Native.SetWindowDisplayAffinity(_hwnd, Native.WDA_EXCLUDEFROMCAPTURE);
+            if (!excluded) DiagnosticLog.Warn($"the overlay can't be kept out of screen captures (error {System.Runtime.InteropServices.Marshal.GetLastWin32Error()}): the game isn't read from the screen");
+            return excluded;
+        });
 
         HwndSource.FromHwnd(_hwnd).AddHook(WndProc);
         const uint mods = Native.MOD_CONTROL | Native.MOD_SHIFT | Native.MOD_NOREPEAT;

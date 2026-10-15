@@ -112,6 +112,18 @@ window, what reading is doing, the last reading per slot, the operator library o
 `config.json` and `game.png`, the last game picture read with the UID area (bottom left, at 4K
 x 170–560, 15–95 px above the bottom) blacked out. Learned portraits aren't included.
 
+**Reading the game off the screen.** On some Windows 10 22H2 PCs, Windows.Graphics.Capture sends
+no picture at all for the game window (two players' logs: windowed and full screen alike, no
+frame in minutes, everything else fine). After two silent captures in a row (2 s each) `PartyMonitor`
+keeps the overlay out of screen captures (`SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)`,
+Windows 10 2004 and later; from then on the HUD is also missing from the player's screenshots and
+recordings) and copies the game's client area off the screen
+([`ScreenCapture`](src/EndHud.Vision/Capture/ScreenCapture.cs), GDI BitBlt). The screen shows
+whatever is in front, so it reads only while the game or the overlay has the focus
+(`Party.GameCovered` otherwise) and the whole game area is on screen (`Party.OffScreen`). A new
+game window tries window capture again. The log's no-picture line carries the capture's counts
+(frames arrived, resizes, copied, copies failed or running) to tell which part of the capture failed.
+
 Squad naming runs beside the readings (`PartyMonitor`): a reading waits at most 150 ms for it, then
 shows the last names found, so a slow character model never holds up the HUD.
 

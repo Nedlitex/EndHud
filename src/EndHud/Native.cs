@@ -61,7 +61,7 @@ internal static class Native
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
 
-    [DllImport("user32.dll")]
+    [DllImport("user32.dll", SetLastError = true)]
     public static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
 
     [DllImport("user32.dll")]
@@ -192,6 +192,16 @@ internal static class Native
         return new PixelRect(origin.X - frame.Left, origin.Y - frame.Top, client.Right, client.Bottom)
             .ClampTo(frameWidth, frameHeight);
     }
+
+    /// <summary>The window's client area (the game picture) in physical screen coordinates.</summary>
+    public static PixelRect ClientAreaOnScreen(IntPtr hwnd)
+    {
+        if (!GetClientRect(hwnd, out var client)) return default;
+        var origin = new POINT();
+        ClientToScreen(hwnd, ref origin);
+        return new PixelRect(origin.X, origin.Y, client.Right, client.Bottom);
+    }
+
 
     [DllImport("user32.dll")]
     private static extern uint GetDpiForWindow(IntPtr hwnd);

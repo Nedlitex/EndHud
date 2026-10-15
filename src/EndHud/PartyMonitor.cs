@@ -58,6 +58,55 @@ internal sealed class PartyMonitor : IDisposable
     private long _namingSince;
     private long _namingReported;
 
+    /// <summary>
+    /// Keep the overlay out of screen captures (WDA_EXCLUDEFROMCAPTURE), so the game can be read
+    /// off the screen without reading EndHud's own HUD; false if Windows refused (before Windows 10
+    /// 2004), and then the screen isn't read. Set by the overlay.
+    /// </summary>
+    public Func<bool>? ExcludeOverlayFromCapture { get; set; }
+
+    /// <summary>The overlay's window (its menu takes the focus while open); set by the overlay.</summary>
+    public IntPtr OverlayWindow { get; set; }
+
+    /// <summary>Window captures in a row that sent nothing (2 s each) before the game is read off the screen.</summary>
+    private const int SilentCapturesBeforeScreen = 2;
+
+    private string _source = "window capture";
+
+    /// <summary>
+    /// The game's area copied off the screen (<see cref="ScreenCapture"/>), or null with the reason
+    /// reported: only the whole game area, and only while the game (or EndHud's own menu) is in
+    /// front, since the screen shows whatever covers it.
+    /// </summary>
+    private Frame? ReadScreen(IntPtr hwnd)
+    {
+        _source = "screen";
+        var area = Native.ClientAreaOnScreen(hwnd);
+        var desktop = ScreenCapture.VirtualScreen();
+        if (area.IsEmpty)
+        {
+            Report(null, "Party.WindowEmpty");
+            return null;
+        }
+        if (area.X < desktop.X || area.Y < desktop.Y || area.Right > desktop.Right || area.Bottom > desktop.Bottom)
+        {
+            DiagnosticLog.Throttled("off-screen", RepeatLogEvery, $"reading from the screen, but part of the game is off it ({area}, screen {desktop})");
+            Report(null, "Party.OffScreen");
+            return null;
+        }
+        // The overlay is kept out of screen captures; anything else in front (another app, the
+        // rotation editor) would be read as the game.
+        IntPtr front = Native.GetForegroundWindow();
+        if (front != hwnd && front != OverlayWindow)
+        {
+            Report(null, "Party.GameCovered");
+            return null;
+        }
+        var frame = ScreenCapture.Copy(area);
+        DiagnosticLog.Throttled("screen-read", TimeSpan.FromHours(1), $"read the game from the screen: {area}", "INFO");
+        return frame;
+    }
+
     /// <summary>How long a reading waits for the squad naming before showing the last names instead.</summary>
     internal static readonly TimeSpan QuickNaming = TimeSpan.FromMilliseconds(150);
 
@@ -85,7 +134,7 @@ internal sealed class PartyMonitor : IDisposable
     {
         var since = Stopwatch.GetElapsedTime(Interlocked.Read(ref _stageSince));
         var library = _identifier?.Library;
-        return $"reading {(_active ? "on" : "off")}, step {_stage} for {since.TotalSeconds:F1} s, last problem {LastProblem ?? "none"}; " +
+        return $"reading {(_active ? "on" : "off")} from {_source}, step {_stage} for {since.TotalSeconds:F1} s, last problem {LastProblem ?? "none"}; " +
                $"library {(library is null ? "not loaded" : $"{library.Operators.Count} operators")}; " +
                $"last frame {(LatestFrame is { } f ? $"{f.Width}x{f.Height}" : "none")}";
     }
@@ -311,6 +360,8 @@ internal sealed class PartyMonitor : IDisposable
         string names = "";
         Task? avatars = null;
         Task<PartyState>? naming = null;
+        bool fromScreen = false;
+        int silentCaptures = 0;
         OperatorMatch?[] lastNames = [];
         try
         {
@@ -332,27 +383,46 @@ internal sealed class PartyMonitor : IDisposable
                 {
                     var clock = Stopwatch.StartNew();
                     Enter("capture");
-                    bool started = false;
-                    if (capture is null || captured != hwnd)
+                    Frame gameFrame;
+                    if (captured != hwnd)
                     {
-                        capture?.Dispose();
-                        capture = new WindowCapture(hwnd);
-                        if (captured != hwnd) tracker = new PartyTracker(); // another game window: nothing carries over
+                        // Another game window (the game restarted): nothing carries over, and its
+                        // own window capture is tried first again.
+                        tracker = new PartyTracker();
+                        fromScreen = false;
+                        silentCaptures = 0;
+                    }
+                    if (fromScreen)
+                    {
                         captured = hwnd;
-                        started = true;
+                        if (ReadScreen(hwnd) is not { } fromDesktop) continue; // why is reported
+                        gameFrame = fromDesktop;
                     }
-
-                    var frame = await capture.GetFrameAsync(ct);
-                    var client = Native.ClientAreaInCapture(hwnd, frame.Width, frame.Height);
-                    if (started) DiagnosticLog.Info($"capture started: frame {frame.Width}x{frame.Height}, game area {client}; {Native.Describe(hwnd)}");
-                    if (client.IsEmpty)
+                    else
                     {
-                        DiagnosticLog.Throttled("empty-client", RepeatLogEvery, $"the game area in the captured frame ({frame.Width}x{frame.Height}) is empty; {Native.Describe(hwnd)}");
-                        Report(null, "Party.WindowEmpty");
-                        continue;
+                        _source = "window capture";
+                        bool started = false;
+                        if (capture is null || captured != hwnd)
+                        {
+                            capture?.Dispose();
+                            capture = new WindowCapture(hwnd);
+                            captured = hwnd;
+                            started = true;
+                        }
+
+                        var frame = await capture.GetFrameAsync(ct);
+                        silentCaptures = 0;
+                        var client = Native.ClientAreaInCapture(hwnd, frame.Width, frame.Height);
+                        if (started) DiagnosticLog.Info($"capture started: frame {frame.Width}x{frame.Height}, game area {client}; {Native.Describe(hwnd)}");
+                        if (client.IsEmpty)
+                        {
+                            DiagnosticLog.Throttled("empty-client", RepeatLogEvery, $"the game area in the captured frame ({frame.Width}x{frame.Height}) is empty; {Native.Describe(hwnd)}");
+                            Report(null, "Party.WindowEmpty");
+                            continue;
+                        }
+                        // Death first, so a fallen operator's death mark is never matched as a portrait.
+                        gameFrame = frame.Crop(client);
                     }
-                    // Death first, so a fallen operator's death mark is never matched as a portrait.
-                    var gameFrame = frame.Crop(client);
                     LatestFrame = gameFrame;
                     Enter("read");
                     var state = tracker.Track(await reader.ReadAsync(gameFrame));
@@ -436,9 +506,22 @@ internal sealed class PartyMonitor : IDisposable
                 catch (TimeoutException)
                 {
                     // The window has sent no picture at all since capture started (Windows sends one
-                    // at once, then on every change). Say so rather than keep waiting in silence.
-                    DiagnosticLog.Throttled("no-frames", RepeatLogEvery, $"the game window sends no picture to capture; {Native.Describe(hwnd)}");
-                    Report(null, "Party.NoFrames");
+                    // at once, then on every change): seen on Windows 10 22H2, windowed and full
+                    // screen alike. After SilentCapturesBeforeScreen of those, read the game's area
+                    // off the screen instead, once the overlay is kept out of screen captures.
+                    string what = $"the game window sends no picture to capture ({capture?.Describe() ?? "no capture"}); {Native.Describe(hwnd)}";
+                    if (++silentCaptures >= SilentCapturesBeforeScreen && ExcludeOverlayFromCapture?.Invoke() == true)
+                    {
+                        DiagnosticLog.Warn($"{what}; reading the game from the screen instead");
+                        capture?.Dispose();
+                        capture = null;
+                        fromScreen = true;
+                    }
+                    else
+                    {
+                        DiagnosticLog.Throttled("no-frames", RepeatLogEvery, what);
+                        Report(null, "Party.NoFrames");
+                    }
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {

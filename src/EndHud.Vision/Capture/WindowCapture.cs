@@ -23,6 +23,16 @@ public sealed class WindowCapture : IDisposable
     private TaskCompletionSource<Frame>? _pending;
     private Frame? _latest;
     private SizeInt32 _poolSize;
+    private int _arrived, _resized, _copied, _copyFailed, _copying;
+    private string? _copyError;
+
+    /// <summary>
+    /// What Windows has sent so far, for the diagnostic log when no picture comes: the callback
+    /// firing at all, size changes, pictures copied, copies failed or still running.
+    /// </summary>
+    public string Describe() =>
+        $"capture item {_poolSize.Width}x{_poolSize.Height}: {_arrived} frames arrived, {_resized} resizes, {_copied} copied, " +
+        $"{_copyFailed} copies failed{(_copyError is null ? "" : $" (last: {_copyError})")}, {_copying} copying now";
 
     public WindowCapture(IntPtr hwnd)
     {
@@ -75,6 +85,7 @@ public sealed class WindowCapture : IDisposable
 
     private void OnFrameArrived(Direct3D11CaptureFramePool sender, object args)
     {
+        Interlocked.Increment(ref _arrived);
         using var frame = sender.TryGetNextFrame();
         if (frame is null) return;
 
@@ -83,6 +94,7 @@ public sealed class WindowCapture : IDisposable
         {
             // Window resized: rebuild buffers at the new size and wait for a frame that fits.
             _poolSize = size;
+            Interlocked.Increment(ref _resized);
             sender.Recreate(_device, PixelFormat, 2, size);
             return;
         }
@@ -95,17 +107,25 @@ public sealed class WindowCapture : IDisposable
         }
         if (tcs is null) return; // nobody asked; drop the frame
 
+        Interlocked.Increment(ref _copying);
         try
         {
             using var bitmap = SoftwareBitmap.CreateCopyFromSurfaceAsync(frame.Surface, BitmapAlphaMode.Premultiplied)
                 .AsTask().GetAwaiter().GetResult();
             var copy = Frame.FromSoftwareBitmap(bitmap);
             lock (_lock) _latest = copy;
+            Interlocked.Increment(ref _copied);
             tcs.TrySetResult(copy);
         }
         catch (Exception ex)
         {
+            Interlocked.Increment(ref _copyFailed);
+            _copyError = $"{ex.GetType().Name}: {ex.Message}";
             tcs.TrySetException(ex);
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _copying);
         }
     }
 

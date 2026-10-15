@@ -27,6 +27,9 @@ public class WindowedGameCaptureTests
         await capture.GetFrameAsync(); // the first frame can predate the first full paint
         var frame = await capture.GetFrameAsync();
 
+        // DPI awareness is per thread here (EndHud sets it for the whole process), and the awaits
+        // above may have moved this test to a thread-pool thread that measures in scaled units.
+        SetThreadDpiAwarenessContext(PerMonitorAwareV2);
         var client = Native.ClientAreaInCapture(window.Handle, frame.Width, frame.Height);
         Assert.True(frame.Height > client.Height, "the capture should include the title bar");
         Assert.Equal(new Size(1600, 900), new Size(client.Width, client.Height));
@@ -45,6 +48,32 @@ public class WindowedGameCaptureTests
             Assert.Equal(want.Slots[i].Combo?.Ready, read.Slots[i].Combo?.Ready);
             Assert.Equal(want.Slots[i].Ultimate?.Ready, read.Slots[i].Ultimate?.Ready);
         }
+    }
+
+    /// <summary>
+    /// When the game's window capture sends nothing (Windows 10 22H2 players), the game is read off
+    /// the screen: its client area, with EndHud's overlay kept out of the copy (WDA_EXCLUDEFROMCAPTURE),
+    /// even where the overlay covers the squad panel.
+    /// </summary>
+    [Fact]
+    public async Task Read_off_the_screen_the_game_is_its_client_area_without_the_overlay()
+    {
+        SetThreadDpiAwarenessContext(PerMonitorAwareV2);
+        using var window = BorderedGameWindow.Show(Fixture, new Size(1600, 900), topMost: true);
+        var area = Native.ClientAreaOnScreen(window.Handle);
+        // A stand-in overlay: solid red over the squad panel, kept out of captures like EndHud's.
+        using var overlay = BorderedGameWindow.Cover(new Rectangle(area.X, area.Y + area.Height / 2, area.Width / 2, area.Height / 2));
+        Thread.Sleep(300);
+
+        var game = ScreenCapture.Copy(area);
+
+        Assert.Equal((1600, 900), (game.Width, game.Height));
+        var expected = (await ImageFile.LoadAsync(Fixture)).Resize(area.Width, area.Height);
+        Assert.True(MeanDifference(game, expected) < 8, $"screen copy differs from the picture by {MeanDifference(game, expected):F1} on average");
+        var reader = new PartyReader(new TextRecognizer());
+        var read = await reader.ReadAsync(game);
+        Assert.True(read.PanelVisible);
+        Assert.Equal(8, read.PanelMarks);
     }
 
     private static double MeanDifference(Vision.Frame a, Vision.Frame b)
@@ -67,27 +96,17 @@ public class WindowedGameCaptureTests
         private readonly ManualResetEventSlim _shown = new();
         private Form? _form;
 
-        private BorderedGameWindow(string imagePath, Size clientSize)
+        private BorderedGameWindow(Func<Form> make)
         {
             _thread = new Thread(() =>
             {
                 SetThreadDpiAwarenessContext(PerMonitorAwareV2);
-                var image = Image.FromFile(imagePath);
-                _form = new ImageForm(image)
-                {
-                    Text = "EndHud windowed capture test",
-                    FormBorderStyle = FormBorderStyle.Sizable,
-                    StartPosition = FormStartPosition.Manual,
-                    Location = new Point(40, 40),
-                    ClientSize = clientSize,
-                    ShowInTaskbar = false,
-                };
+                _form = make();
                 var redraw = new System.Windows.Forms.Timer { Interval = 100 };
                 redraw.Tick += (_, _) => _form.Invalidate();
                 redraw.Start();
                 _form.Shown += (_, _) => _shown.Set();
                 Application.Run(_form);
-                image.Dispose();
             });
             _thread.SetApartmentState(ApartmentState.STA);
             _thread.IsBackground = true;
@@ -99,7 +118,38 @@ public class WindowedGameCaptureTests
 
         public IntPtr Handle { get; }
 
-        public static BorderedGameWindow Show(string imagePath, Size clientSize) => new(imagePath, clientSize);
+        public static BorderedGameWindow Show(string imagePath, Size clientSize, bool topMost = false) => new(() =>
+        {
+            var image = Image.FromFile(imagePath);
+            var form = new ImageForm(image)
+            {
+                Text = "EndHud windowed capture test",
+                FormBorderStyle = FormBorderStyle.Sizable,
+                StartPosition = FormStartPosition.Manual,
+                Location = new Point(40, 40),
+                ClientSize = clientSize,
+                ShowInTaskbar = false,
+                TopMost = topMost,
+            };
+            form.FormClosed += (_, _) => image.Dispose();
+            return form;
+        });
+
+        /// <summary>A borderless solid red window over <paramref name="bounds"/>, on top, kept out of screen captures.</summary>
+        public static BorderedGameWindow Cover(Rectangle bounds) => new(() =>
+        {
+            var form = new Form
+            {
+                FormBorderStyle = FormBorderStyle.None,
+                StartPosition = FormStartPosition.Manual,
+                Bounds = bounds,
+                BackColor = Color.Red,
+                ShowInTaskbar = false,
+                TopMost = true,
+            };
+            form.HandleCreated += (_, _) => Native.SetWindowDisplayAffinity(form.Handle, Native.WDA_EXCLUDEFROMCAPTURE);
+            return form;
+        });
 
         public void Dispose()
         {

@@ -196,6 +196,8 @@
     <sys:String x:Key="Party.OcrUnavailable">系统未安装文字识别语言包。请在“设置 → 时间和语言 → 语言和区域”中添加英语或中文。</sys:String>
     <sys:String x:Key="Party.NoFrames">收不到游戏窗口的画面，暂时无法识别。请在托盘菜单或菜单中点“导出诊断信息”，把生成的压缩包发给开发者。</sys:String>
     <sys:String x:Key="Party.WindowEmpty">游戏窗口的画面区域为空（窗口可能被最小化或尺寸为 0）。如果游戏正常显示，请点“导出诊断信息”发给开发者。</sys:String>
+    <sys:String x:Key="Party.OffScreen">游戏窗口有一部分在屏幕外，暂时无法识别。请把游戏窗口完整移回屏幕内，或改用全屏/无边框窗口。</sys:String>
+    <sys:String x:Key="Party.GameCovered">游戏被其他窗口挡住了，切回游戏后会继续识别。</sys:String>
     <sys:String x:Key="Party.StartFailed">小队栏识别没能启动。请点“导出诊断信息”，把生成的压缩包发给开发者。</sys:String>
     <sys:String x:Key="Party.Stuck">识别卡住了（超过 15 秒没有结果）。请点“导出诊断信息”，把生成的压缩包发给开发者。</sys:String>
 
