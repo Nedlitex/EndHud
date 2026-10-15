@@ -91,6 +91,30 @@ Squad
 
 (Shown in Chinese, like the rest of the interface.)
 
+When there's no reading, the panel says why instead of staying on "recognising the squad panel":
+no squad panel on screen, no OCR language, the game window sending no picture (`Party.NoFrames`),
+an empty game area in the capture (`Party.WindowEmpty`), reading failing to start (`Party.StartFailed`),
+a capture error (`Party.CaptureFailed`), or one step of a reading taking over 15 s (`Party.Stuck`).
+
+### Diagnostic log and export
+
+`%APPDATA%\EndHud\logs\endhud.log` ([`DiagnosticLog`](src/EndHud/DiagnosticLog.cs)) records the PC
+(Windows version, processors, screens, OCR languages) at start, and then, rather than every reading,
+what changes or goes wrong: the game window followed (rect, frame, client area, DPI), capture
+starting and its frame size, the squad panel appearing and disappearing, the operator library
+loading, the squad named, slow naming (over 2 s), a reading step hanging (watchdog, 15 s), and
+every exception, including unhandled ones. Repeats are written once per 30 s with a count. It rolls
+over at 1 MB and keeps three files; the user's profile folder is written as `%USERPROFILE%`.
+
+"Export diagnostics" (tray, or the menu's General card) writes `EndHud-diagnostics-<time>.zip` to the
+desktop ([`DiagnosticExport`](src/EndHud/DiagnosticExport.cs)): `summary.txt` (version, PC, the game
+window, what reading is doing, the last reading per slot, the operator library on disk), `logs/`,
+`config.json` and `game.png`, the last game picture read with the UID area (bottom left, at 4K
+x 170–560, 15–95 px above the bottom) blacked out. Learned portraits aren't included.
+
+Squad naming runs beside the readings (`PartyMonitor`): a reading waits at most 150 ms for it, then
+shows the last names found, so a slow character model never holds up the HUD.
+
 | Field | Where it's read from | How |
 |---|---|---|
 | Operator name | squad portraits, bottom-left | compared with every operator's wiki avatar by a character recognition model (see [Recognising operators](#recognising-operators)) |

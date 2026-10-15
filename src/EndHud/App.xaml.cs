@@ -41,6 +41,7 @@ public partial class App : Application
 
         var config = ConfigStore.Load();
         Loc.Load(config.Language);
+        StartLog(updatedTo, updateFailed);
 
         var overlay = new OverlayWindow(HudOptions.Parse(e.Args), config);
         MainWindow = overlay;
@@ -51,6 +52,19 @@ public partial class App : Application
         else if (updateFailed is not null) _tray.ShowUpdateFailed(updateFailed);
         _updates.Start(() => config.CheckForUpdates);
         overlay.PublishedRotations.Start(() => config.CheckForUpdates);
+    }
+
+    /// <summary>
+    /// Start the diagnostic log: what this PC is, and anything that would otherwise fail unseen
+    /// (an exception on a background task, a crash).
+    /// </summary>
+    private void StartLog(string? updatedTo, string? updateFailed)
+    {
+        DiagnosticLog.Info("EndHud started" + (updatedTo is not null ? $" (updated to {updatedTo})" : updateFailed is not null ? " (update failed)" : "") +
+                           Environment.NewLine + DiagnosticExport.DescribeComputer().TrimEnd());
+        AppDomain.CurrentDomain.UnhandledException += (_, args) => DiagnosticLog.Error("crash", args.ExceptionObject as Exception);
+        DispatcherUnhandledException += (_, args) => DiagnosticLog.Error("unhandled error on the UI thread", args.Exception);
+        TaskScheduler.UnobservedTaskException += (_, args) => DiagnosticLog.Error("unobserved background error", args.Exception);
     }
 
     /// <summary>Started by the version being replaced (portable update): wait for it to exit.</summary>
@@ -74,6 +88,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        if (_tray is not null) DiagnosticLog.Info("EndHud exiting"); // not for a self-test or update run, which keep no user data
         _updates?.Dispose();
         (MainWindow as OverlayWindow)?.PublishedRotations.Dispose();
         _tray?.Dispose();

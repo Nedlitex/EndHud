@@ -47,7 +47,48 @@ internal sealed class PartyMonitor : IDisposable
     private int _libraryBusy;
     private DateTime _lastCheckUtc = DateTime.MinValue;
 
+    // What the reading loop is doing, and since when: the watchdog logs a step that hangs.
+    private volatile string _stage = "starting";
+    private long _stageSince = Stopwatch.GetTimestamp();
+    private long _stuckReported;
+    private static readonly TimeSpan StuckAfter = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan RepeatLogEvery = TimeSpan.FromSeconds(30);
+    // When the squad naming running beside the readings started (0: none running), and the last
+    // one the watchdog reported.
+    private long _namingSince;
+    private long _namingReported;
+
+    /// <summary>How long a reading waits for the squad naming before showing the last names instead.</summary>
+    internal static readonly TimeSpan QuickNaming = TimeSpan.FromMilliseconds(150);
+
+    /// <summary>
+    /// <paramref name="state"/> with each slot's name from the last finished naming (<paramref name="names"/>,
+    /// index 0 = slot 1) while naming this reading is still running. Only while the squad panel is
+    /// seen: off it, nobody is shown by name anyway.
+    /// </summary>
+    internal static PartyState WithNames(PartyState state, IReadOnlyList<OperatorMatch?> names) =>
+        !state.PanelVisible ? state : state with
+        {
+            Slots = state.Slots.Select(s => s.Operator is null && s.Number >= 1 && s.Number <= names.Count ? s with { Operator = names[s.Number - 1] } : s).ToList(),
+        };
+
     public PartyMonitor(TimeSpan interval) => _interval = interval;
+
+    /// <summary>The last game picture read (the game area only), for the diagnostic export.</summary>
+    public Frame? LatestFrame { get; private set; }
+
+    /// <summary>Why the last reading gave nothing (an i18n key), or null when it read; for the diagnostic export.</summary>
+    public string? LastProblem { get; private set; }
+
+    /// <summary>What the reading loop is doing and how it went last, in a line, for the diagnostic export.</summary>
+    public string Describe()
+    {
+        var since = Stopwatch.GetElapsedTime(Interlocked.Read(ref _stageSince));
+        var library = _identifier?.Library;
+        return $"reading {(_active ? "on" : "off")}, step {_stage} for {since.TotalSeconds:F1} s, last problem {LastProblem ?? "none"}; " +
+               $"library {(library is null ? "not loaded" : $"{library.Operators.Count} operators")}; " +
+               $"last frame {(LatestFrame is { } f ? $"{f.Width}x{f.Height}" : "none")}";
+    }
 
     /// <summary>A reading, or an i18n key describing why there is none.</summary>
     public event Action<PartyState?, string?>? Updated;
@@ -64,6 +105,8 @@ internal sealed class PartyMonitor : IDisposable
     /// <summary>Called from the UI thread whenever the game window or HUD visibility changes.</summary>
     public void SetTarget(IntPtr gameWindow, bool active)
     {
+        if (gameWindow != _target || active != _active)
+            DiagnosticLog.Info($"reading {(active && gameWindow != IntPtr.Zero ? "on" : "off")}: {Native.Describe(gameWindow)}");
         _target = gameWindow;
         _active = active;
     }
@@ -72,6 +115,51 @@ internal sealed class PartyMonitor : IDisposable
     {
         _ = Task.Run(KeepLibraryAsync);
         _ = Task.Run(RunAsync);
+        _ = Task.Run(WatchAsync);
+    }
+
+    private void Enter(string stage)
+    {
+        _stage = stage;
+        Interlocked.Exchange(ref _stageSince, Stopwatch.GetTimestamp());
+    }
+
+    /// <summary>
+    /// Every few seconds: if one step of a reading has taken more than <see cref="StuckAfter"/>
+    /// (a capture, the text recognition, the character model that never returns), log it and say
+    /// so in the debug panel, once per hang.
+    /// </summary>
+    private async Task WatchAsync()
+    {
+        try
+        {
+            while (!_cts.IsCancellationRequested)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), _cts.Token);
+                long since = Interlocked.Read(ref _stageSince);
+                string stage = _stage;
+                long naming = Interlocked.Read(ref _namingSince);
+                if (naming != 0 && _active && Stopwatch.GetElapsedTime(naming) >= StuckAfter && Interlocked.Read(ref _namingReported) != naming)
+                {
+                    // Readings go on meanwhile, so only logged: the HUD still shows the squad, unnamed.
+                    Interlocked.Exchange(ref _namingReported, naming);
+                    DiagnosticLog.Error($"naming the squad has taken {Stopwatch.GetElapsedTime(naming).TotalSeconds:F0} s so far (character model too slow on this PC, or stuck)");
+                }
+                if (stage == "waiting" || !_active || Stopwatch.GetElapsedTime(since) < StuckAfter || Interlocked.Read(ref _stuckReported) == since) continue;
+                Interlocked.Exchange(ref _stuckReported, since);
+                DiagnosticLog.Error($"reading stuck: step {stage} has taken {Stopwatch.GetElapsedTime(since).TotalSeconds:F0} s; {Native.Describe(_target)}");
+                Report(null, "Party.Stuck");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void Report(PartyState? state, string? problem)
+    {
+        LastProblem = problem;
+        Updated?.Invoke(state, problem);
     }
 
     /// <summary>
@@ -111,11 +199,15 @@ internal sealed class PartyMonitor : IDisposable
         {
             try
             {
-                if (OperatorPackage.BuiltIn() is { } builtIn) OperatorPackage.InstallIfNewer(ReferenceFolder, builtIn);
+                if (OperatorPackage.BuiltIn() is { } builtIn)
+                {
+                    var added = OperatorPackage.InstallIfNewer(ReferenceFolder, builtIn);
+                    DiagnosticLog.Info(added is null ? "built-in operator package: the installed one is as new" : $"built-in operator package installed ({added.Count} new operators)");
+                }
             }
-            catch (InvalidDataException ex)
+            catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
             {
-                Debug.WriteLine($"EndHud operator package: {ex.Message}"); // keep what's installed
+                DiagnosticLog.Error("built-in operator package not installed (keeping what's there)", ex);
             }
             await LoadLibraryAsync();
 
@@ -133,6 +225,11 @@ internal sealed class PartyMonitor : IDisposable
         catch (OperationCanceledException)
         {
         }
+        catch (Exception ex)
+        {
+            // Without a library nobody is ever named: this must not go unseen.
+            DiagnosticLog.Error("operator library failed", ex);
+        }
     }
 
     /// <summary>
@@ -149,6 +246,7 @@ internal sealed class PartyMonitor : IDisposable
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
             var result = await OperatorPackageSync.SyncAsync(ReferenceFolder, http,
                 OperatorPackageSync.ContentsApi(ReleaseChecker.Repository), ReleaseChecker.UserAgent, _cts.Token);
+            DiagnosticLog.Info($"operator package check: {(result is null ? "failed" : result.Installed ? $"installed a newer one ({result.Added.Count} new operators)" : "up to date")}");
             if (result is { Installed: true })
             {
                 await LoadLibraryAsync();
@@ -160,7 +258,7 @@ internal sealed class PartyMonitor : IDisposable
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException
                                        or UnauthorizedAccessException or InvalidDataException or JsonException)
         {
-            Debug.WriteLine($"EndHud operator package: {ex}");
+            DiagnosticLog.Warn($"operator package check failed: {ex.GetType().Name}: {ex.Message}");
             if (!_cts.IsCancellationRequested && announce) LibraryStatus?.Invoke("Operators.UpdateFailed", []);
             return (null, false);
         }
@@ -172,7 +270,10 @@ internal sealed class PartyMonitor : IDisposable
 
     private async Task LoadLibraryAsync()
     {
+        var clock = Stopwatch.StartNew();
         var library = await OperatorLibrary.LoadAsync(LibraryFolder);
+        DiagnosticLog.Info($"operator library loaded in {clock.ElapsedMilliseconds} ms: {library.Operators.Count} operators" +
+                           (OperatorPackage.Installed(ReferenceFolder) is { } package ? $", package of {package.ContentAtUtc:yyyy-MM-dd}" : ", no package"));
         // An empty library recognises nobody; leave the identifier unset so the menu says why.
         _identifier = library.IsEmpty ? null : new SquadIdentifier(library);
         _bossStatuses = library.IsEmpty ? null : new BossStatusReader(library);
@@ -186,9 +287,18 @@ internal sealed class PartyMonitor : IDisposable
         {
             reader = new PartyReader(new TextRecognizer());
         }
-        catch (InvalidOperationException)
+        catch (InvalidOperationException ex)
         {
-            Updated?.Invoke(null, "Party.OcrUnavailable");
+            DiagnosticLog.Error("text recognition unavailable", ex);
+            Enter("waiting");
+            Report(null, "Party.OcrUnavailable");
+            return;
+        }
+        catch (Exception ex)
+        {
+            DiagnosticLog.Error("reading couldn't start", ex);
+            Enter("waiting");
+            Report(null, "Party.StartFailed");
             return;
         }
 
@@ -197,10 +307,16 @@ internal sealed class PartyMonitor : IDisposable
         var tracker = new PartyTracker();
         var bossClock = Stopwatch.StartNew();
         var ct = _cts.Token;
+        bool panelSeen = false, firstReading = true;
+        string names = "";
+        Task? avatars = null;
+        Task<PartyState>? naming = null;
+        OperatorMatch?[] lastNames = [];
         try
         {
             while (!ct.IsCancellationRequested)
             {
+                Enter("waiting");
                 await Task.Delay(_interval, ct);
 
                 IntPtr hwnd = _target;
@@ -214,56 +330,136 @@ internal sealed class PartyMonitor : IDisposable
 
                 try
                 {
+                    var clock = Stopwatch.StartNew();
+                    Enter("capture");
+                    bool started = false;
                     if (capture is null || captured != hwnd)
                     {
                         capture?.Dispose();
                         capture = new WindowCapture(hwnd);
                         if (captured != hwnd) tracker = new PartyTracker(); // another game window: nothing carries over
                         captured = hwnd;
+                        started = true;
                     }
 
                     var frame = await capture.GetFrameAsync(ct);
                     var client = Native.ClientAreaInCapture(hwnd, frame.Width, frame.Height);
-                    if (client.IsEmpty) continue;
+                    if (started) DiagnosticLog.Info($"capture started: frame {frame.Width}x{frame.Height}, game area {client}; {Native.Describe(hwnd)}");
+                    if (client.IsEmpty)
+                    {
+                        DiagnosticLog.Throttled("empty-client", RepeatLogEvery, $"the game area in the captured frame ({frame.Width}x{frame.Height}) is empty; {Native.Describe(hwnd)}");
+                        Report(null, "Party.WindowEmpty");
+                        continue;
+                    }
                     // Death first, so a fallen operator's death mark is never matched as a portrait.
                     var gameFrame = frame.Crop(client);
+                    LatestFrame = gameFrame;
+                    Enter("read");
                     var state = tracker.Track(await reader.ReadAsync(gameFrame));
+                    long readMs = clock.ElapsedMilliseconds;
+                    if (state.PanelVisible != panelSeen)
+                    {
+                        panelSeen = state.PanelVisible;
+                        DiagnosticLog.Info(panelSeen ? $"squad panel seen ({state.PanelMarks}/8 marks) at {gameFrame.Width}x{gameFrame.Height}" : "squad panel gone");
+                    }
                     if (_identifier is { } identifier)
                     {
-                        state = await identifier.IdentifyAsync(state);
-                        // The controlled operator's own counter (e.g. 熔火): drawn differently per
+                        if (avatars is null && state.PanelVisible)
+                        {
+                            var described = Stopwatch.StartNew();
+                            avatars = identifier.PrepareAsync(state).ContinueWith(t => DiagnosticLog.Info(t.IsCompletedSuccessfully
+                                ? $"wiki avatars described for this screen in {described.Elapsed.TotalSeconds:F1} s"
+                                : $"wiki avatars couldn't be described: {t.Exception?.GetBaseException()}"), TaskScheduler.Default);
+                        }
+                        // Naming runs beside the readings, never in their way: the character model
+                        // takes 0.2 s a portrait on a fast PC and several times that on a slow one
+                        // or while the wiki avatars are being described, and a reading that waited
+                        // for it left the HUD blank (the debug panel on "recognising the squad
+                        // panel") or updating once a second. A reading takes the names as soon as
+                        // naming finishes within QuickNaming; otherwise it shows the last names and
+                        // naming goes on.
+                        Enter("identify");
+                        if (naming is { IsCompleted: true } done)
+                        {
+                            naming = null;
+                            lastNames = (await done).Slots.Select(s => s.Operator).ToArray();
+                        }
+                        if (naming is null)
+                        {
+                            naming = identifier.IdentifyAsync(state);
+                            Interlocked.Exchange(ref _namingSince, Stopwatch.GetTimestamp());
+                        }
+                        if (await Task.WhenAny(naming, Task.Delay(QuickNaming, ct)) == naming)
+                        {
+                            var finished = naming;
+                            naming = null;
+                            Interlocked.Exchange(ref _namingSince, 0);
+                            state = await finished;
+                            lastNames = state.Slots.Select(s => s.Operator).ToArray();
+                        }
+                        else
+                        {
+                            state = WithNames(state, lastNames);
+                        }
+                        long identifyMs = clock.ElapsedMilliseconds - readMs;
+                        if (identifyMs > 2000)
+                            DiagnosticLog.Throttled("slow-identify", RepeatLogEvery, $"naming the squad took {identifyMs} ms", "INFO");
+                        string now = string.Join(", ", state.Slots.Select(s => s.Operator?.Operator.Id ?? "-"));
+                        if (state.PanelVisible && now != names)
+                        {
+                            names = now;
+                            DiagnosticLog.Info($"squad: {now}");
+                        }
+                        // The controlled operator's own counter (e.g. Melting Flame): drawn differently per
                         // operator, so read once we know who it is.
+                        Enter("counters");
                         state = state with { Counters = OperatorCounters.ReadControlled(gameFrame, state) };
                         // Team buffs (Link) beside it: drawn in combat only.
+                        Enter("buffs");
                         if (state.InCombat && _teamBuffs is { } buffs) state = state with { Buffs = buffs.Read(gameFrame) };
                         // The boss's statuses take ~70 ms to read at 4K: only when the rotation asks,
                         // and at most once a second (they change far more slowly than skill points).
                         if (ReadBossStatuses && _bossStatuses is { } boss && bossClock.Elapsed >= BossStatusEvery)
                         {
+                            Enter("boss statuses");
                             state = state with { BossStatuses = boss.Read(gameFrame) };
                             bossClock.Restart();
                         }
                     }
-                    Updated?.Invoke(state, null);
+                    if (firstReading)
+                    {
+                        firstReading = false;
+                        DiagnosticLog.Info($"first reading in {clock.ElapsedMilliseconds} ms (panel {(state.PanelVisible ? "seen" : "not seen")}, library {(_identifier is null ? "not loaded yet" : "loaded")})");
+                    }
+                    Report(state, null);
                 }
                 catch (TimeoutException)
                 {
-                    // The window didn't redraw (Windows only sends frames on change); try next tick.
+                    // The window has sent no picture at all since capture started (Windows sends one
+                    // at once, then on every change). Say so rather than keep waiting in silence.
+                    DiagnosticLog.Throttled("no-frames", RepeatLogEvery, $"the game window sends no picture to capture; {Native.Describe(hwnd)}");
+                    Report(null, "Party.NoFrames");
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    Debug.WriteLine($"EndHud capture failed: {ex}");
+                    DiagnosticLog.Throttled("failed-" + ex.GetType().Name, RepeatLogEvery, $"reading failed at step {_stage}: {ex}", "ERROR");
                     capture?.Dispose();
                     capture = null;
-                    Updated?.Invoke(null, "Party.CaptureFailed");
+                    Report(null, "Party.CaptureFailed");
                 }
             }
         }
         catch (OperationCanceledException)
         {
         }
+        catch (Exception ex)
+        {
+            DiagnosticLog.Error("reading stopped", ex);
+            Report(null, "Party.StartFailed");
+        }
         finally
         {
+            Enter("waiting");
             capture?.Dispose();
         }
     }

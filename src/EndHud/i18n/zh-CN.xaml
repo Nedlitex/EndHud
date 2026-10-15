@@ -194,6 +194,10 @@
     <sys:String x:Key="Party.NotVisible">画面中暂未看到小队栏（可能正在打开菜单或地图）</sys:String>
     <sys:String x:Key="Party.CaptureFailed">无法捕获游戏画面，稍后会自动重试</sys:String>
     <sys:String x:Key="Party.OcrUnavailable">系统未安装文字识别语言包。请在“设置 → 时间和语言 → 语言和区域”中添加英语或中文。</sys:String>
+    <sys:String x:Key="Party.NoFrames">收不到游戏窗口的画面，暂时无法识别。请在托盘菜单或菜单中点“导出诊断信息”，把生成的压缩包发给开发者。</sys:String>
+    <sys:String x:Key="Party.WindowEmpty">游戏窗口的画面区域为空（窗口可能被最小化或尺寸为 0）。如果游戏正常显示，请点“导出诊断信息”发给开发者。</sys:String>
+    <sys:String x:Key="Party.StartFailed">小队栏识别没能启动。请点“导出诊断信息”，把生成的压缩包发给开发者。</sys:String>
+    <sys:String x:Key="Party.Stuck">识别卡住了（超过 15 秒没有结果）。请点“导出诊断信息”，把生成的压缩包发给开发者。</sys:String>
 
     <!-- 菜单 -->
     <sys:String x:Key="Menu.Title">ENDHUD — 菜单</sys:String>
@@ -214,6 +218,10 @@
     <sys:String x:Key="Menu.AutoShow.Hint">关闭后，需按 Ctrl+Shift+H 或在托盘菜单中手动显示。</sys:String>
     <sys:String x:Key="Menu.PartyOcr">识别小队栏</sys:String>
     <sys:String x:Key="Menu.DebugPanel">显示调试面板（识别到的等级、生命值和技能）</sys:String>
+    <sys:String x:Key="Menu.ExportDiagnostics">导出诊断信息</sys:String>
+    <sys:String x:Key="Menu.ExportDiagnostics.Hint">遇到问题（例如一直显示“正在识别小队栏”）时点这里：会在桌面生成一个压缩包，包含运行日志、设置和一张游戏截图（UID 已遮挡）。把它发给开发者即可，不用描述技术细节。</sys:String>
+    <sys:String x:Key="Diagnostics.Exported">已导出到桌面：{0}</sys:String>
+    <sys:String x:Key="Diagnostics.ExportFailed">导出失败，请稍后再试，或打开配置文件夹，把其中的 logs 文件夹发给开发者。</sys:String>
     <sys:String x:Key="Menu.CheckForUpdates">自动检查更新（每天一次）：EndHud 新版本、推荐排轴和干员头像库</sys:String>
     <sys:String x:Key="Menu.ComboHint">连携就绪提示</sys:String>
     <sys:String x:Key="Menu.ComboHint.Hint">战斗中干员的连携技冷却结束时，在屏幕上提示。菜单打开时，可直接拖动屏幕上的提示框调整位置。</sys:String>
@@ -273,6 +281,7 @@
     <sys:String x:Key="Operators.CheckedRecently">干员头像库 {0} 分钟前刚检查过，已是最新。</sys:String>
     <sys:String x:Key="Operators.AlreadyChecking">正在检查干员头像库，请稍候。</sys:String>
     <sys:String x:Key="Tray.OpenConfig">打开配置文件所在文件夹</sys:String>
+    <sys:String x:Key="Tray.ExportDiagnostics">导出诊断信息（遇到问题时发给开发者）</sys:String>
     <sys:String x:Key="Tray.Quit">退出</sys:String>
     <sys:String x:Key="Tray.Started">EndHud 已在系统托盘中运行。切换到游戏后会自动显示，按 Ctrl+Shift+M 打开菜单，右键托盘图标可更改设置。</sys:String>
     <sys:String x:Key="Tray.Started.Manual">EndHud 已在系统托盘中运行。按 Ctrl+Shift+H 显示 HUD，右键托盘图标可更改设置。</sys:String>

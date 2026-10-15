@@ -193,6 +193,29 @@ internal static class Native
             .ClampTo(frameWidth, frameHeight);
     }
 
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(IntPtr hwnd);
+
+    /// <summary>
+    /// A window as the diagnostic log records it: title, class, its frame and client area on the
+    /// screen, DPI, minimised or not. From the window handle only, like everything here.
+    /// </summary>
+    public static string Describe(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero || !IsWindow(hwnd)) return $"window 0x{hwnd:X} (gone)";
+        GetWindowRect(hwnd, out var window);
+        bool dwm = DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, out RECT frame, Marshal.SizeOf<RECT>()) == 0;
+        GetClientRect(hwnd, out var client);
+        var origin = new POINT();
+        ClientToScreen(hwnd, ref origin);
+        GetWindowThreadProcessId(hwnd, out uint pid);
+        return $"window 0x{hwnd:X} \"{GetTitle(hwnd)}\" class {GetClass(hwnd)} pid {pid}; " +
+               $"rect ({window.Left},{window.Top})-({window.Right},{window.Bottom}); " +
+               (dwm ? $"frame ({frame.Left},{frame.Top})-({frame.Right},{frame.Bottom}); " : "no DWM frame; ") +
+               $"client {client.Right}x{client.Bottom} at ({origin.X},{origin.Y}); dpi {GetDpiForWindow(hwnd)}; " +
+               $"visible {IsWindowVisible(hwnd)}, minimised {IsIconic(hwnd)}";
+    }
+
     public static string GetTitle(IntPtr hwnd)
     {
         int len = GetWindowTextLength(hwnd);

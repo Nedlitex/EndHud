@@ -194,6 +194,15 @@
             <CheckBox x:Name="AutoInstallUpdatesCheckBox" Click="AutoInstallUpdatesCheckBox_Click" Margin="20,0,0,4">
                 <TextBlock Text="{DynamicResource Menu.AutoInstallUpdates}" TextWrapping="Wrap" />
             </CheckBox>
+            <!-- Diagnostics: a zip to send when something doesn't work (DiagnosticExport). -->
+            <DockPanel Margin="0,6,0,0" LastChildFill="True">
+                <Button x:Name="ExportDiagnosticsButton" DockPanel.Dock="Left" Padding="10,2"
+                        Content="{DynamicResource Menu.ExportDiagnostics}" Click="ExportDiagnosticsButton_Click" />
+                <TextBlock x:Name="DiagnosticsStatus" Foreground="{StaticResource Accent}" FontSize="11"
+                           VerticalAlignment="Center" Margin="10,0,0,0" TextWrapping="Wrap" />
+            </DockPanel>
+            <TextBlock Text="{DynamicResource Menu.ExportDiagnostics.Hint}" Foreground="#99FFFFFF" FontSize="11"
+                       Margin="0,2,0,4" TextWrapping="Wrap" />
 
             <!-- Feature: combo-ready hint. -->
             <Border Style="{StaticResource FeatureCard}">
