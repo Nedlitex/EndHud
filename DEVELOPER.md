@@ -61,7 +61,14 @@ rotation charts.
   step: the strip shows the phase's steps in order, with their notes.
 - **Shown in battle only** ([`StripVisibility`](src/EndHud.Vision/StripVisibility.cs)). A reading that
   misses the battle signs, or the panel covered by an ultimate animation (up to 3 s), doesn't take
-  it down; it goes 2 s after the battle signs are gone (exploration, menus, loading).
+  it down; it goes 2 s after the battle signs are gone (exploration, menus, loading). The gauges
+  follow the same rule. A screen in the squad panel's place where every HP bar is empty, nobody has
+  fallen, nobody is controlled and no ultimate charges isn't the panel (`PartyState.PanelVisible`):
+  the squad select screen's tab bar gives 6 of the 8 marks and its strips read as combo bars, and
+  read as the panel it started a "battle", named its floor as the squad and kept the gauges up
+  through the loading screen after it (Fixtures/panel-or-not/squad-select-screen.jpg). A boss's status covering
+  every HP bar in a real battle still counts: the controlled operator and charging ultimates show
+  (Fixtures/panel-or-not/battle-hp-bars-covered.jpg).
 - **Looks like the guides' charts:** a see-through grey band that fades out at both ends, no
   backdrop box, the phase name large on the left, a line through the icons. Centred at the top by
   default, and it stays centred as its width changes.

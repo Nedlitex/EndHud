@@ -52,10 +52,29 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
     /// also count.
     /// </summary>
     public bool PanelVisible =>
-        PanelMarks >= MinPanelMarks
-        || Slots.Any(s => s.Level is not null)
-        // An empty combo track is just dark, so also require the HP bar under it.
-        || Slots.Count(s => s.Combo is not null && s.Hp > 0.02) >= 2;
+        (PanelMarks >= MinPanelMarks
+         || Slots.Any(s => s.Level is not null)
+         // An empty combo track is just dark, so also require the HP bar under it.
+         || Slots.Count(s => s.Combo is not null && s.Hp > 0.02) >= 2)
+        && !LooksLikeAnotherScreen;
+
+    /// <summary>
+    /// Every HP bar empty with nobody fallen, and no sign of play (no controlled operator, no
+    /// ultimate charging or ready): another screen in the panel's place. The squad select screen
+    /// (its tab bar gives 6 of the marks, its strips read as combo bars and an empty skill-point
+    /// bar) and ultimate cutscenes look like that; a real squad panel always shows someone's HP, a
+    /// fallen operator's mark, or, when a status covers every HP bar (a boss's conductive debuff,
+    /// 4.5 s in the recordings), the controlled operator and charging ultimates. Read as the panel,
+    /// that screen's floor and legs were named as the squad (four Purrchena in a recording) and kept
+    /// the gauges up through the loading screen after it.
+    /// </summary>
+    private bool LooksLikeAnotherScreen =>
+        Slots.Count > 0
+        && Slots.All(s => !s.Dead && s.Hp is <= EmptyHp)
+        && ActiveSlot is null
+        && !Slots.Any(s => s.Ultimate is { } u && (u.Ready || u.Progress > EmptyHp));
+
+    private const double EmptyHp = 0.02;
 
     /// <summary>
     /// In a battle: the squad panel is on screen with a combo bar and the skill-point bar, which the

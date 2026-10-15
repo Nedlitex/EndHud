@@ -35,6 +35,33 @@ public class InCombatTests
         Assert.False((await ReadAsync(await ImageFile.LoadAsync(CombatFrameTests.Fixture(file)))).InCombat);
     }
 
+    /// <summary>
+    /// The squad select screen before a challenge: its tab bar gives 6 of the panel marks and its
+    /// strips read as combo bars and an empty skill-point bar, but every HP bar is empty, nobody is
+    /// controlled and no ultimate charges. It isn't the squad panel (read as one, its floor was
+    /// named as the squad and the gauges stayed up through the loading screen after it).
+    /// </summary>
+    [Fact]
+    public async Task The_squad_select_screen_is_not_the_squad_panel()
+    {
+        var state = await ReadAsync(await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("panel-or-not", "squad-select-screen.jpg"))));
+
+        Assert.True(state.PanelMarks >= 6, $"{state.PanelMarks} marks: the case this guards against");
+        Assert.False(state.PanelVisible);
+        Assert.False(state.InCombat);
+    }
+
+    /// <summary>A boss's status covering every HP bar in battle: still the squad panel, still a battle.</summary>
+    [Fact]
+    public async Task A_battle_with_every_hp_bar_covered_is_still_in_combat()
+    {
+        var state = await ReadAsync(await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("panel-or-not", "battle-hp-bars-covered.jpg"))));
+
+        Assert.All(state.Slots, s => Assert.True(s.Hp <= 0.02, $"slot {s.Number} HP {s.Hp}: the case this guards"));
+        Assert.True(state.PanelVisible);
+        Assert.True(state.InCombat);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(128)]
