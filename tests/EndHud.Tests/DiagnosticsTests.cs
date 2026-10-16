@@ -117,13 +117,32 @@ public class DiagnosticsTests : IDisposable
     [Fact]
     public async Task Every_github_request_is_logged_with_its_host_and_why_it_failed()
     {
-        using var http = GitHubHttp.Create(TimeSpan.FromSeconds(10));
-        // Nothing listens on port 1: refused at once.
-        await Assert.ThrowsAsync<System.Net.Http.HttpRequestException>(() => http.GetAsync("http://127.0.0.1:1/repos/x/contents/operators"));
+        // A server that accepts the connection and drops it at once: fails the same way everywhere
+        // (a closed port was refused at once here but timed out on a CI runner).
+        var server = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        server.Start();
+        int port = ((System.Net.IPEndPoint)server.LocalEndpoint).Port;
+        var drop = Task.Run(async () =>
+        {
+            using var client = await server.AcceptTcpClientAsync();
+            client.Client.LingerState = new System.Net.Sockets.LingerOption(true, 0); // close with a reset
+        });
+        try
+        {
+            using var http = GitHubHttp.Create(TimeSpan.FromSeconds(30));
+            await Assert.ThrowsAsync<System.Net.Http.HttpRequestException>(() => http.GetAsync($"http://127.0.0.1:{port}/repos/x/contents/operators"));
+            await drop;
+        }
+        finally
+        {
+            server.Stop();
+        }
 
         string log = File.ReadAllText(DiagnosticLog.FilePath);
         Assert.Contains("GET 127.0.0.1/repos/x/contents/operators: failed after", log);
-        Assert.Contains("SocketException (ConnectionRefused, 10061)", log);
+        // The whole chain of causes, down to the socket's error code.
+        // Reset or aborted, depending on timing; either way the socket's code is there.
+        Assert.Matches(@"HttpRequestException: .* <- IOException: .* <- SocketException \(Connection(Reset|Aborted), 1005[34]\): ", log);
     }
 
     [Fact]
