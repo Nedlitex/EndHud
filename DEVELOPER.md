@@ -168,6 +168,9 @@ git lfs install   # once: the character recognition model is stored with Git LFS
 git clone https://github.com/Nedlitex/EndHud.git
 ```
 
+A clone downloads about 120 MB (history and the 38 MB model). `git clone --depth 1` takes only
+the latest commit: about 60 MB.
+
 The test data (screenshots and gameplay recordings, about 220 MB) is a separate repository,
 [EndHud-test-data](https://github.com/Nedlitex/EndHud-test-data), included as the submodule
 `tests/data`. A plain clone leaves it out; building and running EndHud don't need it. To run the
