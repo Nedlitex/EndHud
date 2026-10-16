@@ -34,7 +34,11 @@ public sealed class WindowCapture : IDisposable
     /// </summary>
     public string Describe() =>
         $"capture item {_poolSize.Width}x{_poolSize.Height}: {_arrived} frames arrived, {_resized} resizes, {_copied} copied, " +
-        $"{_copyFailed} copies failed{(_copyError is null ? "" : $" (last: {_copyError})")}, {_copying} copying now";
+        $"{_copyFailed} copies failed{(_copyError is null ? "" : $" (last: {_copyError})")}, {_copying} copying now" +
+        (_copying > 0 ? $" (step: {_reader.Step})" : "") + (_reader.LastCopy is { } last ? $"; last copy {last}" : "");
+
+    /// <summary>The graphics adapter the capture device is on (for the diagnostic log).</summary>
+    public string Adapter => _reader.Adapter;
 
     public WindowCapture(IntPtr hwnd)
     {

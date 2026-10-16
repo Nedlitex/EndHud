@@ -126,6 +126,64 @@ internal sealed class PartyMonitor : IDisposable
     /// <summary>The last game picture read (the game area only), for the diagnostic export.</summary>
     public Frame? LatestFrame { get; private set; }
 
+    /// <summary>
+    /// The pictures read over the last ~12 s (one every <see cref="RecentFrameEvery"/>, the last
+    /// <see cref="RecentFrameCount"/>), at most 960 px wide, each with when and what was read: the
+    /// diagnostic export includes them (UID blacked out), so it shows what EndHud saw as something
+    /// went wrong, not only the moment of the export.
+    /// </summary>
+    public IReadOnlyList<RecentFrame> RecentFrames
+    {
+        get { lock (_recent) return _recent.ToList(); }
+    }
+
+    private volatile WindowCapture? _capture; // the window capture in use, for Describe
+    private readonly Queue<RecentFrame> _recent = new();
+    private DateTime _recentAt = DateTime.MinValue;
+    private static readonly TimeSpan RecentFrameEvery = TimeSpan.FromSeconds(2);
+    private const int RecentFrameCount = 6;
+    private const int RecentFrameWidth = 960;
+
+    private void KeepRecent(Frame gameFrame, PartyState raw)
+    {
+        var now = DateTime.Now;
+        if (now - _recentAt < RecentFrameEvery) return;
+        _recentAt = now;
+        var small = gameFrame.Width <= RecentFrameWidth ? gameFrame
+            : gameFrame.ResizeSmooth(RecentFrameWidth, (int)Math.Round(gameFrame.Height * RecentFrameWidth / (double)gameFrame.Width));
+        lock (_recent)
+        {
+            _recent.Enqueue(new RecentFrame(now, small, $"panel {(raw.PanelVisible ? "seen" : "not seen")}, {raw.PanelMarks}/8 marks, from {_source}"));
+            while (_recent.Count > RecentFrameCount) _recent.Dequeue();
+        }
+    }
+
+    /// <summary>
+    /// What a reading that missed the squad panel did see, for the log: the picture's size and
+    /// brightness (an all-black picture means the game's picture can't be captured at all), and the
+    /// panel's parts one by one (marks, level text, combo bars, HP bars, ultimates, controlled slot).
+    /// </summary>
+    internal static string DescribeMiss(Frame frame, PartyState raw)
+    {
+        long sum = 0;
+        int black = 0, samples = 0;
+        for (int y = 0; y < frame.Height; y += 8)
+        for (int x = 0; x < frame.Width; x += 8)
+        {
+            var (r, g, b) = frame.GetPixel(x, y);
+            int v = (r + g + b) / 3;
+            sum += v;
+            if (v < 8) black++;
+            samples++;
+        }
+        string slots = string.Join(" | ", raw.Slots.Select(s =>
+            $"{s.Number}: hp {(s.Dead ? "fallen" : s.Hp?.ToString("F2") ?? "-")}, level {s.Level?.ToString() ?? "-"}, " +
+            $"combo {(s.Combo is { } c ? (c.Ready ? "ready" : c.Progress.ToString("F2")) : "-")}, " +
+            $"ultimate {(s.Ultimate is { } u ? (u.Ready ? "ready" : u.Progress.ToString("F2")) : "-")}"));
+        return $"picture {frame.Width}x{frame.Height}, mean brightness {(samples == 0 ? 0 : sum / samples)}, {(samples == 0 ? 0 : black * 100 / samples)}% black; " +
+               $"{raw.PanelMarks}/8 panel marks, controlled slot {raw.ActiveSlot?.ToString() ?? "-"}, skill points {raw.SkillPoints?.ToString("F2") ?? "-"}; {slots}";
+    }
+
     /// <summary>Why the last reading gave nothing (an i18n key), or null when it read; for the diagnostic export.</summary>
     public string? LastProblem { get; private set; }
 
@@ -136,7 +194,8 @@ internal sealed class PartyMonitor : IDisposable
         var library = _identifier?.Library;
         return $"reading {(_active ? "on" : "off")} from {_source}, step {_stage} for {since.TotalSeconds:F1} s, last problem {LastProblem ?? "none"}; " +
                $"library {(library is null ? "not loaded" : $"{library.Operators.Count} operators")}; " +
-               $"last frame {(LatestFrame is { } f ? $"{f.Width}x{f.Height}" : "none")}";
+               $"last frame {(LatestFrame is { } f ? $"{f.Width}x{f.Height}" : "none")}" +
+               (_capture is { } capture ? $"; {capture.Describe()}" : "");
     }
 
     /// <summary>A reading, or an i18n key describing why there is none.</summary>
@@ -366,6 +425,8 @@ internal sealed class PartyMonitor : IDisposable
         Task? avatars = null;
         Task<PartyState>? naming = null;
         bool fromScreen = false, screenRefused = false;
+        IntPtr describedWindow = IntPtr.Zero;
+        int missed = 0;
         int silentCaptures = 0;
         OperatorMatch?[] lastNames = [];
         try
@@ -412,6 +473,13 @@ internal sealed class PartyMonitor : IDisposable
                         {
                             capture?.Dispose();
                             capture = new WindowCapture(hwnd);
+                            _capture = capture;
+                            if (describedWindow != hwnd)
+                            {
+                                // Before any frame: a capture that never delivers still leaves this.
+                                describedWindow = hwnd;
+                                DiagnosticLog.Info($"graphics (capture device on {capture.Adapter}):{Environment.NewLine}{GraphicsInfo.Describe(hwnd)}");
+                            }
                             captured = hwnd;
                             started = true;
                         }
@@ -431,8 +499,15 @@ internal sealed class PartyMonitor : IDisposable
                     }
                     LatestFrame = gameFrame;
                     Enter("read");
-                    var state = tracker.Track(await reader.ReadAsync(gameFrame));
+                    var raw = await reader.ReadAsync(gameFrame);
+                    var state = tracker.Track(raw);
                     long readMs = clock.ElapsedMilliseconds;
+                    KeepRecent(gameFrame, raw);
+                    // The panel missed for 2 s in a row: say what was seen instead (a menu or a map
+                    // explains itself; a battle that never shows the panel is a reading problem).
+                    missed = raw.PanelVisible ? 0 : missed + 1;
+                    if (missed >= PresenceMemory.ReadingsToLeave)
+                        DiagnosticLog.Throttled("panel-missed", RepeatLogEvery, $"no squad panel for {missed} readings: {DescribeMiss(gameFrame, raw)}", "INFO");
                     if (state.PanelVisible != panelSeen)
                     {
                         panelSeen = state.PanelVisible;
@@ -562,6 +637,9 @@ internal sealed class PartyMonitor : IDisposable
 
     public void Dispose() => _cts.Cancel();
 }
+
+/// <summary>A picture kept for the diagnostic export: when, the picture (at most 960 px wide), and what was read from it.</summary>
+internal sealed record RecentFrame(DateTime At, Frame Picture, string Read);
 
 internal enum OperatorCheckStatus
 {

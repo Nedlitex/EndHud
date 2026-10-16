@@ -79,11 +79,19 @@ public class DiagnosticsTests : IDisposable
         Array.Fill(white, (byte)255);
         string zip = Path.Combine(_folder, "out", "diagnostics.zip");
 
-        await OnSta(() => DiagnosticExport.WriteAsync(zip, "game window: 1600x900", new Frame(1600, 900, white), config));
+        await OnSta(() => DiagnosticExport.WriteAsync(zip, "game window: 1600x900", new Frame(1600, 900, white), config,
+            [new RecentFrame(new DateTime(2026, 10, 16, 21, 5, 7), new Frame(1600, 900, white), "panel not seen, 0/8 marks, from window capture")]));
 
         using var archive = ZipFile.OpenRead(zip);
-        Assert.Equal(["config.json", "game.png", "logs/endhud.log", "summary.txt"],
+        Assert.Equal(["config.json", "game.png", "logs/endhud.log", "recent/01-210507.png", "recent/readings.txt", "summary.txt"],
             archive.Entries.Select(e => e.FullName.Replace('\\', '/')).Order());
+        using (var readings = new StreamReader(archive.GetEntry("recent/readings.txt")!.Open()))
+            Assert.Equal("01-210507.png: 21:05:07.000, panel not seen, 0/8 marks, from window capture", readings.ReadToEnd().Trim());
+        string recent = Path.Combine(_folder, "recent.png");
+        archive.GetEntry("recent/01-210507.png")!.ExtractToFile(recent);
+        var recentPicture = await ImageFile.LoadAsync(recent);
+        var recentUid = DiagnosticExport.UidArea(recentPicture.Width, recentPicture.Height);
+        Assert.Equal((byte)0, recentPicture.GetPixel(recentUid.X + recentUid.Width / 2, recentUid.Y + recentUid.Height / 2).R);
         string extracted = Path.Combine(_folder, "game.png");
         archive.GetEntry("game.png")!.ExtractToFile(extracted);
         var picture = await ImageFile.LoadAsync(extracted);
@@ -116,6 +124,28 @@ public class DiagnosticsTests : IDisposable
         string log = File.ReadAllText(DiagnosticLog.FilePath);
         Assert.Contains("GET 127.0.0.1/repos/x/contents/operators: failed after", log);
         Assert.Contains("SocketException (ConnectionRefused, 10061)", log);
+    }
+
+    [Fact]
+    public void The_graphics_description_lists_the_adapters_and_their_screens()
+    {
+        string graphics = Vision.Capture.GraphicsInfo.Describe(IntPtr.Zero);
+
+        Assert.Contains("adapter 0: ", graphics);
+        Assert.Contains("driver ", graphics);
+        Assert.DoesNotContain("unavailable", graphics);
+    }
+
+    [Fact]
+    public void A_missed_panel_on_a_black_picture_is_described_as_black()
+    {
+        var black = new Frame(1920, 1080, new byte[1920 * 1080 * 4]);
+        var slots = Enumerable.Range(1, 4).Select(n => new PartySlot(n, null, null, "", new Frame(1, 1, new byte[4]))).ToList();
+
+        string miss = PartyMonitor.DescribeMiss(black, new PartyState(slots, PanelMarks: 0));
+
+        Assert.StartsWith("picture 1920x1080, mean brightness 0, 100% black; 0/8 panel marks", miss);
+        Assert.Contains("1: hp -, level -, combo -, ultimate -", miss);
     }
 
     private static Task OnSta(Func<Task> work)

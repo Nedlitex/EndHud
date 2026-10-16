@@ -15,13 +15,16 @@ namespace EndHud;
 /// <item><c>logs/</c>: <see cref="DiagnosticLog"/>'s files.</item>
 /// <item><c>config.json</c>: the settings.</item>
 /// <item><c>game.png</c>: the last game picture EndHud read, with the player's UID blacked out.</item>
+/// <item><c>recent/</c>: the pictures read over the last ~12 s (smaller, UID blacked out) and
+/// <c>readings.txt</c>, what was read from each.</item>
 /// </list>
 /// Learned portraits and downloaded art stay out (only their counts are listed).
 /// </summary>
 internal static class DiagnosticExport
 {
     /// <summary>Write the zip to <paramref name="zipPath"/>, with the settings in <paramref name="configFile"/>.</summary>
-    public static async Task WriteAsync(string zipPath, string summary, Frame? gamePicture, string configFile)
+    public static async Task WriteAsync(string zipPath, string summary, Frame? gamePicture, string configFile,
+        IReadOnlyList<RecentFrame> recent)
     {
         string staging = Path.Combine(Path.GetTempPath(), "endhud-diagnostics-" + Guid.NewGuid().ToString("N")[..8]);
         try
@@ -36,6 +39,18 @@ internal static class DiagnosticExport
             }
             if (File.Exists(configFile)) CopyShared(configFile, Path.Combine(staging, "config.json"));
             if (gamePicture is not null) await ImageFile.SavePngAsync(WithoutUid(gamePicture), Path.Combine(staging, "game.png"));
+            if (recent.Count > 0)
+            {
+                string folder = Directory.CreateDirectory(Path.Combine(staging, "recent")).FullName;
+                var list = new StringBuilder();
+                for (int i = 0; i < recent.Count; i++)
+                {
+                    string name = $"{i + 1:D2}-{recent[i].At:HHmmss}.png";
+                    await ImageFile.SavePngAsync(WithoutUid(recent[i].Picture), Path.Combine(folder, name));
+                    list.AppendLine($"{name}: {recent[i].At:HH:mm:ss.fff}, {recent[i].Read}");
+                }
+                File.WriteAllText(Path.Combine(folder, "readings.txt"), list.ToString(), Encoding.UTF8);
+            }
 
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(zipPath))!);
             if (File.Exists(zipPath)) File.Delete(zipPath);

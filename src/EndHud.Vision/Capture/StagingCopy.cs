@@ -22,6 +22,8 @@ internal sealed class StagingCopy : IDisposable
     private readonly IntPtr _context;  // ID3D11DeviceContext*, owned
     private IntPtr _staging;           // ID3D11Texture2D*, recreated when the size changes
     private uint _width, _height;
+    private volatile string _step = "idle";
+    private long _stepSince = System.Diagnostics.Stopwatch.GetTimestamp();
 
     public StagingCopy(IntPtr device, IntPtr context)
     {
@@ -29,18 +31,39 @@ internal sealed class StagingCopy : IDisposable
         _context = context;
     }
 
+    /// <summary>The graphics adapter this copy's device is on (for the diagnostic log).</summary>
+    public string Adapter => GraphicsInfo.AdapterOf(_device);
+
+    /// <summary>What the copy is doing now and for how long, e.g. "map for 2300 ms": names the step that hangs.</summary>
+    public string Step => $"{_step} for {System.Diagnostics.Stopwatch.GetElapsedTime(Interlocked.Read(ref _stepSince)).TotalMilliseconds:F0} ms";
+
+    /// <summary>The last frame copied: size, DXGI pixel format and how long the copy took (null before the first).</summary>
+    public string? LastCopy { get; private set; }
+
+    private void Enter(string step)
+    {
+        _step = step;
+        Interlocked.Exchange(ref _stepSince, System.Diagnostics.Stopwatch.GetTimestamp());
+    }
+
     /// <summary>The surface's pixels (BGRA, top-down rows, alpha forced opaque).</summary>
     public Frame Copy(IDirect3DSurface surface)
     {
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        Enter("get texture");
         IntPtr texture = TextureOf(surface);
         try
         {
             var desc = new D3D11_TEXTURE2D_DESC();
             Vtbl<GetDescFn>(texture, 10)(texture, ref desc);
+            Enter("create staging texture");
             EnsureStaging(desc);
 
+            Enter("copy on the GPU");
             Vtbl<CopyResourceFn>(_context, 47)(_context, _staging, texture);
+            Enter("map");
             Check(Vtbl<MapFn>(_context, 14)(_context, _staging, 0, D3D11_MAP_READ, 0, out var mapped), "Map");
+            Enter("read");
             try
             {
                 int width = (int)desc.Width, height = (int)desc.Height, row = width * 4;
@@ -48,6 +71,7 @@ internal sealed class StagingCopy : IDisposable
                 for (int y = 0; y < height; y++)
                     Marshal.Copy(mapped.pData + (int)(y * mapped.RowPitch), bgra, y * row, row);
                 for (int i = 3; i < bgra.Length; i += 4) bgra[i] = 255;
+                LastCopy = $"{width}x{height}, format {desc.Format}, row pitch {mapped.RowPitch}, copied in {clock.ElapsedMilliseconds} ms";
                 return new Frame(width, height, bgra);
             }
             finally
@@ -58,6 +82,7 @@ internal sealed class StagingCopy : IDisposable
         finally
         {
             Marshal.Release(texture);
+            Enter("idle");
         }
     }
 

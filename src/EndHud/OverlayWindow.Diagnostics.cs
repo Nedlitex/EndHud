@@ -14,7 +14,7 @@ public partial class OverlayWindow
         try
         {
             DiagnosticLog.Info("diagnostics exported by the player");
-            await DiagnosticExport.WriteAsync(path, DiagnosticSummary(), _party.LatestFrame, ConfigStore.FilePath);
+            await DiagnosticExport.WriteAsync(path, DiagnosticSummary(), _party.LatestFrame, ConfigStore.FilePath, _party.RecentFrames);
             return path;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -34,6 +34,7 @@ public partial class OverlayWindow
         sb.AppendLine($"HUD {(_hudOn ? "on" : "off")}, auto show {_config.AutoShowOnGameFocus}, squad reading {_config.PartyOcrEnabled}, menu {(_menuOpen ? "open" : "closed")}");
         sb.AppendLine($"debug panel says: {PartyText.Text.ReplaceLineEndings(" / ")}");
         sb.AppendLine(_party.Describe());
+        sb.AppendLine(Vision.Capture.GraphicsInfo.Describe(_game));
         if (_lastState is { } state)
         {
             sb.AppendLine($"last reading: panel {(state.PanelVisible ? "seen" : "not seen")} ({state.PanelMarks}/8 marks), in combat {state.InCombat}, skill points {state.SkillPoints?.ToString("F2") ?? "-"}, controlled slot {state.ActiveSlot?.ToString() ?? "-"}");

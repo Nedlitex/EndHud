@@ -110,14 +110,24 @@ a capture error (`Party.CaptureFailed`), or one step of a reading taking over 15
 what changes or goes wrong: the game window followed (rect, frame, client area, DPI), capture
 starting and its frame size, the squad panel appearing and disappearing, the operator library
 loading, the squad named, slow naming (over 2 s), a reading step hanging (watchdog, 15 s), and
-every exception, including unhandled ones. Repeats are written once per 30 s with a count. It rolls
+every exception, including unhandled ones. Once per game window, before the first frame, the
+graphics ([`GraphicsInfo`](src/EndHud.Vision/Capture/GraphicsInfo.cs)): each adapter with its driver
+version and memory, the screens it drives (position, HDR on or off), which screen the game is on,
+and which adapter the capture device uses. A capture that sends no picture logs its counts and,
+while a copy runs, its step and time (get texture, copy on the GPU, map, read); a copied frame,
+its size, pixel format and copy time. When the squad panel is missed for 2 s in a row, what the
+reading saw instead: the picture's brightness and share of black (all black: the game's picture
+can't be captured), panel marks, controlled slot, skill points, and each slot's HP, level, combo and
+ultimate. Repeats are written once per 30 s with a count. It rolls
 over at 1 MB and keeps three files; the user's profile folder is written as `%USERPROFILE%`.
 
 "Export diagnostics" (tray, or the menu's General card) writes `EndHud-diagnostics-<time>.zip` to the
 desktop ([`DiagnosticExport`](src/EndHud/DiagnosticExport.cs)): `summary.txt` (version, PC, the game
 window, what reading is doing, the last reading per slot, the operator library on disk), `logs/`,
 `config.json` and `game.png`, the last game picture read with the UID area (bottom left, at 4K
-x 170–560, 15–95 px above the bottom) blacked out. Learned portraits aren't included.
+x 170–560, 15–95 px above the bottom) blacked out, and `recent/`: the pictures read over the last
+~12 s (one every 2 s, six, at most 960 px wide, UID blacked out) with `readings.txt` saying what
+was read from each. The summary also lists the graphics. Learned portraits aren't included.
 
 **Network.** Every GitHub request (EndHud updates, recommended rotations, the operator package)
 goes through [`GitHubHttp`](src/EndHud/GitHubHttp.cs), which logs the host and path, the status and

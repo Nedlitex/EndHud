@@ -26,6 +26,8 @@ public class WindowCaptureTests
         var captured = await capture.GetFrameAsync();
 
         Assert.Equal(window.ClientSize, new Size(captured.Width, captured.Height));
+        // The diagnostic log's account of the capture: frames copied, and how the last one was.
+        Assert.Matches(@"\d+ copied, 0 copies failed, 0 copying now; last copy \d+x\d+, format 87, row pitch \d+, copied in \d+ ms", capture.Describe());
         var expected = await reader.ReadAsync((await ImageFile.LoadAsync(fixture)).Resize(captured.Width, captured.Height));
         var actual = await reader.ReadAsync(captured);
 
