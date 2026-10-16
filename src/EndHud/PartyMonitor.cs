@@ -365,7 +365,7 @@ internal sealed class PartyMonitor : IDisposable
         string names = "";
         Task? avatars = null;
         Task<PartyState>? naming = null;
-        bool fromScreen = false;
+        bool fromScreen = false, screenRefused = false;
         int silentCaptures = 0;
         OperatorMatch?[] lastNames = [];
         try
@@ -395,6 +395,7 @@ internal sealed class PartyMonitor : IDisposable
                         // own window capture is tried first again.
                         tracker = new PartyTracker();
                         fromScreen = false;
+                        screenRefused = false;
                         silentCaptures = 0;
                     }
                     if (fromScreen)
@@ -510,12 +511,19 @@ internal sealed class PartyMonitor : IDisposable
                 }
                 catch (TimeoutException)
                 {
-                    // The window has sent no picture at all since capture started (Windows sends one
-                    // at once, then on every change): seen on Windows 10 22H2, windowed and full
-                    // screen alike. After SilentCapturesBeforeScreen of those, read the game's area
-                    // off the screen instead, once the overlay is kept out of screen captures.
+                    // No picture at all since capture started (Windows sends one at once, then on
+                    // every change). After SilentCapturesBeforeScreen of those, read the game's area
+                    // off the screen instead, once the overlay is kept out of screen captures. Windows
+                    // 10 refuses that for a see-through (layered) window like the overlay (error 8):
+                    // it's asked once per game window, not on every reading.
                     string what = $"the game window sends no picture to capture ({capture?.Describe() ?? "no capture"}); {Native.Describe(hwnd)}";
-                    if (++silentCaptures >= SilentCapturesBeforeScreen && ExcludeOverlayFromCapture?.Invoke() == true)
+                    bool toScreen = false;
+                    if (++silentCaptures >= SilentCapturesBeforeScreen && !screenRefused && ExcludeOverlayFromCapture is { } exclude)
+                    {
+                        toScreen = exclude();
+                        screenRefused = !toScreen;
+                    }
+                    if (toScreen)
                     {
                         DiagnosticLog.Warn($"{what}; reading the game from the screen instead");
                         capture?.Dispose();

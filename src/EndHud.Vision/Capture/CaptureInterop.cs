@@ -32,10 +32,15 @@ internal static class CaptureInterop
     [DllImport("d3d11.dll")]
     private static extern int CreateDirect3D11DeviceFromDXGIDevice(IntPtr dxgiDevice, out IntPtr graphicsDevice);
 
-    public static IDirect3DDevice CreateDevice()
+    /// <summary>
+    /// A hardware D3D11 device for capture, as WinRT wants it, and a <see cref="StagingCopy"/> on the
+    /// same device that reads its frames into memory (it owns the device and context references).
+    /// </summary>
+    public static IDirect3DDevice CreateDevice(out StagingCopy reader)
     {
         Marshal.ThrowExceptionForHR(D3D11CreateDevice(IntPtr.Zero, D3D_DRIVER_TYPE_HARDWARE, IntPtr.Zero,
             D3D11_CREATE_DEVICE_BGRA_SUPPORT, IntPtr.Zero, 0, D3D11_SDK_VERSION, out var d3d, out _, out var context));
+        reader = new StagingCopy(d3d, context); // takes over these two references
         try
         {
             Marshal.ThrowExceptionForHR(Marshal.QueryInterface(d3d, in IID_IDXGIDevice, out var dxgi));
@@ -47,10 +52,10 @@ internal static class CaptureInterop
             }
             finally { Marshal.Release(dxgi); }
         }
-        finally
+        catch
         {
-            Marshal.Release(context);
-            Marshal.Release(d3d);
+            reader.Dispose();
+            throw;
         }
     }
 

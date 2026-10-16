@@ -2,7 +2,6 @@ using Windows.Graphics;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
 using Windows.Graphics.DirectX.Direct3D11;
-using Windows.Graphics.Imaging;
 
 namespace EndHud.Vision.Capture;
 
@@ -17,6 +16,9 @@ public sealed class WindowCapture : IDisposable
     private static readonly TimeSpan FrameTimeout = TimeSpan.FromSeconds(2);
 
     private readonly IDirect3DDevice _device;
+    private readonly StagingCopy _reader;
+    private readonly object _copyLock = new(); // a frame being copied vs. Dispose releasing the reader
+    private bool _disposed;
     private readonly Direct3D11CaptureFramePool _pool;
     private readonly GraphicsCaptureSession _session;
     private readonly object _lock = new();
@@ -39,7 +41,7 @@ public sealed class WindowCapture : IDisposable
         if (!GraphicsCaptureSession.IsSupported())
             throw new PlatformNotSupportedException("Windows.Graphics.Capture is not supported on this system.");
 
-        _device = CaptureInterop.CreateDevice();
+        _device = CaptureInterop.CreateDevice(out _reader);
         var item = CaptureInterop.CreateItemForWindow(hwnd);
         _poolSize = item.Size;
         _pool = Direct3D11CaptureFramePool.CreateFreeThreaded(_device, PixelFormat, 2, _poolSize);
@@ -110,9 +112,13 @@ public sealed class WindowCapture : IDisposable
         Interlocked.Increment(ref _copying);
         try
         {
-            using var bitmap = SoftwareBitmap.CreateCopyFromSurfaceAsync(frame.Surface, BitmapAlphaMode.Premultiplied)
-                .AsTask().GetAwaiter().GetResult();
-            var copy = Frame.FromSoftwareBitmap(bitmap);
+            // Synchronously, on this thread: see StagingCopy for why not CreateCopyFromSurfaceAsync.
+            Frame copy;
+            lock (_copyLock)
+            {
+                if (_disposed) return;
+                copy = _reader.Copy(frame.Surface);
+            }
             lock (_lock) _latest = copy;
             Interlocked.Increment(ref _copied);
             tcs.TrySetResult(copy);
@@ -135,6 +141,11 @@ public sealed class WindowCapture : IDisposable
         _pool.FrameArrived -= OnFrameArrived;
         _session.Dispose();
         _pool.Dispose();
+        lock (_copyLock)
+        {
+            _disposed = true;
+            _reader.Dispose();
+        }
         _device.Dispose();
     }
 }

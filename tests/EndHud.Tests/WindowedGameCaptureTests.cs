@@ -63,12 +63,19 @@ public class WindowedGameCaptureTests
         var area = Native.ClientAreaOnScreen(window.Handle);
         // A stand-in overlay: solid red over the squad panel, kept out of captures like EndHud's.
         using var overlay = BorderedGameWindow.Cover(new Rectangle(area.X, area.Y + area.Height / 2, area.Width / 2, area.Height / 2));
-        Thread.Sleep(300);
+        Assert.True(IsWindowVisible(overlay.Handle), "the stand-in overlay should be on screen");
+        var expected = (await ImageFile.LoadAsync(Fixture)).Resize(area.Width, area.Height);
 
+        // The screen shows the window once Windows has composed it, which can take a moment after it
+        // opens (a copy taken too early showed the desktop behind it): copy until it's there.
         var game = ScreenCapture.Copy(area);
+        for (var waited = System.Diagnostics.Stopwatch.StartNew(); MeanDifference(game, expected) >= 8 && waited.Elapsed < TimeSpan.FromSeconds(5);)
+        {
+            Thread.Sleep(100);
+            game = ScreenCapture.Copy(area);
+        }
 
         Assert.Equal((1600, 900), (game.Width, game.Height));
-        var expected = (await ImageFile.LoadAsync(Fixture)).Resize(area.Width, area.Height);
         Assert.True(MeanDifference(game, expected) < 8, $"screen copy differs from the picture by {MeanDifference(game, expected):F1} on average");
         var reader = new PartyReader(new TextRecognizer());
         var read = await reader.ReadAsync(game);
@@ -85,6 +92,9 @@ public class WindowedGameCaptureTests
     }
 
     private static readonly IntPtr PerMonitorAwareV2 = new(-4);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(IntPtr hwnd);
 
     [DllImport("user32.dll")]
     private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);

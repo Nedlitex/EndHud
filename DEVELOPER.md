@@ -126,17 +126,24 @@ reads differently from a refused certificate). A failed check is retried after 3
 the usual 6 hours (package) or a day (EndHud, rotations): players' logs show GitHub answering one
 minute and failing the SSL handshake six minutes later.
 
-**Reading the game off the screen.** On some Windows 10 22H2 PCs, Windows.Graphics.Capture sends
-no picture at all for the game window (two players' logs: windowed and full screen alike, no
-frame in minutes, everything else fine). After two silent captures in a row (2 s each) `PartyMonitor`
-keeps the overlay out of screen captures (`SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)`,
-Windows 10 2004 and later; from then on the HUD is also missing from the player's screenshots and
-recordings) and copies the game's client area off the screen
-([`ScreenCapture`](src/EndHud.Vision/Capture/ScreenCapture.cs), GDI BitBlt). The screen shows
-whatever is in front, so it reads only while the game or the overlay has the focus
-(`Party.GameCovered` otherwise) and the whole game area is on screen (`Party.OffScreen`). A new
-game window tries window capture again. The log's no-picture line carries the capture's counts
-(frames arrived, resizes, copied, copies failed or running) to tell which part of the capture failed.
+**Copying captured frames.** Each frame Windows.Graphics.Capture delivers is a GPU texture;
+[`StagingCopy`](src/EndHud.Vision/Capture/StagingCopy.cs) copies it into a CPU-readable staging
+texture on the capture's own D3D11 device and reads it, synchronously in the frame callback (the
+usual method, as in Microsoft's capture sample). EndHud 0.4.3 and earlier used
+`SoftwareBitmap.CreateCopyFromSurfaceAsync`, waited on inside the callback: on Windows 10 22H2 PCs
+that never returned. A 0.4.3 player's log showed the capture counts "1 frames arrived, 0 copied,
+1 copying now" for minutes, so the HUD read nothing ("no picture from the game window"). The log's
+no-picture line carries those counts (frames arrived, resizes, copied, copies failed or running).
+
+**Reading the game off the screen** (fallback). After two silent captures in a row (2 s each)
+`PartyMonitor` asks to keep the overlay out of screen captures (`SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)`)
+and, if Windows agrees, copies the game's client area off the screen
+([`ScreenCapture`](src/EndHud.Vision/Capture/ScreenCapture.cs), GDI BitBlt); from then on the HUD is
+also missing from the player's screenshots and recordings. Windows 10 refuses that for the overlay,
+a see-through (layered) window, with error 8; then it's asked once per game window and the screen
+isn't read (it would read EndHud's own HUD). The screen shows whatever is in front, so it reads only
+while the game or the overlay has the focus (`Party.GameCovered` otherwise) and the whole game area
+is on screen (`Party.OffScreen`). A new game window tries window capture again.
 
 Squad naming runs beside the readings (`PartyMonitor`): a reading waits at most 150 ms for it, then
 shows the last names found, so a slow character model never holds up the HUD.
