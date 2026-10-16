@@ -14,7 +14,7 @@ Thumbs.db
 publish/
 
 # Full, unmasked gameplay recordings the test clips are cut from. They show the player UID,
-# so they are never committed. See tests/EndHud.Vision.Tests/Recordings/README.md.
+# so they are never committed. See tests/data/Recordings/README.md.
 original-recordings/
 
 # CI cache key for the LFS recordings

@@ -12,7 +12,7 @@ dotnet run --project tools/EndHud.ReadmeMedia -c Release -- original-recordings/
 
 The GIFs are written to `out/readme-media`. Needs ffmpeg on PATH and the
 original recording (kept locally in `original-recordings/`, not in the repository; see
-`tests/EndHud.Vision.Tests/Recordings/README.md`).
+`tests/data/Recordings/README.md`).
 
 How it works, and why it shows exactly what EndHud would:
 

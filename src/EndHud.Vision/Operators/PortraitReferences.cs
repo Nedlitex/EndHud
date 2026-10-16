@@ -13,7 +13,7 @@ public sealed record PortraitReference(string OperatorId, int PortraitWidth, flo
 /// The portrait itself isn't shipped, only those numbers. Comparing a portrait with the same art
 /// is far more reliable than with the wiki's drawing; an operator without a reference (a new
 /// one) is recognised by the wiki avatar alone. Built from the test fixtures' squad screenshots
-/// (tests/EndHud.Vision.Tests/Fixtures/squads) by <see cref="Build"/>.
+/// (tests/data/Fixtures/squads) by <see cref="Build"/>.
 /// </summary>
 public static class PortraitReferences
 {
@@ -35,7 +35,7 @@ public static class PortraitReferences
         "Built-in operator portrait references for EndHud (src/EndHud.Vision/Operators/PortraitReferences.cs). " +
         "For each screen size, each operator's squad portrait as the game draws it, described by the character " +
         "model named in Model: base64 of 768 little-endian float32 values per portrait (some operators have two). " +
-        "No image is stored. Made from tests/EndHud.Vision.Tests/Fixtures/squads by `endhud-cli build-portrait-references`.";
+        "No image is stored. Made from tests/data/Fixtures/squads by `endhud-cli build-portrait-references`.";
 
     // File layout: { About, Model, Sizes: [ { Screen, PortraitWidth, Operators: { id: [features, ...] } } ] }
     private sealed record Stored(string About, string Model, List<StoredSize> Sizes);

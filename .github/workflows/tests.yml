@@ -12,21 +12,31 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 60
     steps:
+      # The test data (screenshots, recordings) is the tests/data submodule (EndHud-test-data).
+      # Large files are in Git LFS: the character model here (38 MB), the recordings there
+      # (about 160 MB). Downloading counts against the LFS bandwidth quota, so LFS objects are
+      # cached and only fetched when they change; checkout skips them.
       - uses: actions/checkout@v4
-
-      # The gameplay recordings are in Git LFS (about 160 MB). Downloading them counts against
-      # the repository's LFS bandwidth quota, so they're cached and only fetched when they change.
-      - name: List the recordings (cache key)
+        with:
+          submodules: true
+        env:
+          GIT_LFS_SKIP_SMUDGE: 1
+      - name: List the LFS files (cache key)
         shell: bash
-        run: git lfs ls-files --long | cut -d ' ' -f1 | sort > .lfs-assets-id
-      - name: Restore cached recordings
+        run: |
+          { git lfs ls-files --long; git -C tests/data lfs ls-files --long; } | cut -d ' ' -f1 | sort > .lfs-assets-id
+      - name: Restore cached LFS files
         uses: actions/cache@v4
         with:
-          path: .git/lfs/objects
-          key: lfs-${{ hashFiles('.lfs-assets-id') }}
-          restore-keys: lfs-
-      - name: Fetch recordings
-        run: git lfs pull
+          path: |
+            .git/lfs/objects
+            .git/modules/tests/data/lfs/objects
+          key: lfs-data-${{ hashFiles('.lfs-assets-id') }}
+          restore-keys: lfs-data-
+      - name: Fetch LFS files
+        run: |
+          git lfs pull
+          git -C tests/data lfs pull
 
       # The operator roster, avatars and skill icons come from the repository's operator package
       # (operators/operator-library.zip), which the tests unpack: nothing to download.

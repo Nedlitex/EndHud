@@ -164,6 +164,20 @@ The whole interface is in Chinese. Strings live in [`src/EndHud/i18n/zh-CN.xaml`
 ## Build and run
 
 ```powershell
+git lfs install   # once: the character recognition model is stored with Git LFS
+git clone https://github.com/Nedlitex/EndHud.git
+```
+
+The test data (screenshots and gameplay recordings, about 220 MB) is a separate repository,
+[EndHud-test-data](https://github.com/Nedlitex/EndHud-test-data), included as the submodule
+`tests/data`. A plain clone leaves it out; building and running EndHud don't need it. To run the
+vision tests, fetch it (or clone with `--recurse-submodules`):
+
+```powershell
+git submodule update --init
+```
+
+```powershell
 dotnet build -c Release
 dotnet run --project src/EndHud -c Release
 ```
@@ -211,7 +225,7 @@ EndHud data:
 
 ```powershell
 ./installer/self-test.ps1 -Exe "$env:LOCALAPPDATA\Programs\EndHud\EndHud.exe" -Folder "$env:TEMP\endhud-self-test" `
-    -Screenshot tests/EndHud.Vision.Tests/Fixtures/exploration-levels-visible.png -Squad Laevatain,Camille,Arcane,Ardelia
+    -Screenshot tests/data/Fixtures/exploration-levels-visible.png -Squad Laevatain,Camille,Arcane,Ardelia
 ```
 
 It runs `EndHud.exe --self-test <folder> [--screenshot <image> --expect <ids>]` (no window), which
@@ -346,7 +360,7 @@ The game shows no operator names in the squad panel, so EndHud identifies each p
      - **The operator's in-game portrait**, built in
        ([`PortraitReferences`](src/EndHud.Vision/Operators/PortraitReferences.cs)): the model's
        description of each operator's squad portrait, made from 4K screenshots of nine squads
-       covering all 32 operators ([the squad fixtures](tests/EndHud.Vision.Tests/Fixtures/squads/README.md)),
+       covering all 32 operators ([the squad fixtures](tests/data/Fixtures/squads/README.md)),
        at the common portrait sizes. Numbers only (1.3 MB); no image is shipped. Same art as the
        screen, so the most reliable.
      - **The wiki avatar**, so an operator with no in-game reference yet (a new one) is still
@@ -591,17 +605,19 @@ The current step is "ready" (lit) when all its known checks hold.
 ## Tests
 
 ```powershell
-git lfs install   # once: the gameplay recordings are stored with Git LFS
+git submodule update --init   # once: the test data (tests/data); see Build and run
 dotnet test -c Release
 ```
 
-All tests run from what's in the repository. They also run on every push to `main`, on pull
+All tests run from what's in the repository and its test data submodule; without the submodule,
+`dotnet test` stops with a message saying how to fetch it. Changing test data is a commit in
+EndHud-test-data, then the new `tests/data` pointer committed here with the tests that use it. They also run on every push to `main`, on pull
 requests and before every release, on a GitHub-hosted Windows runner
 ([`.github/workflows/tests.yml`](.github/workflows/tests.yml)). The two real-capture tests are the
 exception: hosted runners can't capture windows, so they only run on a developer machine
 (`dotnet test` includes them; CI skips `Category=Desktop`).
 
-- **Fixture frames** ([`tests/EndHud.Vision.Tests/Fixtures`](tests/EndHud.Vision.Tests/Fixtures)):
+- **Fixture frames** ([`tests/data/Fixtures`](tests/data/Fixtures)):
   a 4K exploration screenshot and frames from gameplay recordings, UID blacked out. They cover
   level, HP, combo and ultimate readings in exploration, combat, low HP, a dimmed squad, a heal,
   and with operators fallen.
@@ -623,7 +639,7 @@ exception: hosted runners can't capture windows, so they only run on a developer
   game art). A fresh clone downloads it the first time the tests run (about 10 s); CI keeps it in its
   cache, refreshed weekly.
 - **Real capture:** a stand-in game window (shows a full-screen window for a few seconds).
-- **Gameplay recordings** ([`tests/EndHud.Vision.Tests/Recordings`](tests/EndHud.Vision.Tests/Recordings),
+- **Gameplay recordings** ([`tests/data/Recordings`](tests/data/Recordings),
   Git LFS, HUD areas only): whole fights replayed, checking that values change the way the game
   showed them. Examples:
   - combo cooldowns refill steadily;
@@ -636,17 +652,17 @@ exception: hosted runners can't capture windows, so they only run on a developer
     never for an operator who falls mid-cooldown.
 
   See that folder's README for what each recording contains.
-- **Combat HUD for rotations** ([`Fixtures/battle-hud`](tests/EndHud.Vision.Tests/Fixtures/battle-hud),
+- **Combat HUD for rotations** ([`Fixtures/battle-hud`](tests/data/Fixtures/battle-hud),
   labels in `labels.json`): skill points, the controlled operator, battle skill buttons, 熔火 and
   enemy statuses on labelled 4K battle frames (UID blacked out), including a cutscene that must
   read as nothing.
-- **Operator counters** ([`Fixtures/counters`](tests/EndHud.Vision.Tests/Fixtures/counters)):
+- **Operator counters** ([`Fixtures/counters`](tests/data/Fixtures/counters)):
   Typhoeus's 猎矢 (0–4) and 启示 (0–8) on 4K frames of the owner's fight, including the glow over
   full arrows, the fill flash and the HUD sliding away; all but the middle of the HUD band blacked out.
-- **Faded portraits** ([`Fixtures/faded-squad`](tests/EndHud.Vision.Tests/Fixtures/faded-squad)):
+- **Faded portraits** ([`Fixtures/faded-squad`](tests/data/Fixtures/faded-squad)):
   readings four a second through a fight where the game draws portraits see-through; the squad
   must stay named.
-- **Elemental infliction** ([`Fixtures/infliction`](tests/EndHud.Vision.Tests/Fixtures/infliction)):
+- **Elemental infliction** ([`Fixtures/infliction`](tests/data/Fixtures/infliction)):
   heat and nature rings, and frames with no ring (a white background, a cutscene, blue effects
   filling the ring's place), at 4K and on simulated 1440p, 1080p and 16:10 screens.
 - **Recommended rotations:** synced against a stand-in for GitHub (new, unchanged, corrected and

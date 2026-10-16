@@ -27,9 +27,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- A 4K gameplay frame for the windowed-capture test (shared with the vision tests). -->
-    <None Include="..\EndHud.Vision.Tests\Fixtures\combat-combos-nearly-refilled.jpg" Link="Fixtures\combat-combos-nearly-refilled.jpg"
-          CopyToOutputDirectory="PreserveNewest" />
+    <!-- A 4K gameplay frame for the windowed-capture tests (Category=Desktop), from the test data
+         submodule (tests/data); without it only those tests can't run. -->
+    <None Include="..\data\Fixtures\combat-combos-nearly-refilled.jpg" Link="Fixtures\combat-combos-nearly-refilled.jpg"
+          CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\combat-combos-nearly-refilled.jpg')" />
   </ItemGroup>
 
 </Project>

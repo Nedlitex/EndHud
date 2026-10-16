@@ -4,7 +4,7 @@
   and never touches the user's own EndHud data.
 
     ./installer/self-test.ps1 -Exe "$env:LOCALAPPDATA\Programs\EndHud\EndHud.exe" -Folder "$env:TEMP\endhud-self-test" `
-        -Screenshot tests/EndHud.Vision.Tests/Fixtures/exploration-levels-visible.png -Squad Laevatain,Camille,Arcane,Ardelia
+        -Screenshot tests/data/Fixtures/exploration-levels-visible.png -Squad Laevatain,Camille,Arcane,Ardelia
 #>
 param(
     [Parameter(Mandatory)] [string] $Exe,

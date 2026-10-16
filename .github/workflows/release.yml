@@ -114,10 +114,15 @@ jobs:
     env:
       VERSION: ${{ needs.build.outputs.version }}
       # A screenshot from the test fixtures, and the squad in it.
-      SCREENSHOT: tests/EndHud.Vision.Tests/Fixtures/exploration-levels-visible.png
+      SCREENSHOT: tests/data/Fixtures/exploration-levels-visible.png
       SQUAD: Laevatain,Camille,Arcane,Ardelia
     steps:
-      - uses: actions/checkout@v4 # for the screenshot (not in LFS)
+      # For the screenshot, from the test data submodule; its recordings (LFS) aren't needed.
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+        env:
+          GIT_LFS_SKIP_SMUDGE: 1
 
       - uses: actions/download-artifact@v4
         with:
@@ -188,7 +193,12 @@ jobs:
       VERSION: ${{ needs.build.outputs.version }}
       FEED: http://127.0.0.1:8765/latest.json
     steps:
-      - uses: actions/checkout@v4 # for the screenshot and installer/self-test.ps1
+      # For installer/self-test.ps1 and the screenshot (test data submodule, without its recordings).
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+        env:
+          GIT_LFS_SKIP_SMUDGE: 1
 
       - uses: actions/download-artifact@v4
         with:
@@ -262,7 +272,7 @@ jobs:
       - name: The updated EndHud works
         timeout-minutes: 10
         shell: pwsh
-        run: ./installer/self-test.ps1 -Exe "$env:LOCALAPPDATA\Programs\EndHud\EndHud.exe" -Folder "$env:RUNNER_TEMP\self-test-updated" -Screenshot tests/EndHud.Vision.Tests/Fixtures/exploration-levels-visible.png -Squad Laevatain,Camille,Arcane,Ardelia
+        run: ./installer/self-test.ps1 -Exe "$env:LOCALAPPDATA\Programs\EndHud\EndHud.exe" -Folder "$env:RUNNER_TEMP\self-test-updated" -Screenshot tests/data/Fixtures/exploration-levels-visible.png -Squad Laevatain,Camille,Arcane,Ardelia
 
       - name: The portable exe updates itself
         timeout-minutes: 10

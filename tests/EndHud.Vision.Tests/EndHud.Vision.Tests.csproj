@@ -25,10 +25,21 @@
     <ProjectReference Include="..\..\src\EndHud.Vision\EndHud.Vision.csproj" />
   </ItemGroup>
 
+  <!-- Screenshots and gameplay recordings come from the test data submodule (tests/data, the
+       EndHud-test-data repository), copied next to the binaries as Fixtures\ and Recordings\.
+       Building doesn't need them; running the tests does. -->
+  <PropertyGroup>
+    <TestData>$(MSBuildThisFileDirectory)..\data\</TestData>
+  </PropertyGroup>
   <ItemGroup>
-    <None Include="Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
-    <!-- Gameplay recordings, HUD areas only (see Recordings/README.md). -->
-    <None Include="Recordings\**" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="$(TestData)Fixtures\**" LinkBase="Fixtures" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="$(TestData)Recordings\**" LinkBase="Recordings" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+  <Target Name="WarnMissingTestData" BeforeTargets="Build" Condition="!Exists('$(TestData)Fixtures')">
+    <Warning Text="The test data isn't here (tests/data is empty): the vision tests need it. Fetch it with: git submodule update --init" />
+  </Target>
+  <Target Name="RequireTestData" BeforeTargets="VSTest" Condition="!Exists('$(TestData)Fixtures')">
+    <Error Text="The test data isn't here (tests/data is empty). Fetch it with: git submodule update --init (about 220 MB; see tests/data in DEVELOPER.md)" />
+  </Target>
 
 </Project>
