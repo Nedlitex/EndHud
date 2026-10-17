@@ -441,6 +441,7 @@ internal sealed class PartyMonitor : IDisposable
         HudLayout? layoutSeen = null; // the last controller-or-not layout a visible panel showed
         int silentCaptures = 0;
         OperatorMatch?[] lastNames = [];
+        var panelReadAt = DateTime.MinValue; // when a reading last saw the squad panel
         try
         {
             while (!ct.IsCancellationRequested)
@@ -531,6 +532,13 @@ internal sealed class PartyMonitor : IDisposable
                     {
                         panelSeen = state.PanelVisible;
                         DiagnosticLog.Info(panelSeen ? $"squad panel seen ({DescribeLayout(state)}) at {gameFrame.Width}x{gameFrame.Height}" : "squad panel gone");
+                    }
+                    // Back after long enough for the team menu: the last names may be another squad's.
+                    // Shown while a slow naming runs, they put the old squad on the HUD for seconds.
+                    if (raw.PanelVisible)
+                    {
+                        if (DateTime.UtcNow - panelReadAt >= SquadIdentifier.SquadMayChangeAfter) lastNames = [];
+                        panelReadAt = DateTime.UtcNow;
                     }
                     if (_identifier is { } identifier)
                     {

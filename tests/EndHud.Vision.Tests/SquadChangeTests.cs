@@ -47,10 +47,49 @@ public sealed class SquadChangeTests : IDisposable
         // The team menu: no panel for a few seconds.
         for (int n = 0; n < PresenceMemory.ReadingsToLeave + 4; n++) await ReadingAsync(identifier, new PartyState([]));
 
-        // The new squad, out of combat. The old names may show while it's compared again, never a mix
-        // once it's named.
-        for (int n = 0; n < SquadIdentifier.MinReadings * 3; n++) named = await ReadingAsync(identifier, after);
+        // The new squad, out of combat. At no reading is an old name shown where the operator changed
+        // (slot 3 was Arcane and is Si now; slot 4 is Arcane, as before).
+        string[] truth = ["Camille", "Laevatain", "Si", "Arcane"];
+        for (int n = 0; n < SquadIdentifier.MinReadings * 3; n++)
+        {
+            named = await ReadingAsync(identifier, after);
+            foreach (var slot in named.Slots.Where(s => s.Operator is not null))
+                Assert.True(slot.Operator!.Operator.Id == truth[slot.Number - 1], $"reading {n + 1}: slot {slot.Number} shown as {slot.Operator.Operator.Id}");
+        }
+        Assert.Equal(truth, named.Slots.Select(s => s.Operator?.Operator.Id));
+    }
+
+    /// <summary>
+    /// With a controller the squad panel isn't drawn out of combat, so after the team menu it
+    /// comes back straight into a fight (the owner's third controller recording: about 30 s in the
+    /// menu). Slot 1 kept Camille's name for Zhuang Fangyi, whose portrait scores 0.81 against hers.
+    /// </summary>
+    [Fact]
+    public async Task A_new_squad_is_named_when_the_panel_comes_back_into_a_fight_after_the_team_menu()
+    {
+        var before = await ReadAsync(Path.Combine("controller", "combat.jpg"));
+        var after = await ReadAsync(Path.Combine("controller", "another-squad.jpg"));
+        Assert.True(before.InCombat);
+        Assert.True(after.InCombat);
+        var identifier = new SquadIdentifier(await OperatorCache.LoadAsync(_userFolder), () => _clock, null);
+        await identifier.PrepareAsync(before);
+
+        PartyState named = before;
+        for (int n = 0; n < SquadIdentifier.Window * 3; n++) named = await ReadingAsync(identifier, before);
         Assert.Equal(["Camille", "Laevatain", "Si", "Arcane"], named.Slots.Select(s => s.Operator?.Operator.Id));
+
+        // 30 s in the team menu: no panel.
+        for (int n = 0; n < 120; n++) await ReadingAsync(identifier, new PartyState([]));
+
+        // At no reading is the old squad shown: a slot is the new operator, or nobody yet.
+        string[] truth = ["Zhuang_Fangyi", "Perlica", "Arcane", "Liino"];
+        for (int n = 0; n < SquadIdentifier.MinReadings * 3; n++)
+        {
+            named = await ReadingAsync(identifier, after);
+            foreach (var slot in named.Slots.Where(s => s.Operator is not null))
+                Assert.True(slot.Operator!.Operator.Id == truth[slot.Number - 1], $"reading {n + 1}: slot {slot.Number} shown as {slot.Operator.Operator.Id}");
+        }
+        Assert.Equal(truth, named.Slots.Select(s => s.Operator?.Operator.Id));
     }
 
     /// <summary>

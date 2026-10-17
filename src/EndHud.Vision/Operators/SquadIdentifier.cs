@@ -17,7 +17,8 @@ public sealed record SlotIdentity(Frame Portrait, OperatorMatch? Match, IReadOnl
 /// <item>A portrait unlike the slot's last one (pixel similarity under
 /// <see cref="OtherOperatorThreshold"/>) when the squad panel comes back after being gone is a
 /// different operator: the slot starts over. While the panel stays, it's an effect over the same one.</item>
-/// <item>When the panel comes back out of combat (from the team menu, a map, a loading screen),
+/// <item>When the panel comes back out of combat, or after <see cref="SquadMayChangeAfter"/> away
+/// (from the team menu, a map, a loading screen),
 /// every slot is named again from scratch, showing its old name until the new one is in: the
 /// squad may have changed, and two operators' portraits can look alike in pixels.</item>
 /// <item>Except while the squad panel stays on screen (<see cref="PresenceMemory"/>): the squad is
@@ -86,6 +87,15 @@ public sealed class SquadIdentifier(OperatorLibrary library)
     private readonly PresenceMemory _panel = new();
     private readonly bool[] _kept = new bool[PartyLayout.SlotCount]; // named while the panel stays
     private bool _panelWasThere;
+    private DateTime _panelSeenAt = DateTime.MinValue;
+
+    /// <summary>
+    /// Gone at least this long, the squad may have changed (the team menu takes longer than this;
+    /// the gaps in battle the "kept" rule is for, ultimate animations and see-through portraits,
+    /// last a couple of seconds). With a controller the panel isn't drawn out of combat at all, so
+    /// it comes back from the team menu straight into a fight.
+    /// </summary>
+    public static readonly TimeSpan SquadMayChangeAfter = TimeSpan.FromSeconds(6);
 
     /// <param name="wikiAvatarsGate">Tests: the wiki avatars are described only once this completes.</param>
     internal SquadIdentifier(OperatorLibrary library, Func<DateTime> now, IReadOnlyList<PortraitReference>? references = null, Task? wikiAvatarsGate = null)
@@ -120,13 +130,16 @@ public sealed class SquadIdentifier(OperatorLibrary library)
         lock (_evidence)
         {
             // The tracker repeats the last reading while the panel is out of sight: not "seen".
-            bool panelThere = _panel.Update(state.PanelVisible && state.ReadingsSinceSeen == 0);
+            bool seen = state.PanelVisible && state.ReadingsSinceSeen == 0;
+            bool panelThere = _panel.Update(seen);
             bool panelReturns = panelThere && !_panelWasThere;
             _panelWasThere = panelThere;
+            var now = _now();
+            bool squadMayHaveChanged = panelReturns && (!state.InCombat || now - _panelSeenAt >= SquadMayChangeAfter);
+            if (seen) _panelSeenAt = now;
             if (!panelThere) Array.Clear(_kept);
             if (!state.PanelVisible || library.IsEmpty) return KeepNames(state, panelThere);
 
-            var now = _now();
             var answers = new SlotIdentity?[state.Slots.Count];
             int compare = -1, comparePriority = 0;
             var unnamed = new List<int>();
@@ -139,11 +152,12 @@ public sealed class SquadIdentifier(OperatorLibrary library)
 
                 // Settled, panel still there: stays named (see the class summary), and isn't compared.
                 int i = slot.Number - 1;
-                if (panelReturns && !state.InCombat && Settled(i) is { Match.FromLearned: false } before)
+                if (squadMayHaveChanged && Settled(i) is { Match.FromLearned: false } before)
                 {
-                    // Back out of combat, where the team menu may have changed the squad: named again
-                    // from scratch. A portrait alike in pixels is no proof (Zhuang Fangyi then Camille
-                    // in slot 1 scored 0.81, over OtherOperatorThreshold); the old name shows meanwhile.
+                    // Back out of combat or after a long absence, where the team menu may have changed
+                    // the squad: named again from scratch. A portrait alike in pixels is no proof
+                    // (Camille and Zhuang Fangyi in slot 1 score 0.81, over OtherOperatorThreshold);
+                    // the old name shows meanwhile.
                     _evidence[i].Differences.Clear();
                     _evidence[i].Portrait = null;
                     _evidence[i].Before = before;
@@ -265,7 +279,12 @@ public sealed class SquadIdentifier(OperatorLibrary library)
     private SlotIdentity FromEvidence(Frame portrait, SlotEvidence evidence)
     {
         int count = evidence.Differences.Count;
-        if (count < MinReadings && evidence.Before is { } before) return before;
+        if (count < MinReadings && evidence.Before is { Match: { } kept } before)
+        {
+            // The old name shows while the slot is named again, as long as the comparisons so far
+            // agree with it; once they don't, the squad changed and nobody is shown meanwhile.
+            if (count == 0 || ClosestSoFar(evidence) == kept.Operator.Id) return before;
+        }
         evidence.Before = null;
         if (count == 0) return new SlotIdentity(portrait, null, library.Operators.OrderBy(o => o.NameZh, StringComparer.Ordinal).ToList());
 
@@ -278,6 +297,15 @@ public sealed class SquadIdentifier(OperatorLibrary library)
         if (count < MinReadings || evidence.Cleared is not null || (evidence.Provisional && mean[ranked[0]] > ProvisionalMatchMax))
             return new SlotIdentity(portrait, null, suggestions);
         return new SlotIdentity(portrait, new OperatorMatch(suggestions[0], 1 - mean[ranked[0]], FromLearned: false), suggestions);
+    }
+
+    /// <summary>The operator closest on average over the slot's comparisons so far.</summary>
+    private string ClosestSoFar(SlotEvidence evidence)
+    {
+        var mean = new double[library.Operators.Count];
+        foreach (var row in evidence.Differences)
+            for (int j = 0; j < mean.Length; j++) mean[j] += row[j];
+        return library.Operators[Array.IndexOf(mean, mean.Min())].Id;
     }
 
     /// <summary>
