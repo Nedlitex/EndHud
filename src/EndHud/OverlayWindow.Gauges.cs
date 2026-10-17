@@ -23,7 +23,10 @@ public partial class OverlayWindow
     private string? _gaugeKey;
     private Point? _gaugeDragOffset;
     private double _windowScale = 1; // following the game window (ComboHintLayout), before the player's size
-    private bool _loadingGaugeSettings;
+    // True until InitGaugeSettings has put the saved size in the slider. WPF attaches the slider's
+    // ValueChanged before applying Minimum="0.5", which moves it from 0 to 0.5: without this, that
+    // was saved as the player's size at every start (every player's gauges were at 50%).
+    private bool _loadingGaugeSettings = true;
 
     /// <summary>A new reading (<paramref name="inBattle"/> from the strip's rule): remember the counters, then redraw.</summary>
     private void TrackGauges(PartyState? state, bool inBattle)

@@ -30,7 +30,7 @@ internal sealed class HudConfig
     /// </summary>
     public int? SettingsVersion { get; set; }
 
-    public const int CurrentSettingsVersion = 2;
+    public const int CurrentSettingsVersion = 3;
 
     /// <summary>UI language; picks the file i18n/&lt;Language&gt;.xaml.</summary>
     public string Language { get; set; } = "zh-CN";
@@ -168,8 +168,14 @@ internal static class ConfigStore
         {
             // 1000 ms was the default before version 2; rotations need the new default.
             if (config.OcrIntervalMs == 1000) config.OcrIntervalMs = HudConfig.DefaultOcrIntervalMs;
-            config.SettingsVersion = HudConfig.CurrentSettingsVersion;
         }
+        if (config.SettingsVersion is null or < 3)
+        {
+            // Up to version 3 every start saved the gauges' size as 50% (the slider's minimum; see
+            // OverlayWindow.Gauges), so a 50% then was never the player's choice.
+            if (config.GaugesScale == HudConfig.MinGaugesScale) config.GaugesScale = 1;
+        }
+        config.SettingsVersion = HudConfig.CurrentSettingsVersion;
         // A hand-edited size outside what the slider offers would hide the gauges or fill the screen.
         config.GaugesScale = double.IsFinite(config.GaugesScale)
             ? Math.Clamp(config.GaugesScale, HudConfig.MinGaugesScale, HudConfig.MaxGaugesScale)

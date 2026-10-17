@@ -14,6 +14,19 @@ public class ConfigTests
     public void The_gauges_size_defaults_to_100_percent_and_a_hand_edited_one_is_kept_in_range(string json, double expected) =>
         Assert.Equal(expected, ConfigStore.Parse(json).GaugesScale);
 
+    /// <summary>Before version 3 every start saved 50% (a slider bug), so 50% from then means the default.</summary>
+    [Theory]
+    [InlineData("""{ "GaugesScale": 0.5, "SettingsVersion": 2 }""", 1.0)]
+    [InlineData("""{ "GaugesScale": 0.5 }""", 1.0)]
+    [InlineData("""{ "GaugesScale": 0.75, "SettingsVersion": 2 }""", 0.75)]
+    [InlineData("""{ "GaugesScale": 0.5, "SettingsVersion": 3 }""", 0.5)]  // chosen after the fix: kept
+    public void A_gauges_size_saved_by_the_slider_bug_goes_back_to_the_default(string json, double expected)
+    {
+        var config = ConfigStore.Parse(json);
+        Assert.Equal(expected, config.GaugesScale);
+        Assert.Equal(HudConfig.CurrentSettingsVersion, config.SettingsVersion);
+    }
+
     [Fact]
     public void The_debug_panel_is_not_a_setting_so_an_old_config_cannot_turn_it_on()
     {
