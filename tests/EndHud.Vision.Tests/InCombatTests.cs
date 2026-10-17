@@ -51,6 +51,23 @@ public class InCombatTests
         Assert.False(state.InCombat);
     }
 
+    /// <summary>
+    /// A white sky with rocks falling (respawning after a failed fight, controller recording): the
+    /// sky in the combo bars' place reads as two "bars", and the red and cyan fringes around the
+    /// rocks gave two HP bars 4–8% when coloured columns anywhere counted. Read as the panel, the
+    /// sky was named as four Purrchena and the names stuck. An HP bar fills from its left end.
+    /// </summary>
+    [Fact]
+    public async Task A_white_sky_with_coloured_fringes_is_not_the_squad_panel()
+    {
+        var state = await ReadAsync(await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("panel-or-not", "white-sky-after-a-failed-fight.jpg"))));
+
+        Assert.True(state.Slots.Count(s => s.Combo is not null) >= 2, "the case this guards against: the sky reads as combo bars");
+        Assert.All(state.Slots, s => Assert.True(s.Hp <= 0.02, $"slot {s.Number} HP {s.Hp}"));
+        Assert.False(state.PanelVisible);
+        Assert.False(state.InCombat);
+    }
+
     /// <summary>A boss's status covering every HP bar in battle: still the squad panel, still a battle.</summary>
     [Fact]
     public async Task A_battle_with_every_hp_bar_covered_is_still_in_combat()

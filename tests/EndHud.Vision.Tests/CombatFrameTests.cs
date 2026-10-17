@@ -183,7 +183,9 @@ public class CombatFrameTests
         var state = await ReadAsync("battle-three-fallen.jpg");
 
         Assert.Equal([false, true, true, true], state.Slots.Select(s => s.Dead));
-        Assert.InRange(state.Slots[0].Hp!.Value, 0.25, 0.33);
+        // The pink fill is about 18% of the bar. Orange scenery behind the see-through track used to
+        // add scattered "fill" columns (read 25–33%); only the block from the left end counts now.
+        Assert.InRange(state.Slots[0].Hp!.Value, 0.15, 0.21);
         Assert.All(state.Slots.Skip(1), s => Assert.Null(s.Combo));
     }
 
