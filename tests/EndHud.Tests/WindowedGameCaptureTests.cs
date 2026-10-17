@@ -89,7 +89,8 @@ public class WindowedGameCaptureTests
 
         Assert.True(covered is null, $"another window stayed on top of the test window, so the screen can't show it: {covered}");
         Assert.Equal((1600, 900), (game.Width, game.Height));
-        Assert.True(MeanDifference(game, expected) < 8, $"screen copy differs from the picture by {MeanDifference(game, expected):F1} on average");
+        Assert.True(MeanDifference(game, expected) < 8,
+            $"screen copy differs from the picture by {MeanDifference(game, expected):F1} on average; {ScreenOwner()}");
         var reader = new PartyReader(new TextRecognizer());
         var read = await reader.ReadAsync(game);
         Assert.True(read.PanelVisible);
@@ -130,6 +131,29 @@ public class WindowedGameCaptureTests
         }
         return null;
     }
+
+    /// <summary>
+    /// What else may own the screen, for a failure message: whether Windows says a full-screen
+    /// program has the display (a game in exclusive full screen shows over every window, so the
+    /// screen can't show the test window), and which program has the focus (its name, never a title).
+    /// </summary>
+    private static string ScreenOwner()
+    {
+        string state = SHQueryUserNotificationState(out int s) == 0
+            ? s switch { 2 => "a full-screen program is running", 3 => "a full-screen Direct3D program has the display", 4 => "presentation mode", _ => $"no full-screen program (state {s})" }
+            : "full-screen state unknown";
+        GetWindowThreadProcessId(GetForegroundWindow(), out uint pid);
+        string focus;
+        try { focus = System.Diagnostics.Process.GetProcessById((int)pid).ProcessName; }
+        catch (ArgumentException) { focus = $"process {pid}"; }
+        return $"{state}; focus: {focus}";
+    }
+
+    [DllImport("shell32.dll")]
+    private static extern int SHQueryUserNotificationState(out int state);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
 
     private const uint GaRoot = 2;
 
