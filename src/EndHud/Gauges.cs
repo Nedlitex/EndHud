@@ -56,6 +56,8 @@ internal static class Gauges
 {
     internal const double Size = 96;
     private const double Thickness = 7;
+    /// <summary>The most of the ring drawn while not ready: a gap of about 29° stays open.</summary>
+    internal const double NotReadyMaxFill = 0.92;
     private const double Inset = 4; // between the ring and the avatar
     private const double BadgeSize = 36;
     private const double SegmentGap = 8; // degrees between a counter's segments
@@ -159,7 +161,10 @@ internal static class Gauges
         {
             if (gauge.Fill is { } f && f > 0)
             {
-                var arc = f >= 0.999 ? (Shape)new Ellipse { Stroke = brush, StrokeThickness = Thickness } : Arc(0, f * 360, brush);
+                // Not ready (or not at its maximum): never a closed ring, however close, or 99%
+                // reads as ready at a glance; a gap is always left at 12 o'clock.
+                double shown = gauge.Ready ? f : Math.Min(f, NotReadyMaxFill);
+                var arc = shown >= 0.999 ? (Shape)new Ellipse { Stroke = brush, StrokeThickness = Thickness } : Arc(0, shown * 360, brush);
                 // Ready: the full ring glows. Charging: the arc is dimmer, so ready stands out at a glance.
                 if (gauge.Ready) arc.Effect = Glow(colour);
                 else arc.Opacity = 0.75;

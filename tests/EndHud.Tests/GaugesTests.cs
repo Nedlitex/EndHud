@@ -137,6 +137,19 @@ public class GaugesTests
         Assert.True(charging < ready / 3, $"{charging} vs {ready}");
     }
 
+    /// <summary>A charge of 99% drawn as a closed ring looked ready (the owner's full battle): a gap stays open.</summary>
+    [Fact]
+    public void An_ultimate_nearly_charged_still_shows_a_gap_until_it_is_ready()
+    {
+        Rendered Ultimate(double fill, bool ready) => Render(new Gauge(GaugeKind.Ultimate, null, null, "ultimate", fill, ready));
+
+        // 99% is drawn as 92%: the same picture, a gap at 12 o'clock.
+        Assert.Equal(Ultimate(Gauges.NotReadyMaxFill, false).Bgra, Ultimate(0.99, false).Bgra);
+        Assert.NotEqual(Ultimate(0.5, false).Bgra, Ultimate(0.99, false).Bgra);
+        // Ready closes it, glowing.
+        Assert.True(Ultimate(1, true).Count(Gold) > 900);
+    }
+
     [Fact]
     public void A_counter_lights_one_segment_per_stack()
     {
