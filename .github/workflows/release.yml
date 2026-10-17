@@ -169,8 +169,17 @@ jobs:
         shell: pwsh
         run: |
           $msi = Resolve-Path "release/EndHud-$env:VERSION.msi"
+          # "Start with Windows" on, and turned off in Task Manager: uninstalling removes both.
+          $run = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+          $approved = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run'
+          New-ItemProperty -Path $run -Name EndHud -Force -Value "`"$env:LOCALAPPDATA\Programs\EndHud\EndHud.exe`" --autostart" | Out-Null
+          if (-not (Test-Path $approved)) { New-Item -Path $approved -Force | Out-Null }
+          New-ItemProperty -Path $approved -Name EndHud -Force -PropertyType Binary -Value ([byte[]](3,0,0,0,0,0,0,0,0,0,0,0)) | Out-Null
           $p = Start-Process msiexec -ArgumentList "/x `"$msi`" /qn" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "msiexec /x exited with $($p.ExitCode)" }
+          foreach ($key in $run, $approved) {
+            if ($null -ne (Get-ItemProperty $key -Name EndHud -ErrorAction SilentlyContinue)) { throw "Left behind after uninstall: $key\EndHud" }
+          }
           foreach ($left in "$env:LOCALAPPDATA\Programs\EndHud", "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\EndHud.lnk", "HKCU:\Software\EndHud\Installer") {
             if (Test-Path $left) { throw "Left behind after uninstall: $left" }
           }
@@ -232,6 +241,9 @@ jobs:
           $p = Start-Process msiexec -ArgumentList "/i `"$(Resolve-Path old/EndHud-0.0.1.msi)`" /qn" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "msiexec exited with $($p.ExitCode)" }
           (Get-Item "$env:LOCALAPPDATA\Programs\EndHud\EndHud.exe").VersionInfo.ProductVersion
+          # "Start with Windows" turned on (as the menu writes it): the upgrade must keep it.
+          New-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name EndHud -Force `
+            -Value "`"$env:LOCALAPPDATA\Programs\EndHud\EndHud.exe`" --autostart" | Out-Null
 
       # What "update now" does, without the tray: download, verify, install quietly.
       - name: The installed EndHud updates itself
@@ -268,6 +280,13 @@ jobs:
           $versions = @($products | ForEach-Object { $msi.ProductInfo($_, 'VersionString') })
           "Registered: $($versions -join ', ')"
           if ($products.Count -ne 1 -or $versions[0] -ne $env:VERSION) { throw "Expected one EndHud $env:VERSION registered" }
+
+      - name: The upgrade kept "start with Windows"
+        shell: pwsh
+        run: |
+          $value = (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name EndHud -ErrorAction SilentlyContinue).EndHud
+          if (-not $value) { throw 'The upgrade removed the "start with Windows" entry' }
+          "Kept: $value"
 
       - name: The updated EndHud works
         timeout-minutes: 10

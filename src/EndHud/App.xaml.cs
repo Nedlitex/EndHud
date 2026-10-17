@@ -42,12 +42,22 @@ public partial class App : Application
         var config = ConfigStore.Load();
         Loc.Load(config.Language);
         StartLog(updatedTo, updateFailed);
+        // A release EndHud that was moved keeps "start with Windows" pointing at itself; a
+        // development build never touches the player's entry.
+        if (ReleaseChecker.Current is not null)
+        {
+            try { AutoStart.ForThisExe().Refresh(); }
+            catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or System.IO.IOException)
+            {
+                DiagnosticLog.Warn($"start with Windows: couldn't check the entry ({ex.Message})");
+            }
+        }
 
         var overlay = new OverlayWindow(HudOptions.Parse(e.Args), config);
         MainWindow = overlay;
         overlay.Show();
         _updates = new UpdateService();
-        _tray = new TrayIcon(overlay, _updates);
+        _tray = new TrayIcon(overlay, _updates, quiet: e.Args.Contains(AutoStart.Flag));
         if (updatedTo is not null) _tray.ShowUpdated(updatedTo);
         else if (updateFailed is not null) _tray.ShowUpdateFailed(updateFailed);
         _updates.Start(() => config.CheckForUpdates);

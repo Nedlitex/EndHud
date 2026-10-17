@@ -58,6 +58,7 @@ public partial class OverlayWindow : Window
         DebugPanelCheckBox.IsChecked = false;
         CheckForUpdatesCheckBox.IsChecked = config.CheckForUpdates;
         AutoInstallUpdatesCheckBox.IsChecked = config.AutoInstallUpdates;
+        AutoStartCheckBox.IsChecked = ReadAutoStart();
         AutoInstallUpdatesCheckBox.IsEnabled = config.CheckForUpdates;
         DebugRoot.Visibility = Visibility.Collapsed;
         InitComboHintSettings();
@@ -245,6 +246,34 @@ public partial class OverlayWindow : Window
     {
         _config.AutoInstallUpdates = AutoInstallUpdatesCheckBox.IsChecked == true;
         ConfigStore.Save(_config);
+    }
+
+    /// <summary>Whether EndHud starts with Windows (the registry says; see AutoStart). Off when it can't be read.</summary>
+    private static bool ReadAutoStart()
+    {
+        try { return AutoStart.ForThisExe().Enabled; }
+        catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException)
+        {
+            DiagnosticLog.Warn($"start with Windows: couldn't read the entry ({ex.Message})");
+            return false;
+        }
+    }
+
+    private void AutoStartCheckBox_Click(object sender, RoutedEventArgs e)
+    {
+        bool wanted = AutoStartCheckBox.IsChecked == true;
+        try
+        {
+            AutoStart.ForThisExe().Set(wanted);
+            AutoStartError.Visibility = Visibility.Collapsed;
+        }
+        catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException)
+        {
+            DiagnosticLog.Error("start with Windows: couldn't change the entry", ex);
+            AutoStartError.Text = Loc.Get("Menu.AutoStart.Failed");
+            AutoStartError.Visibility = Visibility.Visible;
+        }
+        AutoStartCheckBox.IsChecked = ReadAutoStart(); // what Windows will actually do
     }
 
     private void CheckForUpdatesCheckBox_Click(object sender, RoutedEventArgs e)

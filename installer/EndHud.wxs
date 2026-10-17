@@ -53,6 +53,19 @@
       </Component>
     </ComponentGroup>
 
+    <!-- "Start EndHud with Windows" is a value EndHud itself writes under the user's Run key
+         (src/EndHud/AutoStart.cs). Uninstalling removes it and Task Manager's on/off mark for it;
+         an upgrade (which removes the old version first) keeps it. Failures are ignored: the value
+         may not be there. -->
+    <CustomAction Id="RemoveAutoStart" Directory="INSTALLFOLDER" Execute="deferred" Impersonate="yes" Return="ignore"
+                  ExeCommand='"[SystemFolder]reg.exe" delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v EndHud /f' />
+    <CustomAction Id="RemoveAutoStartApproval" Directory="INSTALLFOLDER" Execute="deferred" Impersonate="yes" Return="ignore"
+                  ExeCommand='"[SystemFolder]reg.exe" delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" /v EndHud /f' />
+    <InstallExecuteSequence>
+      <Custom Action="RemoveAutoStart" Before="RemoveFiles" Condition='REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE' />
+      <Custom Action="RemoveAutoStartApproval" After="RemoveAutoStart" Condition='REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE' />
+    </InstallExecuteSequence>
+
     <Feature Id="Main">
       <ComponentGroupRef Id="EndHudFiles" />
       <ComponentGroupRef Id="EndHudShortcuts" />

@@ -30,7 +30,8 @@ internal sealed class TrayIcon : IDisposable
     /// <summary>The releases page, for updating by hand when updating in place didn't work.</summary>
     private const string ReleasesPage = $"https://github.com/{ReleaseChecker.Repository}/releases/latest";
 
-    public TrayIcon(OverlayWindow overlay, UpdateService updates)
+    /// <param name="quiet">Started with Windows (<see cref="AutoStart.Flag"/>): no "EndHud is running" balloon.</param>
+    public TrayIcon(OverlayWindow overlay, UpdateService updates, bool quiet = false)
     {
         _overlay = overlay;
         _updates = updates;
@@ -104,8 +105,9 @@ internal sealed class TrayIcon : IDisposable
         _overlay.NewOperatorsFound += added => OnUi(() =>
             Notify(Loc.Format("Operators.NewFound", string.Join("、", added.Select(o => o.NameZh))), null));
 
-        _icon.ShowBalloonTip(4000, "EndHud",
-            Loc.Get(_overlay.AutoShow ? "Tray.Started" : "Tray.Started.Manual"), ToolTipIcon.Info);
+        if (!quiet)
+            _icon.ShowBalloonTip(4000, "EndHud",
+                Loc.Get(_overlay.AutoShow ? "Tray.Started" : "Tray.Started.Manual"), ToolTipIcon.Info);
     }
 
     private void RefreshItems()

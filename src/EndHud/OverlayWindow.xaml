@@ -185,6 +185,13 @@
             </CheckBox>
             <TextBlock Text="{DynamicResource Menu.PartyOcr.Hint}" Foreground="#99FFFFFF" FontSize="11"
                        Margin="20,0,0,4" TextWrapping="Wrap" />
+            <CheckBox x:Name="AutoStartCheckBox" Click="AutoStartCheckBox_Click">
+                <TextBlock Text="{DynamicResource Menu.AutoStart}" TextWrapping="Wrap" />
+            </CheckBox>
+            <TextBlock Text="{DynamicResource Menu.AutoStart.Hint}" Foreground="#99FFFFFF" FontSize="11"
+                       Margin="20,0,0,4" TextWrapping="Wrap" />
+            <TextBlock x:Name="AutoStartError" Foreground="{StaticResource Accent}" FontSize="11" Margin="20,0,0,4"
+                       TextWrapping="Wrap" Visibility="Collapsed" />
             <CheckBox x:Name="DebugPanelCheckBox" Click="DebugPanelCheckBox_Click">
                 <TextBlock Text="{DynamicResource Menu.DebugPanel}" TextWrapping="Wrap" />
             </CheckBox>

@@ -218,6 +218,9 @@
     <sys:String x:Key="Menu.Feature.NeedsPartyOcr">需要先在“通用”中开启“识别小队栏”。</sys:String>
     <sys:String x:Key="Menu.AutoShow">游戏窗口获得焦点时自动显示 HUD</sys:String>
     <sys:String x:Key="Menu.AutoShow.Hint">关闭后，需按 Ctrl+Shift+H 或在托盘菜单中手动显示。</sys:String>
+    <sys:String x:Key="Menu.AutoStart">开机时自动启动 EndHud</sys:String>
+    <sys:String x:Key="Menu.AutoStart.Hint">登录 Windows 后在托盘中自动运行（不弹出提示）。也可以在任务管理器的“启动应用”中关闭。</sys:String>
+    <sys:String x:Key="Menu.AutoStart.Failed">无法修改开机启动设置。请稍后重试；如仍无法修改，请导出诊断信息发给开发者。</sys:String>
     <sys:String x:Key="Menu.PartyOcr">识别小队栏</sys:String>
     <sys:String x:Key="Menu.DebugPanel">显示调试面板（识别到的等级、生命值和技能）</sys:String>
     <sys:String x:Key="Menu.ExportDiagnostics">导出诊断信息</sys:String>

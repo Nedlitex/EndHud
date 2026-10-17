@@ -313,6 +313,15 @@ Right-click the tray icon for: status, show HUD, open menu, auto-show on/off, de
 `%APPDATA%\EndHud\config.json` is created on first start. The menu changes it for you; if you
 edit it by hand, restart EndHud. Delete the file to reset.
 
+**Start with Windows** (the menu's General card, off by default) isn't in `config.json`: it's the
+value `EndHud` under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, holding
+`"<path to EndHud.exe>" --autostart` ([`AutoStart`](src/EndHud/AutoStart.cs)); `--autostart`
+skips the "EndHud is running" balloon. The menu reads the registry, so turning EndHud off in Task
+Manager's Startup apps (StartupApproved\Run) shows as off there; turning it on in EndHud clears that.
+A moved portable copy points the value at itself when it starts (release builds only). Uninstalling
+the MSI removes the value and the Task Manager mark; an upgrade keeps them (both checked in
+release.yml).
+
 | Key | Default | Meaning |
 |---|---|---|
 | `CheckForUpdates` | `true` | Check GitHub a few seconds after start and then daily: for a newer EndHud, for changed recommended rotations and for a newer operator package (both downloaded). |
