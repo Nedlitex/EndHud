@@ -65,16 +65,29 @@ public class WindowedGameCaptureTests
         using var overlay = BorderedGameWindow.Cover(new Rectangle(area.X, area.Y + area.Height / 2, area.Width / 2, area.Height / 2));
         Assert.True(IsWindowVisible(overlay.Handle), "the stand-in overlay should be on screen");
         var expected = (await ImageFile.LoadAsync(Fixture)).Resize(area.Width, area.Height);
+        // The await may have moved the test to a thread that measures in scaled units (see above).
+        SetThreadDpiAwarenessContext(PerMonitorAwareV2);
 
         // The screen shows the window once Windows has composed it, which can take a moment after it
-        // opens (a copy taken too early showed the desktop behind it): copy until it's there.
-        var game = ScreenCapture.Copy(area);
-        for (var waited = System.Diagnostics.Stopwatch.StartNew(); MeanDifference(game, expected) >= 8 && waited.Elapsed < TimeSpan.FromSeconds(5);)
+        // opens (a copy taken too early showed the desktop behind it): copy until it's there. And
+        // only while nothing else is over it: another always-on-top window that keeps raising
+        // itself (EndHud's own HUD while the game has focus does, every second) ends up in the
+        // copy. So raise the test windows just before each copy, and keep the copy only if no
+        // other window was on top of the area then.
+        Vision.Frame game;
+        string? covered;
+        var waited = System.Diagnostics.Stopwatch.StartNew();
+        do
         {
-            Thread.Sleep(100);
+            if (waited.ElapsedMilliseconds > 0) Thread.Sleep(100);
+            Raise(window.Handle);
+            Raise(overlay.Handle);
             game = ScreenCapture.Copy(area);
+            covered = CoveredBy(area, window.Handle, overlay.Handle);
         }
+        while ((covered is not null || MeanDifference(game, expected) >= 8) && waited.Elapsed < TimeSpan.FromSeconds(5));
 
+        Assert.True(covered is null, $"another window stayed on top of the test window, so the screen can't show it: {covered}");
         Assert.Equal((1600, 900), (game.Width, game.Height));
         Assert.True(MeanDifference(game, expected) < 8, $"screen copy differs from the picture by {MeanDifference(game, expected):F1} on average");
         var reader = new PartyReader(new TextRecognizer());
@@ -90,6 +103,44 @@ public class WindowedGameCaptureTests
             sum += Math.Abs(a.Bgra[i] - b.Bgra[i]) + Math.Abs(a.Bgra[i + 1] - b.Bgra[i + 1]) + Math.Abs(a.Bgra[i + 2] - b.Bgra[i + 2]);
         return sum / (a.Bgra.Length / 4 * 3.0);
     }
+
+    /// <summary>Put the window back on top of every other always-on-top window, without activating it.</summary>
+    private static void Raise(IntPtr hwnd) => Native.SetWindowPos(hwnd, Native.HWND_TOPMOST, 0, 0, 0, 0, SwpNoMoveSizeActivate);
+
+    private const uint SwpNoMoveSizeActivate = 0x0001 | 0x0002 | 0x0010; // SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
+
+    /// <summary>
+    /// The first window, other than <paramref name="ours"/>, found on top at points across
+    /// <paramref name="area"/> (its process, for the failure message: never its title, which shows
+    /// whatever that program has open); null when none.
+    /// </summary>
+    private static string? CoveredBy(Vision.PixelRect area, params IntPtr[] ours)
+    {
+        for (int gy = 1; gy <= 4; gy++)
+        for (int gx = 1; gx <= 4; gx++)
+        {
+            var point = new Point(area.X + area.Width * gx / 5, area.Y + area.Height * gy / 5);
+            IntPtr top = GetAncestor(WindowFromPoint(point), GaRoot);
+            if (top == IntPtr.Zero || ours.Contains(top)) continue;
+            GetWindowThreadProcessId(top, out uint pid);
+            string process;
+            try { process = System.Diagnostics.Process.GetProcessById((int)pid).ProcessName; }
+            catch (ArgumentException) { process = $"process {pid}"; }
+            return $"a window of {process} at ({point.X}, {point.Y})";
+        }
+        return null;
+    }
+
+    private const uint GaRoot = 2;
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr WindowFromPoint(Point point);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
 
     private static readonly IntPtr PerMonitorAwareV2 = new(-4);
 
