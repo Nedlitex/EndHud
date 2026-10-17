@@ -23,11 +23,21 @@ internal sealed class SquadGeometry
     public HudLayout Layout { get; }
 
     /// <summary>
-    /// Level text (out of combat), ultimate charge and battle skill buttons are read in the
-    /// keyboard-and-mouse layout only: how the controller layout draws them hasn't been recorded
-    /// yet (no level, spent ultimate or skill cooldown in the controller recordings).
+    /// Level text (out of combat) and battle skill buttons are read in the keyboard-and-mouse
+    /// layout only: how the controller layout draws them hasn't been recorded yet.
     /// </summary>
     public bool ReadsLevelsAndSkills => Layout == HudLayout.KeyboardMouse;
+
+    /// <summary>
+    /// The slot's ultimate circle; null while LB is held, when the controller draws large rings
+    /// instead (not read: the last reading stays, see PartyTracker).
+    /// </summary>
+    public UltimateCircle? Ultimate(int slot) => Layout switch
+    {
+        HudLayout.KeyboardMouse => UltimateCircle.Row(slot),
+        HudLayout.Controller => UltimateCircle.Diamond(slot),
+        _ => null,
+    };
 
     /// <param name="slot">0-based, in the game's slot order.</param>
     public PixelRect HpBar(int slot) => _hpBars[slot];

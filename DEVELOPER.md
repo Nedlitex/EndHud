@@ -813,13 +813,17 @@ each layout is in [`SquadGeometry`](src/EndHud.Vision/SquadGeometry.cs):
 | Portrait | 128×160 | 102×128 (0.8 of the size) | as controller |
 | "-" marks beside the HP bars | drawn (the panel's sign) | not drawn: the combo bars are the sign | not drawn |
 
-Read in the controller layouts: HP, combo cooldowns, the controlled operator, the squad's names
-and skill points (all checked on the recording). Operator counters, buffs and the boss's
-statuses are read where they are with keyboard and mouse (bottom and top centre, which the
-controller layout doesn't move), but the recording has none of them to confirm. Not read yet, because the controller recording
-(Fixtures/controller) shows no example: levels (the squad isn't drawn out of combat there),
-fallen operators, ultimate charge and battle skill cooldowns. Those stay unknown in a controller
-reading, and an ultimate read with keyboard and mouse isn't carried into it.
+Read in the controller layouts: HP, combo cooldowns, the controlled operator, the squad's names,
+skill points, fallen operators and ultimate charge (all checked on the recordings, Fixtures/controller).
+The ultimates are the small dots at the points of the skill diamond
+([`UltimateCircle.Diamond`](src/EndHud.Vision/UltimateGauge.cs)): charging, a pale element-colour
+arc from 12 o'clock round a dark dot; ready, a plain element-colour dot in a light ring. While LB
+is held they become large rings around the icons, which aren't read: a nearly full charging ring
+looks much like a ready one there, and holds last a second or two, so the last reading stays.
+Operator counters, buffs and the boss's statuses are read where they are with keyboard and mouse
+(bottom and top centre, which the controller layout doesn't move), but the recordings have none
+of them to confirm. Not read yet: levels (the squad isn't drawn out of combat there) and battle
+skill cooldowns.
 
 A level that isn't read keeps its last value; one that might be wrong is not shown: two OCR
 attempts must agree, and only levels 10 to 90 (the game's cap) are accepted. Levels 1–9 are
@@ -837,9 +841,9 @@ Copy `src/EndHud/i18n/zh-CN.xaml` to, for example, `en-US.xaml`, translate the v
 ## Known limits
 
 - The ultimate charge has only been observed up to about 46%; no recording yet shows one filling completely.
-- With a controller, levels, fallen operators, ultimate charge and battle skill cooldowns aren't
-  read yet (see [Controller layout](#controller-layout)), so combo hints work there but rotation
-  steps that wait on an ultimate or a battle skill can't tell when it's ready.
+- With a controller, levels and battle skill cooldowns aren't read yet, and ultimates aren't while
+  LB is held (see [Controller layout](#controller-layout)), so rotation steps that wait on a
+  battle skill can't tell when it's ready.
 - When something can't be read (cutscenes, HUD fades, skill effects covering an indicator), the HUD
   keeps showing the last value it read. So a value can be a few seconds old,
   for example a combo skill used at the moment its bar was hidden still shows "ready" until the bar is read again.

@@ -70,8 +70,11 @@ public sealed class ControllerLayoutTests : IDisposable
             if (combo[i] < 1) Assert.InRange(slot.Combo.Progress, combo[i] - 0.04, combo[i] + 0.04);
             // Not read in this layout yet: never a value read from the wrong place.
             Assert.Null(slot.Level);
-            Assert.Null(slot.Ultimate);
             Assert.Null(slot.BattleSkill);
+            // Every ultimate was ready all through the first recording. While LB is held the
+            // circles become large rings, which aren't read (the last reading stays).
+            if (state.Layout == HudLayout.Controller) Assert.True(slot.Ultimate?.Ready, $"slot {i + 1}: ultimate {slot.Ultimate}");
+            else Assert.Null(slot.Ultimate);
             Assert.False(slot.Dead);
         }
     }
@@ -181,14 +184,43 @@ public sealed class ControllerLayoutTests : IDisposable
     }
 
     [Fact]
-    public async Task An_ultimate_read_with_keyboard_and_mouse_is_not_kept_into_controller_readings()
+    public async Task Ultimates_read_with_a_controller_stay_shown_while_LB_is_held()
     {
         var tracker = new PartyTracker();
-        var keyboard = tracker.Track(await ReadAsync("keyboard-mouse-same-fight.jpg"));
-        Assert.Contains(keyboard.Slots, s => s.Ultimate is not null);
+        tracker.Track(await ReadAsync("ultimates-charging.jpg"));
+        var held = await ReadAsync("lb-held.jpg");
+        Assert.All(held.Slots, s => Assert.Null(s.Ultimate));
 
-        var controller = tracker.Track(await ReadAsync("combat-late.jpg"));
+        var shown = tracker.Track(held);
 
-        Assert.All(controller.Slots, s => Assert.Null(s.Ultimate));
+        Assert.All(shown.Slots, s => Assert.NotNull(s.Ultimate));
+    }
+
+    /// <summary>
+    /// The ultimate dots in the skill diamond (the owner's fourth controller recording, read off
+    /// zoomed frames): charging, a pale element-colour arc from 12 o'clock round a dark dot; ready,
+    /// a plain element-colour dot in a light ring. 1 = ready.
+    /// </summary>
+    public static TheoryData<string, double[]> UltimateCharges() => new()
+    {
+        { "ultimates-two-ready.jpg", [1, 0.67, 1, 0.47] },
+        { "ultimates-charging-one-ready.jpg", [0.33, 0.53, 1, 0.28] },
+        { "ultimates-charging.jpg", [0.33, 0.60, 0.48, 0.33] },
+    };
+
+    [Theory]
+    [MemberData(nameof(UltimateCharges))]
+    public async Task Ultimate_charge_is_read_from_the_skill_diamond(string fixture, double[] expected)
+    {
+        var state = await ReadAsync(fixture);
+
+        Assert.Equal(HudLayout.Controller, state.Layout);
+        for (int i = 0; i < 4; i++)
+        {
+            var ultimate = state.Slots[i].Ultimate;
+            Assert.True(ultimate is not null, $"slot {i + 1}: unread");
+            Assert.Equal(expected[i] >= 1, ultimate.Ready);
+            if (expected[i] < 1) Assert.InRange(ultimate.Progress, expected[i] - 0.06, expected[i] + 0.06);
+        }
     }
 }

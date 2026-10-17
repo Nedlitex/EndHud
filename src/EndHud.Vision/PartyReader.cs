@@ -32,8 +32,8 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
     public double? SkillPoints { get; init; }
 
     /// <summary>Which HUD the game drew (<see cref="HudLayoutDetector"/>). In the controller layouts
-    /// the "-" marks aren't drawn (<see cref="PanelMarks"/> is 0), and levels, ultimates and
-    /// battle skills aren't read (see SquadGeometry).</summary>
+    /// the "-" marks aren't drawn (<see cref="PanelMarks"/> is 0), levels and battle skills
+    /// aren't read, and ultimates aren't while LB is held (see SquadGeometry).</summary>
     public HudLayout Layout { get; init; }
 
     /// <summary>The controlled operator's slot, 1–4 (see <see cref="Vision.ActiveSlot"/>); null when not shown.</summary>
@@ -115,7 +115,8 @@ public sealed partial class PartyReader(TextRecognizer ocr)
             var combo = ComboBar.Measure(frame, ui.BottomLeft(squad.ComboBar(i)));
             if (!squad.ReadsLevelsAndSkills)
             {
-                slots.Add(new PartySlot(i + 1, null, hp, "", portrait, combo, ScreenPortrait: screenPortrait));
+                var ultimate = squad.Ultimate(i) is { } circle ? UltimateGauge.Measure(frame, circle) : null;
+                slots.Add(new PartySlot(i + 1, null, hp, "", portrait, combo, ultimate, ScreenPortrait: screenPortrait));
                 continue;
             }
 
