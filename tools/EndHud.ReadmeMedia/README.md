@@ -55,3 +55,12 @@ cut combo-used 26.6 3.8           # combos used: banners slide out, the rest mov
 cut combo-becomes-ready 46.2 2.8  # a cooldown finishes: a new banner slides in
 ```
 
+The controller clip (`controller-battle.webp`) comes from the owner's controller recording
+`battle_controller_test_fullbattle2.mp4` (3838x2158, EndHud running), 79.5-85.5 s: the hint list,
+the gauges filling, an ultimate becoming ready and LB held. The box over the UID is the text
+only, since in the controller layout slot 4's HP bar sits just above it:
+
+```bash
+ffmpeg -ss 79.5 -t 6 -i battle_controller_test_fullbattle2.mp4 -an   -vf "drawbox=x=205:y=2100:w=285:h=30:color=black:t=fill,fps=15,scale=1280:-2:flags=lanczos"   -c:v libwebp_anim -lossless 0 -q:v 62 -compression_level 6 -loop 0 docs/images/controller-battle.webp
+```
+
