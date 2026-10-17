@@ -25,8 +25,14 @@ internal enum StripStepState
     Upcoming,
 }
 
-/// <summary>What the strip shows: the phase ("充能轴 II"), its steps, and why the current step isn't ready.</summary>
-internal sealed record StripView(string Phase, IReadOnlyList<StripStep> Steps, IReadOnlyList<string> Reasons);
+/// <summary>
+/// What the strip shows: the phase ("充能轴 II"), its steps, a look at the phase played after it,
+/// and why the current step isn't ready.
+/// </summary>
+internal sealed record StripView(string Phase, IReadOnlyList<StripStep> Steps, StripNext? Next, IReadOnlyList<string> Reasons);
+
+/// <summary>The first steps of the phase played next, drawn after a divider that names it, dimmed.</summary>
+internal sealed record StripNext(string Phase, IReadOnlyList<StripStep> Steps);
 
 /// <summary>
 /// The rotation strip (排轴), drawn like the community's rotation charts: a see-through grey band that
@@ -91,6 +97,16 @@ internal static class RotationStrip
             if (step.State is StripStepState.Ready or StripStepState.Waiting) Panel.SetZIndex(element, 1);
             steps.Children.Add(element);
         }
+        if (view.Next is { Steps.Count: > 0 } next)
+        {
+            steps.Children.Add(NextDivider(next.Phase));
+            foreach (var step in next.Steps)
+            {
+                var element = Step(step);
+                element.Opacity = NextOpacity;
+                steps.Children.Add(element);
+            }
+        }
 
         var row = new StackPanel { Orientation = Orientation.Horizontal };
         row.Children.Add(new TextBlock
@@ -128,6 +144,24 @@ internal static class RotationStrip
 
     // Chevrons (26) + label (24) + the icon's top margin (2) + half the icon.
     private const double LineY = 26 + 24 + 2 + IconSize / 2;
+
+    /// <summary>The next phase's steps are a preview, not part of this phase: dimmed.</summary>
+    internal const double NextOpacity = 0.5;
+
+    /// <summary>
+    /// Where this phase ends: a vertical bar, and "接下来" over the next phase's name, so its steps
+    /// aren't taken for this phase's (two phases may share a name; the numeral tells them apart).
+    /// </summary>
+    private static UIElement NextDivider(string phase)
+    {
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(10, 0, 6, 0), VerticalAlignment = VerticalAlignment.Top };
+        panel.Children.Add(new Rectangle { Width = 2, Height = IconSize, Fill = Ring, Margin = new Thickness(0, LineY - IconSize / 2, 8, 0), VerticalAlignment = VerticalAlignment.Top });
+        var words = new StackPanel { VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, LineY - 26, 0, 0) };
+        words.Children.Add(new TextBlock { Text = Loc.Get("Rotation.Next"), Foreground = Label, FontSize = 16, Effect = Outline() });
+        words.Children.Add(new TextBlock { Text = phase, Foreground = Text, FontSize = 18, Effect = Outline() });
+        panel.Children.Add(words);
+        return panel;
+    }
 
     /// <summary>Two stacked chevrons pointing down at the current step, as the guides draw it; empty space otherwise.</summary>
     private static UIElement Chevrons(Brush? brush)

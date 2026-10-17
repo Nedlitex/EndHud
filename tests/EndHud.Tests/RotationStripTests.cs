@@ -17,7 +17,7 @@ public class RotationStripTests
         new StripStep(null, null, "连携技", null, current, false),
         new StripStep(null, null, "连携技", null, StripStepState.Upcoming, together),
         new StripStep(null, null, "战技·意", "飞天", StripStepState.Upcoming, false),
-    ], reasons ?? []);
+    ], null, reasons ?? []);
 
     private sealed record Rendered(int Width, int Height, byte[] Bgra)
     {

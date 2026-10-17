@@ -82,8 +82,10 @@ public partial class OverlayWindow
         // No sample while the menu is open: the strip is placed by dragging it in a battle.
         StripView? view = _rotationPosition is { } at && _config.RotationEnabled ? View(at.Rotation, at.Position) : null;
 
+        static string Keys(IEnumerable<StripStep> steps) =>
+            string.Join(",", steps.Select(s => $"{s.Action}{s.State}{s.Icon is not null}{s.Avatar is not null}{s.Note}"));
         string? key = view is null ? null
-            : $"{view.Phase}|{string.Join(",", view.Steps.Select(s => $"{s.Action}{s.State}{s.Icon is not null}{s.Avatar is not null}{s.Note}"))}|{string.Join(",", view.Reasons)}";
+            : $"{view.Phase}|{Keys(view.Steps)}|{view.Next?.Phase}|{Keys(view.Next?.Steps ?? [])}|{string.Join(",", view.Reasons)}";
         if (key == _stripKey) return;
         _stripKey = key;
         RotationContent.Content = view is null ? null : RotationStrip.Build(view);

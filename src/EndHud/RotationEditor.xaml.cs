@@ -710,17 +710,9 @@ public partial class RotationEditor : Window
             PreviewHost.Content = new TextBlock { Text = Loc.Get("Editor.PreviewEmpty"), Foreground = System.Windows.Media.Brushes.White };
             return;
         }
-        var steps = _phase.Steps.Select((s, i) =>
-        {
-            var op = _library.Find(s.OperatorId);
-            return new StripStep(op is null ? null : SkillIcon(op, s.Action), op is null ? null : Avatar(op),
-                string.IsNullOrWhiteSpace(s.Label) ? Loc.Get($"Rotation.Action.{s.Action}") : s.Label,
-                string.IsNullOrWhiteSpace(s.Note) ? null : s.Note,
-                StripStepState.Upcoming, i > 0 && s.WithPrevious); // as the strip: no current step marked
-        }).ToList();
-        // Numbered by its place in the list, as the strip shows it.
-        string label = _draft?.ToRotation().Played().FirstOrDefault(p => p.PhaseIndex == _draft.Phases.IndexOf(_phase))?.PhaseLabel ?? _phase.Name;
-        PreviewHost.Content = RotationStrip.Build(new StripView(label, steps, []));
+        if (_draft is null) return;
+        // Built as the game's strip is, so it shows the same: this phase, then where the flow goes next.
+        PreviewHost.Content = RotationStrip.Build(RotationStripView.ForPhase(_draft.ToRotation(), _draft.Phases.IndexOf(_phase), _library, SkillIcon, Avatar));
     }
 
     private BitmapSource? Avatar(OperatorInfo op)

@@ -13,23 +13,40 @@ namespace EndHud;
 /// </summary>
 internal static class RotationStripView
 {
-    /// <summary>What to draw: the current phase's steps, then the first two of the phase the flow plays next.</summary>
+    /// <summary>How many of the next phase's steps the strip shows after the current phase.</summary>
+    public const int NextStepsShown = 2;
+
+    /// <summary>What to draw for a tracker position: its phase (see <see cref="ForPhase"/>).</summary>
     public static StripView Build(Rotation rotation, RotationPosition position, PartyState? state, OperatorLibrary? library,
+        Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar) =>
+        ForPhase(rotation, position.Step.PhaseIndex, library, skillIcon, avatar);
+
+    /// <summary>
+    /// A phase's steps, then the first two of the phase the flow plays next, kept apart so the strip
+    /// can mark where this phase ends. The editor's preview uses this too, so it shows what the game
+    /// will.
+    /// </summary>
+    public static StripView ForPhase(Rotation rotation, int phase, OperatorLibrary? library,
         Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar)
     {
         var played = rotation.Played();
-        int phase = position.Step.PhaseIndex;
-        var shown = played.Where(p => p.PhaseIndex == phase).ToList();
-        if (rotation.NextInFlow(phase) is { } next) shown.AddRange(played.Where(p => p.PhaseIndex == next).Take(2));
-
-        var steps = new List<StripStep>();
-        foreach (var p in shown)
+        var current = played.Where(p => p.PhaseIndex == phase).ToList();
+        StripNext? next = null;
+        if (rotation.NextInFlow(phase) is { } n)
         {
-            var op = library?.Find(p.Step.OperatorId);
-            steps.Add(new StripStep(op is null ? null : skillIcon(op, p.Step.Action), op is null ? null : avatar(op),
-                p.Step.Label ?? Loc.Get($"Rotation.Action.{p.Step.Action}"), p.Step.Note, StripStepState.Upcoming, p.Step.WithPrevious));
+            var upcoming = played.Where(p => p.PhaseIndex == n).Take(NextStepsShown).ToList();
+            // The first of them starts a new phase: never drawn overlapping the step before.
+            next = new StripNext(upcoming[0].PhaseLabel, upcoming.Select((p, i) => Step(p, library, skillIcon, avatar, i > 0)).ToList());
         }
-        return new StripView(position.Step.PhaseLabel, steps, []);
+        return new StripView(rotation.PhaseLabel(phase), current.Select((p, i) => Step(p, library, skillIcon, avatar, i > 0)).ToList(), next, []);
+    }
+
+    private static StripStep Step(PlayedStep p, OperatorLibrary? library,
+        Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, bool mayOverlap)
+    {
+        var op = library?.Find(p.Step.OperatorId);
+        return new StripStep(op is null ? null : skillIcon(op, p.Step.Action), op is null ? null : avatar(op),
+            p.Step.Label ?? Loc.Get($"Rotation.Action.{p.Step.Action}"), p.Step.Note, StripStepState.Upcoming, mayOverlap && p.Step.WithPrevious);
     }
 
     /// <summary>Why the current step isn't ready, in words.</summary>

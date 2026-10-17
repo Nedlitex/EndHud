@@ -150,6 +150,9 @@ public sealed record Rotation(
 
     public RotationPhase? Phase(string id) => Phases.FirstOrDefault(p => p.Id == id);
 
+    /// <summary>A phase's name numbered by its place in the list: "充能轴 II".</summary>
+    public string PhaseLabel(int phase) => $"{Phases[phase].Name} {Roman(phase + 1)}";
+
     /// <summary>
     /// Every step, phase by phase in list order. Phases are numbered by their place in the list, as
     /// guides do ("充能轴 I", "充能轴 II", "爆发轴 III").
@@ -159,7 +162,7 @@ public sealed record Rotation(
         var played = new List<PlayedStep>();
         for (int p = 0; p < Phases.Count; p++)
         {
-            string label = $"{Phases[p].Name} {Roman(p + 1)}";
+            string label = PhaseLabel(p);
             for (int i = 0; i < Phases[p].Steps.Count; i++)
                 played.Add(new PlayedStep(played.Count, label, p, i, Phases[p].Steps[i]));
         }

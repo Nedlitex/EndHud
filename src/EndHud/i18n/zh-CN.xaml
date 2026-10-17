@@ -31,6 +31,7 @@
     <sys:String x:Key="Rotation.Action.BattleSkill">战技</sys:String>
     <sys:String x:Key="Rotation.Action.Combo">连携技</sys:String>
     <sys:String x:Key="Rotation.Action.Ultimate">终结技</sys:String>
+    <sys:String x:Key="Rotation.Next">接下来</sys:String>
     <sys:String x:Key="Rotation.Reason.SkillPoints">技力 {0}/{1}</sys:String>
     <sys:String x:Key="Rotation.Reason.Cooling">{0} {1}冷却中</sys:String>
     <sys:String x:Key="Rotation.Reason.UltimateCharging">{0} 终结技未就绪</sys:String>
