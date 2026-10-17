@@ -64,12 +64,28 @@ public class GaugesTests
         var squad = new[] { Slot(1, "Laevatain", new UltimateReading(false, 0.3)) };
 
         var never = Build(new PartyState(squad, PanelMarks: 8));
-        var active = Build(new PartyState(squad, PanelMarks: 8) { Buffs = ["Link"] }, buffsSeen: ["Link"]);
+        var active = Build(new PartyState(squad, PanelMarks: 8) { Buffs = [new TeamBuff("Link", 1)] }, buffsSeen: ["Link"]);
         var lapsed = Build(new PartyState(squad, PanelMarks: 8), buffsSeen: ["Link"]);
 
         Assert.DoesNotContain(never.Gauges, g => g.Kind == GaugeKind.Buff);
         Assert.Equal((GaugeKind.Buff, StatusNames.Zh("Link"), true), (active.Gauges[0].Kind, active.Gauges[0].Label, active.Gauges[0].Ready));
         Assert.Equal((GaugeKind.Buff, false), (lapsed.Gauges[0].Kind, lapsed.Gauges[0].Ready));
+        Assert.Null(lapsed.Gauges[0].Number);
+    }
+
+    /// <summary>Link stacks (up to four): one ring segment per stack and the count in the corner, as for an operator's counter.</summary>
+    [Theory]
+    [InlineData(1, "1", 0.25)]
+    [InlineData(2, "2", 0.5)]
+    [InlineData(4, "4", 1.0)]
+    [InlineData(null, "?", 1.0)]
+    public void Links_stacks_are_shown(int? stacks, string number, double fill)
+    {
+        var squad = new[] { Slot(1, "Laevatain", new UltimateReading(false, 0.3)) };
+
+        var link = Build(new PartyState(squad, PanelMarks: 8) { Buffs = [new TeamBuff("Link", stacks)] }, buffsSeen: ["Link"]).Gauges[0];
+
+        Assert.Equal((number, fill, TeamBuffReader.MaxStacks, true), (link.Number, link.Fill, link.Segments, link.Ready));
     }
 
     [Fact]

@@ -7,7 +7,7 @@ namespace EndHud;
 
 /// <summary>
 /// What the gauges show for a reading: first the team buffs seen this battle (Link), lit while
-/// active; then per recognised operator, in slot order, their ultimate's charge and their own
+/// active, with their stacks (one ring segment each, the count in the corner); then per recognised operator, in slot order, their ultimate's charge and their own
 /// counters (Zhuang Fangyi's Sunderblade, Typhoeus's Hunting Arrow and Sign, …). An operator not recognised yet has no
 /// gauges: there'd be no avatar or counter to show. A buff shows once it has been seen in the battle,
 /// so a squad that never gets it isn't shown an empty circle for it.
@@ -21,8 +21,16 @@ internal static class GaugesView
         var gauges = new List<Gauge>();
         foreach (string buff in buffsSeen)
         {
-            gauges.Add(new Gauge(GaugeKind.Buff, statusIcon(buff), null, StatusNames.Zh(buff) ?? buff, null, state.Buffs.Contains(buff))
-                { FirstOfOperator = gauges.Count == 0 });
+            // Lapsed: no count. Active with a count that can't be told now: "?", the ring full.
+            var active = state.Buffs.FirstOrDefault(b => b.Id == buff);
+            int max = TeamBuffReader.MaxStacks;
+            gauges.Add(new Gauge(GaugeKind.Buff, statusIcon(buff), null, StatusNames.Zh(buff) ?? buff,
+                active is null ? null : active.Stacks is { } n ? Math.Min(n, max) / (double)max : 1, active is not null)
+            {
+                FirstOfOperator = gauges.Count == 0,
+                Number = active is null ? null : active.Stacks?.ToString() ?? "?",
+                Segments = max,
+            });
         }
         foreach (var slot in state.Slots)
         {

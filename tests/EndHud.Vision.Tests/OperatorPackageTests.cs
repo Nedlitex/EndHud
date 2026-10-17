@@ -69,6 +69,24 @@ public sealed class OperatorPackageTests : IDisposable
         Assert.NotEmpty(library.Statuses);
     }
 
+    /// <summary>
+    /// Skill icons: the ultimate's is the badge on an operator's gauge, the combo's is on the rotation
+    /// strip. Si's were missing from the package of 2026-10-14 (the wiki added them days after her
+    /// page) and her gauge had no badge. An operator whose wiki page has none yet (Argent Flow, on
+    /// 2026-10-17) has none here until the weekly package picks them up; one with some has all three.
+    /// </summary>
+    [Fact]
+    public async Task Operators_have_their_skill_icons()
+    {
+        Assert.NotNull(OperatorPackage.InstallIfNewer(Reference, OperatorPackage.BuiltIn()!));
+
+        var library = await OperatorLibrary.LoadAsync(Path.Combine(_root, "operators"));
+        var kinds = new[] { SkillKind.Ultimate, SkillKind.Combo, SkillKind.BattleSkill };
+        Assert.All(kinds, kind => Assert.Contains(library.Find("Si")!.Skills, s => s.Kind == kind));
+        Assert.All(library.Operators.Where(op => op.Skills.Count > 0), op =>
+            Assert.All(kinds, kind => Assert.True(op.Skills.Any(s => s.Kind == kind), $"{op.Id} has no {kind} icon")));
+    }
+
     [Fact]
     public void The_same_content_builds_the_same_bytes_and_keeps_its_date()
     {

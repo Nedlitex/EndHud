@@ -58,9 +58,9 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
     /// once the squad is identified; empty when unknown.</summary>
     public IReadOnlyList<Operators.CounterReading> Counters { get; init; } = [];
 
-    /// <summary>Team buffs shown left of the HP bar, by the wiki's names (see <see cref="TeamBuffReader"/>);
-    /// empty when none, or out of combat (not read then).</summary>
-    public IReadOnlyList<string> Buffs { get; init; } = [];
+    /// <summary>Team buffs shown left of the HP bar, by the wiki's names, with their stacks (see
+    /// <see cref="TeamBuffReader"/>); empty when none, or out of combat (not read then).</summary>
+    public IReadOnlyList<TeamBuff> Buffs { get; init; } = [];
 
     /// <summary>The boss's statuses recognised under its bars (see <see cref="BossStatusReader"/>);
     /// null when not read this time (it's read less often than the rest).</summary>

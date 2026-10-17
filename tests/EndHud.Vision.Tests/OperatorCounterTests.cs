@@ -47,6 +47,32 @@ public class OperatorCounterTests
         Assert.Equal(Labels.Single(l => l.File == file).Sunderblades, reading.Value);
     }
 
+    /// <summary>
+    /// Si's ultimate fills the screen with a cyan cutscene (full battle 3, 70.5 s): the squad panel
+    /// is gone, but the tracker still holds the last one seen, with Laevatain controlled. Her flower was
+    /// read off the cutscene, where pink in the effect made it 4 while she had 2.
+    /// </summary>
+    [Fact]
+    public async Task No_counter_is_read_while_the_squad_panel_is_out_of_sight()
+    {
+        var tracker = new PartyTracker();
+        var reader = new PartyReader(new TextRecognizer());
+        var fighting = await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("controller", "fullbattle3-laevatain-two-flames.jpg")));
+        var cutscene = await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("controller", "fullbattle3-si-ultimate-cutscene.jpg")));
+        var laevatain = new OperatorMatch(new OperatorInfo("Laevatain", "Laevatain", "莱万汀", "Laevatain.png"), 1, true);
+        PartyState Named(PartyState s) => s with { Slots = s.Slots.Select(slot => slot.Number == 2 ? slot with { Operator = laevatain } : slot).ToList() };
+
+        var seen = Named(tracker.Track(await reader.ReadAsync(fighting)));
+        Assert.Equal(2, seen.ActiveSlot);
+        Assert.Equal(2, Assert.Single(OperatorCounters.ReadControlled(fighting, seen)).Value);
+
+        var raw = await reader.ReadAsync(cutscene);
+        Assert.False(raw.PanelVisible);
+        var remembered = Named(tracker.Track(raw));
+        Assert.True(remembered.ReadingsSinceSeen > 0);
+        Assert.Empty(OperatorCounters.ReadControlled(cutscene, remembered));
+    }
+
     [Fact]
     public void The_sunderblade_fixtures_cover_none_some_all_and_hidden()
     {

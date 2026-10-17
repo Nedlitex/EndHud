@@ -27,11 +27,13 @@ public static class OperatorCounters
 
     /// <summary>
     /// The controlled operator's counters, once the squad is identified: none when no slot is
-    /// clearly controlled (cutscenes, menus) or the controlled operator isn't recognised.
+    /// clearly controlled (cutscenes, menus) or the controlled operator isn't recognised. None either
+    /// for the squad panel remembered while it's out of sight (<see cref="PartyState.ReadingsSinceSeen"/>):
+    /// the frame is something else then, e.g. Si's ultimate cutscene, whose pink read as a full flower.
     /// </summary>
     public static IReadOnlyList<CounterReading> ReadControlled(Frame frame, PartyState state)
     {
-        if (state.ActiveSlot is not { } slot || slot > state.Slots.Count) return [];
+        if (state.ReadingsSinceSeen > 0 || state.ActiveSlot is not { } slot || slot > state.Slots.Count) return [];
         return state.Slots[slot - 1].Operator?.Operator.Id is { } id ? Read(frame, id) : [];
     }
 

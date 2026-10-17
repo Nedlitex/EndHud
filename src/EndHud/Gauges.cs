@@ -155,7 +155,31 @@ internal static class Gauges
         }
         else if (gauge.Kind == GaugeKind.Buff)
         {
-            if (gauge.Ready) circle.Children.Add(new Ellipse { Stroke = brush, StrokeThickness = Thickness, Effect = Glow(colour) });
+            // Active: one glowing segment per stack, the count in the corner. Lapsed: the faint icon only.
+            if (gauge.Ready && gauge.Segments > 0 && gauge.Fill is { } f)
+            {
+                int lit = (int)Math.Round(f * gauge.Segments);
+                var ring = new Canvas { Width = Size, Height = Size, Effect = Glow(colour) };
+                double step = 360.0 / gauge.Segments;
+                for (int i = 0; i < lit && i < gauge.Segments; i++) ring.Children.Add(Arc(i * step + SegmentGap / 2, step - SegmentGap, brush));
+                circle.Children.Add(ring);
+            }
+            else if (gauge.Ready)
+            {
+                circle.Children.Add(new Ellipse { Stroke = brush, StrokeThickness = Thickness, Effect = Glow(colour) });
+            }
+            if (gauge.Ready && gauge.Number is not null)
+            {
+                circle.Children.Add(Badge(new TextBlock
+                {
+                    Text = gauge.Number,
+                    Foreground = brush,
+                    FontSize = 25,
+                    FontWeight = FontWeights.Bold,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                }, brush));
+            }
         }
         else
         {

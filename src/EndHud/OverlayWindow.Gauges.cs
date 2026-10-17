@@ -37,7 +37,7 @@ public partial class OverlayWindow
             _counterMemory.Clear();
             _buffsSeen.Clear();
         }
-        if (state is not null && inBattle) _buffsSeen.AddRange(state.Buffs.Except(_buffsSeen).ToList());
+        if (state is not null && inBattle) _buffsSeen.AddRange(state.Buffs.Select(b => b.Id).Except(_buffsSeen).ToList());
         _gauges = state is not null && inBattle && _config.GaugesEnabled && _config.PartyOcrEnabled
             ? GaugesView.Build(state, _counterMemory.Update(state), _buffsSeen, SkillIcon, Avatar, StatusIcon)
             : null;

@@ -110,7 +110,7 @@ static class RotationDemo
             }
             else
             {
-                buffsSeen.AddRange(state.Buffs.Except(buffsSeen).ToList());
+                buffsSeen.AddRange(state.Buffs.Select(b => b.Id).Except(buffsSeen).ToList());
             }
             readings.Add(new Reading(t, state, position, inBattle, counterMemory.Update(state), buffsSeen.ToList()));
             if (readings.Count % 40 == 0) Console.WriteLine($"read {t:0} / {duration:0} s ({clock.Elapsed.TotalSeconds:0} s)");
@@ -303,7 +303,7 @@ static class RotationDemo
         {
             var s = r.State;
             text.Append($"{r.At:0.00}\t{string.Join(",", s.Slots.Select(x => x.Operator?.Operator.Id ?? "?"))}\t{s.SkillPoints?.ToString("0.0") ?? "-"}\t{s.ActiveSlot?.ToString() ?? "-"}\t")
-                .Append($"{string.Join(",", s.Counters.Select(c => $"{c.CounterId}={c.Value?.ToString() ?? "?"}"))}{string.Concat(s.Buffs.Select(b => " +" + b))}\t{string.Join(",", s.BossStatuses?.Select(b => b.StatusId) ?? [])}\t")
+                .Append($"{string.Join(",", s.Counters.Select(c => $"{c.CounterId}={c.Value?.ToString() ?? "?"}"))}{string.Concat(s.Buffs.Select(b => $" +{b.Id}×{b.Stacks}"))}\t{string.Join(",", s.BossStatuses?.Select(b => b.StatusId) ?? [])}\t")
                 .Append(r.Position is { } p ? $"{p.Step.PhaseLabel} #{p.Step.StepInPhase + 1} {p.Step.Step.OperatorId} {p.Step.Step.Action}\t{p.Ready}\t{string.Join(" ", p.Checks.Select(c => $"{c.Kind}:{c.Holds?.ToString() ?? "?"}"))}" : "-\t-\t-")
                 .Append('\n');
         }

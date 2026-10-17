@@ -341,7 +341,7 @@ release.yml).
 | `ComboHintX`, `ComboHintY` | `0.2`, `0.36` | Where the hint sits: its top-left corner as a fraction of the game window's width and height. |
 | `RotationEnabled` | `true` | Show the rotation strip when the recognised squad has a rotation. |
 | `RotationCenterX`, `RotationY` | `0.5`, `0.13` | Where the strip sits, as a fraction of the game window: the middle of its width (it stays centred as it changes width) and its top. |
-| `GaugesEnabled` | `true` | Show the gauges in battle: team buffs (Link, once seen in the battle), and each recognised operator's ultimate charge and own counters, as circles with the operator's avatar in the middle. |
+| `GaugesEnabled` | `true` | Show the gauges in battle: team buffs (Link with its stacks, once seen in the battle), and each recognised operator's ultimate charge and own counters, as circles with the operator's avatar in the middle. |
 | `GaugesScale` | `1` | The gauges' size on top of following the game window (the menu's slider): 0.5–2; a value outside that is clamped when the file is read. |
 | `GaugesCenterX`, `GaugesBottomY` | `0.5`, `0.885` | Where the gauges sit, as a fraction of the game window: the middle of their width and their bottom edge (so a bigger size grows upwards): bottom middle, just above the game's HP and skill-point bars. |
 | `ActiveRotations` | `{}` | The rotation chosen for each squad: squad key (the four operator ids, sorted, joined by `\|`) → rotation id. Set by saving in the editor. |
@@ -868,6 +868,10 @@ Copy `src/EndHud/i18n/zh-CN.xaml` to, for example, `en-US.xaml`, translate the v
 - At 1366×768 and smaller, levels aren't read, and out of combat the squad panel can't always be
   recognised (its edge marks are under two pixels wide). Both only affect the debug panel.
 - Levels 1–9 are shown as unknown (see above).
+- Link's stack count is read by comparing the badge's digit with the game's own 2, 4 and 5 (from
+  the status badges). No 3 has been seen in any recording, so a 3 is shown as "?" (not read)
+  rather than guessed. Operator counters and Link are read only while the squad panel is in sight:
+  over an ultimate's cutscene the last values stay.
 - The combo-ready hint needs two "cooling" readings in a row before it trusts that a combo skill was used,
   because the bar is briefly drawn as an empty track while the HUD fades in. A cooldown
   refreshed within about two seconds of being used therefore gets no hint.

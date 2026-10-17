@@ -441,6 +441,7 @@ internal sealed class PartyMonitor : IDisposable
         HudLayout? layoutSeen = null; // the last controller-or-not layout a visible panel showed
         int silentCaptures = 0;
         OperatorMatch?[] lastNames = [];
+        IReadOnlyList<TeamBuff> lastBuffs = []; // kept while the panel is out of sight (a cutscene over the HUD)
         var panelReadAt = DateTime.MinValue; // when a reading last saw the squad panel
         try
         {
@@ -592,9 +593,12 @@ internal sealed class PartyMonitor : IDisposable
                         // operator, so read once we know who it is.
                         Enter("counters");
                         state = state with { Counters = OperatorCounters.ReadControlled(gameFrame, state) };
-                        // Team buffs (Link) beside it: drawn in combat only.
+                        // Team buffs (Link) beside it: drawn in combat only. While the panel is out of
+                        // sight the frame is something else (an ultimate's cutscene): the last ones stay.
                         Enter("buffs");
-                        if (state.InCombat && _teamBuffs is { } buffs) state = state with { Buffs = buffs.Read(gameFrame) };
+                        if (!raw.PanelVisible) state = state with { Buffs = state.InCombat ? lastBuffs : [] };
+                        else if (state.InCombat && _teamBuffs is { } buffs) state = state with { Buffs = lastBuffs = buffs.Read(gameFrame) };
+                        else lastBuffs = [];
                         // The boss's statuses take ~70 ms to read at 4K: only when the rotation asks,
                         // and at most once a second (they change far more slowly than skill points).
                         if (ReadBossStatuses && _bossStatuses is { } boss && bossClock.Elapsed >= BossStatusEvery)

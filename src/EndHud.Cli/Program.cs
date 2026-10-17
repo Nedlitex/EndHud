@@ -6,6 +6,8 @@ using EndHud.Vision.Operators;
 //       Read the squad panel (levels, HP, combo, ultimate). --debug-dir writes the exact images handed to OCR.
 //   endhud-cli fetch-operators <library-dir>
 //       Download every operator's icon and Chinese name from the wiki into a library folder.
+//   endhud-cli analyze-video <recording.mp4> [--every <seconds>] [--from <seconds>] [--to <seconds>]
+//       Per sampled frame: HP, combo, ultimate per slot, the layout, the controlled slot and Laevatain's petals.
 //   endhud-cli identify <screenshot.png> --library <library-dir> [--debug-dir <dir>]
 //       Match each squad portrait against the library and print the top candidates.
 //   endhud-cli build-portrait-references <squads.json> <out.json>
@@ -21,7 +23,7 @@ return args.FirstOrDefault() switch
     "analyze" when args.Length >= 2 => await AnalyzeAsync(args[1], Option("--debug-dir")),
     "fetch-operators" when args.Length >= 2 => await FetchAsync(args[1]),
     "identify" when args.Length >= 2 && Option("--library") is { } lib => await IdentifyAsync(args[1], lib, Option("--debug-dir")),
-    "analyze-video" when args.Length >= 2 => await AnalyzeVideoAsync(args[1], double.Parse(Option("--every") ?? "1")),
+    "analyze-video" when args.Length >= 2 => await AnalyzeVideoAsync(args[1], double.Parse(Option("--every") ?? "1"), double.Parse(Option("--from") ?? "0"), Option("--to") is { } to ? double.Parse(to) : null),
     "capture" when args.Length >= 3 => await CaptureAsync(args[1], args[2]),
     "build-portrait-references" when args.Length >= 3 => await BuildReferencesAsync(args[1], args[2]),
     "build-operator-package" when args.Length >= 2 => await BuildPackageAsync(args[1]),
@@ -42,7 +44,7 @@ static int Usage()
           endhud-cli analyze <screenshot.png> [--debug-dir <dir>]
           endhud-cli fetch-operators <library-dir>
           endhud-cli identify <screenshot.png> --library <library-dir> [--debug-dir <dir>]
-          endhud-cli analyze-video <recording.mp4> [--every <seconds>]
+          endhud-cli analyze-video <recording.mp4> [--every <seconds>] [--from <seconds>] [--to <seconds>]
           endhud-cli learn <screenshot.png> --library <library-dir> --slots <id1>,<id2>,<id3>,<id4>
           endhud-cli capture <window-title-part> <out.png>
           endhud-cli build-portrait-references <squads.json> <out.json>
@@ -69,15 +71,16 @@ static async Task<int> CaptureAsync(string titlePart, string outPath)
 }
 
 // HP, combo cooldown and ultimate charge per slot over time, one line per sampled frame.
-static async Task<int> AnalyzeVideoAsync(string path, double everySeconds)
+static async Task<int> AnalyzeVideoAsync(string path, double everySeconds, double from, double? to)
 {
     var video = await VideoFile.OpenAsync(path);
     var reader = new PartyReader(new TextRecognizer());
     Console.WriteLine($"video: {video.Width}x{video.Height}, {video.Duration.TotalSeconds:F1} s");
     Console.WriteLine("   t  | slot: hp  combo      ultimate");
-    for (double t = 0; t < video.Duration.TotalSeconds; t += everySeconds)
+    for (double t = from; t < Math.Min(to ?? double.MaxValue, video.Duration.TotalSeconds); t += everySeconds)
     {
-        var state = await reader.ReadAsync(await video.GetFrameAsync(TimeSpan.FromSeconds(t)));
+        var frame = await video.GetFrameAsync(TimeSpan.FromSeconds(t));
+        var state = await reader.ReadAsync(frame);
         var cells = state.Slots.Select(s =>
         {
             if (s.Dead) return " DEAD            ";
@@ -86,7 +89,9 @@ static async Task<int> AnalyzeVideoAsync(string path, double everySeconds)
             string ult = s.Ultimate is { } u ? (u.Ready ? "ready" : $"{u.Progress * 100,3:F0}% ") : "  -  ";
             return $"{hp} {combo,-5} {ult}";
         });
-        Console.WriteLine($"{t,5:F1} | {(state.PanelVisible ? "" : "(no panel) ")}{string.Join(" | ", cells)}");
+        // Laevatain's petals, as if she were controlled: what her counter would read on this frame.
+        string petals = OperatorCounters.Read(frame, "Laevatain")[0].Value?.ToString() ?? "-";
+        Console.WriteLine($"{t,5:F1} | {(state.PanelVisible ? "" : "(no panel) ")}{string.Join(" | ", cells)} | {state.Layout} active {state.ActiveSlot?.ToString() ?? "-"} petals {petals} buffs {string.Join(",", state.Buffs.Select(b => $"{b.Id}×{b.Stacks}"))}");
     }
     return 0;
 }
