@@ -71,11 +71,14 @@ internal static class DiagnosticExport
     }
 
     /// <summary>
-    /// Where the game prints the player's UID: bottom left, under the squad panel (at 4K, x 170–560,
-    /// 15–95 px above the bottom edge), scaled to the picture like the rest of the HUD.
+    /// Where the game prints the player's UID: bottom left, under the squad panel, scaled to the
+    /// picture like the rest of the HUD. At 4K the text is x 220–454 (a 10-digit UID), rows
+    /// 2102–2124, in both layouts; the area leaves room for a longer UID. It stops short of the
+    /// rows above: with a controller and LB held, slot 4's HP bar sits on rows 2094–2103, and
+    /// a picture of the problem needs it.
     /// </summary>
     internal static PixelRect UidArea(int width, int height) =>
-        new UiScaler(width, height).BottomLeft(new PixelRect(170, UiScaler.ReferenceHeight - 95, 390, 80)).ClampTo(width, height);
+        new UiScaler(width, height).BottomLeft(new PixelRect(200, UiScaler.ReferenceHeight - 60, 300, 32)).ClampTo(width, height);
 
     /// <summary>A copy of <paramref name="picture"/> with the UID area black.</summary>
     internal static Frame WithoutUid(Frame picture)

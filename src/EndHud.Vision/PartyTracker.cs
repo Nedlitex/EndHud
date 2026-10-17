@@ -34,14 +34,21 @@ public sealed class PartyTracker
             return _lastVisible;
         }
 
-        var slots = state.Slots.Select(Track).ToList();
+        var slots = state.Slots.Select(s => Track(s, state.Layout)).ToList();
         _lastVisible = state with { Slots = slots, ReadingsSinceSeen = 0 };
         return _lastVisible;
     }
 
-    private PartySlot Track(PartySlot slot)
+    private PartySlot Track(PartySlot slot, HudLayout layout)
     {
         int i = slot.Number - 1;
+        if (layout != HudLayout.KeyboardMouse)
+        {
+            // Ultimates aren't read in the controller layouts: a value kept from keyboard-and-mouse
+            // readings would go stale unseen (spent, recharged), so none is shown.
+            _charge[i].Clear();
+            _lastSlots[i] = _lastSlots[i] is { } kept ? kept with { Ultimate = null } : null;
+        }
         if (slot.Dead)
         {
             _dead[i] = true;

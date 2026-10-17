@@ -28,6 +28,13 @@ public readonly struct UiScaler
         _width - (ReferenceWidth - referenceX) * _scale,
         _height - (ReferenceHeight - referenceY) * _scale);
 
+    /// <summary>A rectangle anchored to the bottom-right corner of the window.</summary>
+    public PixelRect BottomRight(PixelRect reference) => new(
+        _width - (int)Math.Round((ReferenceWidth - reference.X) * _scale),
+        _height - (int)Math.Round((ReferenceHeight - reference.Y) * _scale),
+        Math.Max(1, (int)Math.Round(reference.Width * _scale)),
+        Math.Max(1, (int)Math.Round(reference.Height * _scale)));
+
     /// <summary>
     /// A rectangle anchored to the bottom centre of the window (the controlled operator's skill-point
     /// and HP bars): it keeps its distance from the window's centre line and from the bottom.

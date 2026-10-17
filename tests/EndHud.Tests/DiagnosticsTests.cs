@@ -64,9 +64,11 @@ public class DiagnosticsTests : IDisposable
     {
         var uid = DiagnosticExport.UidArea(width, height);
         double s = width / 3840.0;
-        Assert.Equal(170 * s, uid.X, 1.0);
-        Assert.Equal(390 * s, uid.Width, 1.0);
-        Assert.Equal(height - 15 * s, uid.Bottom, 1.0);
+        // The UID's text at 4K: x 220–454, rows 2102–2124 (keyboard-and-mouse and controller).
+        Assert.True(uid.X <= 220 * s && uid.Right >= 454 * s, $"x {uid.X}–{uid.Right}");
+        Assert.True(uid.Y <= height - (2160 - 2102) * s && uid.Bottom >= height - (2160 - 2125) * s, $"rows {uid.Y}–{uid.Bottom}");
+        // …but not the rows read on slot 4's HP bar with a controller and LB held (4K 2094 + 3 to 2094 + 6).
+        Assert.True(uid.Y > height - (2160 - 2099) * s, $"starts at row {uid.Y}");
     }
 
     [Fact]

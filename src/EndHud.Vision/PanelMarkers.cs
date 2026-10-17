@@ -55,12 +55,16 @@ public static class PanelMarkers
     ///   other living portraits ≤ 0.26  ≤ 0.17   ≤ 0.31
     /// </code>
     /// </summary>
-    public static bool IsDeathMark(Frame frame, int slot)
+    public static bool IsDeathMark(Frame frame, int slot) =>
+        IsDeathMark(frame, new PixelRect(PartyLayout.DeathMarkCentreX + (int)Math.Round(slot * PartyLayout.SlotPitch), PartyLayout.DeathMarkCentreY, 1, 1));
+
+    /// <param name="centre4K">The mark's centre at 4K, anchored bottom-left (a 1×1 rectangle).
+    /// The controller layout draws the same mark, same size, in its own place (SquadGeometry).</param>
+    internal static bool IsDeathMark(Frame frame, PixelRect centre4K)
     {
         var ui = new UiScaler(frame.Width, frame.Height);
         double s = ui.Scale;
-        var centre = ui.BottomLeft(new PixelRect(
-            PartyLayout.DeathMarkCentreX + (int)Math.Round(slot * PartyLayout.SlotPitch), PartyLayout.DeathMarkCentreY, 1, 1));
+        var centre = ui.BottomLeft(centre4K);
         double cx = centre.X, cy = centre.Y;
 
         return LightGreyShare(frame, cx, cy, PartyLayout.DeathMarkRingInner * s, PartyLayout.DeathMarkRingOuter * s, s) >= DeathRingShare

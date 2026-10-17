@@ -153,7 +153,7 @@ internal sealed class PartyMonitor : IDisposable
             : gameFrame.ResizeSmooth(RecentFrameWidth, (int)Math.Round(gameFrame.Height * RecentFrameWidth / (double)gameFrame.Width));
         lock (_recent)
         {
-            _recent.Enqueue(new RecentFrame(now, small, $"panel {(raw.PanelVisible ? "seen" : "not seen")}, {raw.PanelMarks}/8 marks, from {_source}"));
+            _recent.Enqueue(new RecentFrame(now, small, $"panel {(raw.PanelVisible ? "seen" : "not seen")}, {DescribeLayout(raw)}, from {_source}"));
             while (_recent.Count > RecentFrameCount) _recent.Dequeue();
         }
     }
@@ -181,8 +181,19 @@ internal sealed class PartyMonitor : IDisposable
             $"combo {(s.Combo is { } c ? (c.Ready ? "ready" : c.Progress.ToString("F2")) : "-")}, " +
             $"ultimate {(s.Ultimate is { } u ? (u.Ready ? "ready" : u.Progress.ToString("F2")) : "-")}"));
         return $"picture {frame.Width}x{frame.Height}, mean brightness {(samples == 0 ? 0 : sum / samples)}, {(samples == 0 ? 0 : black * 100 / samples)}% black; " +
-               $"{raw.PanelMarks}/8 panel marks, controlled slot {raw.ActiveSlot?.ToString() ?? "-"}, skill points {raw.SkillPoints?.ToString("F2") ?? "-"}; {slots}";
+               $"{DescribeLayout(raw)}, controlled slot {raw.ActiveSlot?.ToString() ?? "-"}, skill points {raw.SkillPoints?.ToString("F2") ?? "-"}; {slots}";
     }
+
+    /// <summary>
+    /// The HUD layout a reading found, and for keyboard and mouse how many of the panel's "-" marks
+    /// (the controller layouts don't draw them).
+    /// </summary>
+    internal static string DescribeLayout(PartyState state) => state.Layout switch
+    {
+        HudLayout.Controller => "controller layout",
+        HudLayout.ControllerSkillsHeld => "controller layout, LB held",
+        _ => $"{state.PanelMarks}/8 panel marks",
+    };
 
     /// <summary>Why the last reading gave nothing (an i18n key), or null when it read; for the diagnostic export.</summary>
     public string? LastProblem { get; private set; }
@@ -427,6 +438,7 @@ internal sealed class PartyMonitor : IDisposable
         bool fromScreen = false, screenRefused = false;
         IntPtr describedWindow = IntPtr.Zero;
         int missed = 0;
+        HudLayout? layoutSeen = null; // the last controller-or-not layout a visible panel showed
         int silentCaptures = 0;
         OperatorMatch?[] lastNames = [];
         try
@@ -508,10 +520,17 @@ internal sealed class PartyMonitor : IDisposable
                     missed = raw.PanelVisible ? 0 : missed + 1;
                     if (missed >= PresenceMemory.ReadingsToLeave)
                         DiagnosticLog.Throttled("panel-missed", RepeatLogEvery, $"no squad panel for {missed} readings: {DescribeMiss(gameFrame, raw)}", "INFO");
+                    // Keyboard-and-mouse or controller: the game follows the last device used, mid-fight too.
+                    bool controller = raw.Layout != HudLayout.KeyboardMouse;
+                    if (raw.PanelVisible && (layoutSeen is null || (layoutSeen != HudLayout.KeyboardMouse) != controller))
+                    {
+                        if (layoutSeen is not null) DiagnosticLog.Info($"HUD layout now: {(controller ? "controller" : "keyboard and mouse")}");
+                        layoutSeen = raw.Layout;
+                    }
                     if (state.PanelVisible != panelSeen)
                     {
                         panelSeen = state.PanelVisible;
-                        DiagnosticLog.Info(panelSeen ? $"squad panel seen ({state.PanelMarks}/8 marks) at {gameFrame.Width}x{gameFrame.Height}" : "squad panel gone");
+                        DiagnosticLog.Info(panelSeen ? $"squad panel seen ({DescribeLayout(state)}) at {gameFrame.Width}x{gameFrame.Height}" : "squad panel gone");
                     }
                     if (_identifier is { } identifier)
                     {

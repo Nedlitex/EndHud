@@ -31,6 +31,11 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
     /// <see cref="SkillPointBar"/>); null out of combat or when unreadable.</summary>
     public double? SkillPoints { get; init; }
 
+    /// <summary>Which HUD the game drew (<see cref="HudLayoutDetector"/>). In the controller layouts
+    /// the "-" marks aren't drawn (<see cref="PanelMarks"/> is 0), and levels, ultimates and
+    /// battle skills aren't read (see SquadGeometry).</summary>
+    public HudLayout Layout { get; init; }
+
     /// <summary>The controlled operator's slot, 1–4 (see <see cref="Vision.ActiveSlot"/>); null when not shown.</summary>
     public int? ActiveSlot { get; init; }
 
@@ -49,13 +54,15 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
     /// <summary>
     /// False when the squad panel isn't on screen (menus, map, cutscenes). Mainly the HP-bar
     /// marks, which show in every state; the level text (exploration) and combo bars (combat)
-    /// also count.
+    /// also count. The controller layout has no marks and was seen in combat only: its combo
+    /// bars and fallen operators' marks are the sign.
     /// </summary>
     public bool PanelVisible =>
         (PanelMarks >= MinPanelMarks
          || Slots.Any(s => s.Level is not null)
-         // An empty combo track is just dark, so also require the HP bar under it.
-         || Slots.Count(s => s.Combo is not null && s.Hp > 0.02) >= 2)
+         // An empty combo track is just dark, so also require the HP bar under it; a fallen
+         // operator's mark counts too (with a controller, three fallen leave one combo bar).
+         || Slots.Count(s => (s.Combo is not null && s.Hp > 0.02) || s.Dead) >= 2)
         && !LooksLikeAnotherScreen;
 
     /// <summary>
@@ -91,32 +98,39 @@ public sealed partial class PartyReader(TextRecognizer ocr)
     public async Task<PartyState> ReadAsync(Frame frame)
     {
         var ui = new UiScaler(frame.Width, frame.Height);
+        var squad = SquadGeometry.For(HudLayoutDetector.Detect(frame, ui));
         var slots = new List<PartySlot>(PartyLayout.SlotCount);
         for (int i = 0; i < PartyLayout.SlotCount; i++)
         {
-            double? hp = HpBar.Measure(frame, ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.HpBar, i)));
-            var screenPortrait = frame.Crop(ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.Portrait, i)));
+            double? hp = HpBar.Measure(frame, ui.BottomLeft(squad.HpBar(i)));
+            var screenPortrait = frame.Crop(ui.BottomLeft(squad.Portrait(i)));
             var portrait = screenPortrait.Resize(Operators.PortraitMatcher.PortraitWidth, Operators.PortraitMatcher.PortraitHeight);
-
             // A fallen operator: empty HP bar and the death mark. Their combo and ultimate aren't shown.
-            if (hp <= 0.02 && PanelMarkers.IsDeathMark(frame, i))
+            if (hp <= 0.02 && PanelMarkers.IsDeathMark(frame, squad.DeathMark(i)))
             {
                 slots.Add(new PartySlot(i + 1, null, 0, "", portrait, Dead: true, ScreenPortrait: screenPortrait));
                 continue;
             }
 
-            var combo = ComboBar.Measure(frame, ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.ComboBar, i)));
+            var combo = ComboBar.Measure(frame, ui.BottomLeft(squad.ComboBar(i)));
+            if (!squad.ReadsLevelsAndSkills)
+            {
+                slots.Add(new PartySlot(i + 1, null, hp, "", portrait, combo, ScreenPortrait: screenPortrait));
+                continue;
+            }
+
             // In combat the combo bar replaces the level text, so there's nothing to OCR.
             var (level, text) = combo is not null ? (null, "") : await ReadLevelAsync(frame, ui, i);
             slots.Add(new PartySlot(i + 1, level, hp, text, portrait, combo, UltimateGauge.Measure(frame, i),
                 ScreenPortrait: screenPortrait) { BattleSkill = BattleSkillButton.Measure(frame, i) });
         }
         // Skill points are drawn in combat only (shown by the combo bars); out of combat the bar's
-        // place shows the scenery, which can look like an empty bar.
+        // place shows the scenery, which can look like an empty bar. Same place in every layout.
         bool inCombat = slots.Any(s => s.Combo is not null);
-        return new PartyState(slots, PanelMarkers.Count(frame))
+        return new PartyState(slots, squad.Layout == HudLayout.KeyboardMouse ? PanelMarkers.Count(frame) : 0)
         {
-            ActiveSlot = Vision.ActiveSlot.Find(frame, ui),
+            Layout = squad.Layout,
+            ActiveSlot = Vision.ActiveSlot.Find(frame, ui, squad),
             SkillPoints = inCombat ? SkillPointBar.Measure(frame, ui) : null,
         };
     }

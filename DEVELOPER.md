@@ -691,6 +691,11 @@ exception: hosted runners can't capture windows, so they only run on a developer
 - **Faded portraits** ([`Fixtures/faded-squad`](tests/data/Fixtures/faded-squad)):
   readings four a second through a fight where the game draws portraits see-through; the squad
   must stay named.
+- **Controller layout** ([`Fixtures/controller`](tests/data/Fixtures/controller)):
+  the layout recognised (controller, LB held, keyboard and mouse in the same fight); HP, combos,
+  controlled operator and names read from the diamond, also on simulated 1440p, 1080p, 900p and
+  16:10; no panel out of combat, in photo mode or with the target wheel up; and no screenshot
+  in the rest of the test data ever taken for a controller layout.
 - **Elemental infliction** ([`Fixtures/infliction`](tests/data/Fixtures/infliction)):
   heat and nature rings, and frames with no ring (a white background, a cutscene, blue effects
   filling the ring's place), at 4K and on simulated 1440p, 1080p and 16:10 screens.
@@ -767,6 +772,7 @@ src/EndHud.Vision/       everything that reads the screen
   Assets/ccip/           the character recognition model (Git LFS; see tools/ccip-model)
   Assets/operator-portraits.json  in-game portrait references (the model's numbers; built from test fixtures)
   PartyReader.cs         squad panel: level, HP, combo, portraits
+  HudLayout.cs, SquadGeometry.cs   keyboard-and-mouse or controller layout, and where the squad is in each
   UltimateGauge.cs       ultimate circles
   PartyTracker.cs        carries readings over (deaths, values that are briefly unreadable)
   ComboHints.cs          when to show the combo-ready hint
@@ -791,6 +797,30 @@ screens (see [Tests](#tests)); "read" is the share of levels read on the test fr
 | 1080p class (1920×1080, 1920×1200, 2560×1080), 2880×1800, 2256×1504, 1600×900 | all | 40–53% read |
 | 1366×768, 1280×720 | all (HP within about 8%) | not read |
 
+### Controller layout
+
+With a controller the game draws another HUD, and switches back and forth with the last device
+used, mid-fight too. [`HudLayoutDetector`](src/EndHud.Vision/HudLayout.cs) tells them apart on
+every reading by the white "LB" letters in the middle of the squad diamond and the skill diamond,
+and the D-pad that replaces the squad's letters while LB is held. Where each slot's parts are in
+each layout is in [`SquadGeometry`](src/EndHud.Vision/SquadGeometry.cs):
+
+| | Keyboard and mouse | Controller | Controller, LB held |
+|---|---|---|---|
+| Squad | a row of four, bottom left | a diamond: slot 1 left, 2 top, 3 right, 4 bottom | the diamond, each slot 16 px further out |
+| HP bar (4K) | 166×12 | 166×10 | 166×10 |
+| Combo bar | 10–5 rows above the HP bar in both | | |
+| Portrait | 128×160 | 102×128 (0.8 of the size) | as controller |
+| "-" marks beside the HP bars | drawn (the panel's sign) | not drawn: the combo bars are the sign | not drawn |
+
+Read in the controller layouts: HP, combo cooldowns, the controlled operator, the squad's names
+and skill points (all checked on the recording). Operator counters, buffs and the boss's
+statuses are read where they are with keyboard and mouse (bottom and top centre, which the
+controller layout doesn't move), but the recording has none of them to confirm. Not read yet, because the controller recording
+(Fixtures/controller) shows no example: levels (the squad isn't drawn out of combat there),
+fallen operators, ultimate charge and battle skill cooldowns. Those stay unknown in a controller
+reading, and an ultimate read with keyboard and mouse isn't carried into it.
+
 A level that isn't read keeps its last value; one that might be wrong is not shown: two OCR
 attempts must agree, and only levels 10 to 90 (the game's cap) are accepted. Levels 1–9 are
 shown as unknown, because a "9" is usually "90" with a digit lost. EndHud doesn't read the ping.
@@ -807,6 +837,9 @@ Copy `src/EndHud/i18n/zh-CN.xaml` to, for example, `en-US.xaml`, translate the v
 ## Known limits
 
 - The ultimate charge has only been observed up to about 46%; no recording yet shows one filling completely.
+- With a controller, levels, fallen operators, ultimate charge and battle skill cooldowns aren't
+  read yet (see [Controller layout](#controller-layout)), so combo hints work there but rotation
+  steps that wait on an ultimate or a battle skill can't tell when it's ready.
 - When something can't be read (cutscenes, HUD fades, skill effects covering an indicator), the HUD
   keeps showing the last value it read. So a value can be a few seconds old,
   for example a combo skill used at the moment its bar was hidden still shows "ready" until the bar is read again.
