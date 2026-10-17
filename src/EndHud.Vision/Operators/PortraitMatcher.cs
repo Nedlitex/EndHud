@@ -42,6 +42,9 @@ public sealed class PortraitMatcher(OperatorLibrary library)
 
     public OperatorLibrary Library => library;
 
+    /// <summary>Tests: the wiki avatars are described only once this completes, to see the time before.</summary>
+    internal Task WikiAvatarsGate { get; init; } = Task.CompletedTask;
+
     /// <summary>Best match among learned in-game portraits, if clearly confident.</summary>
     public OperatorMatch? MatchLearned(Frame portrait)
     {
@@ -106,6 +109,9 @@ public sealed class PortraitMatcher(OperatorLibrary library)
         return row;
     }
 
+    /// <summary>Whether <see cref="Differences"/> for portraits this wide includes every operator's wiki avatar yet.</summary>
+    public bool HasWikiAvatars(int width) => PrepareWikiAvatars(width).IsCompletedSuccessfully;
+
     /// <summary>The difference given to an operator with nothing to compare yet: far from any match.</summary>
     public const float Unknown = 2f;
 
@@ -121,7 +127,11 @@ public sealed class PortraitMatcher(OperatorLibrary library)
         lock (_wikiFeatures)
         {
             if (!_wikiFeatures.TryGetValue(width, out var task) || task.IsFaulted)
-                _wikiFeatures[width] = task = Task.Run(() => DescribeWikiAvatars(width));
+                _wikiFeatures[width] = task = Task.Run(async () =>
+                {
+                    await WikiAvatarsGate.ConfigureAwait(false);
+                    return DescribeWikiAvatars(width);
+                });
             return task;
         }
     }
