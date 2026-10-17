@@ -124,20 +124,33 @@ public class DiagnosticsTests : IDisposable
         var server = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
         server.Start();
         int port = ((System.Net.IPEndPoint)server.LocalEndpoint).Port;
-        var drop = Task.Run(async () =>
+        // Every connection, not just the first: the HTTP client may try again on a new connection
+        // when the first is dropped before any answer, and one the server never accepts waits for
+        // the client's timeout instead (a TaskCanceledException after 30 s, seen on a CI runner).
+        var drops = Task.Run(async () =>
         {
-            using var client = await server.AcceptTcpClientAsync();
-            client.Client.LingerState = new System.Net.Sockets.LingerOption(true, 0); // close with a reset
+            try
+            {
+                while (true)
+                {
+                    using var client = await server.AcceptTcpClientAsync();
+                    client.Client.LingerState = new System.Net.Sockets.LingerOption(true, 0); // close with a reset
+                }
+            }
+            catch (Exception ex) when (ex is ObjectDisposedException or System.Net.Sockets.SocketException or InvalidOperationException)
+            {
+                // the server stopped
+            }
         });
         try
         {
             using var http = GitHubHttp.Create(TimeSpan.FromSeconds(30));
             await Assert.ThrowsAsync<System.Net.Http.HttpRequestException>(() => http.GetAsync($"http://127.0.0.1:{port}/repos/x/contents/operators"));
-            await drop;
         }
         finally
         {
             server.Stop();
+            await drops;
         }
 
         string log = File.ReadAllText(DiagnosticLog.FilePath);
