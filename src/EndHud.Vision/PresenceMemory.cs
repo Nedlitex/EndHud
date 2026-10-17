@@ -11,6 +11,9 @@ public sealed class PresenceMemory
 
     private int _sinceSeen = ReadingsToLeave;
 
+    /// <summary>Gone now, without waiting out <see cref="ReadingsToLeave"/>.</summary>
+    public void Forget() => _sinceSeen = ReadingsToLeave;
+
     /// <summary>Take whether it's seen in this reading; true while it still counts as there.</summary>
     public bool Update(bool seen)
     {

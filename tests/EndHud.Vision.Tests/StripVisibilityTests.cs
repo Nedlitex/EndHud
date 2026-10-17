@@ -57,6 +57,22 @@ public class StripVisibilityTests
         Assert.False(visibility.Update(Exploring()));
     }
 
+    /// <summary>
+    /// After the last battle reading with the panel out of sight (the results page after a battle,
+    /// in the controller full-battle recording): up while it may be an ultimate animation, then
+    /// gone at once, not two seconds later over the results.
+    /// </summary>
+    [Fact]
+    public void Gone_as_soon_as_the_panel_has_been_out_of_sight_longer_than_an_ultimate_animation()
+    {
+        var visibility = new StripVisibility();
+        visibility.Update(Battle());
+        for (int n = 1; n <= StripVisibility.CoveredReadings; n++) Assert.True(visibility.Update(Battle(readingsSinceSeen: n)), $"reading {n}");
+        Assert.False(visibility.Update(Battle(readingsSinceSeen: StripVisibility.CoveredReadings + 1)));
+        // And exploring afterwards doesn't bring it back for a moment.
+        Assert.False(visibility.Update(Exploring()));
+    }
+
     [Fact]
     public void Gone_when_the_panel_stays_out_of_sight_menus_and_loading()
     {
