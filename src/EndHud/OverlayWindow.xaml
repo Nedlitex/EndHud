@@ -155,19 +155,19 @@
             <TextBlock Text="{DynamicResource Menu.Hotkeys}" Style="{StaticResource SectionHeader}" />
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="120" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
                     <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
                 </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" Text="Ctrl+Shift+M" FontWeight="SemiBold" />
+                <TextBlock Grid.Row="0" Text="Ctrl+Shift+M / Ctrl+F9" FontWeight="SemiBold" Margin="0,0,12,0" />
                 <TextBlock Grid.Row="0" Grid.Column="1" Text="{DynamicResource Menu.Key.Menu}" />
-                <TextBlock Grid.Row="1" Text="Ctrl+Shift+H" FontWeight="SemiBold" />
+                <TextBlock Grid.Row="1" Text="Ctrl+Shift+H / Ctrl+F10" FontWeight="SemiBold" Margin="0,0,12,0" />
                 <TextBlock Grid.Row="1" Grid.Column="1" Text="{DynamicResource Menu.Key.Toggle}" />
                 <TextBlock Grid.Row="2" Text="Ctrl+Shift+Q" FontWeight="SemiBold" />
                 <TextBlock Grid.Row="2" Grid.Column="1" Text="{DynamicResource Menu.Key.Quit}" />
-                <TextBlock Grid.Row="3" Text="Ctrl+Shift+D" FontWeight="SemiBold" />
+                <TextBlock Grid.Row="3" Text="Ctrl+Shift+D / Ctrl+F11" FontWeight="SemiBold" Margin="0,0,12,0" />
                 <TextBlock Grid.Row="3" Grid.Column="1" Text="{DynamicResource Menu.Key.Debug}" />
                 <TextBlock Grid.Row="4" Text="Esc" FontWeight="SemiBold" />
                 <TextBlock Grid.Row="4" Grid.Column="1" Text="{DynamicResource Menu.Key.Esc}" />

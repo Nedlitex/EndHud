@@ -20,6 +20,12 @@ public partial class OverlayWindow : Window
     private const int HotkeyQuit = 2;
     private const int HotkeyMenu = 3;
     private const int HotkeyDebug = 4;
+    // The same, on Ctrl+F9-F11 (easier to reach mid-game). Not plain F9/F10: the game uses those
+    // itself, and a registered hotkey never reaches the game. No quit on an F-key: too easy by accident.
+    private const int HotkeyMenuAlt = 5;
+    private const int HotkeyToggleAlt = 6;
+    private const int HotkeyDebugAlt = 7;
+    private const uint VK_F9 = 0x78, VK_F10 = 0x79, VK_F11 = 0x7A;
     private const uint VK_D = 0x44;
     private const uint VK_H = 0x48;
     private const uint VK_M = 0x4D;
@@ -163,10 +169,14 @@ public partial class OverlayWindow : Window
 
         HwndSource.FromHwnd(_hwnd).AddHook(WndProc);
         const uint mods = Native.MOD_CONTROL | Native.MOD_SHIFT | Native.MOD_NOREPEAT;
-        Native.RegisterHotKey(_hwnd, HotkeyToggle, mods, VK_H);
-        Native.RegisterHotKey(_hwnd, HotkeyQuit, mods, VK_Q);
-        Native.RegisterHotKey(_hwnd, HotkeyMenu, mods, VK_M);
-        Native.RegisterHotKey(_hwnd, HotkeyDebug, mods, VK_D);
+        const uint ctrl = Native.MOD_CONTROL | Native.MOD_NOREPEAT;
+        RegisterHotkey(HotkeyToggle, mods, VK_H, "Ctrl+Shift+H");
+        RegisterHotkey(HotkeyQuit, mods, VK_Q, "Ctrl+Shift+Q");
+        RegisterHotkey(HotkeyMenu, mods, VK_M, "Ctrl+Shift+M");
+        RegisterHotkey(HotkeyDebug, mods, VK_D, "Ctrl+Shift+D");
+        RegisterHotkey(HotkeyMenuAlt, ctrl, VK_F9, "Ctrl+F9");
+        RegisterHotkey(HotkeyToggleAlt, ctrl, VK_F10, "Ctrl+F10");
+        RegisterHotkey(HotkeyDebugAlt, ctrl, VK_F11, "Ctrl+F11");
 
         // Out-of-context WinEvent hooks: Windows posts events to our thread; nothing is loaded into the game.
         _hooks.Add(Native.SetWinEventHook(Native.EVENT_SYSTEM_FOREGROUND, Native.EVENT_SYSTEM_FOREGROUND,
@@ -189,7 +199,17 @@ public partial class OverlayWindow : Window
         Native.UnregisterHotKey(_hwnd, HotkeyQuit);
         Native.UnregisterHotKey(_hwnd, HotkeyMenu);
         Native.UnregisterHotKey(_hwnd, HotkeyDebug);
+        Native.UnregisterHotKey(_hwnd, HotkeyMenuAlt);
+        Native.UnregisterHotKey(_hwnd, HotkeyToggleAlt);
+        Native.UnregisterHotKey(_hwnd, HotkeyDebugAlt);
         base.OnClosed(e);
+    }
+
+    /// <summary>A global hotkey; when another program already has it, the log says so (the other key still works).</summary>
+    private void RegisterHotkey(int id, uint modifiers, uint key, string name)
+    {
+        if (!Native.RegisterHotKey(_hwnd, id, modifiers, key))
+            DiagnosticLog.Warn($"hotkey {name} is taken by another program (error {System.Runtime.InteropServices.Marshal.GetLastWin32Error()})");
     }
 
     /// <summary>
@@ -575,15 +595,15 @@ public partial class OverlayWindow : Window
 
         switch (wParam.ToInt32())
         {
-            case HotkeyToggle:
+            case HotkeyToggle or HotkeyToggleAlt:
                 ToggleHud();
                 handled = true;
                 break;
-            case HotkeyMenu:
+            case HotkeyMenu or HotkeyMenuAlt:
                 ToggleMenu();
                 handled = true;
                 break;
-            case HotkeyDebug:
+            case HotkeyDebug or HotkeyDebugAlt:
                 ToggleDebugPanel();
                 handled = true;
                 break;

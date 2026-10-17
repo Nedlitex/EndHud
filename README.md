@@ -126,9 +126,9 @@ EndHud 根据小队栏头像自动识别四位干员，并在提示中显示对�
 
 | 快捷键 | 作用 |
 |---|---|
-| **Ctrl+Shift+M** | 打开/关闭菜单（设置、调整位置、指定干员） |
-| **Ctrl+Shift+H** | 显示/隐藏 HUD |
-| **Ctrl+Shift+D** | 显示/隐藏调试面板 |
+| **Ctrl+Shift+M** 或 **Ctrl+F9** | 打开/关闭菜单（设置、调整位置、指定干员） |
+| **Ctrl+Shift+H** 或 **Ctrl+F10** | 显示/隐藏 HUD |
+| **Ctrl+Shift+D** 或 **Ctrl+F11** | 显示/隐藏调试面板 |
 | **Ctrl+Shift+Q** | 退出 EndHud |
 | **Esc** | 关闭菜单 |
 

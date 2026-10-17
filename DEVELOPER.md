@@ -262,10 +262,14 @@ EndHud starts in the **system tray**, and the HUD appears whenever the game wind
 
 | Hotkey | Action |
 |---|---|
-| **Ctrl+Shift+M** | Open/close the menu: settings, and correcting operator names |
-| **Ctrl+Shift+H** | Show/hide the HUD |
-| **Ctrl+Shift+D** | Show/hide the debug panel |
+| **Ctrl+Shift+M** or **Ctrl+F9** | Open/close the menu: settings, and correcting operator names |
+| **Ctrl+Shift+H** or **Ctrl+F10** | Show/hide the HUD |
+| **Ctrl+Shift+D** or **Ctrl+F11** | Show/hide the debug panel |
 | **Ctrl+Shift+Q** | Quit |
+
+Not plain F9-F12: the game uses F9 and F10 itself, and a key EndHud registers never reaches the
+game. Quit has no F-key, so it can't happen by accident mid-fight. A key another program already
+holds is logged ("hotkey Ctrl+F10 is taken by another program"); the other key for it still works.
 | **Esc** | Close the menu |
 
 Right-click the tray icon for: status, show HUD, open menu, auto-show on/off, debug panel on/off,
