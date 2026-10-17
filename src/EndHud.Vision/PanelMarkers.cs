@@ -11,16 +11,58 @@ public static class PanelMarkers
     /// in exploration, combat, low-HP and dead states: all eight are found. Menus, loading
     /// screens and cutscenes don't draw them.
     /// </summary>
-    public static int Count(Frame frame)
+    public static int Count(Frame frame) => CountBySlot(frame).Sum();
+
+    /// <summary>The marks found beside each slot's HP bar (0-2 per slot, slot order).</summary>
+    public static int[] CountBySlot(Frame frame)
     {
         var ui = new UiScaler(frame.Width, frame.Height);
-        int found = 0;
+        var found = new int[PartyLayout.SlotCount];
         for (int slot = 0; slot < PartyLayout.SlotCount; slot++)
         {
-            if (IsMark(frame, ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.PanelMarkLeft, slot)))) found++;
-            if (IsMark(frame, ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.PanelMarkRight, slot)))) found++;
+            if (IsMark(frame, ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.PanelMarkLeft, slot)))) found[slot]++;
+            if (IsMark(frame, ui.BottomLeft(PartyLayout.ForSlot(PartyLayout.PanelMarkRight, slot)))) found[slot]++;
         }
         return found;
+    }
+
+    /// <summary>
+    /// The controller layout draws an empty place in a squad of fewer than four as a large faint
+    /// ring with a slash, where an operator's portrait would be (no HP bar). Measured on the
+    /// owner's recording with two operators: the ring 58-60 px from the centre at 4K, about 25
+    /// brighter than the band just inside it and the scenery just outside, all the way round.
+    /// </summary>
+    internal static bool IsEmptyPlace(Frame frame, PixelRect centre4K)
+    {
+        var ui = new UiScaler(frame.Width, frame.Height);
+        double s = ui.Scale;
+        var c = ui.BottomLeft(centre4K);
+        double Mean(double from, double to) => MeanBrightness(frame, c.X, c.Y, from * s, to * s, s);
+        double ring = Mean(57, 61), inside = Mean(48, 54), outside = Mean(64, 70);
+        return ring - inside >= EmptyRingContrast && ring - outside >= EmptyRingContrast * 0.6;
+    }
+
+    private const double EmptyRingContrast = 12;
+
+    /// <summary>Mean of the darkest channel on circles from <paramref name="inner"/> to <paramref name="outer"/> radius.</summary>
+    private static double MeanBrightness(Frame frame, double cx, double cy, double inner, double outer, double scale)
+    {
+        double sum = 0;
+        int n = 0;
+        for (double radius = inner; radius <= outer + 0.01; radius += Math.Max(1, scale))
+        {
+            for (int i = 0; i < 72; i++)
+            {
+                double angle = i * Math.PI * 2 / 72;
+                int x = (int)Math.Round(cx + Math.Cos(angle) * radius);
+                int y = (int)Math.Round(cy + Math.Sin(angle) * radius);
+                if ((uint)x >= (uint)frame.Width || (uint)y >= (uint)frame.Height) continue;
+                var (r, g, b) = frame.GetPixel(x, y);
+                sum += Math.Min(r, Math.Min(g, b));
+                n++;
+            }
+        }
+        return n == 0 ? 0 : sum / n;
     }
 
     /// <summary>

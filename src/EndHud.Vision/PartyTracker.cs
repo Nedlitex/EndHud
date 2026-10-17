@@ -42,6 +42,14 @@ public sealed class PartyTracker
     private PartySlot Track(PartySlot slot)
     {
         int i = slot.Number - 1;
+        if (slot.Empty)
+        {
+            // No operator here (a squad of fewer than four): nothing carried over, now or later.
+            _dead[i] = false;
+            _charge[i].Clear();
+            _lastSlots[i] = null;
+            return slot;
+        }
         if (slot.Dead)
         {
             _dead[i] = true;

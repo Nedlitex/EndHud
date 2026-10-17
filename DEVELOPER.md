@@ -801,6 +801,17 @@ screens (see [Tests](#tests)); "read" is the share of levels read on the test fr
 | 1080p class (1920×1080, 1920×1200, 2560×1080), 2880×1800, 2256×1504, 1600×900 | all | 40–53% read |
 | 1366×768, 1280×720 | all (HP within about 8%) | not read |
 
+### Squads of fewer than four
+
+A squad can have one to four operators. With keyboard and mouse the squad panel is drawn from the
+left: an empty place has no marks, no HP bar and no fallen mark (marks alone can be hidden by
+effects in a full squad; PartyReader.SquadSize), and the ultimate circles
+and battle skill buttons from the right, so operator k of n uses button 4 - n + k. With a controller
+the diamond keeps its places and draws an empty one as a large faint ring with a slash
+(PanelMarkers.IsEmptyPlace). Empty places are PartySlot.Empty: nothing is read, named, carried over
+or shown for them. A squad of one or two counts as on screen when every operator in it shows an HP
+bar (or has fallen) and the controlled one is among them (Fixtures/small-squads).
+
 ### Controller layout
 
 With a controller the game draws another HUD, and switches back and forth with the last device

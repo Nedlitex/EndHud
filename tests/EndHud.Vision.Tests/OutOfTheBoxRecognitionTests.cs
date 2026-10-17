@@ -221,10 +221,12 @@ public sealed class OutOfTheBoxRecognitionTests : IDisposable
             await ImageFile.LoadAsync(CombatFrameTests.Fixture("combat-all-ready.jpg")));
         await NewIdentifierAsync(state);
 
-        string cache = Assert.Single(Directory.GetFiles(Path.Combine(_userFolder, "features")));
-        Assert.True(new FileInfo(cache).Length > 34 * 768);
+        // One file per portrait size on this screen: keyboard and mouse, and the controller's smaller ones.
+        var caches = Directory.GetFiles(Path.Combine(_userFolder, "features"));
+        Assert.Equal(state.PortraitWidths.Distinct().Count(), caches.Length);
+        Assert.All(caches, cache => Assert.True(new FileInfo(cache).Length > 34 * 768));
 
-        File.WriteAllText(cache, "{ not json");
+        foreach (string cache in caches) File.WriteAllText(cache, "{ not json");
         var identifier = await NewIdentifierAsync(state);
         PartyState named = state;
         for (int n = 0; n < SquadIdentifier.MinReadings * 4; n++) named = await ReadingAsync(identifier, state);

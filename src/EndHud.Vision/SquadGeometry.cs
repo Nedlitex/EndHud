@@ -49,11 +49,20 @@ internal sealed class SquadGeometry
     /// <summary>The centre of the fallen operator's mark (⊘ on a hatched square), as a 1×1 rectangle.</summary>
     public PixelRect DeathMark(int slot) => Place(_deathMark, slot);
 
+    /// <summary>
+    /// The centre of the ring the controller layout draws in an empty place (a squad of fewer than
+    /// four), as a 1x1 rectangle; null for keyboard and mouse, which leaves empty places blank.
+    /// </summary>
+    public PixelRect? EmptyPlace(int slot) => Layout == HudLayout.KeyboardMouse ? null : Place(new PixelRect(83, -70, 1, 1), slot);
+
     /// <summary>The controlled-operator marker's white pixels, '#', laid over <see cref="Marker"/>.</summary>
     public string[] MarkerShape { get; }
 
     /// <summary><paramref name="relative"/> is measured from the slot's HP bar's top-left corner.</summary>
     private PixelRect Place(PixelRect relative, int slot) => relative.Offset(_hpBars[slot].X, _hpBars[slot].Y);
+
+    /// <summary>The layouts with their own squad portrait size (LB held draws the controller's).</summary>
+    public static readonly HudLayout[] Layouts = [HudLayout.KeyboardMouse, HudLayout.Controller];
 
     public static SquadGeometry For(HudLayout layout) => layout switch
     {

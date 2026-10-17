@@ -171,20 +171,25 @@ public static class UltimateGauge
     /// </summary>
     private static double ArcProgress(Frame frame, double cx, double cy, double scale, UltimateCircle circle)
     {
-        (double Hue, double Brightness)? arc = null;
+        // The arc's colour so far: the average of its bands, not just its first one, which can take
+        // a tint from the scenery behind the translucent disc (a cyan arc's start read 158° over a
+        // red backdrop, the rest of it 169-183°).
+        double sx = 0, sy = 0, brightness = 0;
+        int bands = 0;
         int reached = 0, gap = 0;
         for (int i = 0; i < ArcSamples; i++)
         {
             var band = BandColour(frame, cx, cy, scale, i, circle);
-            bool sameArc = band is { } b && (arc is not { } a
-                || (HueDistance(b.Hue, a.Hue) <= circle.ArcMaxHueDrift && b.Brightness >= a.Brightness * MinArcBrightnessRatio));
+            bool sameArc = band is { } b && (bands == 0
+                || (HueDistance(b.Hue, MeanHue(sx, sy)) <= circle.ArcMaxHueDrift && b.Brightness >= brightness / bands * MinArcBrightnessRatio));
             if (sameArc)
             {
-                arc ??= band; // the arc's colour is set by its start at 12 o'clock
+                double h = band!.Value.Hue * Math.PI / 180;
+                (sx, sy, brightness, bands) = (sx + Math.Cos(h), sy + Math.Sin(h), brightness + band.Value.Brightness, bands + 1);
                 reached = i + 1;
                 gap = 0;
             }
-            else if (arc is null ? i >= ArcStartTolerance : ++gap > ArcGapTolerance)
+            else if (bands == 0 ? i >= ArcStartTolerance : ++gap > ArcGapTolerance)
             {
                 break; // no arc at 12 o'clock, or past its end
             }
@@ -229,6 +234,12 @@ public static class UltimateGauge
         if (samples == 0 || hits * 2 < samples) return null;
         double mean = Math.Atan2(sy, sx) * 180 / Math.PI;
         return (mean < 0 ? mean + 360 : mean, brightness / hits);
+    }
+
+    private static double MeanHue(double sx, double sy)
+    {
+        double mean = Math.Atan2(sy, sx) * 180 / Math.PI;
+        return mean < 0 ? mean + 360 : mean;
     }
 
     private static double HueDistance(double a, double b)

@@ -122,6 +122,11 @@ static async Task<int> AnalyzeAsync(string imagePath, string? debugDir)
     var state = await new PartyReader(ocr).ReadAsync(frame);
     foreach (var slot in state.Slots)
     {
+        if (slot.Empty)
+        {
+            Console.WriteLine($"slot {slot.Number}: empty (a squad of {state.SquadSize})");
+            continue;
+        }
         if (slot.Dead)
         {
             Console.WriteLine($"slot {slot.Number}: DEAD (death mark)");

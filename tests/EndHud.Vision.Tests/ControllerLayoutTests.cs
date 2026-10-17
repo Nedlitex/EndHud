@@ -36,6 +36,9 @@ public sealed class ControllerLayoutTests : IDisposable
     [InlineData("lb-held.jpg", HudLayout.ControllerSkillsHeld)]
     [InlineData("lb-held-again.jpg", HudLayout.ControllerSkillsHeld)]
     [InlineData("keyboard-mouse-same-fight.jpg", HudLayout.KeyboardMouse)]
+    [InlineData("switch-keyboard-exploration.jpg", HudLayout.KeyboardMouse)]
+    [InlineData("fullbattle-ultimates-charging.jpg", HudLayout.Controller)]
+    [InlineData("fullbattle-lb-held.jpg", HudLayout.ControllerSkillsHeld)]
     public async Task The_layout_on_screen_is_recognised(string fixture, HudLayout layout) =>
         Assert.Equal(layout, (await ReadAsync(fixture)).Layout);
 
@@ -183,6 +186,53 @@ public sealed class ControllerLayoutTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// The player switches device whenever they like, and the game switches the HUD with them: a
+    /// session as the app reads it (reader, tracker, naming), from the owner's recordings of one
+    /// squad: exploring with keyboard and mouse, a fight with a controller (LB held for a moment),
+    /// keyboard and mouse mid-fight, the controller again. Every reading has the layout on screen,
+    /// the squad's names (never a wrong one), and ultimates read in that layout or, with LB held,
+    /// the last ones.
+    /// </summary>
+    [Fact]
+    public async Task Switching_between_keyboard_and_controller_at_any_time_keeps_reading()
+    {
+        var session = new (string Fixture, HudLayout Layout)[]
+        {
+            ("switch-keyboard-exploration.jpg", HudLayout.KeyboardMouse),
+            ("fullbattle-ultimates-charging.jpg", HudLayout.Controller),
+            ("fullbattle-lb-held.jpg", HudLayout.ControllerSkillsHeld),
+            ("fullbattle-ultimate-almost-full.jpg", HudLayout.Controller),
+            ("keyboard-mouse-same-fight.jpg", HudLayout.KeyboardMouse),
+            ("combat-late.jpg", HudLayout.Controller),
+        };
+        var tracker = new PartyTracker();
+        var clock = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var first = await ReadAsync(session[0].Fixture);
+        var identifier = new SquadIdentifier(await OperatorCache.LoadAsync(_userFolder), () => clock, null);
+        await identifier.PrepareAsync(first);
+
+        foreach (var (fixture, layout) in session)
+        {
+            var raw = await ReadAsync(fixture);
+            Assert.Equal(layout, raw.Layout);
+            Assert.True(raw.PanelVisible, fixture);
+            PartyState shown = raw;
+            // A few readings of each moment, a quarter of a second apart, as the app takes them.
+            for (int n = 0; n < SquadIdentifier.Window; n++)
+            {
+                clock += TimeSpan.FromSeconds(0.25);
+                shown = await identifier.IdentifyAsync(tracker.Track(raw));
+                foreach (var slot in shown.Slots.Where(s => s.Operator is not null))
+                    Assert.True(slot.Operator!.Operator.Id == Truth[slot.Number - 1], $"{fixture}: slot {slot.Number} named {slot.Operator.Operator.Id}");
+            }
+            Assert.Equal(Truth, shown.Slots.Select(s => s.Operator?.Operator.Id));
+            // Ultimates: read in every layout but LB held, where the last reading stays.
+            Assert.All(shown.Slots, s => Assert.NotNull(s.Ultimate));
+            if (layout == HudLayout.ControllerSkillsHeld) Assert.All(raw.Slots, s => Assert.Null(s.Ultimate));
+        }
+    }
+
     [Fact]
     public async Task Ultimates_read_with_a_controller_stay_shown_while_LB_is_held()
     {
@@ -206,6 +256,10 @@ public sealed class ControllerLayoutTests : IDisposable
         { "ultimates-two-ready.jpg", [1, 0.67, 1, 0.47] },
         { "ultimates-charging-one-ready.jpg", [0.33, 0.53, 1, 0.28] },
         { "ultimates-charging.jpg", [0.33, 0.60, 0.48, 0.33] },
+        { "fullbattle-ultimates-charging.jpg", [0.40, 0.04, 0.30, 0.45] },
+        // Nearly full is still charging: the dot has no light ring yet.
+        { "fullbattle-ultimate-almost-full.jpg", [0.65, 0.50, 0.50, 0.97] },
+        { "fullbattle-two-ready-two-almost-full.jpg", [1, 0.97, 0.80, 1] },
     };
 
     [Theory]

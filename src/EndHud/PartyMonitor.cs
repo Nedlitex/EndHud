@@ -118,7 +118,7 @@ internal sealed class PartyMonitor : IDisposable
     internal static PartyState WithNames(PartyState state, IReadOnlyList<OperatorMatch?> names) =>
         !state.PanelVisible ? state : state with
         {
-            Slots = state.Slots.Select(s => s.Operator is null && s.Number >= 1 && s.Number <= names.Count ? s with { Operator = names[s.Number - 1] } : s).ToList(),
+            Slots = state.Slots.Select(s => s.Operator is null && !s.Empty && s.Number >= 1 && s.Number <= names.Count ? s with { Operator = names[s.Number - 1] } : s).ToList(),
         };
 
     public PartyMonitor(TimeSpan interval) => _interval = interval;

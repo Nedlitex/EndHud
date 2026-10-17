@@ -118,8 +118,17 @@ public sealed class SquadIdentifier(OperatorLibrary library)
     /// per operator the first time; cached after). Until then only taught portraits are recognised.
     /// <see cref="IdentifyAsync"/> starts it without waiting.
     /// </summary>
-    public Task PrepareAsync(PartyState state) =>
-        state.Slots.Count == 0 || library.IsEmpty ? Task.CompletedTask : _matcher.PrepareWikiAvatars(ScreenPortrait(state.Slots[0]).Width);
+    /// <remarks>
+    /// For every layout's portrait size on this screen (<see cref="PartyState.PortraitWidths"/>):
+    /// the controller's portraits are smaller, and a size first prepared when the player switches
+    /// left its newest operators unnamed for several seconds.
+    /// </remarks>
+    public Task PrepareAsync(PartyState state)
+    {
+        if (state.Slots.Count == 0 || library.IsEmpty) return Task.CompletedTask;
+        IEnumerable<int> widths = state.PortraitWidths.Count > 0 ? state.PortraitWidths : [ScreenPortrait(state.Slots[0]).Width];
+        return Task.WhenAll(widths.Distinct().Select(_matcher.PrepareWikiAvatars));
+    }
 
     public Task<PartyState> IdentifyAsync(PartyState state) => Task.Run(() => Identify(state));
 
@@ -146,6 +155,16 @@ public sealed class SquadIdentifier(OperatorLibrary library)
             for (int k = 0; k < state.Slots.Count; k++)
             {
                 var slot = state.Slots[k];
+                // No operator in this place (a squad of fewer than four): nothing to name, and
+                // whoever is put there later starts afresh.
+                if (slot.Empty)
+                {
+                    var evidence = _evidence[slot.Number - 1];
+                    evidence.Differences.Clear();
+                    (evidence.Portrait, evidence.Before, evidence.Provisional) = (null, null, false);
+                    _kept[slot.Number - 1] = false;
+                    continue;
+                }
                 // A fallen operator's portrait is the death mark: nothing to match. They're still
                 // whoever was in the slot (answers[k] stays null: keep the last answer).
                 if (slot.Dead) continue;
@@ -211,6 +230,12 @@ public sealed class SquadIdentifier(OperatorLibrary library)
             {
                 var slot = state.Slots[k];
                 int i = slot.Number - 1;
+                if (slot.Empty)
+                {
+                    lock (_lock) _last[i] = null;
+                    slots.Add(slot);
+                    continue;
+                }
                 if (slot.Dead)
                 {
                     lock (_lock) slots.Add(slot with { Operator = _last[i]?.Match });

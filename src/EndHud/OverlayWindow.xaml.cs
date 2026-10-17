@@ -430,7 +430,7 @@ public partial class OverlayWindow : Window
 
         string unknown = Loc.Get("Party.Unknown");
         var sb = new StringBuilder();
-        foreach (var slot in state.Slots)
+        foreach (var slot in state.Slots.Where(s => !s.Empty))
         {
             int i = slot.Number - 1;
             string? operatorId = slot.Operator?.Operator.Id;
