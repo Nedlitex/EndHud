@@ -26,10 +26,20 @@ public static class ComboBar
     private const double MinBarCoverage = 0.9;
     private const double MinFillFromLeft = 0.9;
 
+    // The game lays its HUD out afresh at each screen size rather than scaling the 4K layout, so
+    // the bar can sit a row or two off the scaled position: at a native 1920x1080 it's on rows
+    // 987–989, where scaled 4K puts it on 988–990. Sampling the scaled rows there takes half of
+    // each column from the scenery under the bar, which reads as art or as the wrong fill.
+    private const int MaxShiftUp = 2;
+    private const int MaxShiftDown = 1;
+    // A bar's column is one colour top to bottom (JPEG noise: a few levels); scenery isn't. Each
+    // row moved costs this much, so the scaled position wins unless it straddles an edge.
+    private const double ShiftCost = 3;
+
     /// <returns>The reading, or null when no bar is drawn there.</returns>
     public static ComboReading? Measure(Frame frame, PixelRect bar)
     {
-        var r = bar.ClampTo(frame.Width, frame.Height);
+        var r = Locate(frame, bar).ClampTo(frame.Width, frame.Height);
         if (r.IsEmpty) return null;
 
         var isFill = new bool[r.Width];
@@ -75,6 +85,44 @@ public static class ComboBar
         // Full and white means ready; a full bar tinted pink at low HP is ready too.
         bool white = fill > 0 && fillBrightness / fill >= 215;
         return new ComboReading(progress, Ready: progress >= 0.99 || (progress >= 0.97 && white));
+    }
+
+    /// <summary>
+    /// <paramref name="bar"/> moved up or down to where the bar's rows are: the position whose
+    /// columns change least from row to row (judged over at least two rows).
+    /// </summary>
+    private static PixelRect Locate(Frame frame, PixelRect bar)
+    {
+        int rows = Math.Max(2, bar.Height);
+        int bestShift = 0;
+        double bestCost = double.MaxValue;
+        for (int dy = -MaxShiftUp; dy <= MaxShiftDown; dy++)
+        {
+            var r = new PixelRect(bar.X, bar.Y + dy, bar.Width, rows).ClampTo(frame.Width, frame.Height);
+            if (r.Height < rows || r.Width == 0) continue;
+            double cost = VerticalChange(frame, r) + Math.Abs(dy) * ShiftCost;
+            if (cost < bestCost) (bestShift, bestCost) = (dy, cost);
+        }
+        return bar.Offset(0, bestShift);
+    }
+
+    /// <summary>How much each column's colour changes between its top and bottom row, on average.</summary>
+    private static double VerticalChange(Frame frame, PixelRect r)
+    {
+        double total = 0;
+        for (int x = r.X; x < r.Right; x++)
+        {
+            int minR = 255, minG = 255, minB = 255, maxR = 0, maxG = 0, maxB = 0;
+            for (int y = r.Y; y < r.Bottom; y++)
+            {
+                var (cr, cg, cb) = frame.GetPixel(x, y);
+                (minR, maxR) = (Math.Min(minR, cr), Math.Max(maxR, cr));
+                (minG, maxG) = (Math.Min(minG, cg), Math.Max(maxG, cg));
+                (minB, maxB) = (Math.Min(minB, cb), Math.Max(maxB, cb));
+            }
+            total += Math.Max(maxR - minR, Math.Max(maxG - minG, maxB - minB));
+        }
+        return total / r.Width;
     }
 
     private static double StdDev(List<int> values)
