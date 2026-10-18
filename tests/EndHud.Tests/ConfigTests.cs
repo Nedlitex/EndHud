@@ -22,6 +22,14 @@ public class ConfigTests
     public void The_rotation_strips_size_defaults_to_100_percent_and_a_hand_edited_one_is_kept_in_range(string json, double expected) =>
         Assert.Equal(expected, ConfigStore.Parse(json).RotationScale);
 
+    [Theory]
+    [InlineData("{}", 1.0)]
+    [InlineData("{\"RotationOpacity\": 0.6}", 0.6)]
+    [InlineData("{\"RotationOpacity\": 3}", 1.0)]
+    [InlineData("{\"RotationOpacity\": 0}", 0.2)]
+    public void The_rotation_strips_opacity_defaults_to_opaque_and_a_hand_edited_one_is_kept_visible(string json, double expected) =>
+        Assert.Equal(expected, ConfigStore.Parse(json).RotationOpacity);
+
     /// <summary>Before version 3 every start saved 50% (a slider bug), so 50% from then means the default.</summary>
     [Theory]
     [InlineData("""{ "GaugesScale": 0.5, "SettingsVersion": 2 }""", 1.0)]

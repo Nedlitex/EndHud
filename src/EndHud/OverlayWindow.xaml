@@ -279,6 +279,14 @@
                                 IsSnapToTickEnabled="True" VerticalAlignment="Center"
                                 ValueChanged="RotationSizeSlider_ValueChanged" />
                     </DockPanel>
+                    <DockPanel x:Name="RotationOpacityRow" Margin="0,4,0,0">
+                        <TextBlock Text="{DynamicResource Menu.Rotation.Opacity}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock x:Name="RotationOpacityText" DockPanel.Dock="Right" Width="44" TextAlignment="Right"
+                                   VerticalAlignment="Center" />
+                        <Slider x:Name="RotationOpacitySlider" Minimum="0.2" Maximum="1" TickFrequency="0.05"
+                                IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                                ValueChanged="RotationOpacitySlider_ValueChanged" />
+                    </DockPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                         <!-- Editing works with the strip off: rotations can be prepared before turning it on. -->
                         <Button x:Name="EditRotationsButton" Padding="10,2" Margin="0,0,6,0"

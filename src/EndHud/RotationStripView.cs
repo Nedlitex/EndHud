@@ -22,6 +22,19 @@ internal static class RotationStripView
         ForPhase(rotation, position.Step.PhaseIndex, library, skillIcon, avatar);
 
     /// <summary>
+    /// What to drag and size while the menu is open, out of battle: the first phase of the rotation
+    /// for the last squad seen, so it's the real size; a generic strip if there's none.
+    /// </summary>
+    public static StripView Sample(Rotation? rotation, OperatorLibrary? library,
+        Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar)
+    {
+        if (rotation?.Played() is [var first, ..]) return ForPhase(rotation, first.PhaseIndex, library, skillIcon, avatar);
+        StripStep Step(StepAction action) =>
+            new(null, null, Loc.Get($"Rotation.Action.{action}"), null, StripStepState.Upcoming, false);
+        return new StripView(Loc.Get("Rotation.Sample"), [Step(StepAction.BattleSkill), Step(StepAction.Combo), Step(StepAction.Ultimate)], null, []);
+    }
+
+    /// <summary>
     /// A phase's steps, then the first two of the phase the flow plays next, kept apart so the strip
     /// can mark where this phase ends. The editor's preview uses this too, so it shows what the game
     /// will.

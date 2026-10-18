@@ -93,6 +93,11 @@ internal sealed class HudConfig
 
     public const double MinRotationScale = 0.5, MaxRotationScale = 2;
 
+    /// <summary>How opaque the rotation strip is (1 = as drawn), from the menu's slider: a player asked to see the fight through it.</summary>
+    public double RotationOpacity { get; set; } = 1;
+
+    public const double MinRotationOpacity = 0.2, MaxRotationOpacity = 1;
+
     public const double MinGaugesScale = 0.5, MaxGaugesScale = 2;
 
     /// <summary>
@@ -187,6 +192,9 @@ internal static class ConfigStore
             : 1;
         config.RotationScale = double.IsFinite(config.RotationScale)
             ? Math.Clamp(config.RotationScale, HudConfig.MinRotationScale, HudConfig.MaxRotationScale)
+            : 1;
+        config.RotationOpacity = double.IsFinite(config.RotationOpacity)
+            ? Math.Clamp(config.RotationOpacity, HudConfig.MinRotationOpacity, HudConfig.MaxRotationOpacity)
             : 1;
         return config;
     }

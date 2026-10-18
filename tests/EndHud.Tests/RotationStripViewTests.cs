@@ -86,6 +86,30 @@ public class RotationStripViewTests
         Assert.Equal(2, dimmed);
     }
 
+    /// <summary>
+    /// A player couldn't move or size the strip before a fight: it only showed in battle. With the
+    /// menu open it shows the squad's rotation, first phase, so it's placed at its real size.
+    /// </summary>
+    [Fact]
+    public void Out_of_battle_the_sample_is_the_squads_rotation_from_its_first_phase()
+    {
+        var view = RotationStripView.Sample(Rotation, null, (_, _) => null, _ => null);
+
+        Assert.Equal("充能轴 I", view.Phase);
+        Assert.Equal(3, view.Steps.Count);
+    }
+
+    [Fact]
+    public void Without_a_rotation_for_the_squad_the_sample_is_a_generic_strip()
+    {
+        var view = RotationStripView.Sample(null, null, (_, _) => null, _ => null);
+
+        Assert.Equal("Rotation.Sample", view.Phase);
+        Assert.Equal(["Rotation.Action.BattleSkill", "Rotation.Action.Combo", "Rotation.Action.Ultimate"], view.Steps.Select(s => s.Action));
+        Assert.Null(view.Next);
+        OnSta(() => RotationStrip.Build(view)); // draws
+    }
+
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
     {
         foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())

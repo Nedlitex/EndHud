@@ -13,7 +13,7 @@ namespace EndHud;
 
 /// <summary>
 /// The rotation strip (排轴): the rotation for the recognised squad, with the step the player is
-/// on (<see cref="RotationTracker"/>). Shown in combat only. Placed like the combo hint: a fraction
+/// on (<see cref="RotationTracker"/>). Shown in combat, and as a sample while the menu is open. Placed like the combo hint: a fraction
 /// of the game window, draggable while the menu is open.
 /// </summary>
 public partial class OverlayWindow
@@ -79,8 +79,11 @@ public partial class OverlayWindow
 
     private void RenderRotation()
     {
-        // No sample while the menu is open: the strip is placed by dragging it in a battle.
-        StripView? view = _rotationPosition is { } at && _config.RotationEnabled ? View(at.Rotation, at.Position) : null;
+        StripView? view = _rotationPosition is { } at && _config.RotationEnabled ? View(at.Rotation, at.Position)
+            // Something to drag, size and see through while the menu is open, out of battle (a player
+            // couldn't adjust the strip before a fight).
+            : _menuOpen && _config.RotationEnabled && _config.PartyOcrEnabled ? SampleView()
+            : null;
 
         static string Keys(IEnumerable<StripStep> steps) =>
             string.Join(",", steps.Select(s => $"{s.Action}{s.State}{s.Icon is not null}{s.Avatar is not null}{s.Note}"));
@@ -90,6 +93,12 @@ public partial class OverlayWindow
         _stripKey = key;
         RotationContent.Content = view is null ? null : RotationStrip.Build(view);
         RotationFrame.Visibility = view is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private StripView SampleView()
+    {
+        var squad = _lastState?.Slots.Select(s => s.Operator?.Operator.Id).ToList();
+        return RotationStripView.Sample(squad is null ? null : RotationFor(squad), _party.Identifier?.Library, SkillIcon, Avatar);
     }
 
     private StripView View(Rotation rotation, RotationPosition position) =>
@@ -143,6 +152,9 @@ public partial class OverlayWindow
         RotationCheckBox.IsChecked = _config.RotationEnabled;
         RotationSizeSlider.Value = _config.RotationScale;
         RotationSizeText.Text = Loc.Format("Menu.Gauges.SizeValue", _config.RotationScale * 100);
+        RotationOpacitySlider.Value = _config.RotationOpacity;
+        RotationOpacityText.Text = Loc.Format("Menu.Gauges.SizeValue", _config.RotationOpacity * 100);
+        RotationContent.Opacity = _config.RotationOpacity;
         _loadingRotationSettings = false;
         ApplyRotationSettings();
         _publishedRotations.Changed += (_, _) => Dispatcher.BeginInvoke(() =>
@@ -168,6 +180,17 @@ public partial class OverlayWindow
         RotationCheckBox.IsEnabled = _config.PartyOcrEnabled;
         RotationResetButton.IsEnabled = _config.PartyOcrEnabled && _config.RotationEnabled;
         RotationSizeRow.IsEnabled = _config.PartyOcrEnabled && _config.RotationEnabled;
+        RotationOpacityRow.IsEnabled = _config.PartyOcrEnabled && _config.RotationEnabled;
+    }
+
+    /// <summary>The Opacity slider: the strip (not its drag frame) fades as it's dragged, so the fight shows through.</summary>
+    private void RotationOpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loadingRotationSettings || RotationOpacityText is null) return;
+        _config.RotationOpacity = Math.Clamp(Math.Round(e.NewValue, 2), HudConfig.MinRotationOpacity, HudConfig.MaxRotationOpacity);
+        RotationOpacityText.Text = Loc.Format("Menu.Gauges.SizeValue", _config.RotationOpacity * 100);
+        RotationContent.Opacity = _config.RotationOpacity;
+        ConfigStore.Save(_config);
     }
 
     /// <summary>The Size slider: resize the strip as it's dragged (it stays centred where it is). A player asked: the strip covered too much.</summary>

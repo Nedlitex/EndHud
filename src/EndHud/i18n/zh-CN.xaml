@@ -21,6 +21,7 @@
 
     <!-- Rotation strip (排轴) -->
     <sys:String x:Key="Rotation.Drag">按住拖动，调整排轴位置</sys:String>
+    <sys:String x:Key="Rotation.Sample">排轴示例</sys:String>
     <sys:String x:Key="Gauge.Drag">按住拖动，调整状态监视位置</sys:String>
     <sys:String x:Key="Gauge.Combo">连携技</sys:String>
     <sys:String x:Key="Gauge.Ultimate">终结技</sys:String>
@@ -180,9 +181,10 @@
 
     <!-- Menu: rotation strip -->
     <sys:String x:Key="Menu.Rotation">排轴</sys:String>
-    <sys:String x:Key="Menu.Rotation.Hint">按识别到的小队自动加载排轴，战斗中按当前状态显示该打的轴段。</sys:String>
+    <sys:String x:Key="Menu.Rotation.Hint">按识别到的小队自动加载排轴，战斗中按当前状态显示该打的轴段。菜单打开时会显示排轴示例，可直接拖动调整位置，并在下方调整大小和不透明度。</sys:String>
     <sys:String x:Key="Menu.Rotation.Edit">编辑排轴…</sys:String>
     <sys:String x:Key="Menu.Rotation.ResetPosition">恢复默认位置</sys:String>
+    <sys:String x:Key="Menu.Rotation.Opacity">不透明度</sys:String>
     <sys:String x:Key="Menu.Gauges">状态监视</sys:String>
     <sys:String x:Key="Menu.Gauges.Hint">战斗中在屏幕下方，用圆形图标显示每位干员的终结技充能（就绪时发光）、干员的专属计数（如青霆剑、猎矢、启示），以及连击等队伍增益（生效时发光）。专属计数只有操控该干员时才能看到，切换干员后显示最后看到的数值（变暗）。菜单打开时，可直接拖动屏幕上的状态监视调整位置。</sys:String>
     <sys:String x:Key="Menu.Gauges.ResetPosition">恢复默认位置</sys:String>
