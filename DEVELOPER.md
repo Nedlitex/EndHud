@@ -465,7 +465,7 @@ in the operator package, so it's built in and updated like the operators (see ab
 
 - **Each operator's element and two hobbies** come from the wiki with the roster (the infobox's
   `element`, `hb1` and `hb2`; [`OperatorInfo`](src/EndHud.Vision/Operators/OperatorInfo.cs)).
-- **The dishes (with their pictures), traits, themes and chef rules** are kept by hand in
+- **The dishes (with their pictures), drinks, traits, ingredients, themes, chef rules and gourmands** are kept by hand in
   [`inn/inn-data.json`](inn/inn-data.json) (the wiki has no dish pages yet; sources and how to
   change it in [inn/README.md](inn/README.md)), read by
   [`InnData`](src/EndHud.Vision/Inn/InnData.cs). The package build refuses the file if it has
@@ -475,9 +475,20 @@ in the operator package, so it's built in and updated like the operators (see ab
 A chef helps their kitchen through each hobby (+10% cooking speed for one dish type, or +5% chance
 of a choice dish, 珍馐) and their element (+5% speed and choice chance for one flavor, from Inn
 Rating 3), and bonuses of the same kind add up (`InnData.ChefBonusesOf`). The game's own kitchen
-screen agrees: Akekuri and Snowshine together show 主食 +40%, 鲜 +5% and 辣 +5%. Names not yet seen
-in the game (four drink traits, seven theme names) stay in English until they are; they're never
+screen agrees: Akekuri and Snowshine together show 主食 +40%, 鲜 +5% and 辣 +5%. The cook times the game shows
+for a kitchen are `base ÷ (1 + bonus)` rounded up (赛希 and 伊冯: 金丝小贝 35 s → 27 s, 雪绵豆沙 25 s →
+20 s, 白瓜肉丸汤 40 s → 37 s). Names not yet seen
+in the game (seven theme names) stay in English until they are; they're never
 guessed.
+
+Gourmands (老饕) ask for a kind of dish or drink rather than a dish. Their requests, and what meets
+each, come from a players' table (sources in [inn/README.md](inn/README.md)), with each condition
+written as players write it ([GourmandCondition](src/EndHud.Vision/Inn/GourmandCondition.cs): dish
+types, [traits], <ingredients>, 非, &, 或). What a gourmand says is matched to a request by its
+words, not its letters (`InnData.MatchSaid`): the table's sentences were typed by players, OCR
+slips, and a bubble wraps onto lines read one at a time. Each two-character piece of the line
+counts by how rare it is among all requests, so the word that tells two of a gourmand's requests
+apart decides. Tested on the lines OCR read off the owner's recording (two gourmands, both found).
 
 ## Rotations
 

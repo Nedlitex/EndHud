@@ -87,27 +87,109 @@
     },
     {
       "id": "Tea",
-      "zh": null,
+      "zh": "茶香",
       "flavor": false,
       "drink": true
     },
     {
       "id": "Kohlic",
-      "zh": null,
+      "zh": "酒香",
       "flavor": false,
       "drink": true
     },
     {
       "id": "Milky",
-      "zh": null,
+      "zh": "奶香",
       "flavor": false,
       "drink": true
     },
     {
       "id": "Fruity",
-      "zh": null,
+      "zh": "果香",
       "flavor": false,
       "drink": true
+    }
+  ],
+  "ingredients": [
+    {
+      "id": "Amber Rice",
+      "zh": "金石稻"
+    },
+    {
+      "id": "Ballpea",
+      "zh": "球豆"
+    },
+    {
+      "id": "Cabbage",
+      "zh": "青菜"
+    },
+    {
+      "id": "Crunchcane",
+      "zh": "脆蔗"
+    },
+    {
+      "id": "Egg",
+      "zh": "禽蛋"
+    },
+    {
+      "id": "Fin Fillet",
+      "zh": "鳞肉"
+    },
+    {
+      "id": "Flour",
+      "zh": "面粉"
+    },
+    {
+      "id": "Ground Pepper",
+      "zh": "辣椒粉"
+    },
+    {
+      "id": "Matoberry",
+      "zh": "茄果"
+    },
+    {
+      "id": "Meat",
+      "zh": "肉块"
+    },
+    {
+      "id": "Milk",
+      "zh": "兽奶"
+    },
+    {
+      "id": "Pingtuber",
+      "zh": "平薯"
+    },
+    {
+      "id": "Relishroom",
+      "zh": "多味菇"
+    },
+    {
+      "id": "Seed Oil",
+      "zh": "菜籽油"
+    },
+    {
+      "id": "Sourberry",
+      "zh": "青叶莓"
+    },
+    {
+      "id": "Spice Mix 130",
+      "zh": "一百三十香"
+    },
+    {
+      "id": "Starch",
+      "zh": "淀粉"
+    },
+    {
+      "id": "Sugar",
+      "zh": "砂糖"
+    },
+    {
+      "id": "Tartpepper",
+      "zh": "苦叶椒"
+    },
+    {
+      "id": "Whitemelon",
+      "zh": "白瓜"
     }
   ],
   "chefBonuses": {
@@ -213,11 +295,11 @@
       },
       "ingredients": [
         {
-          "en": "Meat",
+          "id": "Meat",
           "count": 2
         },
         {
-          "en": "Flour",
+          "id": "Flour",
           "count": 2
         }
       ]
@@ -235,11 +317,11 @@
       },
       "ingredients": [
         {
-          "en": "Egg",
+          "id": "Egg",
           "count": 1
         },
         {
-          "en": "Flour",
+          "id": "Flour",
           "count": 3
         }
       ]
@@ -257,15 +339,15 @@
       },
       "ingredients": [
         {
-          "en": "Amber Rice",
+          "id": "Amber Rice",
           "count": 3
         },
         {
-          "en": "Cabbage",
+          "id": "Cabbage",
           "count": 1
         },
         {
-          "en": "Egg",
+          "id": "Egg",
           "count": 2
         }
       ]
@@ -284,15 +366,15 @@
       },
       "ingredients": [
         {
-          "en": "Relishroom",
+          "id": "Relishroom",
           "count": 1
         },
         {
-          "en": "Flour",
+          "id": "Flour",
           "count": 4
         },
         {
-          "en": "Meat",
+          "id": "Meat",
           "count": 3
         }
       ]
@@ -311,15 +393,15 @@
       },
       "ingredients": [
         {
-          "en": "Amber Rice",
+          "id": "Amber Rice",
           "count": 3
         },
         {
-          "en": "Cabbage",
+          "id": "Cabbage",
           "count": 1
         },
         {
-          "en": "Relishroom",
+          "id": "Relishroom",
           "count": 2
         }
       ]
@@ -339,15 +421,16 @@
       },
       "ingredients": [
         {
-          "en": "Meat [A]",
-          "count": 1
+          "id": "Meat",
+          "count": 1,
+          "quality": true
         },
         {
-          "en": "Amber Rice",
+          "id": "Amber Rice",
           "count": 2
         },
         {
-          "en": "Tartpepper",
+          "id": "Tartpepper",
           "count": 4
         }
       ]
@@ -368,15 +451,16 @@
       },
       "ingredients": [
         {
-          "en": "Fin Fillet [A]",
-          "count": 1
+          "id": "Fin Fillet",
+          "count": 1,
+          "quality": true
         },
         {
-          "en": "Relishroom",
+          "id": "Relishroom",
           "count": 2
         },
         {
-          "en": "Flour",
+          "id": "Flour",
           "count": 6
         }
       ]
@@ -397,15 +481,15 @@
       },
       "ingredients": [
         {
-          "en": "Ballpea",
+          "id": "Ballpea",
           "count": 4
         },
         {
-          "en": "Ground Pepper",
+          "id": "Ground Pepper",
           "count": 1
         },
         {
-          "en": "Flour",
+          "id": "Flour",
           "count": 6
         }
       ]
@@ -426,19 +510,20 @@
       },
       "ingredients": [
         {
-          "en": "Sourberry [A]",
-          "count": 1
+          "id": "Sourberry",
+          "count": 1,
+          "quality": true
         },
         {
-          "en": "Amber Rice",
+          "id": "Amber Rice",
           "count": 3
         },
         {
-          "en": "Ballpea",
+          "id": "Ballpea",
           "count": 3
         },
         {
-          "en": "Sugar",
+          "id": "Sugar",
           "count": 2
         }
       ]
@@ -460,19 +545,21 @@
       },
       "ingredients": [
         {
-          "en": "Fin Fillet [A]",
-          "count": 1
+          "id": "Fin Fillet",
+          "count": 1,
+          "quality": true
         },
         {
-          "en": "Cabbage [A]",
-          "count": 1
+          "id": "Cabbage",
+          "count": 1,
+          "quality": true
         },
         {
-          "en": "Flour",
+          "id": "Flour",
           "count": 6
         },
         {
-          "en": "Matoberry",
+          "id": "Matoberry",
           "count": 3
         }
       ]
@@ -494,19 +581,20 @@
       },
       "ingredients": [
         {
-          "en": "Meat [A]",
-          "count": 3
+          "id": "Meat",
+          "count": 3,
+          "quality": true
         },
         {
-          "en": "Seed Oil",
+          "id": "Seed Oil",
           "count": 2
         },
         {
-          "en": "Flour",
+          "id": "Flour",
           "count": 4
         },
         {
-          "en": "Ground Pepper",
+          "id": "Ground Pepper",
           "count": 2
         }
       ]
@@ -528,19 +616,21 @@
       },
       "ingredients": [
         {
-          "en": "Cabbage [A]",
+          "id": "Cabbage",
+          "count": 1,
+          "quality": true
+        },
+        {
+          "id": "Meat",
+          "count": 2,
+          "quality": true
+        },
+        {
+          "id": "Spice Mix 130",
           "count": 1
         },
         {
-          "en": "Meat [A]",
-          "count": 2
-        },
-        {
-          "en": "Spice Mix 130",
-          "count": 1
-        },
-        {
-          "en": "Flour",
+          "id": "Flour",
           "count": 3
         }
       ]
@@ -558,11 +648,11 @@
       },
       "ingredients": [
         {
-          "en": "Matoberry",
+          "id": "Matoberry",
           "count": 1
         },
         {
-          "en": "Egg",
+          "id": "Egg",
           "count": 2
         }
       ]
@@ -580,11 +670,11 @@
       },
       "ingredients": [
         {
-          "en": "Tartpepper",
+          "id": "Tartpepper",
           "count": 1
         },
         {
-          "en": "Pingtuber",
+          "id": "Pingtuber",
           "count": 2
         }
       ]
@@ -602,11 +692,11 @@
       },
       "ingredients": [
         {
-          "en": "Fin Fillet",
+          "id": "Fin Fillet",
           "count": 2
         },
         {
-          "en": "Starch",
+          "id": "Starch",
           "count": 5
         }
       ]
@@ -625,11 +715,11 @@
       },
       "ingredients": [
         {
-          "en": "Whitemelon",
+          "id": "Whitemelon",
           "count": 2
         },
         {
-          "en": "Matoberry",
+          "id": "Matoberry",
           "count": 4
         }
       ]
@@ -650,15 +740,15 @@
       },
       "ingredients": [
         {
-          "en": "Cabbage",
+          "id": "Cabbage",
           "count": 2
         },
         {
-          "en": "Starch",
+          "id": "Starch",
           "count": 3
         },
         {
-          "en": "Meat",
+          "id": "Meat",
           "count": 3
         }
       ]
@@ -679,15 +769,15 @@
       },
       "ingredients": [
         {
-          "en": "Seed Oil",
+          "id": "Seed Oil",
           "count": 3
         },
         {
-          "en": "Pingtuber",
+          "id": "Pingtuber",
           "count": 5
         },
         {
-          "en": "Matoberry",
+          "id": "Matoberry",
           "count": 2
         }
       ]
@@ -708,15 +798,16 @@
       },
       "ingredients": [
         {
-          "en": "Cabbage [A]",
-          "count": 1
+          "id": "Cabbage",
+          "count": 1,
+          "quality": true
         },
         {
-          "en": "Fin Fillet",
+          "id": "Fin Fillet",
           "count": 2
         },
         {
-          "en": "Cabbage",
+          "id": "Cabbage",
           "count": 2
         }
       ]
@@ -737,15 +828,16 @@
       },
       "ingredients": [
         {
-          "en": "Meat [A]",
+          "id": "Meat",
+          "count": 2,
+          "quality": true
+        },
+        {
+          "id": "Relishroom",
           "count": 2
         },
         {
-          "en": "Relishroom",
-          "count": 2
-        },
-        {
-          "en": "Ground Pepper",
+          "id": "Ground Pepper",
           "count": 2
         }
       ]
@@ -766,19 +858,21 @@
       },
       "ingredients": [
         {
-          "en": "Cabbage [A]",
-          "count": 1
+          "id": "Cabbage",
+          "count": 1,
+          "quality": true
         },
         {
-          "en": "Relishroom [A]",
-          "count": 1
+          "id": "Relishroom",
+          "count": 1,
+          "quality": true
         },
         {
-          "en": "Sourberry",
+          "id": "Sourberry",
           "count": 3
         },
         {
-          "en": "Matoberry",
+          "id": "Matoberry",
           "count": 1
         }
       ]
@@ -800,19 +894,21 @@
       },
       "ingredients": [
         {
-          "en": "Meat [A]",
-          "count": 1
+          "id": "Meat",
+          "count": 1,
+          "quality": true
         },
         {
-          "en": "Relishroom [A]",
-          "count": 1
+          "id": "Relishroom",
+          "count": 1,
+          "quality": true
         },
         {
-          "en": "Whitemelon",
+          "id": "Whitemelon",
           "count": 3
         },
         {
-          "en": "Pingtuber",
+          "id": "Pingtuber",
           "count": 2
         }
       ]
@@ -834,19 +930,21 @@
       },
       "ingredients": [
         {
-          "en": "Meat [A]",
+          "id": "Meat",
+          "count": 2,
+          "quality": true
+        },
+        {
+          "id": "Cabbage",
+          "count": 1,
+          "quality": true
+        },
+        {
+          "id": "Seed Oil",
           "count": 2
         },
         {
-          "en": "Cabbage [A]",
-          "count": 1
-        },
-        {
-          "en": "Seed Oil",
-          "count": 2
-        },
-        {
-          "en": "Sugar",
+          "id": "Sugar",
           "count": 2
         }
       ]
@@ -867,19 +965,21 @@
       },
       "ingredients": [
         {
-          "en": "Egg [A]",
-          "count": 1
+          "id": "Egg",
+          "count": 1,
+          "quality": true
         },
         {
-          "en": "Relishroom [A]",
-          "count": 1
+          "id": "Relishroom",
+          "count": 1,
+          "quality": true
         },
         {
-          "en": "Sugar",
+          "id": "Sugar",
           "count": 3
         },
         {
-          "en": "Ballpea",
+          "id": "Ballpea",
           "count": 3
         }
       ]
@@ -901,19 +1001,22 @@
       },
       "ingredients": [
         {
-          "en": "Meat [A]",
-          "count": 2
+          "id": "Meat",
+          "count": 2,
+          "quality": true
         },
         {
-          "en": "Fin Fillet [A]",
-          "count": 1
+          "id": "Fin Fillet",
+          "count": 1,
+          "quality": true
         },
         {
-          "en": "Relishroom [A]",
-          "count": 1
+          "id": "Relishroom",
+          "count": 1,
+          "quality": true
         },
         {
-          "en": "Fin Fillet",
+          "id": "Fin Fillet",
           "count": 3
         }
       ]
@@ -935,15 +1038,16 @@
       },
       "ingredients": [
         {
-          "en": "Fin Fillet [A]",
-          "count": 2
+          "id": "Fin Fillet",
+          "count": 2,
+          "quality": true
         },
         {
-          "en": "Spice Mix 130",
+          "id": "Spice Mix 130",
           "count": 1
         },
         {
-          "en": "Matoberry",
+          "id": "Matoberry",
           "count": 4
         }
       ]
@@ -964,15 +1068,16 @@
       },
       "ingredients": [
         {
-          "en": "Relishroom [A]",
-          "count": 2
+          "id": "Relishroom",
+          "count": 2,
+          "quality": true
         },
         {
-          "en": "Starch",
+          "id": "Starch",
           "count": 4
         },
         {
-          "en": "Tartpepper",
+          "id": "Tartpepper",
           "count": 2
         }
       ]
@@ -994,15 +1099,16 @@
       },
       "ingredients": [
         {
-          "en": "Sourberry [A]",
-          "count": 2
+          "id": "Sourberry",
+          "count": 2,
+          "quality": true
         },
         {
-          "en": "Ballpea",
+          "id": "Ballpea",
           "count": 3
         },
         {
-          "en": "Sugar",
+          "id": "Sugar",
           "count": 2
         }
       ]
@@ -1023,19 +1129,21 @@
       },
       "ingredients": [
         {
-          "en": "Fin Fillet [A]",
+          "id": "Fin Fillet",
+          "count": 2,
+          "quality": true
+        },
+        {
+          "id": "Cabbage",
+          "count": 1,
+          "quality": true
+        },
+        {
+          "id": "Seed Oil",
           "count": 2
         },
         {
-          "en": "Cabbage [A]",
-          "count": 1
-        },
-        {
-          "en": "Seed Oil",
-          "count": 2
-        },
-        {
-          "en": "Matoberry",
+          "id": "Matoberry",
           "count": 3
         }
       ]
@@ -1056,15 +1164,17 @@
       },
       "ingredients": [
         {
-          "en": "Cabbage [A]",
-          "count": 2
+          "id": "Cabbage",
+          "count": 2,
+          "quality": true
         },
         {
-          "en": "Meat [A]",
-          "count": 1
+          "id": "Meat",
+          "count": 1,
+          "quality": true
         },
         {
-          "en": "Whitemelon",
+          "id": "Whitemelon",
           "count": 3
         }
       ]
@@ -1086,19 +1196,21 @@
       },
       "ingredients": [
         {
-          "en": "Relishroom [A]",
-          "count": 1
+          "id": "Relishroom",
+          "count": 1,
+          "quality": true
         },
         {
-          "en": "Milk [A]",
-          "count": 2
+          "id": "Milk",
+          "count": 2,
+          "quality": true
         },
         {
-          "en": "Ballpea",
+          "id": "Ballpea",
           "count": 3
         },
         {
-          "en": "Flour",
+          "id": "Flour",
           "count": 2
         }
       ]
@@ -1120,15 +1232,17 @@
       },
       "ingredients": [
         {
-          "en": "Egg [A]",
-          "count": 2
+          "id": "Egg",
+          "count": 2,
+          "quality": true
         },
         {
-          "en": "Fin Fillet [A]",
-          "count": 2
+          "id": "Fin Fillet",
+          "count": 2,
+          "quality": true
         },
         {
-          "en": "Seed Oil",
+          "id": "Seed Oil",
           "count": 4
         }
       ]
@@ -1150,15 +1264,16 @@
       },
       "ingredients": [
         {
-          "en": "Relishroom [A]",
+          "id": "Relishroom",
+          "count": 3,
+          "quality": true
+        },
+        {
+          "id": "Ballpea",
           "count": 3
         },
         {
-          "en": "Ballpea",
-          "count": 3
-        },
-        {
-          "en": "Sugar",
+          "id": "Sugar",
           "count": 3
         }
       ]
@@ -1180,19 +1295,20 @@
       },
       "ingredients": [
         {
-          "en": "Spice Mix 130",
+          "id": "Spice Mix 130",
           "count": 1
         },
         {
-          "en": "Cabbage [A]",
+          "id": "Cabbage",
+          "count": 2,
+          "quality": true
+        },
+        {
+          "id": "Ballpea",
           "count": 2
         },
         {
-          "en": "Ballpea",
-          "count": 2
-        },
-        {
-          "en": "Starch",
+          "id": "Starch",
           "count": 2
         }
       ]
@@ -1210,15 +1326,15 @@
       },
       "ingredients": [
         {
-          "en": "Amber Rice",
+          "id": "Amber Rice",
           "count": 3
         },
         {
-          "en": "Starch",
+          "id": "Starch",
           "count": 3
         },
         {
-          "en": "Sugar",
+          "id": "Sugar",
           "count": 2
         }
       ]
@@ -1237,15 +1353,15 @@
       },
       "ingredients": [
         {
-          "en": "Crunchcane",
+          "id": "Crunchcane",
           "count": 2
         },
         {
-          "en": "Milk",
+          "id": "Milk",
           "count": 1
         },
         {
-          "en": "Egg",
+          "id": "Egg",
           "count": 3
         }
       ]
@@ -1266,15 +1382,15 @@
       },
       "ingredients": [
         {
-          "en": "Flour",
+          "id": "Flour",
           "count": 3
         },
         {
-          "en": "Egg",
+          "id": "Egg",
           "count": 3
         },
         {
-          "en": "Milk",
+          "id": "Milk",
           "count": 3
         }
       ]
@@ -1294,15 +1410,15 @@
       },
       "ingredients": [
         {
-          "en": "Amber Rice",
+          "id": "Amber Rice",
           "count": 4
         },
         {
-          "en": "Sugar",
+          "id": "Sugar",
           "count": 2
         },
         {
-          "en": "Ballpea",
+          "id": "Ballpea",
           "count": 2
         }
       ]
@@ -1323,15 +1439,16 @@
       },
       "ingredients": [
         {
-          "en": "Milk [A]",
-          "count": 1
+          "id": "Milk",
+          "count": 1,
+          "quality": true
         },
         {
-          "en": "Sourberry",
+          "id": "Sourberry",
           "count": 3
         },
         {
-          "en": "Starch",
+          "id": "Starch",
           "count": 3
         }
       ]
@@ -1352,15 +1469,16 @@
       },
       "ingredients": [
         {
-          "en": "Egg [A]",
-          "count": 1
+          "id": "Egg",
+          "count": 1,
+          "quality": true
         },
         {
-          "en": "Ballpea",
+          "id": "Ballpea",
           "count": 3
         },
         {
-          "en": "Seed Oil",
+          "id": "Seed Oil",
           "count": 3
         }
       ]
@@ -1381,19 +1499,21 @@
       },
       "ingredients": [
         {
-          "en": "Meat [A]",
+          "id": "Meat",
+          "count": 2,
+          "quality": true
+        },
+        {
+          "id": "Egg",
+          "count": 1,
+          "quality": true
+        },
+        {
+          "id": "Sugar",
           "count": 2
         },
         {
-          "en": "Egg [A]",
-          "count": 1
-        },
-        {
-          "en": "Sugar",
-          "count": 2
-        },
-        {
-          "en": "Flour",
+          "id": "Flour",
           "count": 2
         }
       ]
@@ -1415,19 +1535,20 @@
       },
       "ingredients": [
         {
-          "en": "Egg [A]",
+          "id": "Egg",
+          "count": 2,
+          "quality": true
+        },
+        {
+          "id": "Whitemelon",
           "count": 2
         },
         {
-          "en": "Whitemelon",
-          "count": 2
-        },
-        {
-          "en": "Sugar",
+          "id": "Sugar",
           "count": 3
         },
         {
-          "en": "Flour",
+          "id": "Flour",
           "count": 3
         }
       ]
@@ -1449,19 +1570,21 @@
       },
       "ingredients": [
         {
-          "en": "Milk [A]",
-          "count": 1
+          "id": "Milk",
+          "count": 1,
+          "quality": true
         },
         {
-          "en": "Sourberry [A]",
-          "count": 2
+          "id": "Sourberry",
+          "count": 2,
+          "quality": true
         },
         {
-          "en": "Sugar",
+          "id": "Sugar",
           "count": 3
         },
         {
-          "en": "Pingtuber",
+          "id": "Pingtuber",
           "count": 3
         }
       ]
@@ -1483,22 +1606,160 @@
       },
       "ingredients": [
         {
-          "en": "Egg [A]",
-          "count": 2
+          "id": "Egg",
+          "count": 2,
+          "quality": true
         },
         {
-          "en": "Milk [A]",
-          "count": 1
+          "id": "Milk",
+          "count": 1,
+          "quality": true
         },
         {
-          "en": "Sourberry [A]",
-          "count": 2
+          "id": "Sourberry",
+          "count": 2,
+          "quality": true
         },
         {
-          "en": "Starch",
+          "id": "Starch",
           "count": 6
         }
       ]
+    }
+  ],
+  "drinks": [
+    {
+      "id": "bowl-of-tea",
+      "en": "Bowl of Tea",
+      "zh": "大碗碎茶",
+      "price": 10,
+      "traits": [],
+      "unlock": {
+        "rating": 1
+      },
+      "gameId": "item_inn_drink_1"
+    },
+    {
+      "id": "bottled-milk",
+      "en": "Bottled Milk",
+      "zh": "瓶装兽奶",
+      "price": 10,
+      "traits": [],
+      "unlock": {
+        "rating": 1
+      },
+      "gameId": "item_inn_drink_2"
+    },
+    {
+      "id": "potable-water",
+      "en": "Potable Water",
+      "zh": "直饮水",
+      "price": 1,
+      "traits": [],
+      "unlock": {
+        "rating": 1
+      },
+      "unlimited": true
+    },
+    {
+      "id": "corn-juice",
+      "en": "Corn Juice",
+      "zh": "玉米汁",
+      "price": 20,
+      "traits": [],
+      "unlock": {
+        "rating": 2
+      },
+      "gameId": "item_inn_drink_3"
+    },
+    {
+      "id": "bottled-canejuice",
+      "en": "Bottled Canejuice",
+      "zh": "瓶装脆蔗汁",
+      "price": 20,
+      "traits": [],
+      "unlock": {
+        "rating": 2
+      },
+      "gameId": "item_inn_drink_4"
+    },
+    {
+      "id": "pear-blossom-tea",
+      "en": "Pear Blossom Tea",
+      "zh": "梨花香茶",
+      "price": 35,
+      "traits": [
+        "Tea"
+      ],
+      "unlock": {
+        "rating": 3
+      },
+      "gameId": "item_inn_drink_5"
+    },
+    {
+      "id": "seekers-kohl",
+      "en": "Seeker's Kohl",
+      "zh": "游人酒",
+      "price": 35,
+      "traits": [
+        "Kohlic"
+      ],
+      "unlock": {
+        "rating": 3
+      },
+      "gameId": "item_inn_drink_6"
+    },
+    {
+      "id": "bottled-milk-a",
+      "en": "Bottled Milk [A]",
+      "zh": "瓶装优质兽奶",
+      "price": 35,
+      "traits": [
+        "Milky"
+      ],
+      "unlock": {
+        "rating": 3
+      },
+      "gameId": "item_inn_drink_7"
+    },
+    {
+      "id": "bottled-duskberry-juice",
+      "en": "Bottled Duskberry Juice",
+      "zh": "瓶装霞莓饮",
+      "price": 60,
+      "traits": [
+        "Fruity"
+      ],
+      "unlock": {
+        "rating": 4
+      },
+      "gameId": "item_inn_drink_10"
+    },
+    {
+      "id": "vintage-grapedew",
+      "en": "Vintage Grapedew",
+      "zh": "陈酿葡萄露",
+      "price": 60,
+      "traits": [
+        "Kohlic"
+      ],
+      "unlock": {
+        "rating": 4
+      },
+      "gameId": "item_inn_drink_8"
+    },
+    {
+      "id": "pre-tide-lungjing",
+      "en": "Pre-Tide Lungjing",
+      "zh": "潮前龙井",
+      "price": 60,
+      "traits": [
+        "Tea"
+      ],
+      "unlock": {
+        "rating": 4
+      },
+      "gameId": "item_inn_drink_9"
     }
   ],
   "themes": [
@@ -1741,6 +2002,636 @@
         60000,
         85000,
         120000
+      ]
+    }
+  ],
+  "gourmands": [
+    {
+      "pool": "normal",
+      "number": 1,
+      "look": "少年警员",
+      "likes": "<面粉>",
+      "requests": [
+        {
+          "text": "来些面食，多放盐，我口味重。",
+          "when": "[咸]&<面粉>"
+        },
+        {
+          "text": "还有没有不带鳞腥味的面食？",
+          "when": "非[鲜]&<面粉>"
+        },
+        {
+          "text": "我想想，炒个菜吧，越辣越好。",
+          "when": "菜肴&[辣]"
+        },
+        {
+          "text": "咸的辣的都行，随便来些好吃的。",
+          "when": "[咸]或[辣]"
+        },
+        {
+          "text": "这两天牙疼，别上酸的。",
+          "when": "非[酸]"
+        },
+        {
+          "text": "不太甜的点心吧，在刷体脂。",
+          "when": "甜品&非[甜]"
+        }
+      ]
+    },
+    {
+      "pool": "normal",
+      "number": 2,
+      "look": "成年女工程师",
+      "likes": "<(优质)鳞肉>",
+      "requests": [
+        {
+          "text": "果然鳞还是要吃新鲜的……",
+          "when": "[鲜]&<(优质)鳞肉>"
+        },
+        {
+          "text": "有没有“鳞游水中”？就是鳞汤啦。",
+          "when": "汤羹&<优质鳞肉>"
+        },
+        {
+          "text": "想吃水产……会不会很麻烦？",
+          "when": "[水产]"
+        },
+        {
+          "text": "锅气十足的菜，啊，千万不要辣。",
+          "when": "菜肴&非[辣]"
+        },
+        {
+          "text": "酸酸甜甜，果汁之类的有没有？",
+          "when": "[果香]"
+        },
+        {
+          "text": "再来点喝的，但不要茶，会失眠。",
+          "when": "非[茶香]"
+        }
+      ]
+    },
+    {
+      "pool": "normal",
+      "number": 3,
+      "look": "老教师",
+      "likes": "汤羹或[滋补]",
+      "requests": [
+        {
+          "text": "来份汤，要清淡。",
+          "when": "汤羹&非[辣]&非[咸]"
+        },
+        {
+          "text": "素菜一道。",
+          "when": "菜肴&[素食]"
+        },
+        {
+          "text": "滋补身心的良膳，来一道。",
+          "when": "[滋补]"
+        },
+        {
+          "text": "清爽无油的汤羹，有吗？",
+          "when": "汤羹&非<菜籽油>"
+        },
+        {
+          "text": "香茗一杯。",
+          "when": "[茶香]"
+        },
+        {
+          "text": "来杯喝的，谨记，我滴酒不沾。",
+          "when": "非[酒香]"
+        }
+      ]
+    },
+    {
+      "pool": "normal",
+      "number": 4,
+      "look": "少女警员",
+      "likes": "甜品或[美观]",
+      "requests": [
+        {
+          "text": "有没有好看、能出片的菜式？",
+          "when": "[美观]"
+        },
+        {
+          "text": "嗯……想吃甜品，最好有点酸。",
+          "when": "甜品&[酸]"
+        },
+        {
+          "text": "……吃点甜品吧，但别有面粉哦。",
+          "when": "甜品&非<面粉>"
+        },
+        {
+          "text": "想吃很雅致……很有故事的菜式。",
+          "when": "[雅致]"
+        },
+        {
+          "text": "来一些不带水产的汤羹。",
+          "when": "汤羹&非[水产]"
+        },
+        {
+          "text": "鲜则生腥，不是这种的都可以。",
+          "when": "非[鲜]"
+        }
+      ]
+    },
+    {
+      "pool": "normal",
+      "number": 5,
+      "look": "强壮警员",
+      "likes": "<(优质)肉块>",
+      "requests": [
+        {
+          "text": "碳水！肉！拉满！",
+          "when": "主食&<(优质)肉块>"
+        },
+        {
+          "text": "上好的肉！做点菜！",
+          "when": "菜肴&<优质肉块>"
+        },
+        {
+          "text": "来点汤，要酸口，促消化。",
+          "when": "汤羹&[酸]"
+        },
+        {
+          "text": "来份点心，有没有梅子那么酸的！",
+          "when": "甜品&[酸]"
+        },
+        {
+          "text": "随便上点，别是滋补药膳那种就行！",
+          "when": "非[滋补]"
+        },
+        {
+          "text": "肉！上肉！不要纯素！",
+          "when": "[肉食]&非[素食]"
+        },
+        {
+          "text": "来，大碗上酒呀！",
+          "when": "[酒香]"
+        },
+        {
+          "text": "来点喝的清清口，别是奶味的就行。",
+          "when": "非[奶香]"
+        }
+      ]
+    },
+    {
+      "pool": "normal",
+      "number": 6,
+      "look": "少年工程师",
+      "likes": "菜肴",
+      "requests": [
+        {
+          "text": "给我上一道菜肴。",
+          "when": "菜肴"
+        },
+        {
+          "text": "给我上一道茄果的菜肴。",
+          "when": "菜肴&<茄果>"
+        },
+        {
+          "text": "随便来点什么，但不要稻谷类的。",
+          "when": "非<金石稻>"
+        },
+        {
+          "text": "随便来点什么，但不要甜品的。",
+          "when": "非甜品"
+        }
+      ]
+    },
+    {
+      "pool": "normal",
+      "number": 7,
+      "look": "少女工程师",
+      "likes": "甜品",
+      "requests": [
+        {
+          "text": "请给我甜品。",
+          "when": "甜品"
+        },
+        {
+          "text": "请给我甜品，不要有砂糖。",
+          "when": "甜品&非<砂糖>"
+        },
+        {
+          "text": "请给我甜品，不要有淀粉。",
+          "when": "甜品&非<淀粉>"
+        },
+        {
+          "text": "请随意给我上点什么，不要是主食。",
+          "when": "非主食"
+        }
+      ]
+    },
+    {
+      "pool": "feast",
+      "number": 1,
+      "look": "大壮汉工人",
+      "likes": "主食",
+      "requests": [
+        {
+          "text": "充充碳吧，我是说，米饭。",
+          "when": "主食&<金石稻>"
+        },
+        {
+          "text": "补点碳水，来点够咸的。",
+          "when": "主食&[咸]"
+        },
+        {
+          "text": "碳水碳水，来点够鲜的。",
+          "when": "主食&[鲜]"
+        },
+        {
+          "text": "管饱的碳水，但别辣。",
+          "when": "主食&非[辣]"
+        },
+        {
+          "text": "我要不花哨且管饱的碳水！",
+          "when": "主食&非[美观]&非[雅致]"
+        }
+      ]
+    },
+    {
+      "pool": "feast",
+      "number": 2,
+      "look": "胖教师",
+      "likes": "菜肴",
+      "requests": [
+        {
+          "text": "菜肴之美，在于无鳞不成席呀。",
+          "when": "菜肴&<(优质)鳞肉>"
+        },
+        {
+          "text": "菜肴之妙，在于远离菌菇呀。",
+          "when": "菜肴&非<多味菇>&非<优质多味菇>"
+        },
+        {
+          "text": "菜肴之礼，在于以酸开胃呀。",
+          "when": "菜肴&[酸]"
+        },
+        {
+          "text": "菜肴之勇，在于辛辣之巧呀。",
+          "when": "菜肴&[辣]"
+        },
+        {
+          "text": "菜肴之智，在于远离甜腻呀。",
+          "when": "菜肴&非[甜]"
+        }
+      ]
+    },
+    {
+      "pool": "feast",
+      "number": 3,
+      "look": "小孩",
+      "likes": "甜品",
+      "requests": [
+        {
+          "text": "那种，有奶香味的甜糕点。",
+          "when": "甜品&<(优质)兽奶>"
+        },
+        {
+          "text": "那种，有蛋香味的甜糕点。",
+          "when": "甜品&<(优质)禽蛋>"
+        },
+        {
+          "text": "那种，不会蛀牙的糕点。",
+          "when": "甜品&非<砂糖>"
+        },
+        {
+          "text": "那种，咸咸的美味糕点。",
+          "when": "甜品&[咸]"
+        },
+        {
+          "text": "那些，酸酸甜甜的下午茶糕点。",
+          "when": "甜品&([酸]或[甜])"
+        }
+      ]
+    },
+    {
+      "pool": "feast",
+      "number": 4,
+      "look": "老人",
+      "likes": "汤羹",
+      "requests": [
+        {
+          "text": "可有靓汤？莫放球豆。",
+          "when": "汤羹&非<球豆>"
+        },
+        {
+          "text": "可有靓汤？雅致当先。",
+          "when": "汤羹&[雅致]"
+        },
+        {
+          "text": "可有靓汤？需酸解腻。",
+          "when": "汤羹&[酸]"
+        },
+        {
+          "text": "可有靓汤？以鲜当先。",
+          "when": "汤羹&[鲜]"
+        },
+        {
+          "text": "可有靓汤？莫要纯素。",
+          "when": "汤羹&非[素食]"
+        }
+      ]
+    },
+    {
+      "pool": "feast",
+      "number": 5,
+      "look": "小学生",
+      "likes": "[鲜]",
+      "requests": [
+        {
+          "text": "百膳鲜为先，只是不爱鳞。",
+          "when": "[鲜]&非<鳞肉>&非<优质鳞肉>"
+        },
+        {
+          "text": "百膳鲜为先，滋补味更深。",
+          "when": "[鲜]&[滋补]"
+        },
+        {
+          "text": "百膳鲜为先，汤羹却下乘。",
+          "when": "非汤羹&[鲜]"
+        },
+        {
+          "text": "且来些饮料，唯独不要茶。",
+          "when": "非[茶香]"
+        },
+        {
+          "text": "且来些饮料，以果味为佳。",
+          "when": "[果香]"
+        }
+      ]
+    },
+    {
+      "pool": "feast",
+      "number": 6,
+      "look": "男农民",
+      "likes": "[咸]",
+      "requests": [
+        {
+          "text": "咸口的随意上些，不要汤羹。",
+          "when": "非汤羹&[咸]"
+        },
+        {
+          "text": "随意上些，咸一点，不要肉食。",
+          "when": "[咸]&非<肉块>&非<优质肉块>"
+        },
+        {
+          "text": "来点少油吃食，但盐要多放。",
+          "when": "[咸]&非<菜籽油>"
+        },
+        {
+          "text": "随意上些饮品，不要有果味。",
+          "when": "非[果香]"
+        },
+        {
+          "text": "什么喝的都行，但要清口解腻。",
+          "when": "[茶香]"
+        }
+      ]
+    },
+    {
+      "pool": "feast",
+      "number": 7,
+      "look": "少年工程师",
+      "likes": "[辣]",
+      "requests": [
+        {
+          "text": "啥都行！多辣！不要主食！",
+          "when": "非主食&[辣]"
+        },
+        {
+          "text": "上点吃食，重辣不倒牙就行。",
+          "when": "[辣]&非[酸]"
+        },
+        {
+          "text": "肉要上品，而且要辣，很辣！",
+          "when": "[辣]&<优质肉块>"
+        },
+        {
+          "text": "喝的！啥都行！但不能醉人！",
+          "when": "非[酒香]"
+        },
+        {
+          "text": "来杯喝的，别有草叶子味！",
+          "when": "非[茶香]"
+        }
+      ]
+    },
+    {
+      "pool": "feast",
+      "number": 8,
+      "look": "小孩",
+      "likes": "[甜]",
+      "requests": [
+        {
+          "text": "可有甘甜果味之物予我？",
+          "when": "[甜]&<(优质)青叶莓>"
+        },
+        {
+          "text": "可有味甜无肉之物予我？",
+          "when": "[甜]&非<肉块>&非<优质肉块>"
+        },
+        {
+          "text": "可有味甜而非糕点之物予我？",
+          "when": "非甜品&[甜]"
+        },
+        {
+          "text": "可有不辣之饮予我？",
+          "when": "非[酒香]"
+        },
+        {
+          "text": "可有乳饮予我？",
+          "when": "[奶香]"
+        }
+      ]
+    },
+    {
+      "pool": "feast",
+      "number": 9,
+      "look": "男工程师",
+      "likes": "[酸]",
+      "requests": [
+        {
+          "text": "我看……茄果菜式，酸能提味。",
+          "when": "[酸]&<茄果>"
+        },
+        {
+          "text": "嗯……鳞肉菜式，要有解腻酸味。",
+          "when": "[酸]&<(优质)鳞肉>"
+        },
+        {
+          "text": "我想……酸味菜肴，不要做成甜品。",
+          "when": "非甜品&[酸]"
+        },
+        {
+          "text": "或许……随意饮品？但我乳糖不耐。",
+          "when": "非[奶香]"
+        },
+        {
+          "text": "没错……理应小酌几杯。",
+          "when": "[酒香]"
+        }
+      ]
+    },
+    {
+      "pool": "feast",
+      "number": 10,
+      "look": "男工人",
+      "likes": "[肉食]或<(优质)肉块>",
+      "requests": [
+        {
+          "text": "肉。",
+          "when": "[肉食]"
+        },
+        {
+          "text": "好肉。汤不行。",
+          "when": "非汤羹&<优质肉块>"
+        },
+        {
+          "text": "肉。菜肴。",
+          "when": "菜肴&<(优质)肉块>"
+        },
+        {
+          "text": "喝的。茶。",
+          "when": "[茶香]"
+        },
+        {
+          "text": "喝的。果味不行。",
+          "when": "非[果香]"
+        }
+      ]
+    },
+    {
+      "pool": "feast",
+      "number": 11,
+      "look": "女学生",
+      "likes": "[素食]或<(优质)多味菇>",
+      "requests": [
+        {
+          "text": "哎你们有没有素的？",
+          "when": "[素食]"
+        },
+        {
+          "text": "哎你们有没有多味菇的汤？",
+          "when": "汤羹&<优质多味菇>"
+        },
+        {
+          "text": "哎你们有没有多味菇菜肴？",
+          "when": "菜肴&<优质多味菇>"
+        },
+        {
+          "text": "哎你们有没有无酒精饮料？",
+          "when": "非[酒香]"
+        },
+        {
+          "text": "哎你们有没有古典清新饮料？",
+          "when": "[茶香]"
+        }
+      ]
+    },
+    {
+      "pool": "feast",
+      "number": 12,
+      "look": "女农民",
+      "likes": "[水产]或<(优质)鳞肉>",
+      "requests": [
+        {
+          "text": "好时节！该吃水中之物！",
+          "when": "[水产]"
+        },
+        {
+          "text": "上好水产！不要做成汤羹！",
+          "when": "非汤羹&<优质鳞肉>"
+        },
+        {
+          "text": "鳞肉菜式！做成主食！",
+          "when": "主食&<(优质)鳞肉>"
+        },
+        {
+          "text": "来点喝的，别有奶腥味。",
+          "when": "非[奶香]"
+        },
+        {
+          "text": "佐餐饮品来一些，可别让我上头。",
+          "when": "非[酒香]"
+        }
+      ]
+    },
+    {
+      "pool": "feast",
+      "number": 13,
+      "look": "少女工程师",
+      "likes": "[滋补]或<(优质)青叶莓>",
+      "requests": [
+        {
+          "text": "吃东西还是要吃滋补的。",
+          "when": "[滋补]"
+        },
+        {
+          "text": "优质青叶莓还是不适合当主食。",
+          "when": "非主食&<优质青叶莓>"
+        },
+        {
+          "text": "优质青叶莓还是要做成甜品。",
+          "when": "甜品&<优质青叶莓>"
+        },
+        {
+          "text": "饮品还是得喝有青叶莓的。",
+          "when": "[果香]"
+        },
+        {
+          "text": "这次不喝青叶莓了，喝点奶。",
+          "when": "[奶香]"
+        }
+      ]
+    },
+    {
+      "pool": "feast",
+      "number": 14,
+      "look": "女工人",
+      "likes": "[美观]或<一百三十香>",
+      "requests": [
+        {
+          "text": "别丑就行，好看最重要。",
+          "when": "[美观]"
+        },
+        {
+          "text": "让我见识见识一百三十香。",
+          "when": "<一百三十香>"
+        },
+        {
+          "text": "菜肴都丑，上点好看的。",
+          "when": "非菜肴&[美观]"
+        },
+        {
+          "text": "饮料都挺不错，上果香奶香的吧。",
+          "when": "[果香]或[奶香]"
+        }
+      ]
+    },
+    {
+      "pool": "feast",
+      "number": 15,
+      "look": "女教师",
+      "likes": "[雅致]或<球豆>",
+      "requests": [
+        {
+          "text": "夫用膳者，理应雅致为先。",
+          "when": "[雅致]"
+        },
+        {
+          "text": "夫品汤羹者，理应善用球豆。",
+          "when": "汤羹&<球豆>"
+        },
+        {
+          "text": "夫擅烹球豆者，理应舍去甜腻。",
+          "when": "<球豆>&非<砂糖>"
+        },
+        {
+          "text": "夫好饮者，理应茶酒为先。",
+          "when": "[茶香]或[酒香]"
+        }
       ]
     }
   ]

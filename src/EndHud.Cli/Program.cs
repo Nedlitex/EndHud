@@ -210,7 +210,19 @@ static async Task<int> BuildPackageAsync(string outZip, string innFolder)
     string work = Path.Combine(Path.GetTempPath(), "endhud-operator-package", "reference");
     if (Directory.Exists(work)) Directory.Delete(work, recursive: true);
     byte[]? previous = File.Exists(outZip) ? File.ReadAllBytes(outZip) : null;
-    if (previous is not null) OperatorPackage.Install(work, previous);
+    if (previous is not null)
+    {
+        try
+        {
+            OperatorPackage.Install(work, previous);
+        }
+        catch (InvalidDataException ex)
+        {
+            // The previous package can't be read by this build (its inn data in an older shape): download everything afresh.
+            Console.WriteLine($"previous package not reused: {ex.Message}");
+            if (Directory.Exists(work)) Directory.Delete(work, recursive: true);
+        }
+    }
 
     using var http = WikiOperatorSource.CreateHttpClient();
     var result = await OperatorReference.UpdateAsync(work, http);
