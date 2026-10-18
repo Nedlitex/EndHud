@@ -341,6 +341,7 @@ release.yml).
 | `ComboHintX`, `ComboHintY` | `0.2`, `0.36` | Where the hint sits: its top-left corner as a fraction of the game window's width and height. |
 | `RotationEnabled` | `true` | Show the rotation strip when the recognised squad has a rotation. |
 | `RotationCenterX`, `RotationY` | `0.5`, `0.13` | Where the strip sits, as a fraction of the game window: the middle of its width (it stays centred as it changes width) and its top. |
+| `RotationScale` | `1` | The strip's size on top of following the game window, 0.5–2 (the menu's 大小 slider; a value outside is brought back into range). |
 | `GaugesEnabled` | `true` | Show the gauges in battle: team buffs (Link with its stacks, once seen in the battle), and each recognised operator's ultimate charge and own counters, as circles with the operator's avatar in the middle. |
 | `GaugesScale` | `1` | The gauges' size on top of following the game window (the menu's slider): 0.5–2; a value outside that is clamped when the file is read. |
 | `GaugesCenterX`, `GaugesBottomY` | `0.5`, `0.885` | Where the gauges sit, as a fraction of the game window: the middle of their width and their bottom edge (so a bigger size grows upwards): bottom middle, just above the game's HP and skill-point bars. |
@@ -544,9 +545,11 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
 
 - `squad`: operator ids from the operator library, in any slot order.
 - `phases`, in order. `when` says when a phase applies: each reading, the first phase whose `when`
-  holds is shown; when none holds (in between, or something can't be read), the phase already shown
-  stays. Before any has held, the first phase without `when` is shown (or the first phase, when all
-  have one). See [Choosing the phase](#choosing-the-phase).
+  holds is shown (the last, with `lastMatchWins`). When none holds, the first phase without `when`
+  is shown: it's the "otherwise" phase. While something can't be read, or when every phase has a
+  `when`, the phase already shown stays. See [Choosing the phase](#choosing-the-phase).
+- `lastMatchWins` (optional, format 3): `true` shows the last phase whose `when` holds instead of
+  the first.
 - `action`: `BattleSkill`, `Combo` or `Ultimate`. The skill being available (a skill point for a
   battle skill, the combo or ultimate ready) is implied; `expect` lists anything else.
 - `withPrevious`: used right after the previous step of the same phase, drawn overlapping it.
@@ -561,20 +564,23 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   | `comboCharge` | `operatorId`, `is`, `percent` (0–100) | that operator's combo cooldown bar has refilled so far (ready is 100) |
   | `battleSkill` | `operatorId`, `ready` | that operator's battle skill button is available (`true`) or cooling (its countdown seconds aren't read) |
   | `ultimate` | `operatorId`, `ready` | that operator's ultimate is ready or charging |
-  | `ultimateCharge` | `operatorId`, `is`, `percent` (0–100) | that operator's ultimate is charged so far (ready is 100) |
+  | `ultimateCharge` | `operatorId`, `is`, `percent` (0–100) | that operator's ultimate is charged so far (ready is 100; at most 0 is just used) |
   | `counter` | `operatorId`, `counterId`, `is`, `value` | an operator's own resource compares so (see below) |
   | `bossStatus` | `statusId` (the wiki's English name), `present`, `minStacks` | the enemy shows (or doesn't show) that status |
   | `controlling` | `operatorId` | that operator is the one being controlled |
   | `all` | `of`: a list of conditions | every one holds (and) |
   | `any` | `of`: a list of conditions | at least one holds (or) |
+  | `not` | `of`: one condition (format 3) | it doesn't hold; unknown stays unknown |
 
   `all` and `any` nest to any depth. Something the screen doesn't show right now (a cutscene, an
   operator's counter while someone else is controlled) is *unknown*, not false: `all` is false if a
   part is false, else unknown if a part is unknown; `any` is true if a part is true, else unknown if
   a part is unknown. A phase's `when` that is unknown doesn't switch to it.
 
-- `format`: 2. A file from a newer EndHud is refused with a message instead of being misread
-  (builds from before format 2 say so about a format 2 file or share code). A format 1 file (a fixed
+- `format`: 3 when it uses `not` or `lastMatchWins`, else 2: a rotation is saved in the lowest
+  format that holds it, so one using nothing new stays readable by builds from before format 3. A
+  file from a newer EndHud is refused with a message instead of being misread (builds from before
+  format 2 or 3 say so about such a file or share code). A format 1 file (a fixed
   `sequence` of phases with repeat counts) is read as those phases in that order, repeats copied,
   none with `when`: it plays exactly as before.
 
@@ -640,8 +646,13 @@ operator library), so new statuses need no release. Chinese names are in
 ### Choosing the phase
 
 [`PhaseSelector`](src/EndHud.Vision/Rotations/PhaseSelector.cs), once per reading: the first phase in
-the list whose `when` holds becomes the one shown (unknown counts as not holding); when none holds,
-the phase shown stays; before any has held, the first phase without `when` (or the first phase).
+the list whose `when` holds becomes the one shown (the last, with `lastMatchWins`; unknown counts
+as not holding). When none holds and every `when` could be read, the first phase without `when` is
+shown (the "otherwise" phase); while one can't be read, or when every phase has a `when`, the
+phase shown stays; before any has held, the first phase without `when` (or the first phase).
+Until 0.5.1 the phase shown always stayed when none held, so a phase without `when` never came
+back once another had held (a player's 充能轴 I "Laevatain's ultimate at most 50%" never gave way
+to 充能轴 II).
 Conditions are evaluated by `RotationTracker.Evaluate`.
 
 [`RotationTracker`](src/EndHud.Vision/Rotations/RotationTracker.cs) also follows the steps inside a

@@ -78,6 +78,7 @@ internal static class RotationStripView
             // An unmet "all": its parts that don't hold. An unmet "any": every part, as alternatives.
             AllCondition all => JoinReasons(all.Of.Where(part => state is null || RotationTracker.Evaluate(part, state) == false), "　", step, state, library),
             AnyCondition any => JoinReasons(any.Of, Loc.Get("Rotation.Reason.Or"), step, state, library) is { } alternatives ? Loc.Format("Rotation.Reason.AnyOf", alternatives) : null,
+            NotCondition not => Reason(new ConditionCheck(CheckKind.Expected, not.Of, false), step, state, library) is { } inner ? Loc.Format("Rotation.Reason.Not", inner) : null,
             _ => null,
         };
     }

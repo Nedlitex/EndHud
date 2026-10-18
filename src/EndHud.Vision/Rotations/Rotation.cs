@@ -40,6 +40,7 @@ public enum Comparison
 [JsonDerivedType(typeof(ControllingCondition), "controlling")]
 [JsonDerivedType(typeof(AllCondition), "all")]
 [JsonDerivedType(typeof(AnyCondition), "any")]
+[JsonDerivedType(typeof(NotCondition), "not")]
 public abstract record StateCondition;
 
 /// <summary>The team's skill points (技力), 0–3; a part-filled segment counts as a fraction.</summary>
@@ -83,6 +84,9 @@ public sealed record AnyCondition(IReadOnlyList<StateCondition> Of) : StateCondi
     public bool Equals(AnyCondition? other) => other is not null && Of.SequenceEqual(other.Of);
     public override int GetHashCode() => Of.Count;
 }
+
+/// <summary>This doesn't hold (not), e.g. "not: Laevatain's ultimate charged to at most 50%". Unknown stays unknown. Format 3.</summary>
+public sealed record NotCondition(StateCondition Of) : StateCondition;
 
 /// <summary>One step of a rotation.</summary>
 /// <param name="Expect">What the game should look like when it's time for this step (all must hold).
@@ -131,15 +135,34 @@ public sealed record PlayedStep(int Index, string PhaseLabel, int PhaseIndex, in
 /// </summary>
 /// <param name="Format">The file format's version; this build reads up to <see cref="CurrentFormat"/>.</param>
 /// <param name="Squad">The four operators it's for, in any slot order.</param>
+/// <param name="LastMatchWins">When several phases' conditions hold, show the last of them in the list instead of the first. Format 3.</param>
 public sealed record Rotation(
     int Format,
     string Id,
     string Name,
     IReadOnlyList<string> Squad,
-    IReadOnlyList<RotationPhase> Phases)
+    IReadOnlyList<RotationPhase> Phases,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool LastMatchWins = false)
 {
-    /// <summary>2: phases with entry conditions, all/any groups. 1 (read, converted): a fixed sequence.</summary>
-    public const int CurrentFormat = 2;
+    /// <summary>
+    /// 3: "not" conditions and <see cref="LastMatchWins"/>. 2: phases with entry conditions, all/any
+    /// groups. 1 (read, converted): a fixed sequence. A rotation is saved in the lowest format that
+    /// holds it (<see cref="FormatNeeded"/>), so one that uses nothing new stays readable by builds
+    /// from before format 3.
+    /// </summary>
+    public const int CurrentFormat = 3;
+
+    /// <summary>The lowest format that holds these phases and options.</summary>
+    public static int FormatNeeded(IEnumerable<RotationPhase> phases, bool lastMatchWins) =>
+        lastMatchWins || phases.Any(p => p.When.Concat(p.Steps.SelectMany(s => s.Expect)).Any(UsesNot)) ? 3 : 2;
+
+    private static bool UsesNot(StateCondition condition) => condition switch
+    {
+        NotCondition => true,
+        AllCondition all => all.Of.Any(UsesNot),
+        AnyCondition any => any.Of.Any(UsesNot),
+        _ => false,
+    };
 
     /// <summary>Is this rotation for this squad: the same four operators, in any order?</summary>
     public bool IsFor(IEnumerable<string?> squad)
@@ -234,6 +257,9 @@ public sealed record Rotation(
                     break;
                 case AnyCondition any:
                     CheckConditions(any.Of, phase, step, problems);
+                    break;
+                case NotCondition not:
+                    CheckConditions([not.Of], phase, step, problems);
                     break;
                 default:
                     string? who = condition switch

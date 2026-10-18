@@ -6,7 +6,8 @@ namespace EndHud.Tests;
 /// <summary>The editor's working copy of a rotation: round trip, and what it says when something's missing.</summary>
 public class RotationDraftTests
 {
-    private static Rotation Guide() => new(Rotation.CurrentFormat, "guide", "标准轴", ["Laevatain", "Camille", "Arcane", "Ardelia"],
+    private static Rotation Guide() => new(2, // uses nothing format 3 adds, so the editor keeps it at 2
+        "guide", "标准轴", ["Laevatain", "Camille", "Arcane", "Ardelia"],
     [
         new RotationPhase("charge", "充能轴",
         [

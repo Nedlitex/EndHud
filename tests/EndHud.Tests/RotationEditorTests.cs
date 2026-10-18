@@ -69,7 +69,7 @@ public sealed class RotationEditorTests : IDisposable
             ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;             // 爆发轴
             Click(editor, "AddGateButton");                                   // one condition: an operator's ultimate ready
             var gate = (StackPanel)editor.FindName("GateRows");
-            var kind = (ComboBox)((Panel)gate.Children[0]).Children[0];
+            var kind = ((Panel)gate.Children[0]).Children.OfType<ComboBox>().First();
             kind.SelectedItem = kind.Items.Cast<ComboBoxItem>().Single(i => (string)i.Tag == "Group"); // → a group: "any of"
             var group = (StackPanel)gate.Children[0];
             var inner = (StackPanel)((Border)group.Children[1]).Child;
@@ -85,6 +85,42 @@ public sealed class RotationEditorTests : IDisposable
         var any = Assert.IsType<AnyCondition>(Assert.Single(phase.When));
         Assert.Equal(2, any.Of.Count);
         Assert.True(phase.Gated);
+    }
+
+    /// <summary>
+    /// A player's case (2026-10-18), built with the editor's own controls: 爆发轴 shown "while not
+    /// Laevatain's ultimate charged to at most 0%" (非 ticked; 0% is offered), and "the last phase
+    /// that holds wins" ticked. Saved in format 3, which these need.
+    /// </summary>
+    [Fact]
+    public void A_negated_0_percent_condition_and_last_phase_wins_are_saved()
+    {
+        var library = new RotationLibrary(_folder);
+        var two = Published() with { Id = "mine" };
+        library.Own.Save(two with { Phases = [.. two.Phases, new RotationPhase("burst", "爆发轴", [new RotationStep("Laevatain", StepAction.Ultimate)])] });
+
+        string said = "";
+        OnEditor(library, _ => { }, editor =>
+        {
+            ((CheckBox)editor.FindName("LastMatchWinsBox")).IsChecked = true;
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;
+            Click(editor, "AddGateButton");
+            var gate = (StackPanel)editor.FindName("GateRows");
+            var kind = ((Panel)gate.Children[0]).Children.OfType<ComboBox>().First();
+            kind.SelectedItem = kind.Items.Cast<ComboBoxItem>().Single(i => (string)i.Tag == "UltimateCharge");
+            var row = (Panel)gate.Children[0];
+            var pickers = row.Children.OfType<ComboBox>().ToList(); // kind, who, compare, percent
+            pickers[2].SelectedItem = pickers[2].Items.Cast<ComboBoxItem>().Single(i => Equals(i.Tag, Comparison.AtMost));
+            pickers[3].SelectedItem = pickers[3].Items.Cast<ComboBoxItem>().Single(i => Equals(i.Tag, 0));
+            row.Children.OfType<CheckBox>().Single().IsChecked = true;
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        });
+
+        var saved = Assert.Single(library.Own.Load().Rotations);
+        Assert.True(saved.LastMatchWins, $"editor said: {said}");
+        Assert.Equal(3, saved.Format);
+        Assert.Equal(new NotCondition(new UltimateChargeCondition("Laevatain", Comparison.AtMost, 0)), Assert.Single(saved.Phases[1].When));
     }
 
     private static void Click(Window window, string name) =>

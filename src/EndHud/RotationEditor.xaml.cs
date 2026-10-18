@@ -157,12 +157,21 @@ public partial class RotationEditor : Window
         _loading = true;
         NameBox.Text = draft?.Name ?? "";
         for (int i = 0; i < 4; i++) Select(SquadPickers[i], draft?.Squad[i]);
+        LastMatchWinsBox.IsChecked = draft?.LastMatchWins == true;
         _loading = false;
 
         _phase = draft?.Phases.FirstOrDefault();
         RefreshPhases();
         Problems();
         ProblemsText.Text = "";
+    }
+
+    private void LastMatchWins_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading || _draft is null) return;
+        _draft.LastMatchWins = LastMatchWinsBox.IsChecked == true;
+        MarkDirty();
+        Preview();
     }
 
     private void RefreshPhases()
@@ -415,12 +424,12 @@ public partial class RotationEditor : Window
         };
     }
 
-    /// <summary>Who, at least / at most, and a percentage (10% steps; a value from a file is kept as it is).</summary>
+    /// <summary>Who, at least / at most, and a percentage (0% and 10% steps; a value from a file is kept as it is). At most 0%: just used.</summary>
     private (ComboBox Who, ComboBox Compare, ComboBox Value) ChargePickers(Panel row, string operatorId, Comparison comparison, int percent)
     {
         var who = OperatorPicker(operatorId);
         var compare = ComparePicker(comparison);
-        var percents = Enumerable.Range(1, 10).Select(n => n * 10).ToList();
+        var percents = Enumerable.Range(0, 11).Select(n => n * 10).ToList();
         if (!percents.Contains(percent)) percents = [.. percents.Append(percent).Order()];
         var value = Picker(percents, v => $"{v}%", percent);
         row.Children.Add(who);
@@ -482,8 +491,20 @@ public partial class RotationEditor : Window
     /// </summary>
     private UIElement ConditionRow(List<StateCondition> list, int index, Action<bool> changed)
     {
-        var condition = list[index];
+        // A "not" is shown as its condition with 非 ticked.
+        var stored = list[index];
+        var condition = stored is NotCondition not ? not.Of : stored;
         var row = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
+        var negate = new CheckBox
+        {
+            Content = Loc.Get("Editor.Not"),
+            ToolTip = Loc.Get("Editor.NotHint"),
+            IsChecked = stored is NotCondition,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 6, 0),
+        };
+        StateCondition Wrap(StateCondition c) => negate.IsChecked == true ? new NotCondition(c) : c;
+        row.Children.Add(negate);
         var kind = new ComboBox();
         foreach (string k in ConditionKinds) kind.Items.Add(Item(Loc.Get($"Editor.Condition.{k}"), k));
         kind.SelectedItem = kind.Items.Cast<ComboBoxItem>().First(i => (string)i.Tag == KindOf(condition));
@@ -506,7 +527,7 @@ public partial class RotationEditor : Window
                 var inner = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
                 void PartsChanged(bool rebuild)
                 {
-                    list[index] = read();
+                    list[index] = Wrap(read());
                     changed(rebuild);
                 }
                 AddConditionRows(inner, parts, PartsChanged);
@@ -519,7 +540,7 @@ public partial class RotationEditor : Window
                 inner.Children.Add(add);
                 mode.SelectionChanged += (_, _) =>
                 {
-                    list[index] = read();
+                    list[index] = Wrap(read());
                     changed(false);
                 };
                 result = new StackPanel
@@ -652,15 +673,22 @@ public partial class RotationEditor : Window
         kind.SelectionChanged += (_, _) =>
         {
             if ((string)Picked(kind) == KindOf(condition)) return;
-            list[index] = DefaultCondition((string)Picked(kind));
+            list[index] = Wrap(DefaultCondition((string)Picked(kind)));
             changed(true);
         };
+        negate.Checked += (_, _) => NegateChanged();
+        negate.Unchecked += (_, _) => NegateChanged();
+        void NegateChanged()
+        {
+            list[index] = Wrap(read());
+            changed(false);
+        }
         foreach (var picker in row.Children.OfType<ComboBox>().Where(p => p != kind && p != groupMode))
         {
             picker.SelectionChanged += (_, _) =>
             {
-                list[index] = read();
-                changed(list[index] is CounterCondition); // the value range follows the counter
+                list[index] = Wrap(read());
+                changed(read() is CounterCondition); // the value range follows the counter
             };
         }
         return result;

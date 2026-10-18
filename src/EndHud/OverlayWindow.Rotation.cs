@@ -131,9 +131,19 @@ public partial class OverlayWindow
 
     private RotationEditor? _editor;
 
+    // True until InitRotationSettings has put the saved size in the slider: WPF attaches the slider's
+    // ValueChanged before applying Minimum="0.5", which would otherwise save 50% at every start (the
+    // gauges' slider did, see OverlayWindow.Gauges).
+    private bool _loadingRotationSettings = true;
+    private double _rotationWindowScale = 1;
+
     private void InitRotationSettings()
     {
+        _loadingRotationSettings = true;
         RotationCheckBox.IsChecked = _config.RotationEnabled;
+        RotationSizeSlider.Value = _config.RotationScale;
+        RotationSizeText.Text = Loc.Format("Menu.Gauges.SizeValue", _config.RotationScale * 100);
+        _loadingRotationSettings = false;
         ApplyRotationSettings();
         _publishedRotations.Changed += (_, _) => Dispatcher.BeginInvoke(() =>
         {
@@ -157,6 +167,17 @@ public partial class OverlayWindow
         RotationNeedsPartyOcr.Visibility = _config.PartyOcrEnabled ? Visibility.Collapsed : Visibility.Visible;
         RotationCheckBox.IsEnabled = _config.PartyOcrEnabled;
         RotationResetButton.IsEnabled = _config.PartyOcrEnabled && _config.RotationEnabled;
+        RotationSizeRow.IsEnabled = _config.PartyOcrEnabled && _config.RotationEnabled;
+    }
+
+    /// <summary>The Size slider: resize the strip as it's dragged (it stays centred where it is). A player asked: the strip covered too much.</summary>
+    private void RotationSizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loadingRotationSettings || RotationSizeText is null) return;
+        _config.RotationScale = Math.Clamp(Math.Round(e.NewValue, 2), HudConfig.MinRotationScale, HudConfig.MaxRotationScale);
+        RotationSizeText.Text = Loc.Format("Menu.Gauges.SizeValue", _config.RotationScale * 100);
+        ConfigStore.Save(_config);
+        ScaleRotationStrip(_rotationWindowScale);
     }
 
     private void EditRotationsButton_Click(object sender, RoutedEventArgs e) => OpenRotationEditor();
@@ -210,9 +231,12 @@ public partial class OverlayWindow
         RenderRotation();
     }
 
+    /// <param name="scale">Following the game window (see ComboHintLayout); the player's size is applied on top.</param>
     private void ScaleRotationStrip(double scale)
     {
-        RotationFrame.LayoutTransform = new ScaleTransform(scale, scale);
+        _rotationWindowScale = scale;
+        double size = scale * _config.RotationScale;
+        RotationFrame.LayoutTransform = new ScaleTransform(size, size);
         PlaceRotationFromConfig();
     }
 

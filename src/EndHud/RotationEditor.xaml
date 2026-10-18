@@ -79,6 +79,8 @@
                             <Button Content="{DynamicResource Editor.NewPhase}" Click="NewPhase_Click" />
                             <Button Content="{DynamicResource Editor.DeletePhase}" Click="DeletePhase_Click" />
                         </StackPanel>
+                        <CheckBox x:Name="LastMatchWinsBox" Content="{DynamicResource Editor.LastMatchWins}" Margin="0,6,0,0"
+                                  ToolTip="{DynamicResource Editor.LastMatchWinsHint}" Checked="LastMatchWins_Changed" Unchecked="LastMatchWins_Changed" />
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                             <TextBlock Text="{DynamicResource Editor.PhaseName}" Style="{StaticResource Label}" />
                             <TextBox x:Name="PhaseNameBox" Width="200" TextChanged="PhaseNameBox_TextChanged" />

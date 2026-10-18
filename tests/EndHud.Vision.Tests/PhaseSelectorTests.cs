@@ -7,8 +7,9 @@ namespace EndHud.Vision.Tests;
 
 /// <summary>
 /// Which phase the strip shows (<see cref="PhaseSelector"/>): the first phase whose condition holds
-/// in this reading; when none holds, the one already shown; at the start, the first phase without
-/// a condition (or the first phase).
+/// in this reading (the last, if the rotation asks); when none holds, the first phase without a
+/// condition (the "otherwise" phase), or, while something can't be read or when every phase has a
+/// condition, the one already shown.
 /// </summary>
 public class PhaseSelectorTests
 {
@@ -117,5 +118,79 @@ public class PhaseSelectorTests
         Assert.Equal("爆发轴 III", Shown(selector, Zhuang(9, true)));
         Assert.Equal("爆发轴 III", Shown(selector, Zhuang(7, true))); // spending: nothing else holds yet
         Assert.Equal("充能轴 I", Shown(selector, Zhuang(0, false))); // swords spent: charging again
+    }
+
+    /// <summary>
+    /// A player's report (2026-10-18): 充能轴 I "while Laevatain's ultimate is charged to at most 50%",
+    /// 充能轴 II with no condition. Above 50% the strip stayed on I; only re-saving the rotation (which
+    /// starts the selector afresh) showed II. Here with Arcane's ultimate.
+    /// </summary>
+    [Fact]
+    public void A_phase_without_a_condition_is_shown_when_no_other_holds()
+    {
+        var rotation = new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
+        [
+            new RotationPhase("a", "充能轴", [new RotationStep("Arcane", StepAction.Combo)], [new UltimateChargeCondition("Arcane", Comparison.AtMost, 50)]),
+            new RotationPhase("b", "充能轴", [new RotationStep("Liino", StepAction.Combo)]),
+        ]);
+        var selector = new PhaseSelector(rotation);
+
+        Assert.Equal("充能轴 I", Shown(selector, Reading(4, 4, arcane: 0.3, liino: 0.5)));
+        Assert.Equal("充能轴 II", Shown(selector, Reading(4, 4, arcane: 0.7, liino: 0.5)));
+        Assert.Equal("充能轴 II", Shown(selector, Reading(4, 4, arcane: 1, liino: 0.5))); // ready counts as 100%
+        Assert.Equal("充能轴 I", Shown(selector, Reading(4, 4, arcane: 0, liino: 0.5))); // the ultimate used
+    }
+
+    /// <summary>A condition that can't be read (a cutscene) is no reason to switch: the phase shown stays.</summary>
+    [Fact]
+    public void While_a_condition_cant_be_read_the_phase_shown_stays()
+    {
+        var rotation = new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
+        [
+            new RotationPhase("a", "充能轴", [new RotationStep("Typhoeus", StepAction.Combo)], [new CounterCondition("Typhoeus", OperatorCounters.HuntingArrow.Id, Comparison.AtLeast, 2)]),
+            new RotationPhase("b", "充能轴", [new RotationStep("Liino", StepAction.Combo)]),
+        ]);
+        var selector = new PhaseSelector(rotation);
+
+        Assert.Equal("充能轴 I", Shown(selector, Reading(arrows: 3, signs: 0, arcane: 0.5, liino: 0.5)));
+        Assert.Equal("充能轴 I", Shown(selector, Reading(arrows: null, signs: null, arcane: 0.5, liino: 0.5)));
+        Assert.Equal("充能轴 II", Shown(selector, Reading(arrows: 0, signs: 0, arcane: 0.5, liino: 0.5)));
+    }
+
+    [Fact]
+    public void With_last_match_wins_the_last_phase_that_holds_is_shown()
+    {
+        PhaseSelector Selector(bool lastMatchWins) => new(new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
+        [
+            new RotationPhase("a", "充能轴", [new RotationStep("Arcane", StepAction.Combo)], [new UltimateChargeCondition("Arcane", Comparison.AtLeast, 20)]),
+            new RotationPhase("b", "爆发轴", [new RotationStep("Arcane", StepAction.Ultimate)], [new UltimateCondition("Arcane", true)]),
+        ], lastMatchWins));
+        var ready = Reading(4, 4, arcane: 1, liino: 0.5);
+
+        Assert.Equal("充能轴 I", Shown(Selector(false), ready));
+        Assert.Equal("爆发轴 II", Shown(Selector(true), ready));
+    }
+
+    /// <summary>"Not" turns any condition around; what can't be read stays unknown.</summary>
+    [Fact]
+    public void A_condition_can_be_turned_around()
+    {
+        StateCondition atMostHalf = new UltimateChargeCondition("Arcane", Comparison.AtMost, 50);
+        var notAtMostHalf = new NotCondition(atMostHalf);
+
+        Assert.Equal(true, RotationTracker.Evaluate(notAtMostHalf, Reading(4, 4, arcane: 0.7, liino: 0.5)));
+        Assert.Equal(false, RotationTracker.Evaluate(notAtMostHalf, Reading(4, 4, arcane: 0.3, liino: 0.5)));
+        Assert.Null(RotationTracker.Evaluate(new NotCondition(new CounterCondition("Typhoeus", OperatorCounters.HuntingArrow.Id, Comparison.AtLeast, 2)),
+            Reading(arrows: null, signs: 0, arcane: 0.5, liino: 0.5)));
+    }
+
+    /// <summary>"At most 0%": the ultimate just used.</summary>
+    [Fact]
+    public void An_ultimate_charged_to_at_most_0_percent_is_one_just_used()
+    {
+        StateCondition justUsed = new UltimateChargeCondition("Arcane", Comparison.AtMost, 0);
+
+        Assert.Equal(true, RotationTracker.Evaluate(justUsed, Reading(4, 4, arcane: 0, liino: 0.5)));
+        Assert.Equal(false, RotationTracker.Evaluate(justUsed, Reading(4, 4, arcane: 0.04, liino: 0.5)));
     }
 }

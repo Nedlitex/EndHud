@@ -96,7 +96,7 @@ public static class RotationFormat
                     phases.Add(new RotationPhase(id, phase.Name, phase.Steps));
                 }
             }
-            return new Rotation(Rotation.CurrentFormat, Id, Name, Squad, phases);
+            return new Rotation(Rotation.FormatNeeded(phases, lastMatchWins: false), Id, Name, Squad, phases);
         }
     }
 

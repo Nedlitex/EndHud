@@ -76,7 +76,7 @@ public sealed class RotationFormatTests : IDisposable
 
         var rotation = RotationFormat.FromJson(v1);
 
-        Assert.Equal(Rotation.CurrentFormat, rotation.Format);
+        Assert.Equal(2, rotation.Format); // the lowest format that holds it: nothing in it needs format 3
         Assert.Equal(["充能轴", "充能轴", "爆发轴", "另一个"], rotation.Phases.Select(p => p.Name));
         Assert.Equal(["charge", "charge-3", "burst", "charge-2"], rotation.Phases.Select(p => p.Id)); // "charge-2" was taken
         Assert.All(rotation.Phases, p => Assert.False(p.Gated));
@@ -200,7 +200,7 @@ public sealed class RotationFormatTests : IDisposable
     [Theory]
     [InlineData("""{ "name": "x" }""", RotationReadError.NotARotation)]
     [InlineData("not json", RotationReadError.NotARotation)]
-    [InlineData("""{ "format": 3, "id": "x" }""", RotationReadError.NewerFormat)]
+    [InlineData("""{ "format": 4, "id": "x" }""", RotationReadError.NewerFormat)]
     public void A_file_that_isnt_a_rotation_this_build_can_read_is_refused(string json, RotationReadError expected) =>
         Assert.Equal(expected, Assert.Throws<RotationReadException>(() => RotationFormat.FromJson(json)).Error);
 
@@ -269,5 +269,46 @@ public sealed class RotationFormatTests : IDisposable
         var flame = rotation.Phases[0].Steps[3];
         Assert.Equal([new BossStatusCondition("Heat Infliction", true), new CounterCondition("Laevatain", "melting-flame", Comparison.AtMost, 3)], flame.Expect);
         Assert.True(rotation.Phases[0].Steps[2].WithPrevious);
+    }
+
+    /// <summary>
+    /// Format 3 adds "not" conditions and "last phase wins". A rotation is saved in the lowest format
+    /// that holds it, so one that uses neither stays readable by builds from before format 3 (and its
+    /// file has nothing new in it).
+    /// </summary>
+    [Fact]
+    public void Not_conditions_and_last_match_wins_need_format_3_and_nothing_else_does()
+    {
+        var plain = Guide().Phases;
+        RotationPhase[] negated =
+        [
+            plain[0] with { When = [new NotCondition(new UltimateChargeCondition("Laevatain", Comparison.AtMost, 50))] },
+            .. plain.Skip(1),
+        ];
+        RotationPhase[] nested = [plain[0] with { When = [new AnyCondition([new NotCondition(new UltimateCondition("Laevatain", true))])] }];
+
+        Assert.Equal(2, Rotation.FormatNeeded(plain, lastMatchWins: false));
+        Assert.Equal(3, Rotation.FormatNeeded(plain, lastMatchWins: true));
+        Assert.Equal(3, Rotation.FormatNeeded(negated, lastMatchWins: false));
+        Assert.Equal(3, Rotation.FormatNeeded(nested, lastMatchWins: false));
+        Assert.DoesNotContain("lastMatchWins", RotationFormat.ToJson(Guide()));
+    }
+
+    [Fact]
+    public void Not_conditions_and_last_match_wins_survive_a_round_trip()
+    {
+        var guide = Guide();
+        var rotation = guide with
+        {
+            Format = 3,
+            LastMatchWins = true,
+            Phases = [guide.Phases[0] with { When = [new NotCondition(new UltimateChargeCondition("Laevatain", Comparison.AtMost, 50))] }, .. guide.Phases.Skip(1)],
+        };
+
+        var back = RotationFormat.FromJson(RotationFormat.ToJson(rotation));
+
+        Assert.True(back.LastMatchWins);
+        Assert.Equal(new NotCondition(new UltimateChargeCondition("Laevatain", Comparison.AtMost, 50)), Assert.Single(back.Phases[0].When));
+        Assert.Contains("\"kind\": \"not\"", RotationFormat.ToJson(rotation));
     }
 }

@@ -14,6 +14,9 @@ internal sealed class RotationDraft
     /// <summary>In order: phases without an entry condition are played one after another, looping.</summary>
     public List<PhaseDraft> Phases { get; } = [];
 
+    /// <summary>When several phases' conditions hold, show the last of them (see <see cref="Rotation.LastMatchWins"/>).</summary>
+    public bool LastMatchWins { get; set; }
+
     public static RotationDraft New(string name, IReadOnlyList<string?>? squad = null)
     {
         var draft = new RotationDraft { Name = name };
@@ -23,7 +26,7 @@ internal sealed class RotationDraft
 
     public static RotationDraft From(Rotation rotation)
     {
-        var draft = new RotationDraft { Id = rotation.Id, Name = rotation.Name };
+        var draft = new RotationDraft { Id = rotation.Id, Name = rotation.Name, LastMatchWins = rotation.LastMatchWins };
         for (int i = 0; i < 4 && i < rotation.Squad.Count; i++) draft.Squad[i] = rotation.Squad[i];
         foreach (var phase in rotation.Phases)
         {
@@ -46,13 +49,14 @@ internal sealed class RotationDraft
         return draft;
     }
 
-    public Rotation ToRotation() => new(
-        Rotation.CurrentFormat,
-        Id,
-        Name.Trim(),
-        Squad.Where(id => id is not null).Select(id => id!).ToList(),
-        Phases.Select(p => new RotationPhase(p.Id, p.Name.Trim(), p.Steps.Select(s => new RotationStep(
-            s.OperatorId, s.Action, [.. s.Expect], Blank(s.Note), Blank(s.Label), s.WithPrevious)).ToList(), [.. p.When])).ToList());
+    /// <summary>The rotation, in the lowest format that holds it (so older EndHud can still read one that uses nothing new).</summary>
+    public Rotation ToRotation()
+    {
+        var phases = Phases.Select(p => new RotationPhase(p.Id, p.Name.Trim(), p.Steps.Select(s => new RotationStep(
+            s.OperatorId, s.Action, [.. s.Expect], Blank(s.Note), Blank(s.Label), s.WithPrevious)).ToList(), [.. p.When])).ToList();
+        return new Rotation(Rotation.FormatNeeded(phases, LastMatchWins), Id, Name.Trim(),
+            Squad.Where(id => id is not null).Select(id => id!).ToList(), phases, LastMatchWins);
+    }
 
     /// <summary>What's wrong, as sentences for the player (empty when it can be saved).</summary>
     public IReadOnlyList<string> Problems()

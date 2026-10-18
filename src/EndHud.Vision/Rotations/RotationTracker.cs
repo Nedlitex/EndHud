@@ -341,6 +341,8 @@ public sealed class RotationTracker(Rotation rotation)
                 return HoldsAll(all.Of, state, slots);
             case AnyCondition any:
                 return HoldsAny(any.Of, state, slots);
+            case NotCondition not:
+                return !Holds(not.Of, state, slots);
             case SkillPointsCondition c:
                 return state.SkillPoints is { } sp ? Compare(sp, c.Is, c.Value) : null;
             case ComboCondition c:

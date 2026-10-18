@@ -88,6 +88,11 @@ internal sealed class HudConfig
     /// <summary>The gauges' size, on top of following the game window: 1 is the usual size (the menu's Size slider, 50%–200%).</summary>
     public double GaugesScale { get; set; } = 1;
 
+    /// <summary>The rotation strip's size on top of following the game window (1 = 100%), from the menu's slider.</summary>
+    public double RotationScale { get; set; } = 1;
+
+    public const double MinRotationScale = 0.5, MaxRotationScale = 2;
+
     public const double MinGaugesScale = 0.5, MaxGaugesScale = 2;
 
     /// <summary>
@@ -179,6 +184,9 @@ internal static class ConfigStore
         // A hand-edited size outside what the slider offers would hide the gauges or fill the screen.
         config.GaugesScale = double.IsFinite(config.GaugesScale)
             ? Math.Clamp(config.GaugesScale, HudConfig.MinGaugesScale, HudConfig.MaxGaugesScale)
+            : 1;
+        config.RotationScale = double.IsFinite(config.RotationScale)
+            ? Math.Clamp(config.RotationScale, HudConfig.MinRotationScale, HudConfig.MaxRotationScale)
             : 1;
         return config;
     }

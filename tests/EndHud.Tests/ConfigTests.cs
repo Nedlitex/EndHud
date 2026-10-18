@@ -14,6 +14,14 @@ public class ConfigTests
     public void The_gauges_size_defaults_to_100_percent_and_a_hand_edited_one_is_kept_in_range(string json, double expected) =>
         Assert.Equal(expected, ConfigStore.Parse(json).GaugesScale);
 
+    [Theory]
+    [InlineData("{}", 1.0)]
+    [InlineData("{\"RotationScale\": 0.7}", 0.7)]
+    [InlineData("{\"RotationScale\": 10}", 2.0)]
+    [InlineData("{\"RotationScale\": 0}", 0.5)]
+    public void The_rotation_strips_size_defaults_to_100_percent_and_a_hand_edited_one_is_kept_in_range(string json, double expected) =>
+        Assert.Equal(expected, ConfigStore.Parse(json).RotationScale);
+
     /// <summary>Before version 3 every start saved 50% (a slider bug), so 50% from then means the default.</summary>
     [Theory]
     [InlineData("""{ "GaugesScale": 0.5, "SettingsVersion": 2 }""", 1.0)]

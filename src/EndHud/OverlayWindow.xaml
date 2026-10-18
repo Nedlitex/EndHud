@@ -270,6 +270,15 @@
                                Style="{StaticResource FeatureNote}" Visibility="Collapsed" />
                     <TextBlock Text="{DynamicResource Menu.Rotation.Hint}" Foreground="#99FFFFFF" FontSize="11"
                                TextWrapping="Wrap" Margin="0,4,0,4" />
+                    <!-- Size: on top of following the game window. Applied while dragging. -->
+                    <DockPanel x:Name="RotationSizeRow" Margin="0,4,0,0">
+                        <TextBlock Text="{DynamicResource Menu.Gauges.Size}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock x:Name="RotationSizeText" DockPanel.Dock="Right" Width="44" TextAlignment="Right"
+                                   VerticalAlignment="Center" />
+                        <Slider x:Name="RotationSizeSlider" Minimum="0.5" Maximum="2" TickFrequency="0.05"
+                                IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                                ValueChanged="RotationSizeSlider_ValueChanged" />
+                    </DockPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                         <!-- Editing works with the strip off: rotations can be prepared before turning it on. -->
                         <Button x:Name="EditRotationsButton" Padding="10,2" Margin="0,0,6,0"
