@@ -10,6 +10,7 @@ using Rotation = EndHud.Vision.Rotations.Rotation;
 namespace EndHud.Tests;
 
 /// <summary>The editor and recommended rotations: never changed in place, and deleting one hides it.</summary>
+[Collection(WpfCollection.Name)]
 public sealed class RotationEditorTests : IDisposable
 {
     private readonly string _folder = Path.Combine(Path.GetTempPath(), "endhud-tests", Guid.NewGuid().ToString("N"));

@@ -12,6 +12,7 @@ namespace EndHud.Tests;
 /// drawn (<see cref="Gauges"/>): ready glows, charging doesn't, a counter lights one segment per stack,
 /// an active buff glows.
 /// </summary>
+[Collection(WpfCollection.Name)]
 public class GaugesTests
 {
     private static readonly Frame NoPortrait = new(1, 1, new byte[4]);

@@ -9,6 +9,7 @@ namespace EndHud.Tests;
 /// The rotation strip, rendered off screen: the ready step's cyan ring, the reasons when it isn't,
 /// overlapping steps, and a see-through band (no dark box) that fades out at both ends.
 /// </summary>
+[Collection(WpfCollection.Name)]
 public class RotationStripTests
 {
     private static StripView Guide(StripStepState current, IReadOnlyList<string>? reasons = null, bool together = true) => new("充能轴 I",

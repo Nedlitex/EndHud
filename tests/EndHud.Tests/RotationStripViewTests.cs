@@ -11,6 +11,7 @@ namespace EndHud.Tests;
 /// doesn't claim to know the current step: no marker, nothing greyed out as done, no reasons why
 /// "this" step isn't ready.
 /// </summary>
+[Collection(WpfCollection.Name)]
 public class RotationStripViewTests
 {
     private static readonly Rotation Rotation = new(Rotation.CurrentFormat, "r", "r", ["Laevatain", "Camille", "Arcane", "Ardelia"],

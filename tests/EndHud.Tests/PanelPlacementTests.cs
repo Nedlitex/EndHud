@@ -8,6 +8,7 @@ using Xunit;
 namespace EndHud.Tests;
 
 /// <summary>Where a dragged panel (the menu, the debug panel) ends up: moved by the drag, but never off the game window.</summary>
+[Collection(WpfCollection.Name)]
 public class PanelPlacementTests
 {
     private static readonly Size Window = new(1920, 1080);

@@ -13,6 +13,7 @@ namespace EndHud.Tests;
 /// client area. Shows a window for a few seconds.
 /// </summary>
 [Trait("Category", "Desktop")] // needs an interactive desktop: runs locally, not on CI runners
+[Collection(WpfCollection.Name)]
 public class WindowedGameCaptureTests
 {
     private static readonly string Fixture = System.IO.Path.Combine(AppContext.BaseDirectory, "Fixtures", "combat-combos-nearly-refilled.jpg");

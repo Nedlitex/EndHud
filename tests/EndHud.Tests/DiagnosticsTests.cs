@@ -10,6 +10,7 @@ namespace EndHud.Tests;
 /// collapsed, and the exported zip carries the logs, settings, summary and a game picture without
 /// the UID.
 /// </summary>
+[Collection(WpfCollection.Name)]
 public class DiagnosticsTests : IDisposable
 {
     private readonly string _folder = Path.Combine(Path.GetTempPath(), "endhud-diagnostics-tests-" + Guid.NewGuid().ToString("N")[..8]);
