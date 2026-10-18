@@ -35,6 +35,47 @@ public class PartyTrackerTests
         Assert.Equal(0, tracker.Track(InCombat()).ReadingsSinceSeen);
     }
 
+    /// <summary>
+    /// With keyboard and mouse, scenery in an empty place can pass for an operator for a reading or
+    /// two (or an effect can hide one): a squad of two read as three moves every ultimate circle to
+    /// the wrong operator. A new size is taken only once it repeats.
+    /// </summary>
+    [Fact]
+    public void A_larger_squad_read_only_briefly_is_not_taken()
+    {
+        var tracker = new PartyTracker();
+        var two = Panel(Slot(1, ultimate: new UltimateReading(true, 1)), Slot(2, ultimate: new UltimateReading(false, 0.8)), Empty(3), Empty(4));
+        // Read as three: each ultimate from the circle one place to the left.
+        var three = Panel(Slot(1, ultimate: new UltimateReading(false, 0)), Slot(2, ultimate: new UltimateReading(true, 1)), Slot(3, ultimate: new UltimateReading(false, 0.8)), Empty(4));
+        var seen = tracker.Track(two);
+
+        for (int i = 1; i < PartyTracker.MoreOperatorsReadings; i++)
+            Assert.Equal(seen with { ReadingsSinceSeen = i }, tracker.Track(three));
+        Assert.Equal(0, tracker.Track(two).ReadingsSinceSeen);
+
+        // Interrupted, the count starts again; read enough times in a row, the new size is taken.
+        for (int i = 1; i < PartyTracker.MoreOperatorsReadings; i++)
+            Assert.Equal(2, tracker.Track(three).SquadSize);
+        var changed = tracker.Track(three);
+        Assert.Equal(3, changed.SquadSize);
+        Assert.Equal(0, changed.ReadingsSinceSeen);
+    }
+
+    /// <summary>An effect hiding the last operator's marks and HP bar: a full squad read as three, for a moment.</summary>
+    [Fact]
+    public void A_smaller_squad_read_only_briefly_is_not_taken()
+    {
+        var tracker = new PartyTracker();
+        var seen = tracker.Track(InCombat());
+        var three = Panel(Slot(1), Slot(2), Slot(3), Empty(4));
+
+        for (int i = 1; i < PartyTracker.FewerOperatorsReadings; i++)
+            Assert.Equal(seen with { ReadingsSinceSeen = i }, tracker.Track(three));
+        Assert.Equal(3, tracker.Track(three).SquadSize);
+    }
+
+    private static PartySlot Empty(int number) => new(number, null, null, "", NoPortrait) { Empty = true };
+
     [Fact]
     public void Nothing_to_keep_before_the_panel_was_ever_seen()
     {

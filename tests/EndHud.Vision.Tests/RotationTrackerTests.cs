@@ -20,6 +20,8 @@ public class RotationTrackerTests
     private sealed record Reading(double? SkillPoints = 2.5, int? Controlled = 1)
     {
         public bool[] ComboReady { get; init; } = [true, true, true, true];
+        /// <summary>A combo bar that isn't ready: nearly empty, as just after a use.</summary>
+        public double ComboNotReady { get; init; } = 0.02;
         public bool[] UltimateReady { get; init; } = [false, false, false, false];
         public BattleSkillState?[] Skill { get; init; } = [BattleSkillState.Available, BattleSkillState.Available, BattleSkillState.Available, BattleSkillState.Available];
         public int? MeltingFlame { get; init; }
@@ -30,7 +32,7 @@ public class RotationTrackerTests
         public PartyState ToState()
         {
             var slots = Enumerable.Range(0, 4).Select(i => new PartySlot(i + 1, null, 1.0, "", new Frame(1, 1, new byte[4]),
-                Combo: new ComboReading(ComboReady[i] ? 1 : 0.3, ComboReady[i]),
+                Combo: new ComboReading(ComboReady[i] ? 1 : ComboNotReady, ComboReady[i]),
                 Ultimate: UltimateSeen ? new UltimateReading(UltimateReady[i], UltimateReady[i] ? 1 : 0.2) : null,
                 Operator: Identified ? new OperatorMatch(new OperatorInfo(Squad[i], Squad[i], Squad[i], Squad[i] + ".png"), 1, true) : null)
             {
@@ -88,6 +90,19 @@ public class RotationTrackerTests
         Assert.Equal(1, position.Step.Index);
         Assert.Equal("Camille", position.Step.Step.OperatorId);
         Assert.True(position.Ready);
+    }
+
+    /// <summary>A bar just under full can read below "ready" for a moment (0.91–0.99 in the recordings): not a use.</summary>
+    [Fact]
+    public void A_full_combo_bar_dipping_below_ready_is_not_a_use()
+    {
+        var tracker = Tracker();
+        tracker.Update(new Reading().ToState());
+        Assert.Equal(1, tracker.Update(new Reading(SkillPoints: 1.4) { Skill = Cooling(3) }.ToState())!.Step.Index); // on Camille and Arcane's combos (used together)
+
+        var position = tracker.Update(new Reading(SkillPoints: 1.4) { Skill = Cooling(3), ComboReady = [true, false, false, true], ComboNotReady = 0.95 }.ToState())!;
+
+        Assert.Equal(1, position.Step.Index);
     }
 
     [Fact]

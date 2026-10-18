@@ -812,6 +812,14 @@ the diamond keeps its places and draws an empty one as a large faint ring with a
 or shown for them. A squad of one or two counts as on screen when every operator in it shows an HP
 bar (or has fallen) and the controlled one is among them (Fixtures/small-squads).
 
+The scenery shows through an empty place and can pass for an operator now and then (a road stripe
+for a "-" mark, blue water for a full HP bar), and an effect can hide a real one. A wrong size
+moves every ultimate circle to the wrong operator, which reads as an ultimate just used. So
+[`PartyTracker`](src/EndHud.Vision/PartyTracker.cs) takes a new size only once it repeats: 12
+readings in a row (3 s) for a larger squad, 4 (1 s) for a smaller one, holding the last reading
+as not seen meanwhile. In the smaller-squad recording scenery made a squad of two look larger for
+up to 10 readings in a row; hidden marks made a full squad look smaller for under 4.
+
 ### Controller layout
 
 With a controller the game draws another HUD, and switches back and forth with the last device
@@ -875,6 +883,14 @@ Copy `src/EndHud/i18n/zh-CN.xaml` to, for example, `en-US.xaml`, translate the v
 - The combo-ready hint needs two "cooling" readings in a row before it trusts that a combo skill was used,
   because the bar is briefly drawn as an empty track while the HUD fades in. A cooldown
   refreshed within about two seconds of being used therefore gets no hint.
+- The rotation strip counts a combo skill as used when its bar goes from full to under 30%. A bar
+  just under full can dip below "ready" for a moment (0.91–0.99 after, in the recordings), while
+  every use read 0–6% after it.
+- A battle skill is counted as used when that operator's button turns into a countdown. In the
+  recordings so far the button did so in some fights and not in others (where only the shared
+  skill points dropped, which doesn't say whose skill it was), and with a controller the buttons
+  aren't read: there a battle skill step isn't seen being done, and the strip stays on it until
+  the screen clearly matches another step (RotationTracker's jump).
 - Hints and the rotation strip follow the screen reading, four times a second by default
   (`OcrIntervalMs`), so they can lag the game by up to a quarter of a second.
 - Rotations: Laevatain's 熔火, Typhoeus's 猎矢 and 启示, and Zhuang Fangyi's 青霆剑 are read as

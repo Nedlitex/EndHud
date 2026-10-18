@@ -210,7 +210,7 @@ public sealed class RotationTracker(Rotation rotation)
             var (was, @is) = (before.Slots[slot], now.Slots[slot]);
             bool used = step.Action switch
             {
-                StepAction.Combo => was.Combo?.Ready == true && @is.Combo is { Ready: false },
+                StepAction.Combo => ComboUsed(was, @is),
                 StepAction.Ultimate => was.Ultimate?.Ready == true && @is.Ultimate is { Ready: false },
                 StepAction.BattleSkill => was.BattleSkill != BattleSkillState.Cooling && @is.BattleSkill == BattleSkillState.Cooling,
                 _ => false,
@@ -265,12 +265,21 @@ public sealed class RotationTracker(Rotation rotation)
     }
 
     /// <summary>Note every ability seen being used between two readings (any slot, not just the current step's).</summary>
+    /// <summary>
+    /// The combo bar went from full to nearly empty. A bar just under full can dip below "ready" and
+    /// back (read 0.91–0.99 after, in the recordings), while every use read 0–6% after it.
+    /// </summary>
+    private static bool ComboUsed(PartySlot was, PartySlot now) =>
+        was.Combo?.Ready == true && now.Combo is { Ready: false, Progress: < ComboUsedBelow };
+
+    internal const double ComboUsedBelow = 0.3;
+
     private void RememberUses(PartyState before, PartyState now)
     {
         for (int i = 0; i < Math.Min(before.Slots.Count, now.Slots.Count); i++)
         {
             var (was, @is) = (before.Slots[i], now.Slots[i]);
-            if (was.Combo?.Ready == true && @is.Combo is { Ready: false }) _usedAt[(i, StepAction.Combo)] = _reading;
+            if (ComboUsed(was, @is)) _usedAt[(i, StepAction.Combo)] = _reading;
             if (was.Ultimate?.Ready == true && @is.Ultimate is { Ready: false }) _usedAt[(i, StepAction.Ultimate)] = _reading;
             if (was.BattleSkill != BattleSkillState.Cooling && @is.BattleSkill == BattleSkillState.Cooling) _usedAt[(i, StepAction.BattleSkill)] = _reading;
         }

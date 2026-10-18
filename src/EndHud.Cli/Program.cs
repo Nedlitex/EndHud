@@ -8,6 +8,9 @@ using EndHud.Vision.Operators;
 //       Download every operator's icon and Chinese name from the wiki into a library folder.
 //   endhud-cli analyze-video <recording.mp4> [--every <seconds>] [--from <seconds>] [--to <seconds>]
 //       Per sampled frame: HP, combo, ultimate per slot, the layout, the controlled slot and Laevatain's petals.
+//   endhud-cli trace-video <recording.mp4> [--every <seconds>] [--from <seconds>] [--to <seconds>]
+//       One CSV row per sampled frame: skill points and, per slot, combo, ultimate and battle skill
+//       button, for studying when abilities are used.
 //   endhud-cli identify <screenshot.png> --library <library-dir> [--debug-dir <dir>]
 //       Match each squad portrait against the library and print the top candidates.
 //   endhud-cli build-portrait-references <squads.json> <out.json>
@@ -24,6 +27,7 @@ return args.FirstOrDefault() switch
     "fetch-operators" when args.Length >= 2 => await FetchAsync(args[1]),
     "identify" when args.Length >= 2 && Option("--library") is { } lib => await IdentifyAsync(args[1], lib, Option("--debug-dir")),
     "analyze-video" when args.Length >= 2 => await AnalyzeVideoAsync(args[1], double.Parse(Option("--every") ?? "1"), double.Parse(Option("--from") ?? "0"), Option("--to") is { } to ? double.Parse(to) : null),
+    "trace-video" when args.Length >= 2 => await TraceVideoAsync(args[1], double.Parse(Option("--every") ?? "0.25"), double.Parse(Option("--from") ?? "0"), Option("--to") is { } to ? double.Parse(to) : null),
     "capture" when args.Length >= 3 => await CaptureAsync(args[1], args[2]),
     "build-portrait-references" when args.Length >= 3 => await BuildReferencesAsync(args[1], args[2]),
     "build-operator-package" when args.Length >= 2 => await BuildPackageAsync(args[1]),
@@ -71,6 +75,22 @@ static async Task<int> CaptureAsync(string titlePart, string outPath)
 }
 
 // HP, combo cooldown and ultimate charge per slot over time, one line per sampled frame.
+static async Task<int> TraceVideoAsync(string path, double everySeconds, double from, double? to)
+{
+    var video = await VideoFile.OpenAsync(path);
+    var reader = new PartyReader(new TextRecognizer());
+    static string F(double? v) => v is { } x ? x.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) : "";
+    Console.WriteLine("t,panel,layout,active,sp," + string.Join(",", Enumerable.Range(1, 4).Select(i => $"combo{i},comboReady{i},ult{i},ultReady{i},bs{i}")));
+    for (double t = from; t < Math.Min(to ?? double.MaxValue, video.Duration.TotalSeconds); t += everySeconds)
+    {
+        var state = await reader.ReadAsync(await video.GetFrameAsync(TimeSpan.FromSeconds(t)));
+        var cells = state.Slots.Select(s => s.Dead || s.Empty ? ",,,," :
+            $"{F(s.Combo?.Progress)},{s.Combo?.Ready},{F(s.Ultimate?.Progress)},{s.Ultimate?.Ready},{s.BattleSkill}");
+        Console.WriteLine($"{F(t)},{state.PanelVisible},{state.Layout},{state.ActiveSlot},{F(state.SkillPoints)},{string.Join(",", cells)}");
+    }
+    return 0;
+}
+
 static async Task<int> AnalyzeVideoAsync(string path, double everySeconds, double from, double? to)
 {
     var video = await VideoFile.OpenAsync(path);

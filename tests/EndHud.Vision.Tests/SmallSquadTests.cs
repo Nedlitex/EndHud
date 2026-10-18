@@ -79,6 +79,12 @@ public sealed class SmallSquadTests : IDisposable
         {
             clock += TimeSpan.FromSeconds(0.25);
             named = await identifier.IdentifyAsync(tracker.Track(two));
+            // The first readings of a smaller squad are held as not seen (see PartyTracker).
+            if (n < PartyTracker.FewerOperatorsReadings - 1)
+            {
+                Assert.True(named.ReadingsSinceSeen > 0);
+                continue;
+            }
             Assert.All(named.Slots.Skip(2), s => Assert.Null(s.Operator));
             Assert.All(named.Slots.Skip(2), s => Assert.Null(s.Ultimate)); // nothing carried from the full squad
         }
