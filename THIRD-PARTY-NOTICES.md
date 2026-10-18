@@ -35,4 +35,5 @@ The package also carries the inn's data (`inn/inn-data.json`). The operators' ho
 elements come from the same wiki. The dishes' prices, cook times, traits, ingredients and the
 themes are facts of the game as compiled by
 [EndfieldHub](https://endfieldhub.org/guides/yuanyuan-inn-recipes-chefs-themes); their Chinese
-names are as the game shows them.
+names are as the game shows them. The dish pictures are the game's art, as published by
+EndfieldHub; they belong to the game's developer and publisher.

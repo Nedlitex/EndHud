@@ -78,8 +78,8 @@ public enum ChefBonusKind
 /// <summary>
 /// The inn of Yuanyuan Manor (缘缘庄, the "Yuanyuan's Blazing Stoves" mode): its dishes, the traits
 /// and themes they're judged by, and how an operator's hobbies and element help a kitchen. The wiki
-/// has no dish pages yet, so this is kept by hand in the repository (<c>inn/inn-data.json</c>, with
-/// its sources in <c>inn/README.md</c>) and travels in the operator package
+/// has no dish pages yet, so this is kept by hand in the repository (<c>inn/inn-data.json</c> and the
+/// dish pictures in <c>inn/dish-pictures.zip</c>, with their sources in <c>inn/README.md</c>) and travels in the operator package
 /// (<see cref="OperatorPackage"/>): built into EndHud and updated from the repository with it. The
 /// operators' hobbies and elements come from the wiki with the roster (<see cref="OperatorInfo"/>).
 /// </summary>
@@ -97,8 +97,17 @@ public sealed record InnData(int Format, IReadOnlyList<InnDishType> DishTypes, I
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
 
+    /// <summary>The dishes' pictures in a package: <c>dishes/&lt;dish id&gt;.png</c>, 128×128.</summary>
+    public const string PictureFolderName = "dishes";
+
+    /// <summary>In the repository the pictures are kept as one zip beside the file (<c>&lt;dish id&gt;.png</c> each).</summary>
+    public const string PicturesZipName = "dish-pictures.zip";
+
     /// <summary>The file's place inside a reference folder (or package).</summary>
     public static string PathIn(string folder) => Path.Combine(folder, FolderName, FileName);
+
+    /// <summary>Where a dish's picture is inside a reference folder (or package). A dish can have none yet.</summary>
+    public static string PicturePath(string folder, string dishId) => Path.Combine(folder, FolderName, PictureFolderName, dishId + ".png");
 
     /// <summary>The inn data in <paramref name="referenceFolder"/>, or null when there is none or it's in a newer format.</summary>
     /// <exception cref="InvalidDataException">The file is there but isn't inn data.</exception>

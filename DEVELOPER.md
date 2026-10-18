@@ -366,13 +366,13 @@ The game shows no operator names in the squad panel, so EndHud identifies each p
 1. **References, built in.** Every operator's avatar, their battle skill, combo and ultimate
    icons, Chinese name and the enemy status icons come from
    [endfield.wiki.gg](https://endfield.wiki.gg/wiki/Operator) (CC BY-SA 4.0; the images are the
-   game's art), as one package: [`operators/operator-library.zip`](operators) (about 0.9 MB,
+   game's art), as one package: [`operators/operator-library.zip`](operators) (about 1.2 MB,
    [`OperatorPackage`](src/EndHud.Vision/Operators/OperatorPackage.cs)). It's built into EndHud,
    so a first start needs no network (the wiki was slow or unreachable for many players in
    mainland China). New operators come without a release:
    - A weekly workflow ([`operator-package.yml`](.github/workflows/operator-package.yml)) rebuilds
      the package from the wiki and the inn data
-     (`endhud-cli build-operator-package operators/operator-library.zip --inn inn/inn-data.json`;
+     (`endhud-cli build-operator-package operators/operator-library.zip --inn inn`;
      a change to `inn/` on `main` runs it too) and commits it only if the content changed: the package is reproducible (entries sorted, fixed
      timestamps, its date kept when nothing changed).
    - While EndHud runs (and `CheckForUpdates` is on), it looks at the repository's `operators/`
@@ -465,7 +465,7 @@ in the operator package, so it's built in and updated like the operators (see ab
 
 - **Each operator's element and two hobbies** come from the wiki with the roster (the infobox's
   `element`, `hb1` and `hb2`; [`OperatorInfo`](src/EndHud.Vision/Operators/OperatorInfo.cs)).
-- **The dishes, traits, themes and chef rules** are kept by hand in
+- **The dishes (with their pictures), traits, themes and chef rules** are kept by hand in
   [`inn/inn-data.json`](inn/inn-data.json) (the wiki has no dish pages yet; sources and how to
   change it in [inn/README.md](inn/README.md)), read by
   [`InnData`](src/EndHud.Vision/Inn/InnData.cs). The package build refuses the file if it has

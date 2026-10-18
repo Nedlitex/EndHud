@@ -43,6 +43,21 @@ public sealed class InnDataTests : IDisposable
         Assert.Equal([12, 14, 8, 10], Enum.GetValues<DishType>().Select(t => inn.Dishes.Count(d => d.Type == t)));
     }
 
+    /// <summary>Every dish has its picture in the package, and EndHud's own image loader reads it (256-colour PNG).</summary>
+    [Fact]
+    public async Task Every_dish_has_a_picture_EndHud_can_read()
+    {
+        var inn = (await ShippedLibraryAsync()).Inn!;
+        string reference = Path.Combine(_root, "operators", OperatorLibrary.ReferenceFolderName);
+
+        foreach (var dish in inn.Dishes)
+        {
+            var picture = await ImageFile.LoadAsync(InnData.PicturePath(reference, dish.Id));
+            Assert.Equal((128, 128), (picture.Width, picture.Height));
+        }
+        Assert.Equal(inn.Dishes.Count, Directory.GetFiles(Path.Combine(reference, InnData.FolderName, InnData.PictureFolderName)).Length);
+    }
+
     /// <summary>Cards from the game's recipe list (食谱一览), as the owner's screenshots show them.</summary>
     [Theory]
     [InlineData("白瓜肉丸汤", DishType.Soup, 90, 40, "Savory,Rich")]

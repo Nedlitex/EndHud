@@ -15,8 +15,9 @@ using EndHud.Vision.Operators;
 //       Match each squad portrait against the library and print the top candidates.
 //   endhud-cli build-portrait-references <squads.json> <out.json>
 //       Describe the labelled 4K squad screenshots' portraits for EndHud's built-in references.
-//   endhud-cli build-operator-package <out.zip> --inn <inn-data.json>
-//       Download the roster from the wiki, add the inn's data (inn/inn-data.json, kept by hand) and
+//   endhud-cli build-operator-package <out.zip> --inn <inn folder>
+//       Download the roster from the wiki, add the inn's data (inn/: inn-data.json and the dish
+//       pictures in dish-pictures.zip, kept by hand) and
 //       write the operator package EndHud ships and updates from (operators/operator-library.zip).
 //       Unchanged content keeps the same bytes. Inn data with problems stops the build.
 
@@ -53,7 +54,7 @@ static int Usage()
           endhud-cli learn <screenshot.png> --library <library-dir> --slots <id1>,<id2>,<id3>,<id4>
           endhud-cli capture <window-title-part> <out.png>
           endhud-cli build-portrait-references <squads.json> <out.json>
-          endhud-cli build-operator-package <out.zip> --inn <inn-data.json>
+          endhud-cli build-operator-package <out.zip> --inn <inn folder>
         """);
     return 2;
 }
@@ -194,9 +195,10 @@ static async Task<int> FetchAsync(string libraryDir)
 
 // The operator package: the wiki's roster zipped as EndHud ships it. Starts from the previous
 // package's files (so unchanged images aren't downloaded again) and keeps its date when nothing changed.
-static async Task<int> BuildPackageAsync(string outZip, string innFile)
+static async Task<int> BuildPackageAsync(string outZip, string innFolder)
 {
     // The inn data first: it's kept by hand, so a mistake in it stops the build before the wiki is asked.
+    string innFile = Path.Combine(innFolder, EndHud.Vision.Inn.InnData.FileName);
     byte[] innJson = File.ReadAllBytes(innFile);
     var inn = EndHud.Vision.Inn.InnData.Parse(innJson) ?? throw new InvalidDataException($"{innFile} is in a newer format than this build reads.");
     if (inn.Problems() is { Count: > 0 } problems)
@@ -214,11 +216,23 @@ static async Task<int> BuildPackageAsync(string outZip, string innFile)
     var result = await OperatorReference.UpdateAsync(work, http);
     Directory.CreateDirectory(Path.GetDirectoryName(EndHud.Vision.Inn.InnData.PathIn(work))!);
     File.WriteAllBytes(EndHud.Vision.Inn.InnData.PathIn(work), innJson);
+    using (var pictures = System.IO.Compression.ZipFile.OpenRead(Path.Combine(innFolder, EndHud.Vision.Inn.InnData.PicturesZipName)))
+    {
+        foreach (var dish in inn.Dishes)
+        {
+            if (pictures.GetEntry(dish.Id + ".png") is not { } picture) continue; // a gap, said below
+            string target = EndHud.Vision.Inn.InnData.PicturePath(work, dish.Id);
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            System.IO.Compression.ZipFileExtensions.ExtractToFile(picture, target);
+        }
+    }
     byte[] zip = OperatorPackage.Build(work, DateTime.UtcNow, previous);
     bool changed = previous is null || !zip.AsSpan().SequenceEqual(previous);
     if (changed) File.WriteAllBytes(outZip, zip);
     var info = OperatorPackage.ReadInfo(zip)!;
     if (inn.MissingChinese() is { Count: > 0 } missing) Console.WriteLine($"inn: {inn.Dishes.Count} dishes, {inn.Themes.Count} themes; not yet seen in Chinese: {string.Join(", ", missing)}");
+    if (inn.Dishes.Where(d => !File.Exists(EndHud.Vision.Inn.InnData.PicturePath(work, d.Id))).Select(d => d.Id).ToList() is { Count: > 0 } unpictured)
+        Console.WriteLine($"inn: no picture yet for {string.Join(", ", unpictured)}");
     Console.WriteLine($"{info.Operators} operators ({result.Added.Count} new, {result.Download.Downloaded} images downloaded, {result.Download.Failed} failed), "
         + $"content of {info.ContentAtUtc:yyyy-MM-dd HH:mm} UTC: {(changed ? "written" : "unchanged")} {Path.GetFullPath(outZip)} ({zip.Length / 1024} KB)");
     return result.Download.Failed > 0 && result.Operators == 0 ? 1 : 0;

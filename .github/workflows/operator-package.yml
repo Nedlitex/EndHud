@@ -3,7 +3,7 @@
 # (endfield.wiki.gg) and rebuild the package. The package is reproducible, so an unchanged wiki
 # gives the same bytes and nothing is committed. Players' EndHud picks a new package up from the
 # repository within a few hours (OperatorPackageSync), no release needed.
-# The package also carries the inn's data (inn/inn-data.json, kept by hand), so a change to it on
+# The package also carries the inn's data (inn/: inn-data.json and dish-pictures.zip, kept by hand), so a change to it on
 # main rebuilds the package too.
 name: Operator package
 
@@ -33,7 +33,7 @@ jobs:
           dotnet-version: 8.0.x
       - name: Rebuild the package from the wiki and the inn data
         shell: pwsh
-        run: dotnet run --project src/EndHud.Cli -c Release -- build-operator-package operators/operator-library.zip --inn inn/inn-data.json
+        run: dotnet run --project src/EndHud.Cli -c Release -- build-operator-package operators/operator-library.zip --inn inn
       - name: Commit it if it changed
         shell: bash
         run: |
