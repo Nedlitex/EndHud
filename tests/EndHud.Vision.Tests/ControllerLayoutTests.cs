@@ -139,7 +139,9 @@ public sealed class ControllerLayoutTests : IDisposable
 
     /// <summary>
     /// The controller's marks must never be found on a keyboard-and-mouse screen: every other
-    /// screenshot in the test data, as it is and at 1080p.
+    /// screenshot in the test data, as it is and at 1080p. Controller screenshots are in a
+    /// "controller" folder, or elsewhere with "controller" in their name (kept with the other frames
+    /// of what they show, e.g. ultimate-time/sky-no-ultimate-controller.jpg).
     /// </summary>
     [Fact]
     public async Task Keyboard_and_mouse_screens_are_never_taken_for_the_controller_layout()
@@ -148,7 +150,7 @@ public sealed class ControllerLayoutTests : IDisposable
         string controller = Path.DirectorySeparatorChar + "controller" + Path.DirectorySeparatorChar;
         var files = Directory.GetFiles(root, "*.*", SearchOption.AllDirectories)
             .Where(f => f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
-            .Where(f => !f.Contains(controller))
+            .Where(f => !f.Contains(controller) && !Path.GetFileName(f).Contains("controller", StringComparison.OrdinalIgnoreCase))
             .ToList();
         Assert.True(files.Count > 100, $"only {files.Count} screenshots found");
 

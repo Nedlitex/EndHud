@@ -353,6 +353,12 @@ public sealed class RotationTracker(Rotation rotation)
                 return slots.TryGetValue(c.OperatorId, out int ucs) && state.Slots[ucs].Ultimate is { } charge
                     ? Compare(charge.Ready ? 100 : charge.Progress * 100, c.Is, c.Percent)
                     : null;
+            case UltimateActiveCondition c:
+                // The bar is the controlled operator's; with the bottom HUD in sight (the skill
+                // points read), no bar means no lasting ultimate running.
+                if (state.SkillPoints is null || state.ActiveSlot is not { } controlling) return null;
+                bool running = state.UltimateTimeLeft is not null && slots.TryGetValue(c.OperatorId, out int us2) && us2 == controlling - 1;
+                return running == c.Active;
             case ComboChargeCondition c:
                 return slots.TryGetValue(c.OperatorId, out int ccs) && state.Slots[ccs].Combo is { } bar
                     ? Compare(bar.Ready ? 100 : bar.Progress * 100, c.Is, c.Percent)

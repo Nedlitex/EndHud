@@ -39,6 +39,13 @@ internal sealed record Gauge(GaugeKind Kind, BitmapSource? Avatar, BitmapSource?
     /// <summary>The operator has fallen: drawn faded.</summary>
     public bool Fallen { get; init; }
 
+    /// <summary>
+    /// Ultimates: a lasting ultimate is running (Laevatain's, Zhuang Fangyi's) and <see cref="Fill"/>
+    /// is its time left. Drawn in another colour, glowing, the ring draining anticlockwise from full:
+    /// charging run backwards.
+    /// </summary>
+    public bool Running { get; init; }
+
     /// <summary>Starts the next operator's gauges: a little more space before it.</summary>
     public bool FirstOfOperator { get; init; }
 }
@@ -66,6 +73,7 @@ internal static class Gauges
     internal static readonly Color UltimateColor = Color.FromRgb(0xFF, 0xC8, 0x3C);
     internal static readonly Color CounterColor = Color.FromRgb(0x5E, 0xE6, 0xFF);
     internal static readonly Color BuffColor = Color.FromRgb(0x7C, 0xF2, 0x9A);
+    internal static readonly Color RunningColor = Color.FromRgb(0xD9, 0x7C, 0xFF);
     private static readonly Brush Disc = Frozen(Color.FromArgb(0xC8, 0x16, 0x18, 0x1C));
     private static readonly Brush Track = Frozen(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF));
     private static readonly Brush Text = Frozen(Color.FromArgb(0xF2, 0xFF, 0xFF, 0xFF));
@@ -99,7 +107,7 @@ internal static class Gauges
         var colour = gauge.Kind switch
         {
             GaugeKind.Buff => BuffColor,
-            GaugeKind.Ultimate => UltimateColor,
+            GaugeKind.Ultimate => gauge.Running ? RunningColor : UltimateColor,
             _ => gauge.Ready ? UltimateColor : CounterColor,
         };
         var brush = new SolidColorBrush(colour);
@@ -129,7 +137,7 @@ internal static class Gauges
                 Width = face,
                 Height = face,
                 Fill = new ImageBrush(gauge.Avatar) { Stretch = Stretch.UniformToFill },
-                Opacity = gauge.Kind == GaugeKind.Ultimate ? (gauge.Ready ? 1 : 0.5) : (gauge.Live ? 0.9 : 0.45),
+                Opacity = gauge.Kind == GaugeKind.Ultimate ? (gauge.Ready || gauge.Running ? 1 : 0.5) : (gauge.Live ? 0.9 : 0.45),
             });
         }
 
@@ -183,7 +191,18 @@ internal static class Gauges
         }
         else
         {
-            if (gauge.Fill is { } f && f > 0)
+            if (gauge.Running)
+            {
+                // Running: the time left, draining anticlockwise from 12 o'clock (charging, backwards), glowing.
+                double left = Math.Clamp(gauge.Fill ?? 0, 0, 1);
+                if (left > 0)
+                {
+                    var arc = left >= 0.999 ? (Shape)new Ellipse { Stroke = brush, StrokeThickness = Thickness } : Arc(360 - left * 360, left * 360, brush);
+                    arc.Effect = Glow(colour);
+                    circle.Children.Add(arc);
+                }
+            }
+            else if (gauge.Fill is { } f && f > 0)
             {
                 // Not ready (or not at its maximum): never a closed ring, however close, or 99%
                 // reads as ready at a glance; a gap is always left at 12 o'clock.
@@ -197,16 +216,16 @@ internal static class Gauges
             if (gauge.Badge is not null)
             {
                 circle.Children.Add(Badge(new Image { Source = gauge.Badge, Width = BadgeSize * 0.72, Height = BadgeSize * 0.72 },
-                    gauge.Ready ? brush : Track));
+                    gauge.Ready || gauge.Running ? brush : Track));
             }
         }
 
         var caption = new TextBlock
         {
             Text = gauge.Label,
-            Foreground = gauge.Ready ? brush : Label,
+            Foreground = gauge.Ready || gauge.Running ? brush : Label,
             FontSize = 18,
-            FontWeight = gauge.Ready ? FontWeights.Bold : FontWeights.Normal,
+            FontWeight = gauge.Ready || gauge.Running ? FontWeights.Bold : FontWeights.Normal,
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 3, 0, 0),
             Effect = Outline(),

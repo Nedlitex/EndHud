@@ -41,6 +41,7 @@ public enum Comparison
 [JsonDerivedType(typeof(AllCondition), "all")]
 [JsonDerivedType(typeof(AnyCondition), "any")]
 [JsonDerivedType(typeof(NotCondition), "not")]
+[JsonDerivedType(typeof(UltimateActiveCondition), "ultimateActive")]
 public abstract record StateCondition;
 
 /// <summary>The team's skill points (技力), 0–3; a part-filled segment counts as a fraction.</summary>
@@ -84,6 +85,12 @@ public sealed record AnyCondition(IReadOnlyList<StateCondition> Of) : StateCondi
     public bool Equals(AnyCondition? other) => other is not null && Of.SequenceEqual(other.Of);
     public override int GetHashCode() => Of.Count;
 }
+
+/// <summary>
+/// An operator's lasting ultimate is running (Laevatain's, Zhuang Fangyi's: the bar above the skill
+/// points), or not, when <paramref name="Active"/> is false. Format 3.
+/// </summary>
+public sealed record UltimateActiveCondition(string OperatorId, bool Active) : StateCondition;
 
 /// <summary>This doesn't hold (not), e.g. "not: Laevatain's ultimate charged to at most 50%". Unknown stays unknown. Format 3.</summary>
 public sealed record NotCondition(StateCondition Of) : StateCondition;
@@ -145,7 +152,7 @@ public sealed record Rotation(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool LastMatchWins = false)
 {
     /// <summary>
-    /// 3: "not" conditions and <see cref="LastMatchWins"/>. 2: phases with entry conditions, all/any
+    /// 3: "not" and "ultimate active" conditions, and <see cref="LastMatchWins"/>. 2: phases with entry conditions, all/any
     /// groups. 1 (read, converted): a fixed sequence. A rotation is saved in the lowest format that
     /// holds it (<see cref="FormatNeeded"/>), so one that uses nothing new stays readable by builds
     /// from before format 3.
@@ -154,13 +161,13 @@ public sealed record Rotation(
 
     /// <summary>The lowest format that holds these phases and options.</summary>
     public static int FormatNeeded(IEnumerable<RotationPhase> phases, bool lastMatchWins) =>
-        lastMatchWins || phases.Any(p => p.When.Concat(p.Steps.SelectMany(s => s.Expect)).Any(UsesNot)) ? 3 : 2;
+        lastMatchWins || phases.Any(p => p.When.Concat(p.Steps.SelectMany(s => s.Expect)).Any(NeedsFormat3)) ? 3 : 2;
 
-    private static bool UsesNot(StateCondition condition) => condition switch
+    private static bool NeedsFormat3(StateCondition condition) => condition switch
     {
-        NotCondition => true,
-        AllCondition all => all.Of.Any(UsesNot),
-        AnyCondition any => any.Of.Any(UsesNot),
+        NotCondition or UltimateActiveCondition => true,
+        AllCondition all => all.Of.Any(NeedsFormat3),
+        AnyCondition any => any.Of.Any(NeedsFormat3),
         _ => false,
     };
 
@@ -267,6 +274,7 @@ public sealed record Rotation(
                         ComboCondition c => c.OperatorId,
                         UltimateCondition u => u.OperatorId,
                         UltimateChargeCondition u => u.OperatorId,
+                        UltimateActiveCondition u => u.OperatorId,
                         ComboChargeCondition c => c.OperatorId,
                         BattleSkillCondition b => b.OperatorId,
                         CounterCondition c => c.OperatorId,

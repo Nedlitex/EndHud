@@ -36,9 +36,14 @@ internal static class GaugesView
         {
             if (slot.Operator?.Operator is not { } op) continue;
             var face = avatar(op);
-            // Fill null: not readable this time (an effect over it); drawn empty, without a guess.
-            gauges.Add(new Gauge(GaugeKind.Ultimate, face, skillIcon(op, StepAction.Ultimate), Loc.Get("Gauge.Ultimate"),
-                slot.Ultimate?.Progress, slot.Ultimate?.Ready == true) { Fallen = slot.Dead, FirstOfOperator = true });
+            // A lasting ultimate running (the controlled operator's time bar): its time left, draining.
+            // Otherwise the charge. Fill null: not readable this time (an effect over it); drawn empty, without a guess.
+            bool running = state.UltimateTimeLeft is not null && state.ActiveSlot == slot.Number;
+            gauges.Add(running
+                ? new Gauge(GaugeKind.Ultimate, face, skillIcon(op, StepAction.Ultimate), Loc.Get("Gauge.UltimateRunning"),
+                    state.UltimateTimeLeft, false) { Running = true, Fallen = slot.Dead, FirstOfOperator = true }
+                : new Gauge(GaugeKind.Ultimate, face, skillIcon(op, StepAction.Ultimate), Loc.Get("Gauge.Ultimate"),
+                    slot.Ultimate?.Progress, slot.Ultimate?.Ready == true) { Fallen = slot.Dead, FirstOfOperator = true });
             foreach (var counter in counters.Where(c => c.OperatorId == op.Id))
             {
                 int max = counter.Counter.Max;
@@ -68,5 +73,5 @@ internal static class GaugesView
     /// charge ticking on redraws a few times a second, not on every tiny change.
     /// </summary>
     public static string Key(GaugeBoard board) => string.Join("|", board.Gauges.Select(x =>
-        $"{x.Kind}{x.Label}{x.Avatar?.GetHashCode()}{x.Badge is not null}{(x.Fill is { } f ? Math.Round(f * 50) : -1)}{x.Ready}{x.Number}{x.Live}{x.Fallen}"));
+        $"{x.Kind}{x.Label}{x.Avatar?.GetHashCode()}{x.Badge is not null}{(x.Fill is { } f ? Math.Round(f * 50) : -1)}{x.Ready}{x.Running}{x.Number}{x.Live}{x.Fallen}"));
 }

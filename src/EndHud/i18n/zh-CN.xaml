@@ -24,6 +24,7 @@
     <sys:String x:Key="Gauge.Drag">按住拖动，调整状态监视位置</sys:String>
     <sys:String x:Key="Gauge.Combo">连携技</sys:String>
     <sys:String x:Key="Gauge.Ultimate">终结技</sys:String>
+    <sys:String x:Key="Gauge.UltimateRunning">持续中</sys:String>
     <sys:String x:Key="Gauge.Counter">计数</sys:String>
     <sys:String x:Key="Gauge.Buff">连击</sys:String>
     <sys:String x:Key="Gauge.Sample">示例</sys:String>
@@ -39,6 +40,8 @@
     <sys:String x:Key="Rotation.Reason.NeedComboCooling">需要：{0} 连携技已使用</sys:String>
     <sys:String x:Key="Rotation.Reason.NeedUltimateReady">需要：{0} 终结技就绪</sys:String>
     <sys:String x:Key="Rotation.Reason.NeedUltimateUsed">需要：{0} 终结技已使用</sys:String>
+    <sys:String x:Key="Rotation.Reason.NeedUltimateActive">需要：{0} 终结技持续中</sys:String>
+    <sys:String x:Key="Rotation.Reason.NeedUltimateOver">需要：{0} 终结技已结束</sys:String>
     <sys:String x:Key="Rotation.Reason.Counter">需要：{0} {1} {2}（当前 {3}）</sys:String>
     <sys:String x:Key="Rotation.Reason.BossLacks">敌人缺少：{0}</sys:String>
     <sys:String x:Key="Rotation.Reason.BossHas">敌人已有：{0}</sys:String>
@@ -101,6 +104,7 @@
     <sys:String x:Key="Editor.Condition.BattleSkill">战技</sys:String>
     <sys:String x:Key="Editor.Condition.Ultimate">终结技</sys:String>
     <sys:String x:Key="Editor.Condition.UltimateCharge">终结技充能</sys:String>
+    <sys:String x:Key="Editor.Condition.UltimateActive">终结技持续中</sys:String>
     <sys:String x:Key="Editor.Condition.Counter">干员资源</sys:String>
     <sys:String x:Key="Editor.Condition.BossStatus">敌人状态</sys:String>
     <sys:String x:Key="Editor.Condition.Controlling">当前操控</sys:String>
@@ -109,6 +113,8 @@
     <sys:String x:Key="Editor.Compare.Exactly">等于</sys:String>
     <sys:String x:Key="Editor.Ready">就绪</sys:String>
     <sys:String x:Key="Editor.Used">已使用</sys:String>
+    <sys:String x:Key="Editor.Active">处于</sys:String>
+    <sys:String x:Key="Editor.NotActive">未处于</sys:String>
     <sys:String x:Key="Editor.Cooling">冷却中</sys:String>
     <sys:String x:Key="Editor.Has">有</sys:String>
     <sys:String x:Key="Editor.HasNot">没有</sys:String>

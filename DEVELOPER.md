@@ -342,7 +342,7 @@ release.yml).
 | `RotationEnabled` | `true` | Show the rotation strip when the recognised squad has a rotation. |
 | `RotationCenterX`, `RotationY` | `0.5`, `0.13` | Where the strip sits, as a fraction of the game window: the middle of its width (it stays centred as it changes width) and its top. |
 | `RotationScale` | `1` | The strip's size on top of following the game window, 0.5–2 (the menu's 大小 slider; a value outside is brought back into range). |
-| `GaugesEnabled` | `true` | Show the gauges in battle: team buffs (Link with its stacks, once seen in the battle), and each recognised operator's ultimate charge and own counters, as circles with the operator's avatar in the middle. |
+| `GaugesEnabled` | `true` | Show the gauges in battle: team buffs (Link with its stacks, once seen in the battle), and each recognised operator's ultimate charge and own counters, as circles with the operator's avatar in the middle. While a lasting ultimate runs (Laevatain's, Zhuang Fangyi's), the controlled operator's ultimate circle shows its time left instead: violet, glowing, draining anticlockwise, labelled 持续中. |
 | `GaugesScale` | `1` | The gauges' size on top of following the game window (the menu's slider): 0.5–2; a value outside that is clamped when the file is read. |
 | `GaugesCenterX`, `GaugesBottomY` | `0.5`, `0.885` | Where the gauges sit, as a fraction of the game window: the middle of their width and their bottom edge (so a bigger size grows upwards): bottom middle, just above the game's HP and skill-point bars. |
 | `ActiveRotations` | `{}` | The rotation chosen for each squad: squad key (the four operator ids, sorted, joined by `\|`) → rotation id. Set by saving in the editor. |
@@ -565,6 +565,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   | `battleSkill` | `operatorId`, `ready` | that operator's battle skill button is available (`true`) or cooling (its countdown seconds aren't read) |
   | `ultimate` | `operatorId`, `ready` | that operator's ultimate is ready or charging |
   | `ultimateCharge` | `operatorId`, `is`, `percent` (0–100) | that operator's ultimate is charged so far (ready is 100; at most 0 is just used) |
+  | `ultimateActive` | `operatorId`, `active` (format 3) | that operator's lasting ultimate is running (`true`) or not: the time bar above the skill points, which is the controlled operator's; unknown while the skill points can't be read |
   | `counter` | `operatorId`, `counterId`, `is`, `value` | an operator's own resource compares so (see below) |
   | `bossStatus` | `statusId` (the wiki's English name), `present`, `minStacks` | the enemy shows (or doesn't show) that status |
   | `controlling` | `operatorId` | that operator is the one being controlled |
@@ -577,7 +578,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   part is false, else unknown if a part is unknown; `any` is true if a part is true, else unknown if
   a part is unknown. A phase's `when` that is unknown doesn't switch to it.
 
-- `format`: 3 when it uses `not` or `lastMatchWins`, else 2: a rotation is saved in the lowest
+- `format`: 3 when it uses `not`, `ultimateActive` or `lastMatchWins`, else 2: a rotation is saved in the lowest
   format that holds it, so one using nothing new stays readable by builds from before format 3. A
   file from a newer EndHud is refused with a message instead of being misread (builds from before
   format 2 or 3 say so about such a file or share code). A format 1 file (a fixed
@@ -633,6 +634,7 @@ like everything else.
 | Reading | Where | How |
 |---|---|---|
 | Skill points ([`SkillPointBar`](src/EndHud.Vision/SkillPointBar.cs)) | the segmented bar above the battle skill buttons, bottom centre | yellow segments are full; the white fill of the next one gives the fraction (e.g. 1.4) |
+| Lasting ultimate ([`UltimateTimeBar`](src/EndHud.Vision/UltimateTimeBar.cs)) | the thin line right above the skill points, while Laevatain's or Zhuang Fangyi's ultimate runs | one colour from the left over a grey track; its length is the time left. Taken as the bar only with that shape and a line's edges (bright sky there read as a full bar before). Kept through gaps of up to 4 s (PartyTracker). |
 | Controlled operator ([`ActiveSlot`](src/EndHud.Vision/ActiveSlot.cs)) | the chevron over the controlled operator's portrait | shape match against the chevron |
 | Battle skill ([`BattleSkillButton`](src/EndHud.Vision/BattleSkillButton.cs)) | each battle skill button, bottom right | a dark disc with white digits is cooling; the white icon is available |
 | Operator counters ([`OperatorCounters`](src/EndHud.Vision/Operators/OperatorCounters.cs)) | the controlled operator's resource, bottom centre | Laevatain's 熔火 (0–4): lit petals of the flower; pink petals mean full. Typhoeus's 猎矢 (`hunting-arrow`, 0–4): bars lit cyan (with a white streak over them when full); and 启示 (`sign`, 0–8): dots lit white, filling from the bottom row. Unknown when a bar or dot is neither lit nor grey, or the lit ones aren't in their fill order (the HUD moving). Zhuang Fangyi's 青霆剑 (`sunderblade`, 0–9): cells of a diamond grid lit cyan |

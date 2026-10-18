@@ -138,4 +138,32 @@ public class PartyTrackerTests
         Assert.Null(state.Slots[0].Combo);
         Assert.Null(state.Slots[0].Ultimate);
     }
+
+    private static PartyState Running(double? left, int controlled = 1) => InCombat() with { ActiveSlot = controlled, SkillPoints = 1.5, UltimateTimeLeft = left };
+
+    /// <summary>
+    /// An effect over the time bar loses a reading now and then (gaps of up to 3.5 s in the
+    /// recordings): the last value is kept through it, while the same operator is controlled.
+    /// </summary>
+    [Fact]
+    public void A_running_ultimates_time_is_kept_through_a_short_gap()
+    {
+        var tracker = new PartyTracker();
+        tracker.Track(Running(0.6));
+
+        for (int i = 0; i < PartyTracker.UltimateGapReadings; i++) Assert.Equal(0.6, tracker.Track(Running(null)).UltimateTimeLeft);
+        Assert.Null(tracker.Track(Running(null)).UltimateTimeLeft); // longer: it ended
+    }
+
+    [Fact]
+    public void A_nearly_out_ultimate_or_another_controlled_operator_ends_it_at_once()
+    {
+        var nearlyOut = new PartyTracker();
+        nearlyOut.Track(Running(0.03));
+        Assert.Null(nearlyOut.Track(Running(null)).UltimateTimeLeft);
+
+        var switched = new PartyTracker();
+        switched.Track(Running(0.6, controlled: 1));
+        Assert.Null(switched.Track(Running(null, controlled: 2)).UltimateTimeLeft);
+    }
 }

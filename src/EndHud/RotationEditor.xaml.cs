@@ -389,7 +389,7 @@ public partial class RotationEditor : Window
 
     // ---- Conditions: a step's expected state, a phase's entry condition ----
 
-    private static readonly string[] ConditionKinds = ["SkillPoints", "Combo", "ComboCharge", "BattleSkill", "Ultimate", "UltimateCharge", "Counter", "BossStatus", "Controlling", "Group"];
+    private static readonly string[] ConditionKinds = ["SkillPoints", "Combo", "ComboCharge", "BattleSkill", "Ultimate", "UltimateCharge", "UltimateActive", "Counter", "BossStatus", "Controlling", "Group"];
 
     private void AddCondition_Click(object sender, RoutedEventArgs e)
     {
@@ -413,6 +413,7 @@ public partial class RotationEditor : Window
             "Combo" => new ComboCondition(first, true),
             "Ultimate" => new UltimateCondition(first, true),
             "UltimateCharge" => new UltimateChargeCondition(first, Comparison.AtLeast, 80),
+            "UltimateActive" => new UltimateActiveCondition(first, true),
             "ComboCharge" => new ComboChargeCondition(first, Comparison.AtLeast, 80),
             "BattleSkill" => new BattleSkillCondition(first, true),
             "Counter" => Counters().FirstOrDefault() is { } c ? new CounterCondition(c.OperatorId, c.Id, Comparison.AtLeast, c.Max) : new SkillPointsCondition(Comparison.AtLeast, 2),
@@ -443,6 +444,7 @@ public partial class RotationEditor : Window
         ComboCondition => "Combo",
         UltimateCondition => "Ultimate",
         UltimateChargeCondition => "UltimateCharge",
+        UltimateActiveCondition => "UltimateActive",
         ComboChargeCondition => "ComboCharge",
         BattleSkillCondition => "BattleSkill",
         CounterCondition => "Counter",
@@ -584,6 +586,15 @@ public partial class RotationEditor : Window
                 row.Children.Add(who);
                 row.Children.Add(state);
                 read = () => new UltimateCondition((string)Picked(who), (bool)Picked(state));
+                break;
+            }
+            case UltimateActiveCondition c:
+            {
+                var who = OperatorPicker(c.OperatorId);
+                var state = Picker([true, false], a => Loc.Get(a ? "Editor.Active" : "Editor.NotActive"), c.Active);
+                row.Children.Add(who);
+                row.Children.Add(state);
+                read = () => new UltimateActiveCondition((string)Picked(who), (bool)Picked(state));
                 break;
             }
             case UltimateChargeCondition c:

@@ -143,6 +143,39 @@ public class GaugesTests
     private static bool Gold(byte r, byte g, byte b) => r > 220 && g is > 170 and < 225 && b < 110;
     private static bool Cyan(byte r, byte g, byte b) => r < 140 && g > 200 && b > 230;
     private static bool Green(byte r, byte g, byte b) => r is > 90 and < 160 && g > 220 && b is > 120 and < 190;
+    private static bool Violet(byte r, byte g, byte b) => r > 190 && g is > 90 and < 160 && b > 230;
+
+    /// <summary>
+    /// A lasting ultimate running (Laevatain's, Zhuang Fangyi's): the controlled operator's gauge shows
+    /// its time left instead of the charge, labelled 持续中; the others keep their charge.
+    /// </summary>
+    [Fact]
+    public void A_running_ultimate_shows_its_time_left_on_the_controlled_operators_gauge()
+    {
+        var state = new PartyState([Slot(1, "Laevatain", new UltimateReading(false, 0)), Slot(2, "Arcane", new UltimateReading(false, 0.4))], PanelMarks: 8)
+        {
+            ActiveSlot = 1,
+            UltimateTimeLeft = 0.6,
+        };
+
+        var gauges = Build(state).Gauges;
+
+        Assert.Equal((true, 0.6, Loc.Get("Gauge.UltimateRunning")), (gauges[0].Running, gauges[0].Fill, gauges[0].Label));
+        Assert.Equal((false, 0.4), (gauges[1].Running, gauges[1].Fill));
+        Assert.NotEqual(GaugesView.Key(Build(state with { UltimateTimeLeft = null })), GaugesView.Key(Build(state))); // redrawn when it starts
+    }
+
+    /// <summary>Drawn violet and glowing, not gold, and draining: less time left, less ring.</summary>
+    [Fact]
+    public void A_running_ultimate_is_a_violet_ring_that_drains()
+    {
+        Rendered Running(double left) => Render(new Gauge(GaugeKind.Ultimate, null, null, "持续中", left, false) { Running = true });
+
+        int full = Running(1).Count(Violet), half = Running(0.5).Count(Violet), nearlyOut = Running(0.1).Count(Violet);
+        Assert.True(full > 900, $"{full} violet pixels when full");
+        Assert.True(half < full * 0.75 && nearlyOut < half / 2, $"{full}, {half}, {nearlyOut}");
+        Assert.Equal(0, Running(0.5).Count(Gold));
+    }
 
     [Fact]
     public void A_ready_ultimate_is_a_full_glowing_gold_ring_and_a_charging_one_a_dimmer_partial_arc()

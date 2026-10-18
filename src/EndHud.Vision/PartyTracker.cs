@@ -23,6 +23,11 @@ namespace EndHud.Vision;
 /// <see cref="FewerOperatorsReadings"/>. A squad really changes only in the team menu, so the wait
 /// shows the squad from before the menu a little longer, as not seen. (Just after the menu isn't
 /// trusted at once: an ultimate's cutscene hides the panel as long.)
+/// A lasting ultimate's time bar (<see cref="UltimateTimeBar"/>): effects over it lose a reading
+/// now and then (gaps of up to 3.5 s in the recordings), which would end the ultimate for a moment.
+/// Its last value is kept through a gap of up to <see cref="UltimateGapReadings"/> readings while
+/// the same operator is controlled, unless it was nearly out (<see cref="UltimateEndingBelow"/>):
+/// then a missing bar means it ended.
 /// One tracker follows one game window; use a new one for another window.
 /// </summary>
 public sealed class PartyTracker
@@ -30,6 +35,9 @@ public sealed class PartyTracker
     public const double RevivedHp = 0.1;
 
     public const int ChargeMedianWindow = 3;
+
+    public const int UltimateGapReadings = 16;
+    public const double UltimateEndingBelow = 0.05;
 
     public const int MoreOperatorsReadings = 12;
     public const int FewerOperatorsReadings = 4;
@@ -51,7 +59,7 @@ public sealed class PartyTracker
         }
 
         var slots = state.Slots.Select(Track).ToList();
-        _lastVisible = state with { Slots = slots, ReadingsSinceSeen = 0 };
+        _lastVisible = state with { Slots = slots, ReadingsSinceSeen = 0, UltimateTimeLeft = TrackUltimateTime(state) };
         return _lastVisible;
     }
 
@@ -73,6 +81,25 @@ public sealed class PartyTracker
         _size = size;
         _newSize = null;
         return true;
+    }
+
+    private (double Value, int? Controlled, int Readings)? _ultimateTime;
+
+    private double? TrackUltimateTime(PartyState state)
+    {
+        if (state.UltimateTimeLeft is { } seen)
+        {
+            _ultimateTime = (seen, state.ActiveSlot, 0);
+            return seen;
+        }
+        if (_ultimateTime is { } last && last.Value >= UltimateEndingBelow && last.Readings < UltimateGapReadings
+            && (state.ActiveSlot is null || state.ActiveSlot == last.Controlled))
+        {
+            _ultimateTime = last with { Readings = last.Readings + 1 };
+            return last.Value;
+        }
+        _ultimateTime = null;
+        return null;
     }
 
     private PartySlot Track(PartySlot slot)

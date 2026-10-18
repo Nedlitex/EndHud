@@ -291,6 +291,7 @@ public sealed class RotationFormatTests : IDisposable
         Assert.Equal(3, Rotation.FormatNeeded(plain, lastMatchWins: true));
         Assert.Equal(3, Rotation.FormatNeeded(negated, lastMatchWins: false));
         Assert.Equal(3, Rotation.FormatNeeded(nested, lastMatchWins: false));
+        Assert.Equal(3, Rotation.FormatNeeded([plain[0] with { When = [new UltimateActiveCondition("Laevatain", true)] }], lastMatchWins: false));
         Assert.DoesNotContain("lastMatchWins", RotationFormat.ToJson(Guide()));
     }
 

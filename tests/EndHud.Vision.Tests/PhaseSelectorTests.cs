@@ -193,4 +193,22 @@ public class PhaseSelectorTests
         Assert.Equal(true, RotationTracker.Evaluate(justUsed, Reading(4, 4, arcane: 0, liino: 0.5)));
         Assert.Equal(false, RotationTracker.Evaluate(justUsed, Reading(4, 4, arcane: 0.04, liino: 0.5)));
     }
+
+    /// <summary>
+    /// "Ultimate active": the time bar is the controlled operator's, so it's Arcane's only while Arcane
+    /// is controlled; with the bottom HUD out of sight (no skill points read) it can't be told.
+    /// </summary>
+    [Fact]
+    public void An_ultimate_is_active_while_its_time_bar_shows_for_the_controlled_operator()
+    {
+        StateCondition arcaneActive = new UltimateActiveCondition("Arcane", true);
+        PartyState With(int controlled, double? left, double? skillPoints = 1.5) =>
+            Reading(4, 4, arcane: 0, liino: 0.5) with { ActiveSlot = controlled, UltimateTimeLeft = left, SkillPoints = skillPoints };
+
+        Assert.Equal(true, RotationTracker.Evaluate(arcaneActive, With(controlled: 2, left: 0.7)));
+        Assert.Equal(false, RotationTracker.Evaluate(arcaneActive, With(controlled: 2, left: null)));
+        Assert.Equal(false, RotationTracker.Evaluate(arcaneActive, With(controlled: 1, left: 0.7))); // Typhoeus's bar
+        Assert.Null(RotationTracker.Evaluate(arcaneActive, With(controlled: 2, left: null, skillPoints: null)));
+        Assert.Equal(true, RotationTracker.Evaluate(new UltimateActiveCondition("Arcane", false), With(controlled: 2, left: null)));
+    }
 }

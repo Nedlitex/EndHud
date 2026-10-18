@@ -37,6 +37,12 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
     /// <see cref="SkillPointBar"/>); null out of combat or when unreadable.</summary>
     public double? SkillPoints { get; init; }
 
+    /// <summary>
+    /// The controlled operator's lasting ultimate (Laevatain's, Zhuang Fangyi's): the share of its
+    /// time left, 0–1; null when none is running (or it can't be seen). See <see cref="UltimateTimeBar"/>.
+    /// </summary>
+    public double? UltimateTimeLeft { get; init; }
+
     /// <summary>How many operators the squad has (1-4): the slots that aren't <see cref="PartySlot.Empty"/>.</summary>
     public int SquadSize => Slots.Count(s => !s.Empty);
 
@@ -170,6 +176,7 @@ public sealed partial class PartyReader(TextRecognizer ocr)
             PortraitWidths = [.. SquadGeometry.Layouts.Select(layout => ui.BottomLeft(SquadGeometry.For(layout).Portrait(0)).Width)],
             ActiveSlot = Vision.ActiveSlot.Find(frame, ui, squad),
             SkillPoints = inCombat ? SkillPointBar.Measure(frame, ui) : null,
+            UltimateTimeLeft = inCombat ? UltimateTimeBar.Measure(frame, ui) : null,
         };
     }
 
