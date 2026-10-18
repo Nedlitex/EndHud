@@ -1,5 +1,7 @@
 using System.Text.Json;
 
+using InnData = EndHud.Vision.Inn.InnData;
+
 namespace EndHud.Vision.Operators;
 
 /// <summary>
@@ -127,7 +129,9 @@ public sealed class OperatorLibrary
             statuses.Add(status);
         }
 
-        return new OperatorLibrary(reference, userFolder, operators, icons, learned, statuses, statusIcons);
+        InnData? inn = null;
+        try { inn = InnData.Load(reference.Root); } catch (InvalidDataException) { } // a package checks it before installing
+        return new OperatorLibrary(reference, userFolder, operators, icons, learned, statuses, statusIcons) { Inn = inn };
     }
 
     // "learned/Laevatain/2026….png" → "Laevatain"
@@ -139,6 +143,9 @@ public sealed class OperatorLibrary
 
     /// <summary>Status effects with their icons (enemy debuffs, team buffs), from the downloaded library.</summary>
     public IReadOnlyList<StatusInfo> Statuses => _statuses;
+
+    /// <summary>The inn's dishes, themes and chef rules from the package; null when it has none (or in a newer format).</summary>
+    public InnData? Inn { get; private init; }
 
     /// <summary>A status's icon, or null if the library has none.</summary>
     public Frame? StatusIcon(string id) => _statusIcons.GetValueOrDefault(id);

@@ -3,11 +3,16 @@
 # (endfield.wiki.gg) and rebuild the package. The package is reproducible, so an unchanged wiki
 # gives the same bytes and nothing is committed. Players' EndHud picks a new package up from the
 # repository within a few hours (OperatorPackageSync), no release needed.
+# The package also carries the inn's data (inn/inn-data.json, kept by hand), so a change to it on
+# main rebuilds the package too.
 name: Operator package
 
 on:
   schedule:
     - cron: "17 3 * * 1" # Mondays 03:17 UTC
+  push:
+    branches: [main]
+    paths: ["inn/**"]
   workflow_dispatch:
 
 permissions:
@@ -26,9 +31,9 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - name: Rebuild the package from the wiki
+      - name: Rebuild the package from the wiki and the inn data
         shell: pwsh
-        run: dotnet run --project src/EndHud.Cli -c Release -- build-operator-package operators/operator-library.zip
+        run: dotnet run --project src/EndHud.Cli -c Release -- build-operator-package operators/operator-library.zip --inn inn/inn-data.json
       - name: Commit it if it changed
         shell: bash
         run: |
@@ -39,5 +44,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add operators/operator-library.zip
-          git commit -m "Operator package: refreshed from the wiki"
+          git commit -m "Operator package: refreshed from the wiki and the inn data"
           git push

@@ -14,6 +14,12 @@ public sealed record OperatorInfo(string Id, string NameEn, string NameZh, strin
     IReadOnlyList<SkillIcon>? Skills = null)
 {
     public IReadOnlyList<SkillIcon> Skills { get; init; } = Skills ?? [];
+
+    /// <summary>The operator's element as the wiki writes it ("Heat", "Cryo", "Electric", "Nature", "Physical"); null when unknown.</summary>
+    public string? Element { get; init; }
+
+    /// <summary>The operator's two hobbies as the wiki writes them (e.g. "Sports", "Mind Honing"): they help a kitchen at the inn (see Inn.InnData). Empty when unknown.</summary>
+    public IReadOnlyList<string> Hobbies { get; init; } = [];
 }
 
 /// <summary>Which of an operator's three active skills an icon belongs to.</summary>

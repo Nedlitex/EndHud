@@ -371,8 +371,9 @@ The game shows no operator names in the squad panel, so EndHud identifies each p
    so a first start needs no network (the wiki was slow or unreachable for many players in
    mainland China). New operators come without a release:
    - A weekly workflow ([`operator-package.yml`](.github/workflows/operator-package.yml)) rebuilds
-     the package from the wiki (`endhud-cli build-operator-package operators/operator-library.zip`)
-     and commits it only if the content changed: the package is reproducible (entries sorted, fixed
+     the package from the wiki and the inn data
+     (`endhud-cli build-operator-package operators/operator-library.zip --inn inn/inn-data.json`;
+     a change to `inn/` on `main` runs it too) and commits it only if the content changed: the package is reproducible (entries sorted, fixed
      timestamps, its date kept when nothing changed).
    - While EndHud runs (and `CheckForUpdates` is on), it looks at the repository's `operators/`
      folder every 6 hours, as for recommended rotations
@@ -456,6 +457,27 @@ How the package build stays safe ([`OperatorReference`](src/EndHud.Vision/Operat
 Si and Argent Flow have no skill icons on the wiki yet; they're recognised by portrait only.
 
 ---
+
+## The inn (缘缘庄)
+
+The data for the inn of Yuanyuan Manor ("Yuanyuan's Blazing Stoves", from version 1.6) travels
+in the operator package, so it's built in and updated like the operators (see above):
+
+- **Each operator's element and two hobbies** come from the wiki with the roster (the infobox's
+  `element`, `hb1` and `hb2`; [`OperatorInfo`](src/EndHud.Vision/Operators/OperatorInfo.cs)).
+- **The dishes, traits, themes and chef rules** are kept by hand in
+  [`inn/inn-data.json`](inn/inn-data.json) (the wiki has no dish pages yet; sources and how to
+  change it in [inn/README.md](inn/README.md)), read by
+  [`InnData`](src/EndHud.Vision/Inn/InnData.cs). The package build refuses the file if it has
+  problems, and players' EndHud refuses a package whose inn data is broken, missing or much
+  shorter than the current copy's, keeping the current copy.
+
+A chef helps their kitchen through each hobby (+10% cooking speed for one dish type, or +5% chance
+of a choice dish, 珍馐) and their element (+5% speed and choice chance for one flavor, from Inn
+Rating 3), and bonuses of the same kind add up (`InnData.ChefBonusesOf`). The game's own kitchen
+screen agrees: Akekuri and Snowshine together show 主食 +40%, 鲜 +5% and 辣 +5%. Names not yet seen
+in the game (four drink traits, seven theme names) stay in English until they are; they're never
+guessed.
 
 ## Rotations
 
@@ -773,6 +795,7 @@ src/EndHud.Vision/       everything that reads the screen
   Capture/               Windows.Graphics.Capture of a single window
   Operators/             operator library, recognition (character model), learning, operator counters, status icons
   Rotations/             rotation format, store, recommended-rotation sync, and the tracker that finds the current step
+  Inn/                   the inn's dishes, themes and chef rules (InnData)
   Assets/ccip/           the character recognition model (Git LFS; see tools/ccip-model)
   Assets/operator-portraits.json  in-game portrait references (the model's numbers; built from test fixtures)
   PartyReader.cs         squad panel: level, HP, combo, portraits
@@ -788,6 +811,8 @@ tests/EndHud.Tests/      tests of the tray app (banner layout at any display sca
 installer/               the MSI installer (WiX)
 tools/EndHud.ReadmeMedia/ renders the README's animated pictures from a recording
 tools/guide-video/       downloads rotation guide videos (Python, see requirements.txt)
+operators/               the operator package EndHud ships and updates from (rebuilt by operator-package.yml)
+inn/                     the inn's data, kept by hand; travels in the operator package
 rotations/               recommended rotations, published to every player from main
 ```
 

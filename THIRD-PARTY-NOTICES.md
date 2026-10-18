@@ -30,3 +30,9 @@ icons, Chinese names and enemy status icons, taken from the community
 [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0). The images are the game's art and
 belong to the game's developer and publisher; EndHud uses them only to recognise operators on the
 player's own computer.
+
+The package also carries the inn's data (`inn/inn-data.json`). The operators' hobbies and
+elements come from the same wiki. The dishes' prices, cook times, traits, ingredients and the
+themes are facts of the game as compiled by
+[EndfieldHub](https://endfieldhub.org/guides/yuanyuan-inn-recipes-chefs-themes); their Chinese
+names are as the game shows them.

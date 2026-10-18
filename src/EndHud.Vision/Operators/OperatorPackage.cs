@@ -2,6 +2,8 @@ using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
+using InnData = EndHud.Vision.Inn.InnData;
+
 namespace EndHud.Vision.Operators;
 
 /// <summary>What a package says about itself (<c>package.json</c> inside it).</summary>
@@ -21,6 +23,11 @@ public sealed record OperatorPackageInfo(DateTime ContentAtUtc, int Operators);
 /// <item>Installing never touches the player's learned portraits (they live beside the reference
 /// folder), and is refused, keeping the current copy, for a zip that isn't a package, has a path
 /// outside the folder, or lists far fewer operators than the current copy.</item>
+/// <item>It also carries the inn's data (<see cref="InnData"/>, <c>inn/inn-data.json</c>), kept by
+/// hand in the repository's <c>inn/</c> folder and added when the package is built. A package whose
+/// inn data can't be read, or that drops it or most of its dishes, is refused like a short roster.
+/// One in a newer format than this build reads is installed (the operators still update) and its
+/// inn data left unread.</item>
 /// </list>
 /// </summary>
 public static class OperatorPackage
@@ -144,6 +151,24 @@ public static class OperatorPackage
         return Install(referenceFolder, zip);
     }
 
+    /// <summary>Refuse a package whose inn data is broken, missing or much shorter than the current copy's.</summary>
+    private static void CheckInnData(string current, string staging)
+    {
+        bool had = File.Exists(InnData.PathIn(current)), has = File.Exists(InnData.PathIn(staging));
+        if (!has)
+        {
+            if (had) throw new InvalidDataException("The package has no inn data (the current copy has); keeping the current copy.");
+            return;
+        }
+        if (InnData.Load(staging) is not { } incoming) return; // a newer format: left unread
+        if (incoming.Problems() is { Count: > 0 } problems)
+            throw new InvalidDataException($"The package's inn data has problems ({problems[0]}); keeping the current copy.");
+        InnData? before = null;
+        try { before = had ? InnData.Load(current) : null; } catch (InvalidDataException) { }
+        if (before is not null && incoming.Dishes.Count < before.Dishes.Count * OperatorReference.MinShareOfCurrentRoster)
+            throw new InvalidDataException($"The package lists {incoming.Dishes.Count} dishes (the current copy has {before.Dishes.Count}); keeping the current copy.");
+    }
+
     /// <summary>Install <paramref name="zip"/>, replacing the reference folder; the operators it added.</summary>
     public static IReadOnlyList<OperatorInfo> Install(string referenceFolder, byte[] zip)
     {
@@ -170,6 +195,7 @@ public static class OperatorPackage
             var roster = OperatorReference.ReadRoster(staging);
             if (roster.Count == 0 || roster.Count < current.Count * OperatorReference.MinShareOfCurrentRoster)
                 throw new InvalidDataException($"The package lists {roster.Count} operators (the current copy has {current.Count}); keeping the current copy.");
+            CheckInnData(folder, staging);
             OperatorReference.Swap(folder, staging);
             var known = current.Select(o => o.Id).ToHashSet();
             return roster.Where(o => !known.Contains(o.Id)).ToList();

@@ -15,9 +15,10 @@ using EndHud.Vision.Operators;
 //       Match each squad portrait against the library and print the top candidates.
 //   endhud-cli build-portrait-references <squads.json> <out.json>
 //       Describe the labelled 4K squad screenshots' portraits for EndHud's built-in references.
-//   endhud-cli build-operator-package <out.zip>
-//       Download the roster from the wiki and write the operator package EndHud ships and updates
-//       from (operators/operator-library.zip). Unchanged content keeps the same bytes.
+//   endhud-cli build-operator-package <out.zip> --inn <inn-data.json>
+//       Download the roster from the wiki, add the inn's data (inn/inn-data.json, kept by hand) and
+//       write the operator package EndHud ships and updates from (operators/operator-library.zip).
+//       Unchanged content keeps the same bytes. Inn data with problems stops the build.
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 
@@ -30,7 +31,7 @@ return args.FirstOrDefault() switch
     "trace-video" when args.Length >= 2 => await TraceVideoAsync(args[1], double.Parse(Option("--every") ?? "0.25"), double.Parse(Option("--from") ?? "0"), Option("--to") is { } to ? double.Parse(to) : null),
     "capture" when args.Length >= 3 => await CaptureAsync(args[1], args[2]),
     "build-portrait-references" when args.Length >= 3 => await BuildReferencesAsync(args[1], args[2]),
-    "build-operator-package" when args.Length >= 2 => await BuildPackageAsync(args[1]),
+    "build-operator-package" when args.Length >= 2 && Option("--inn") is { } inn => await BuildPackageAsync(args[1], inn),
     "learn" when args.Length >= 2 && Option("--library") is { } lib && Option("--slots") is { } ids => await LearnAsync(args[1], lib, ids),
     _ => Usage(),
 };
@@ -52,7 +53,7 @@ static int Usage()
           endhud-cli learn <screenshot.png> --library <library-dir> --slots <id1>,<id2>,<id3>,<id4>
           endhud-cli capture <window-title-part> <out.png>
           endhud-cli build-portrait-references <squads.json> <out.json>
-          endhud-cli build-operator-package <out.zip>
+          endhud-cli build-operator-package <out.zip> --inn <inn-data.json>
         """);
     return 2;
 }
@@ -193,8 +194,17 @@ static async Task<int> FetchAsync(string libraryDir)
 
 // The operator package: the wiki's roster zipped as EndHud ships it. Starts from the previous
 // package's files (so unchanged images aren't downloaded again) and keeps its date when nothing changed.
-static async Task<int> BuildPackageAsync(string outZip)
+static async Task<int> BuildPackageAsync(string outZip, string innFile)
 {
+    // The inn data first: it's kept by hand, so a mistake in it stops the build before the wiki is asked.
+    byte[] innJson = File.ReadAllBytes(innFile);
+    var inn = EndHud.Vision.Inn.InnData.Parse(innJson) ?? throw new InvalidDataException($"{innFile} is in a newer format than this build reads.");
+    if (inn.Problems() is { Count: > 0 } problems)
+    {
+        Console.Error.WriteLine($"{innFile} has problems:" + string.Concat(problems.Select(p => $"{Environment.NewLine}  {p}")));
+        return 1;
+    }
+
     string work = Path.Combine(Path.GetTempPath(), "endhud-operator-package", "reference");
     if (Directory.Exists(work)) Directory.Delete(work, recursive: true);
     byte[]? previous = File.Exists(outZip) ? File.ReadAllBytes(outZip) : null;
@@ -202,10 +212,13 @@ static async Task<int> BuildPackageAsync(string outZip)
 
     using var http = WikiOperatorSource.CreateHttpClient();
     var result = await OperatorReference.UpdateAsync(work, http);
+    Directory.CreateDirectory(Path.GetDirectoryName(EndHud.Vision.Inn.InnData.PathIn(work))!);
+    File.WriteAllBytes(EndHud.Vision.Inn.InnData.PathIn(work), innJson);
     byte[] zip = OperatorPackage.Build(work, DateTime.UtcNow, previous);
     bool changed = previous is null || !zip.AsSpan().SequenceEqual(previous);
     if (changed) File.WriteAllBytes(outZip, zip);
     var info = OperatorPackage.ReadInfo(zip)!;
+    if (inn.MissingChinese() is { Count: > 0 } missing) Console.WriteLine($"inn: {inn.Dishes.Count} dishes, {inn.Themes.Count} themes; not yet seen in Chinese: {string.Join(", ", missing)}");
     Console.WriteLine($"{info.Operators} operators ({result.Added.Count} new, {result.Download.Downloaded} images downloaded, {result.Download.Failed} failed), "
         + $"content of {info.ContentAtUtc:yyyy-MM-dd HH:mm} UTC: {(changed ? "written" : "unchanged")} {Path.GetFullPath(outZip)} ({zip.Length / 1024} KB)");
     return result.Download.Failed > 0 && result.Operators == 0 ? 1 : 0;

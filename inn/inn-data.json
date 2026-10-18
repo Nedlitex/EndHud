@@ -1,0 +1,1747 @@
+{
+  "format": 1,
+  "dishTypes": [
+    {
+      "id": "Entree",
+      "zh": "主食"
+    },
+    {
+      "id": "Side",
+      "zh": "菜肴"
+    },
+    {
+      "id": "Soup",
+      "zh": "汤羹"
+    },
+    {
+      "id": "Dessert",
+      "zh": "甜品"
+    }
+  ],
+  "traits": [
+    {
+      "id": "Savory",
+      "zh": "鲜",
+      "flavor": true,
+      "drink": false
+    },
+    {
+      "id": "Salty",
+      "zh": "咸",
+      "flavor": true,
+      "drink": false
+    },
+    {
+      "id": "Spicy",
+      "zh": "辣",
+      "flavor": true,
+      "drink": false
+    },
+    {
+      "id": "Sweet",
+      "zh": "甜",
+      "flavor": true,
+      "drink": false
+    },
+    {
+      "id": "Sour",
+      "zh": "酸",
+      "flavor": true,
+      "drink": false
+    },
+    {
+      "id": "Rich",
+      "zh": "滋补",
+      "flavor": false,
+      "drink": false
+    },
+    {
+      "id": "Finny",
+      "zh": "水产",
+      "flavor": false,
+      "drink": false
+    },
+    {
+      "id": "Meaty",
+      "zh": "肉食",
+      "flavor": false,
+      "drink": false
+    },
+    {
+      "id": "Veggy",
+      "zh": "素食",
+      "flavor": false,
+      "drink": false
+    },
+    {
+      "id": "Lovely",
+      "zh": "美观",
+      "flavor": false,
+      "drink": false
+    },
+    {
+      "id": "Classy",
+      "zh": "雅致",
+      "flavor": false,
+      "drink": false
+    },
+    {
+      "id": "Tea",
+      "zh": null,
+      "flavor": false,
+      "drink": true
+    },
+    {
+      "id": "Kohlic",
+      "zh": null,
+      "flavor": false,
+      "drink": true
+    },
+    {
+      "id": "Milky",
+      "zh": null,
+      "flavor": false,
+      "drink": true
+    },
+    {
+      "id": "Fruity",
+      "zh": null,
+      "flavor": false,
+      "drink": true
+    }
+  ],
+  "chefBonuses": {
+    "dishSpeedPercent": 10,
+    "choiceChancePercent": 5,
+    "flavorPercent": 5,
+    "flavorFromRating": 3,
+    "hobbies": [
+      {
+        "id": "Sports",
+        "zh": "运动",
+        "dishType": "Entree"
+      },
+      {
+        "id": "Charity",
+        "zh": "公益",
+        "dishType": "Entree"
+      },
+      {
+        "id": "Lifestyle",
+        "zh": "生活",
+        "dishType": "Side"
+      },
+      {
+        "id": "Fine Arts",
+        "zh": "艺术",
+        "dishType": "Side"
+      },
+      {
+        "id": "Nature",
+        "zh": "自然",
+        "dishType": "Soup"
+      },
+      {
+        "id": "Culture",
+        "zh": "文化",
+        "dishType": "Soup"
+      },
+      {
+        "id": "Fashion",
+        "zh": "时尚",
+        "dishType": "Dessert"
+      },
+      {
+        "id": "Technology",
+        "zh": "科技",
+        "dishType": "Dessert"
+      },
+      {
+        "id": "Creative",
+        "zh": "创意",
+        "choice": true
+      },
+      {
+        "id": "Mind Honing",
+        "zh": "益智",
+        "choice": true
+      }
+    ],
+    "elements": [
+      {
+        "id": "Physical",
+        "zh": "物理",
+        "flavor": "Salty"
+      },
+      {
+        "id": "Nature",
+        "zh": "自然",
+        "flavor": "Sour"
+      },
+      {
+        "id": "Heat",
+        "zh": "灼热",
+        "flavor": "Spicy"
+      },
+      {
+        "id": "Cryo",
+        "zh": "寒冷",
+        "flavor": "Savory"
+      },
+      {
+        "id": "Electric",
+        "zh": "电磁",
+        "flavor": "Sweet"
+      }
+    ],
+    "notChefs": [
+      "Si",
+      "Endministrator"
+    ]
+  },
+  "dishes": [
+    {
+      "id": "meat-baozi",
+      "en": "Meat Baozi",
+      "zh": "肉包子",
+      "type": "Entree",
+      "price": 12,
+      "cookSeconds": 15,
+      "traits": [],
+      "unlock": {
+        "rating": 1
+      },
+      "ingredients": [
+        {
+          "en": "Meat",
+          "count": 2
+        },
+        {
+          "en": "Flour",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "hand-kneaded-noodle",
+      "en": "Hand-Kneaded Noodle",
+      "zh": "手擀素面",
+      "type": "Entree",
+      "price": 12,
+      "cookSeconds": 15,
+      "traits": [],
+      "unlock": {
+        "rating": 1
+      },
+      "ingredients": [
+        {
+          "en": "Egg",
+          "count": 1
+        },
+        {
+          "en": "Flour",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "id": "yuanyuan-veggy-rice",
+      "en": "Yuanyuan Veggy Rice",
+      "zh": "缘缘菜饭",
+      "type": "Entree",
+      "price": 28,
+      "cookSeconds": 15,
+      "traits": [],
+      "unlock": {
+        "rating": 2
+      },
+      "ingredients": [
+        {
+          "en": "Amber Rice",
+          "count": 3
+        },
+        {
+          "en": "Cabbage",
+          "count": 1
+        },
+        {
+          "en": "Egg",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "shroom-dumpling",
+      "en": "Shroom Dumpling",
+      "zh": "菌菇蒸饺",
+      "type": "Entree",
+      "price": 32,
+      "cookSeconds": 15,
+      "traits": [],
+      "unlock": {
+        "theme": "cereal-galore",
+        "stars": 2
+      },
+      "ingredients": [
+        {
+          "en": "Relishroom",
+          "count": 1
+        },
+        {
+          "en": "Flour",
+          "count": 4
+        },
+        {
+          "en": "Meat",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "id": "tonic-congee-greens",
+      "en": "Tonic Congee & Greens",
+      "zh": "青菜养生粥",
+      "type": "Entree",
+      "price": 36,
+      "cookSeconds": 15,
+      "traits": [],
+      "unlock": {
+        "theme": "cereal-galore",
+        "stars": 4
+      },
+      "ingredients": [
+        {
+          "en": "Amber Rice",
+          "count": 3
+        },
+        {
+          "en": "Cabbage",
+          "count": 1
+        },
+        {
+          "en": "Relishroom",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "meaty-pilaf",
+      "en": "Meaty Pilaf",
+      "zh": "手抓饭",
+      "type": "Entree",
+      "price": 50,
+      "cookSeconds": 25,
+      "traits": [
+        "Salty"
+      ],
+      "unlock": {
+        "rating": 3
+      },
+      "ingredients": [
+        {
+          "en": "Meat [A]",
+          "count": 1
+        },
+        {
+          "en": "Amber Rice",
+          "count": 2
+        },
+        {
+          "en": "Tartpepper",
+          "count": 4
+        }
+      ]
+    },
+    {
+      "id": "fin-dumpling",
+      "en": "Fin Dumpling",
+      "zh": "鳞肉水饺",
+      "type": "Entree",
+      "price": 55,
+      "cookSeconds": 25,
+      "traits": [
+        "Savory"
+      ],
+      "unlock": {
+        "theme": "cereal-flour",
+        "stars": 2
+      },
+      "ingredients": [
+        {
+          "en": "Fin Fillet [A]",
+          "count": 1
+        },
+        {
+          "en": "Relishroom",
+          "count": 2
+        },
+        {
+          "en": "Flour",
+          "count": 6
+        }
+      ]
+    },
+    {
+      "id": "pea-topped-noodles",
+      "en": "Pea-Topped Noodles",
+      "zh": "豌杂拌面",
+      "type": "Entree",
+      "price": 60,
+      "cookSeconds": 25,
+      "traits": [
+        "Spicy"
+      ],
+      "unlock": {
+        "theme": "cereal-flour",
+        "stars": 4
+      },
+      "ingredients": [
+        {
+          "en": "Ballpea",
+          "count": 4
+        },
+        {
+          "en": "Ground Pepper",
+          "count": 1
+        },
+        {
+          "en": "Flour",
+          "count": 6
+        }
+      ]
+    },
+    {
+      "id": "eight-treasure-rice",
+      "en": "Eight Treasure Rice",
+      "zh": "八宝饭",
+      "type": "Entree",
+      "price": 80,
+      "cookSeconds": 35,
+      "traits": [
+        "Sweet",
+        "Lovely"
+      ],
+      "unlock": {
+        "rating": 4
+      },
+      "ingredients": [
+        {
+          "en": "Sourberry [A]",
+          "count": 1
+        },
+        {
+          "en": "Amber Rice",
+          "count": 3
+        },
+        {
+          "en": "Ballpea",
+          "count": 3
+        },
+        {
+          "en": "Sugar",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "roll-of-fin-supreme",
+      "en": "Roll of Fin-Supreme",
+      "zh": "至臻鳞肉卷",
+      "type": "Entree",
+      "price": 85,
+      "cookSeconds": 35,
+      "traits": [
+        "Sour",
+        "Savory"
+      ],
+      "unlock": {
+        "theme": "school-of-fins",
+        "stars": 2
+      },
+      "ingredients": [
+        {
+          "en": "Fin Fillet [A]",
+          "count": 1
+        },
+        {
+          "en": "Cabbage [A]",
+          "count": 1
+        },
+        {
+          "en": "Flour",
+          "count": 6
+        },
+        {
+          "en": "Matoberry",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "id": "chaoshou-numbing-sauce",
+      "en": "Chaoshou & Numbing Sauce",
+      "zh": "老麻抄手",
+      "type": "Entree",
+      "price": 100,
+      "cookSeconds": 35,
+      "traits": [
+        "Salty",
+        "Spicy"
+      ],
+      "unlock": {
+        "theme": "fully-flavored",
+        "stars": 4
+      },
+      "ingredients": [
+        {
+          "en": "Meat [A]",
+          "count": 3
+        },
+        {
+          "en": "Seed Oil",
+          "count": 2
+        },
+        {
+          "en": "Flour",
+          "count": 4
+        },
+        {
+          "en": "Ground Pepper",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "boundary-lung-roll",
+      "en": "Boundary Lung Roll",
+      "zh": "界龙肉卷",
+      "type": "Entree",
+      "price": 125,
+      "cookSeconds": 35,
+      "traits": [
+        "Meaty",
+        "Lovely"
+      ],
+      "unlock": {
+        "theme": "ocean-land",
+        "stars": 4
+      },
+      "ingredients": [
+        {
+          "en": "Cabbage [A]",
+          "count": 1
+        },
+        {
+          "en": "Meat [A]",
+          "count": 2
+        },
+        {
+          "en": "Spice Mix 130",
+          "count": 1
+        },
+        {
+          "en": "Flour",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "id": "mato-egg",
+      "en": "Mato & Egg",
+      "zh": "番茄炒蛋",
+      "type": "Side",
+      "price": 12,
+      "cookSeconds": 15,
+      "traits": [],
+      "unlock": {
+        "rating": 1
+      },
+      "ingredients": [
+        {
+          "en": "Matoberry",
+          "count": 1
+        },
+        {
+          "en": "Egg",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "shredded-tuber-pepper",
+      "en": "Shredded Tuber & Pepper",
+      "zh": "红椒土豆丝",
+      "type": "Side",
+      "price": 12,
+      "cookSeconds": 15,
+      "traits": [],
+      "unlock": {
+        "rating": 1
+      },
+      "ingredients": [
+        {
+          "en": "Tartpepper",
+          "count": 1
+        },
+        {
+          "en": "Pingtuber",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "skilleted-fin",
+      "en": "Skilleted Fin",
+      "zh": "香煎鳞肉",
+      "type": "Side",
+      "price": 28,
+      "cookSeconds": 15,
+      "traits": [],
+      "unlock": {
+        "rating": 2
+      },
+      "ingredients": [
+        {
+          "en": "Fin Fillet",
+          "count": 2
+        },
+        {
+          "en": "Starch",
+          "count": 5
+        }
+      ]
+    },
+    {
+      "id": "melon-in-sauce",
+      "en": "Melon in Sauce",
+      "zh": "茄汁白瓜",
+      "type": "Side",
+      "price": 32,
+      "cookSeconds": 15,
+      "traits": [],
+      "unlock": {
+        "theme": "drinking-social",
+        "stars": 2
+      },
+      "ingredients": [
+        {
+          "en": "Whitemelon",
+          "count": 2
+        },
+        {
+          "en": "Matoberry",
+          "count": 4
+        }
+      ]
+    },
+    {
+      "id": "fin-savory-shreds",
+      "en": "Fin-Savory Shreds",
+      "zh": "鳞香肉丝",
+      "type": "Side",
+      "price": 36,
+      "cookSeconds": 15,
+      "traits": [
+        "Sweet"
+      ],
+      "unlock": {
+        "theme": "drinking-social",
+        "stars": 4
+      },
+      "ingredients": [
+        {
+          "en": "Cabbage",
+          "count": 2
+        },
+        {
+          "en": "Starch",
+          "count": 3
+        },
+        {
+          "en": "Meat",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "id": "tuber-fries",
+      "en": "Tuber Fries",
+      "zh": "炸薯条",
+      "type": "Side",
+      "price": 55,
+      "cookSeconds": 25,
+      "traits": [
+        "Salty"
+      ],
+      "unlock": {
+        "theme": "warming-flow",
+        "stars": 2
+      },
+      "ingredients": [
+        {
+          "en": "Seed Oil",
+          "count": 3
+        },
+        {
+          "en": "Pingtuber",
+          "count": 5
+        },
+        {
+          "en": "Matoberry",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "fin-pickled-greens",
+      "en": "Fin & Pickled Greens",
+      "zh": "酸菜鳞肉",
+      "type": "Side",
+      "price": 55,
+      "cookSeconds": 25,
+      "traits": [
+        "Sour"
+      ],
+      "unlock": {
+        "theme": "appetizing-start",
+        "stars": 2
+      },
+      "ingredients": [
+        {
+          "en": "Cabbage [A]",
+          "count": 1
+        },
+        {
+          "en": "Fin Fillet",
+          "count": 2
+        },
+        {
+          "en": "Cabbage",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "roasted-kebab",
+      "en": "Roasted Kebab",
+      "zh": "烤肉串",
+      "type": "Side",
+      "price": 60,
+      "cookSeconds": 25,
+      "traits": [
+        "Spicy"
+      ],
+      "unlock": {
+        "theme": "appetizing-start",
+        "stars": 4
+      },
+      "ingredients": [
+        {
+          "en": "Meat [A]",
+          "count": 2
+        },
+        {
+          "en": "Relishroom",
+          "count": 2
+        },
+        {
+          "en": "Ground Pepper",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "berry-fruity-toss",
+      "en": "Berry Fruity Toss",
+      "zh": "果味沙拉",
+      "type": "Side",
+      "price": 80,
+      "cookSeconds": 35,
+      "traits": [
+        "Sour",
+        "Veggy"
+      ],
+      "unlock": {
+        "rating": 4
+      },
+      "ingredients": [
+        {
+          "en": "Cabbage [A]",
+          "count": 1
+        },
+        {
+          "en": "Relishroom [A]",
+          "count": 1
+        },
+        {
+          "en": "Sourberry",
+          "count": 3
+        },
+        {
+          "en": "Matoberry",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "mala-xiang-guo",
+      "en": "Mala Xiang Guo",
+      "zh": "麻辣香锅",
+      "type": "Side",
+      "price": 85,
+      "cookSeconds": 35,
+      "traits": [
+        "Spicy",
+        "Salty"
+      ],
+      "unlock": {
+        "theme": "fully-flavored",
+        "stars": 2
+      },
+      "ingredients": [
+        {
+          "en": "Meat [A]",
+          "count": 1
+        },
+        {
+          "en": "Relishroom [A]",
+          "count": 1
+        },
+        {
+          "en": "Whitemelon",
+          "count": 3
+        },
+        {
+          "en": "Pingtuber",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "clay-jar-meat",
+      "en": "Clay Jar Meat",
+      "zh": "坛子肉",
+      "type": "Side",
+      "price": 85,
+      "cookSeconds": 35,
+      "traits": [
+        "Sweet",
+        "Meaty"
+      ],
+      "unlock": {
+        "theme": "ocean-land",
+        "stars": 2
+      },
+      "ingredients": [
+        {
+          "en": "Meat [A]",
+          "count": 2
+        },
+        {
+          "en": "Cabbage [A]",
+          "count": 1
+        },
+        {
+          "en": "Seed Oil",
+          "count": 2
+        },
+        {
+          "en": "Sugar",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "spoon-swimmer",
+      "en": "\"Spoon Swimmer\"",
+      "zh": "“勺里游”",
+      "type": "Side",
+      "price": 90,
+      "cookSeconds": 35,
+      "traits": [
+        "Savory",
+        "Sweet"
+      ],
+      "unlock": {
+        "other": "Side mission reward"
+      },
+      "ingredients": [
+        {
+          "en": "Egg [A]",
+          "count": 1
+        },
+        {
+          "en": "Relishroom [A]",
+          "count": 1
+        },
+        {
+          "en": "Sugar",
+          "count": 3
+        },
+        {
+          "en": "Ballpea",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "id": "immortal-galore-of-fortune",
+      "en": "Immortal Galore of Fortune",
+      "zh": "福寿全",
+      "type": "Side",
+      "price": 110,
+      "cookSeconds": 35,
+      "traits": [
+        "Savory",
+        "Rich"
+      ],
+      "unlock": {
+        "theme": "truly-wholesome",
+        "stars": 2
+      },
+      "ingredients": [
+        {
+          "en": "Meat [A]",
+          "count": 2
+        },
+        {
+          "en": "Fin Fillet [A]",
+          "count": 1
+        },
+        {
+          "en": "Relishroom [A]",
+          "count": 1
+        },
+        {
+          "en": "Fin Fillet",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "id": "sweet-sour-fingot",
+      "en": "Sweet & Sour Fingot",
+      "zh": "糖醋宝鳞",
+      "type": "Side",
+      "price": 115,
+      "cookSeconds": 35,
+      "traits": [
+        "Classy",
+        "Finny"
+      ],
+      "unlock": {
+        "theme": "school-of-fins",
+        "stars": 4
+      },
+      "ingredients": [
+        {
+          "en": "Fin Fillet [A]",
+          "count": 2
+        },
+        {
+          "en": "Spice Mix 130",
+          "count": 1
+        },
+        {
+          "en": "Matoberry",
+          "count": 4
+        }
+      ]
+    },
+    {
+      "id": "hot-sour-soup",
+      "en": "Hot & Sour Soup",
+      "zh": "酸辣汤",
+      "type": "Soup",
+      "price": 60,
+      "cookSeconds": 40,
+      "traits": [
+        "Spicy",
+        "Sour"
+      ],
+      "unlock": {
+        "rating": 3
+      },
+      "ingredients": [
+        {
+          "en": "Relishroom [A]",
+          "count": 2
+        },
+        {
+          "en": "Starch",
+          "count": 4
+        },
+        {
+          "en": "Tartpepper",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "berry-sweet-sip",
+      "en": "Berry-Sweet Sip",
+      "zh": "莓果甜汤",
+      "type": "Soup",
+      "price": 70,
+      "cookSeconds": 40,
+      "traits": [
+        "Sweet",
+        "Rich"
+      ],
+      "unlock": {
+        "theme": "warming-flow",
+        "stars": 4
+      },
+      "ingredients": [
+        {
+          "en": "Sourberry [A]",
+          "count": 2
+        },
+        {
+          "en": "Ballpea",
+          "count": 3
+        },
+        {
+          "en": "Sugar",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "fin-mato-soup",
+      "en": "Fin-Mato Soup",
+      "zh": "茄果鳞肉汤",
+      "type": "Soup",
+      "price": 90,
+      "cookSeconds": 40,
+      "traits": [
+        "Sour",
+        "Finny"
+      ],
+      "unlock": {
+        "rating": 4
+      },
+      "ingredients": [
+        {
+          "en": "Fin Fillet [A]",
+          "count": 2
+        },
+        {
+          "en": "Cabbage [A]",
+          "count": 1
+        },
+        {
+          "en": "Seed Oil",
+          "count": 2
+        },
+        {
+          "en": "Matoberry",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "id": "melon-meatball-soup",
+      "en": "Melon & Meatball Soup",
+      "zh": "白瓜肉丸汤",
+      "type": "Soup",
+      "price": 90,
+      "cookSeconds": 40,
+      "traits": [
+        "Savory",
+        "Rich"
+      ],
+      "unlock": {
+        "rating": 4
+      },
+      "ingredients": [
+        {
+          "en": "Cabbage [A]",
+          "count": 2
+        },
+        {
+          "en": "Meat [A]",
+          "count": 1
+        },
+        {
+          "en": "Whitemelon",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "id": "cream-of-shroom",
+      "en": "Cream of Shroom",
+      "zh": "奶油蘑菇汤",
+      "type": "Soup",
+      "price": 100,
+      "cookSeconds": 40,
+      "traits": [
+        "Salty",
+        "Veggy"
+      ],
+      "unlock": {
+        "theme": "soup-entree",
+        "stars": 2
+      },
+      "ingredients": [
+        {
+          "en": "Relishroom [A]",
+          "count": 1
+        },
+        {
+          "en": "Milk [A]",
+          "count": 2
+        },
+        {
+          "en": "Ballpea",
+          "count": 3
+        },
+        {
+          "en": "Flour",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "white-fin-broth",
+      "en": "White Fin Broth",
+      "zh": "白鳞高汤",
+      "type": "Soup",
+      "price": 105,
+      "cookSeconds": 40,
+      "traits": [
+        "Savory",
+        "Finny"
+      ],
+      "unlock": {
+        "theme": "soup-entree",
+        "stars": 4
+      },
+      "ingredients": [
+        {
+          "en": "Egg [A]",
+          "count": 2
+        },
+        {
+          "en": "Fin Fillet [A]",
+          "count": 2
+        },
+        {
+          "en": "Seed Oil",
+          "count": 4
+        }
+      ]
+    },
+    {
+      "id": "snowshroom-lotus-soup",
+      "en": "\"Snowshroom & Lotus\" Soup",
+      "zh": "银耳莲子羹",
+      "type": "Soup",
+      "price": 110,
+      "cookSeconds": 40,
+      "traits": [
+        "Veggy",
+        "Classy"
+      ],
+      "unlock": {
+        "theme": "tea-break",
+        "stars": 4
+      },
+      "ingredients": [
+        {
+          "en": "Relishroom [A]",
+          "count": 3
+        },
+        {
+          "en": "Ballpea",
+          "count": 3
+        },
+        {
+          "en": "Sugar",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "id": "tofu-bouquet-soup",
+      "en": "Tofu Bouquet Soup",
+      "zh": "簇锦豆腐羹",
+      "type": "Soup",
+      "price": 120,
+      "cookSeconds": 40,
+      "traits": [
+        "Lovely",
+        "Classy"
+      ],
+      "unlock": {
+        "theme": "luxurious-banquet",
+        "stars": 4
+      },
+      "ingredients": [
+        {
+          "en": "Spice Mix 130",
+          "count": 1
+        },
+        {
+          "en": "Cabbage [A]",
+          "count": 2
+        },
+        {
+          "en": "Ballpea",
+          "count": 2
+        },
+        {
+          "en": "Starch",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "sticky-rice-cake",
+      "en": "Sticky Rice Cake",
+      "zh": "糯米凉糕",
+      "type": "Dessert",
+      "price": 30,
+      "cookSeconds": 15,
+      "traits": [],
+      "unlock": {
+        "rating": 2
+      },
+      "ingredients": [
+        {
+          "en": "Amber Rice",
+          "count": 3
+        },
+        {
+          "en": "Starch",
+          "count": 3
+        },
+        {
+          "en": "Sugar",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "steamed-flan",
+      "en": "Steamed Flan",
+      "zh": "鲜奶炖蛋",
+      "type": "Dessert",
+      "price": 32,
+      "cookSeconds": 15,
+      "traits": [],
+      "unlock": {
+        "theme": "sweet-salty",
+        "stars": 2
+      },
+      "ingredients": [
+        {
+          "en": "Crunchcane",
+          "count": 2
+        },
+        {
+          "en": "Milk",
+          "count": 1
+        },
+        {
+          "en": "Egg",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "id": "salted-cheese-crackers",
+      "en": "Salted Cheese Crackers",
+      "zh": "咸酪脆饼",
+      "type": "Dessert",
+      "price": 36,
+      "cookSeconds": 15,
+      "traits": [
+        "Salty"
+      ],
+      "unlock": {
+        "theme": "sweet-salty",
+        "stars": 4
+      },
+      "ingredients": [
+        {
+          "en": "Flour",
+          "count": 3
+        },
+        {
+          "en": "Egg",
+          "count": 3
+        },
+        {
+          "en": "Milk",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "id": "beanpaste-tangyuan",
+      "en": "Beanpaste Tangyuan",
+      "zh": "豆沙汤圆",
+      "type": "Dessert",
+      "price": 50,
+      "cookSeconds": 25,
+      "traits": [
+        "Sweet"
+      ],
+      "unlock": {
+        "rating": 3
+      },
+      "ingredients": [
+        {
+          "en": "Amber Rice",
+          "count": 4
+        },
+        {
+          "en": "Sugar",
+          "count": 2
+        },
+        {
+          "en": "Ballpea",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "sourberry-pudding",
+      "en": "Sourberry Pudding",
+      "zh": "酸莓布丁",
+      "type": "Dessert",
+      "price": 55,
+      "cookSeconds": 25,
+      "traits": [
+        "Sour"
+      ],
+      "unlock": {
+        "theme": "cozily-sweet",
+        "stars": 2
+      },
+      "ingredients": [
+        {
+          "en": "Milk [A]",
+          "count": 1
+        },
+        {
+          "en": "Sourberry",
+          "count": 3
+        },
+        {
+          "en": "Starch",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "id": "sweetbeans-on-snow",
+      "en": "Sweetbeans on Snow",
+      "zh": "雪绵豆沙",
+      "type": "Dessert",
+      "price": 60,
+      "cookSeconds": 25,
+      "traits": [
+        "Sweet"
+      ],
+      "unlock": {
+        "theme": "cozily-sweet",
+        "stars": 4
+      },
+      "ingredients": [
+        {
+          "en": "Egg [A]",
+          "count": 1
+        },
+        {
+          "en": "Ballpea",
+          "count": 3
+        },
+        {
+          "en": "Seed Oil",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "id": "goldfloss-chiffon",
+      "en": "Goldfloss Chiffon",
+      "zh": "金丝小贝",
+      "type": "Dessert",
+      "price": 80,
+      "cookSeconds": 35,
+      "traits": [
+        "Salty",
+        "Meaty"
+      ],
+      "unlock": {
+        "rating": 4
+      },
+      "ingredients": [
+        {
+          "en": "Meat [A]",
+          "count": 2
+        },
+        {
+          "en": "Egg [A]",
+          "count": 1
+        },
+        {
+          "en": "Sugar",
+          "count": 2
+        },
+        {
+          "en": "Flour",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "snow-veiled-mooncake",
+      "en": "Snow-Veiled Mooncake",
+      "zh": "雪纱蛋黄月饼",
+      "type": "Dessert",
+      "price": 90,
+      "cookSeconds": 35,
+      "traits": [
+        "Salty",
+        "Classy"
+      ],
+      "unlock": {
+        "theme": "luxurious-banquet",
+        "stars": 2
+      },
+      "ingredients": [
+        {
+          "en": "Egg [A]",
+          "count": 2
+        },
+        {
+          "en": "Whitemelon",
+          "count": 2
+        },
+        {
+          "en": "Sugar",
+          "count": 3
+        },
+        {
+          "en": "Flour",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "id": "pearly-fruit-punch",
+      "en": "Pearly Fruit Punch",
+      "zh": "千果珍珠圆",
+      "type": "Dessert",
+      "price": 100,
+      "cookSeconds": 35,
+      "traits": [
+        "Sweet",
+        "Rich"
+      ],
+      "unlock": {
+        "theme": "truly-wholesome",
+        "stars": 4
+      },
+      "ingredients": [
+        {
+          "en": "Milk [A]",
+          "count": 1
+        },
+        {
+          "en": "Sourberry [A]",
+          "count": 2
+        },
+        {
+          "en": "Sugar",
+          "count": 3
+        },
+        {
+          "en": "Pingtuber",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "id": "redbloom-cheesecake",
+      "en": "Redbloom Cheesecake",
+      "zh": "红蕊奶酪蛋糕",
+      "type": "Dessert",
+      "price": 125,
+      "cookSeconds": 35,
+      "traits": [
+        "Sour",
+        "Lovely"
+      ],
+      "unlock": {
+        "theme": "tea-break",
+        "stars": 2
+      },
+      "ingredients": [
+        {
+          "en": "Egg [A]",
+          "count": 2
+        },
+        {
+          "en": "Milk [A]",
+          "count": 1
+        },
+        {
+          "en": "Sourberry [A]",
+          "count": 2
+        },
+        {
+          "en": "Starch",
+          "count": 6
+        }
+      ]
+    }
+  ],
+  "themes": [
+    {
+      "id": "cereal-galore",
+      "en": "Cereal Galore",
+      "zh": null,
+      "rating": 2,
+      "prefers": [
+        "Entree"
+      ],
+      "starScores": [
+        2500,
+        5000,
+        7500,
+        9000,
+        16000
+      ]
+    },
+    {
+      "id": "sweet-salty",
+      "en": "Sweet & Salty",
+      "zh": null,
+      "rating": 2,
+      "prefers": [
+        "Side",
+        "Dessert"
+      ],
+      "starScores": [
+        4500,
+        9000,
+        13500,
+        18000,
+        24000
+      ]
+    },
+    {
+      "id": "drinking-social",
+      "en": "Drinking Social",
+      "zh": null,
+      "rating": 2,
+      "prefers": [
+        "Side",
+        "Drink"
+      ],
+      "starScores": [
+        4500,
+        9000,
+        13500,
+        18000,
+        24000
+      ]
+    },
+    {
+      "id": "appetizing-start",
+      "en": "Appetizing Start",
+      "zh": null,
+      "rating": 3,
+      "prefers": [
+        "Sour",
+        "Spicy"
+      ],
+      "starScores": [
+        12000,
+        24000,
+        36000,
+        48000,
+        60000
+      ]
+    },
+    {
+      "id": "cereal-flour",
+      "en": "Cereal & Flour",
+      "zh": null,
+      "rating": 3,
+      "prefers": [
+        "Entree"
+      ],
+      "starScores": [
+        12000,
+        24000,
+        36000,
+        48000,
+        60000
+      ]
+    },
+    {
+      "id": "warming-flow",
+      "en": "Warming Flow",
+      "zh": null,
+      "rating": 3,
+      "prefers": [
+        "Soup",
+        "Drink"
+      ],
+      "starScores": [
+        12000,
+        24000,
+        36000,
+        48000,
+        60000
+      ]
+    },
+    {
+      "id": "cozily-sweet",
+      "en": "Cozily Sweet",
+      "zh": null,
+      "rating": 3,
+      "prefers": [
+        "Dessert",
+        "Sweet",
+        "Milky"
+      ],
+      "starScores": [
+        12000,
+        24000,
+        36000,
+        48000,
+        60000
+      ]
+    },
+    {
+      "id": "truly-wholesome",
+      "en": "Truly Wholesome",
+      "zh": "养身心",
+      "rating": 4,
+      "prefers": [
+        "Veggy",
+        "Rich"
+      ],
+      "starScores": [
+        15000,
+        30000,
+        60000,
+        85000,
+        120000
+      ]
+    },
+    {
+      "id": "ocean-land",
+      "en": "Ocean & Land",
+      "zh": "海陆宴",
+      "rating": 4,
+      "prefers": [
+        "Meaty",
+        "Finny"
+      ],
+      "starScores": [
+        15000,
+        30000,
+        60000,
+        85000,
+        120000
+      ]
+    },
+    {
+      "id": "school-of-fins",
+      "en": "School of Fins",
+      "zh": "群鳞会",
+      "rating": 4,
+      "prefers": [
+        "Savory"
+      ],
+      "starScores": [
+        15000,
+        30000,
+        60000,
+        85000,
+        120000
+      ]
+    },
+    {
+      "id": "tea-break",
+      "en": "Tea Break",
+      "zh": "暇时茶点",
+      "rating": 4,
+      "prefers": [
+        "Soup",
+        "Dessert",
+        "Tea",
+        "Fruity"
+      ],
+      "starScores": [
+        15000,
+        30000,
+        60000,
+        85000,
+        120000
+      ]
+    },
+    {
+      "id": "soup-entree",
+      "en": "Soup & Entree",
+      "zh": "一汤一饭",
+      "rating": 4,
+      "prefers": [
+        "Entree",
+        "Soup"
+      ],
+      "starScores": [
+        15000,
+        30000,
+        60000,
+        85000,
+        120000
+      ]
+    },
+    {
+      "id": "luxurious-banquet",
+      "en": "Luxurious Banquet",
+      "zh": "八方美馔",
+      "rating": 4,
+      "prefers": [
+        "Classy",
+        "Lovely"
+      ],
+      "starScores": [
+        15000,
+        30000,
+        60000,
+        85000,
+        120000
+      ]
+    },
+    {
+      "id": "fully-flavored",
+      "en": "Fully Flavored",
+      "zh": "五味俱全",
+      "rating": 4,
+      "prefers": [
+        "Savory",
+        "Salty",
+        "Spicy",
+        "Sweet",
+        "Sour"
+      ],
+      "starScores": [
+        15000,
+        30000,
+        60000,
+        85000,
+        120000
+      ]
+    }
+  ]
+}

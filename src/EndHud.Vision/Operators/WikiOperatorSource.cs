@@ -62,8 +62,11 @@ public static partial class WikiOperatorSource
 
         var names = iconFiles.Select(f => f[..^IconSuffix.Length].Replace('_', ' ')).ToList();
 
-        // 2. Chinese names: the "cnname" field of each operator page's infobox.
+        // 2. Chinese names, elements and hobbies: the "cnname", "element", "hb1" and "hb2" fields of
+        //    each operator page's infobox ("???" is the wiki's placeholder for one not known yet).
         var chinese = new Dictionary<string, string>();
+        var elements = new Dictionary<string, string>();
+        var hobbies = new Dictionary<string, List<string>>();
         foreach (var batch in names.Chunk(TitlesPerRequest))
         {
             var json = await wiki.GetJsonAsync(
@@ -75,10 +78,10 @@ public static partial class WikiOperatorSource
                 string title = page!["title"]!.GetValue<string>();
                 string? content = page["revisions"]?[0]?["slots"]?["main"]?["content"]?.GetValue<string>();
                 if (content is null) continue;
-                var m = ChineseNameField().Match(content);
-                if (!m.Success) continue;
                 string requested = redirects.GetValueOrDefault(title, title);
-                chinese[requested] = m.Groups[1].Value.Trim();
+                if (InfoboxField(content, "cnname") is { } zh) chinese[requested] = zh;
+                if (InfoboxField(content, "element") is { } element) elements[requested] = element;
+                hobbies[requested] = [.. new[] { "hb1", "hb2" }.Select(f => InfoboxField(content, f)).OfType<string>()];
             }
         }
 
@@ -112,7 +115,11 @@ public static partial class WikiOperatorSource
                 if (await FetchAsync(files.GetValueOrDefault(file), relative)) skills.Add(new SkillIcon(kind, relative));
             }
 
-            roster.Add(new OperatorInfo(id, names[i], chinese.GetValueOrDefault(names[i], names[i]), iconFile, skills));
+            roster.Add(new OperatorInfo(id, names[i], chinese.GetValueOrDefault(names[i], names[i]), iconFile, skills)
+            {
+                Element = elements.GetValueOrDefault(names[i]),
+                Hobbies = hobbies.GetValueOrDefault(names[i], []),
+            });
         }
 
         // 5. Status icons (enemy debuffs, team buffs) for rotation conditions. The wiki's glossary
@@ -306,6 +313,11 @@ public static partial class WikiOperatorSource
         return map;
     }
 
-    [GeneratedRegex(@"^\|\s*cnname\s*=\s*(.+?)\s*$", RegexOptions.Multiline)]
-    private static partial Regex ChineseNameField();
+    /// <summary>An infobox field's value ("|name = value" on its own line), or null when it's missing, empty or "???".</summary>
+    internal static string? InfoboxField(string content, string name)
+    {
+        var m = Regex.Match(content, $@"^\|\s*{Regex.Escape(name)}\s*=[ \t]*(.*?)\s*$", RegexOptions.Multiline);
+        string value = m.Success ? m.Groups[1].Value : "";
+        return value is "" or "???" ? null : value;
+    }
 }
