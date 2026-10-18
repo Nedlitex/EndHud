@@ -44,16 +44,22 @@ public class DiagnosticsTests : IDisposable
         Assert.DoesNotContain(profile, log, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <remarks>
+    /// The log is one per process, and other test classes run alongside this one: what the code they
+    /// test logs lands in the same file (on CI, six lines in the middle of this test). So the key and
+    /// the message are this test's own, and only its lines are counted.
+    /// </remarks>
     [Fact]
     public void A_message_repeated_every_reading_is_written_once_per_period_with_a_count()
     {
-        for (int i = 0; i < 5; i++) DiagnosticLog.Throttled("no-frames", TimeSpan.FromHours(1), "no picture");
-        DiagnosticLog.Throttled("no-frames", TimeSpan.Zero, "no picture");
+        string key = "test-repeat-" + Guid.NewGuid().ToString("N"), message = "no picture " + key;
+        for (int i = 0; i < 5; i++) DiagnosticLog.Throttled(key, TimeSpan.FromHours(1), message);
+        DiagnosticLog.Throttled(key, TimeSpan.Zero, message);
 
-        var lines = File.ReadAllLines(DiagnosticLog.FilePath);
-        Assert.Equal(2, lines.Length);
-        Assert.EndsWith("no picture", lines[0]);
-        Assert.EndsWith("no picture (and 4 more like it since the last one)", lines[1]);
+        var lines = File.ReadAllLines(DiagnosticLog.FilePath).Where(l => l.Contains(key)).ToList();
+        Assert.Equal(2, lines.Count);
+        Assert.EndsWith(message, lines[0]);
+        Assert.EndsWith(message + " (and 4 more like it since the last one)", lines[1]);
     }
 
     [Theory]
@@ -127,13 +133,15 @@ public class DiagnosticsTests : IDisposable
         // Every connection, not just the first: the HTTP client may try again on a new connection
         // when the first is dropped before any answer, and one the server never accepts waits for
         // the client's timeout instead (a TaskCanceledException after 30 s, seen on a CI runner).
-        var drops = Task.Run(async () =>
+        // On a thread of its own, not the thread pool: on a busy runner a pooled accept loop waited
+        // longer than the client's 30 s for its turn (the same TaskCanceledException, at 1 min 20 s).
+        var drops = new Thread(() =>
         {
             try
             {
                 while (true)
                 {
-                    using var client = await server.AcceptTcpClientAsync();
+                    using var client = server.AcceptTcpClient();
                     client.Client.LingerState = new System.Net.Sockets.LingerOption(true, 0); // close with a reset
                 }
             }
@@ -141,7 +149,8 @@ public class DiagnosticsTests : IDisposable
             {
                 // the server stopped
             }
-        });
+        }) { IsBackground = true, Name = "drop every connection" };
+        drops.Start();
         try
         {
             using var http = GitHubHttp.Create(TimeSpan.FromSeconds(30));
@@ -150,7 +159,7 @@ public class DiagnosticsTests : IDisposable
         finally
         {
             server.Stop();
-            await drops;
+            drops.Join(TimeSpan.FromSeconds(10));
         }
 
         string log = File.ReadAllText(DiagnosticLog.FilePath);
