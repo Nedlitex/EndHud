@@ -30,9 +30,12 @@ internal static class InnDigits
     /// <paramref name="dropUnknownFirst"/>: an icon may stand left of the number (the fire meter's
     /// flame): a first glyph that isn't a character is left out rather than spoiling the number.
     /// </summary>
-    public static string? Read(Frame frame, PixelRect region, InnText.Ink ink, double hudScale, bool dropUnknownFirst = false)
+    /// <param name="minHeightShare">A glyph is at least this share of the tallest one's height: a
+    /// number beside a label (the streak's) leaves out the label's shorter characters.</param>
+    public static string? Read(Frame frame, PixelRect region, InnText.Ink ink, double hudScale, bool dropUnknownFirst = false,
+        double minHeightShare = MinHeightShare)
     {
-        var glyphs = Glyphs(frame, region, ink, hudScale);
+        var glyphs = Glyphs(frame, region, ink, hudScale, minHeightShare);
         if (glyphs.Count == 0) return null;
         var chars = new List<char>();
         for (int i = 0; i < glyphs.Count; i++)
@@ -85,7 +88,7 @@ internal static class InnDigits
     /// In a window smaller than 4K the region is first enlarged smoothly to its 4K size: telling ink
     /// from background pixel by pixel loses the thin strokes of glyphs a dozen pixels tall.
     /// </summary>
-    internal static List<Glyph> Glyphs(Frame frame, PixelRect region, InnText.Ink ink, double hudScale)
+    internal static List<Glyph> Glyphs(Frame frame, PixelRect region, InnText.Ink ink, double hudScale, double minHeightShare = MinHeightShare)
     {
         var r = region.ClampTo(frame.Width, frame.Height);
         if (r.Width < 4 || r.Height < 4) return [];
@@ -141,14 +144,16 @@ internal static class InnDigits
         var merged = new List<(int L, int R, int T, int B)>();
         foreach (var b in boxes)
         {
-            if (merged.Count > 0 && merged[^1] is var m && b.L <= m.R - Math.Min(m.R - m.L, b.R - b.L) / 2)
+            if (merged.Count > 0 && merged[^1] is var m && Math.Min(m.R, b.R) - b.L >= Math.Min(m.R - m.L, b.R - b.L) / 2)
                 merged[^1] = (m.L, Math.Max(m.R, b.R), Math.Min(m.T, b.T), Math.Max(m.B, b.B));
             else
                 merged.Add((b.L, b.R, b.T, b.B));
         }
-        int tallest = merged.Max(b => b.B - b.T + 1);
+        var tallest = merged.MaxBy(b => b.B - b.T + 1);
+        int height = tallest.B - tallest.T + 1;
         var glyphs = new List<Glyph>();
-        foreach (var b in merged.Where(b => b.B - b.T + 1 >= tallest * MinHeightShare))
+        // Characters stand on one line: as tall as the tallest nearly, and ending where it ends.
+        foreach (var b in merged.Where(b => b.B - b.T + 1 >= height * minHeightShare && Math.Abs(b.B - tallest.B) <= height * 0.15))
         {
             foreach (var (left, right) in Split(on, r.Width, b.L, b.R, b.T, b.B))
             {
@@ -167,8 +172,9 @@ internal static class InnDigits
         return glyphs;
     }
 
-    // A digit is at most this wide for its height; a wider blob is digits run together.
-    private const double WidestDigit = 1.1, DigitWidth = 0.78;
+    // A digit is at most 0.82 of its height wide ("4"); a blob wider than this may carry a streak
+    // off its end, and one wider than WidestDigit is digits run together.
+    private const double WiderThanADigit = 0.95, WidestDigit = 1.1, DigitWidth = 0.78;
 
     /// <summary>
     /// A blob of digits that blur has run together (two digits a dozen pixels tall touch at 1080p),
@@ -176,19 +182,28 @@ internal static class InnDigits
     /// </summary>
     private static IEnumerable<(int Left, int Right)> Split(bool[] on, int stride, int left, int right, int top, int bottom)
     {
-        int height = bottom - top + 1, width = right - left + 1;
-        if (width <= height * WidestDigit)
-        {
-            yield return (left, right);
-            yield break;
-        }
-        int parts = Math.Max(2, (int)Math.Round(width / (height * DigitWidth)));
+        int height = bottom - top + 1;
         int Ink(int x)
         {
             int n = 0;
             for (int y = top; y <= bottom; y++) if (on[y * stride + x]) n++;
             return n;
         }
+        if (right - left + 1 > height * WiderThanADigit)
+        {
+            // Too wide for a digit: first leave out a thin streak trailing off either end (a brush
+            // stroke behind the streak's number touching it), columns with hardly any ink.
+            int thin = Math.Max(1, height / 10);
+            while (right > left && Ink(right) <= thin) right--;
+            while (left < right && Ink(left) <= thin) left++;
+        }
+        int width = right - left + 1;
+        if (width <= height * WidestDigit)
+        {
+            yield return (left, right);
+            yield break;
+        }
+        int parts = Math.Max(2, (int)Math.Round(width / (height * DigitWidth)));
         int start = left;
         for (int k = 1; k < parts; k++)
         {

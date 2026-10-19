@@ -16,6 +16,8 @@ public sealed class InnText
     private const int MinInk = 20;
 
     private readonly OcrEngine _engine;
+    // One recognition at a time: the engine read garbage when two callers shared it at once.
+    private readonly SemaphoreSlim _busy = new(1, 1);
     // Numbers alone ("04:46", "92/100") read more reliably with the English engine, when there is one.
     private readonly OcrEngine _digits;
 
@@ -48,9 +50,21 @@ public sealed class InnText
     {
         var prepared = Prepare(frame, region, ink, hudScale);
         if (prepared is null) return null;
+        return string.Concat((await RecognizeAsync(_engine, prepared)).Select(l => string.Concat(l.Words.Select(w => w.Text))));
+    }
+
+    private async Task<IReadOnlyList<OcrLine>> RecognizeAsync(OcrEngine engine, Frame prepared)
+    {
         using var bitmap = prepared.ToSoftwareBitmap();
-        var result = await _engine.RecognizeAsync(bitmap);
-        return string.Concat(result.Lines.Select(l => string.Concat(l.Words.Select(w => w.Text))));
+        await _busy.WaitAsync();
+        try
+        {
+            return (await engine.RecognizeAsync(bitmap)).Lines;
+        }
+        finally
+        {
+            _busy.Release();
+        }
     }
 
     /// <summary>Like <see cref="ReadAsync"/>, for a region holding only digits and their punctuation.</summary>
@@ -58,9 +72,7 @@ public sealed class InnText
     {
         var prepared = Prepare(frame, region, ink, hudScale);
         if (prepared is null) return null;
-        using var bitmap = prepared.ToSoftwareBitmap();
-        var result = await _digits.RecognizeAsync(bitmap);
-        return string.Concat(result.Lines.Select(l => string.Concat(l.Words.Select(w => w.Text))));
+        return string.Concat((await RecognizeAsync(_digits, prepared)).Select(l => string.Concat(l.Words.Select(w => w.Text))));
     }
 
     /// <summary>The lines read in <paramref name="region"/>, each with its words joined, top to bottom.</summary>
@@ -68,9 +80,7 @@ public sealed class InnText
     {
         var prepared = Prepare(frame, region, ink, hudScale);
         if (prepared is null) return [];
-        using var bitmap = prepared.ToSoftwareBitmap();
-        var result = await _engine.RecognizeAsync(bitmap);
-        return [.. result.Lines.Select(l => string.Concat(l.Words.Select(w => w.Text)))];
+        return [.. (await RecognizeAsync(_engine, prepared)).Select(l => string.Concat(l.Words.Select(w => w.Text)))];
     }
 
     /// <summary>The image handed to the engine: black ink on white, enlarged to the region's 4K size.</summary>
