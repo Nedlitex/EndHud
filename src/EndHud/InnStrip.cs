@@ -18,7 +18,13 @@ internal static class InnStrip
     /// <summary>A picture's size beside its name, at 1080p.</summary>
     internal const double PictureSize = 28;
 
-    private const double FontSize = 17;
+    private const double FontSize = 16;
+
+    /// <summary>
+    /// The lines' width at 1080p: a longer line wraps between dishes. Measured so the strip fits right
+    /// of the dispatch panel, from its default place to the window's edge (see InnStripLayoutTests).
+    /// </summary>
+    internal const double LineWidth = 470;
 
     // Frozen: shared by every strip drawn.
     private static readonly Brush Background = Frozen(Color.FromArgb(0xC0, 0x10, 0x14, 0x18));
@@ -67,12 +73,19 @@ internal static class InnStrip
             InnLineStyle.Dim => (DimBrush, FontSize - 3, FontWeights.Normal),
             _ => (TextBrush, FontSize, FontWeights.Normal),
         };
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2), MinHeight = PictureSize };
+        // Pieces kept together (a marker and its dish) are one unit; the line wraps between units.
+        var row = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2), MaxWidth = LineWidth };
+        StackPanel? unit = null;
         foreach (var segment in line.Segments)
         {
+            if (unit is null)
+            {
+                unit = new StackPanel { Orientation = Orientation.Horizontal, MinHeight = PictureSize };
+                row.Children.Add(unit);
+            }
             if (segment.PictureId is { } id && picture(id) is { } image)
             {
-                row.Children.Add(new Image
+                unit.Children.Add(new Image
                 {
                     Source = image,
                     Width = PictureSize,
@@ -81,9 +94,12 @@ internal static class InnStrip
                     VerticalAlignment = VerticalAlignment.Center,
                 });
             }
-            row.Children.Add(new TextBlock
+            unit.Children.Add(new TextBlock
             {
                 Text = segment.Text,
+                // A single long sentence (what's missing) wraps within the line.
+                TextWrapping = TextWrapping.Wrap,
+                MaxWidth = LineWidth,
                 Foreground = brush,
                 FontFamily = Font,
                 FontSize = size,
@@ -91,6 +107,7 @@ internal static class InnStrip
                 VerticalAlignment = VerticalAlignment.Center,
                 Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 3, ShadowDepth = 0, Opacity = 0.8 },
             });
+            if (!segment.KeepWithNext) unit = null;
         }
         return row;
     }

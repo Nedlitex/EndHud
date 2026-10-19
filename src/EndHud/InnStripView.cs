@@ -23,7 +23,11 @@ internal enum InnLineStyle
 
 /// <summary>A piece of a line: words, or a dish's or drink's name with its picture before it.</summary>
 /// <param name="PictureId">The dish or drink whose picture goes before the name; null for plain words.</param>
-internal sealed record InnSegment(string Text, string? PictureId = null);
+/// <param name="KeepWithNext">A long line wraps, but never between this piece and the next (a marker and its dish, a dish and where it is).</param>
+internal sealed record InnSegment(string Text, string? PictureId = null, bool KeepWithNext = false)
+{
+    public InnSegment Kept() => this with { KeepWithNext = true };
+}
 
 internal sealed record InnLine(InnLineStyle Style, IReadOnlyList<InnSegment> Segments)
 {
@@ -80,9 +84,9 @@ internal static class InnStripView
         {
             foreach (var kitchen in dispatch.Kitchens) lines.AddRange(KitchenLines(kitchen, T, F));
             foreach (var order in dispatch.Waiting)
-                lines.Add(InnLine.Of(InnLineStyle.Note, new InnSegment(T("Inn.Waiting")), Dish(order.Dish), new InnSegment(F("Inn.ForTable", order.Table))));
+                lines.Add(InnLine.Of(InnLineStyle.Note, new InnSegment(T("Inn.Waiting")).Kept(), Dish(order.Dish).Kept(), new InnSegment(F("Inn.ForTable", order.Table))));
             foreach (var order in dispatch.OutOfStock)
-                lines.Add(InnLine.Of(InnLineStyle.Note, new InnSegment(T("Inn.OutOfStock")), Dish(order.Dish), new InnSegment(F("Inn.ForTable", order.Table))));
+                lines.Add(InnLine.Of(InnLineStyle.Note, new InnSegment(T("Inn.OutOfStock")).Kept(), Dish(order.Dish).Kept(), new InnSegment(F("Inn.ForTable", order.Table))));
         }
 
         foreach (int table in advice.UnreadableTables.Order())
@@ -108,16 +112,16 @@ internal static class InnStripView
         {
             foreach (var swap in kitchen.Replaces)
                 yield return InnLine.Of(InnLineStyle.Normal,
-                    new InnSegment(F("Inn.Replace", [name])), new InnSegment(T("Inn.CookAhead")), Dish(swap.Remove),
-                    new InnSegment(T("Inn.ReplaceArrow")), Dish(swap.Put), new InnSegment(F("Inn.ForTable", [swap.Table])));
+                    new InnSegment(F("Inn.Replace", [name])).Kept(), new InnSegment(T("Inn.CookAhead")).Kept(), Dish(swap.Remove),
+                    new InnSegment(T("Inn.ReplaceArrow")).Kept(), Dish(swap.Put).Kept(), new InnSegment(F("Inn.ForTable", [swap.Table])));
             yield break;
         }
-        var segments = new List<InnSegment> { new(F("Inn.Queue", [name])) };
+        var segments = new List<InnSegment> { new InnSegment(F("Inn.Queue", [name])).Kept() };
         if (kitchen.Queue.Count == 0) segments.Add(new InnSegment(T("Inn.Nothing")));
         for (int i = 0; i < kitchen.Queue.Count; i++)
         {
             if (i > 0) segments.Add(new InnSegment(T("Inn.Between")));
-            if (kitchen.Queue[i].CookAhead) segments.Add(new InnSegment(T("Inn.CookAhead")));
+            if (kitchen.Queue[i].CookAhead) segments.Add(new InnSegment(T("Inn.CookAhead")).Kept());
             segments.Add(Dish(kitchen.Queue[i].Dish));
         }
         yield return new InnLine(InnLineStyle.Normal, segments);
@@ -146,21 +150,21 @@ internal static class InnStripView
                 yield return InnLine.Of(InnLineStyle.Note, new InnSegment(T(forDrink ? "Inn.Gourmand.NoDrinksSeen" : "Inn.Gourmand.NoneOnMenu")));
                 continue;
             }
-            var segments = new List<InnSegment> { new(T("Inn.Gourmand.Options")) };
+            var segments = new List<InnSegment> { new InnSegment(T("Inn.Gourmand.Options")).Kept() };
             foreach (var (option, i) in request.Options.Take(OptionsShown).Select((o, i) => (o, i)))
             {
                 if (i > 0) segments.Add(new InnSegment(T("Inn.Between")));
-                segments.Add(Item(option));
+                segments.Add(Item(option).Kept());
                 segments.Add(new InnSegment(F("Inn.Where.Wrap", [Where(option, exactKitchens, T, F)])));
             }
             yield return new InnLine(InnLineStyle.Normal, segments);
         }
         if (advice.Requests.Count > 1 && advice.Serve is { Count: > 1 } serve)
         {
-            var segments = new List<InnSegment> { new(T("Inn.Gourmand.Serve")) };
+            var segments = new List<InnSegment> { new InnSegment(T("Inn.Gourmand.Serve")).Kept() };
             for (int i = 0; i < serve.Count; i++)
             {
-                if (i > 0) segments.Add(new InnSegment(T("Inn.ReplaceArrow")));
+                if (i > 0) segments.Add(new InnSegment(T("Inn.ReplaceArrow")).Kept());
                 segments.Add(Item(serve[i]));
             }
             yield return new InnLine(InnLineStyle.Normal, segments);
