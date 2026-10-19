@@ -26,7 +26,8 @@ public enum GourmandSource
 /// <summary>A dish or drink that meets a request, where it is and how soon it can be served.</summary>
 /// <param name="Kitchen">For <see cref="GourmandSource.Queued"/> and <see cref="GourmandSource.ToCook"/>: which kitchen.</param>
 /// <param name="ReadyIn">Seconds until it's ready to serve: 0 when carried, on the counter or a drink.</param>
-public sealed record GourmandOption(Dish? Dish, InnDrink? Drink, GourmandSource From, int? Kitchen, double ReadyIn)
+/// <param name="Slot">Which one, for a thing carried, on the counter or queued (its place there): two equal options are the same thing.</param>
+public sealed record GourmandOption(Dish? Dish, InnDrink? Drink, GourmandSource From, int? Kitchen, double ReadyIn, int Slot = 0)
 {
     public string Id => Dish?.Id ?? Drink!.Id;
 
@@ -86,12 +87,12 @@ public sealed class GourmandAdvisor(DispatchAdvisor dispatch)
             return drinks.Where(d => d.Stock is not <= 0 && condition.MetBy(d.Drink)).Select(d => new GourmandOption(null, d.Drink, GourmandSource.DrinkBar, null, 0));
 
         var options = new List<GourmandOption>();
-        options.AddRange(state.Carried.Where(condition.MetBy).Select(d => new GourmandOption(d, null, GourmandSource.Carried, null, 0)));
-        options.AddRange(state.Counter.Where(condition.MetBy).Select(d => new GourmandOption(d, null, GourmandSource.Counter, null, 0)));
+        options.AddRange(state.Carried.Select((d, i) => new GourmandOption(d, null, GourmandSource.Carried, null, 0, i)).Where(o => condition.MetBy(o.Dish!)));
+        options.AddRange(state.Counter.Select((d, i) => new GourmandOption(d, null, GourmandSource.Counter, null, 0, i)).Where(o => condition.MetBy(o.Dish!)));
         foreach (var queue in state.Queues)
             for (int slot = 0; slot < queue.Dishes.Count; slot++)
                 if (condition.MetBy(queue.Dishes[slot].Dish))
-                    options.Add(new GourmandOption(queue.Dishes[slot].Dish, null, GourmandSource.Queued, queue.Kitchen, queue.SecondsUntilOut(slot)));
+                    options.Add(new GourmandOption(queue.Dishes[slot].Dish, null, GourmandSource.Queued, queue.Kitchen, queue.SecondsUntilOut(slot), slot));
         foreach (var menu in state.Menu.Where(m => m.Stock is not <= 0 && condition.MetBy(m.Dish)))
         {
             // The kitchen with room that has it out soonest; with none free, the one whose queue clears first.
@@ -134,7 +135,7 @@ public sealed class GourmandAdvisor(DispatchAdvisor dispatch)
         foreach (var option in instances[request])
         {
             bool single = option.From is GourmandSource.Carried or GourmandSource.Counter or GourmandSource.Queued;
-            if (single && chosen.Any(c => ReferenceEquals(c, option))) continue;
+            if (single && chosen.Contains(option)) continue;
             chosen.Add(option);
             foreach (var pick in Picks(instances, request + 1, chosen)) yield return pick;
             chosen.RemoveAt(chosen.Count - 1);
