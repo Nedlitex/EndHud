@@ -673,7 +673,7 @@ theme page (or exit the inn mode)"). In memory only, nothing on disk. The store'
 |---|---|
 | Create | From readings: the setup screen gives the theme (name, rules, hot types, objective) and the kitchens with their places and placed chefs (named, or a place seen taken by its red bar); a chef picker its kitchen; the menu screen each card seen (on the menu or not, its stock), the counters and the menu requirements. |
 | Read | The setup advice (`ForSetup`, `ForMenu`) and the session's kitchens, Inn Rating and menu. A part never read is a gap, never a guess. |
-| Correct | A newer clear reading of a part replaces it: the setup as a whole (its kitchens kept when the new reading has none), a card by its id, the requirements number by number. A reading that fails changes nothing, so a page without the theme never makes it unknown (the "theme unreadable" gap only when none is remembered). |
+| Correct | A newer clear reading of a part replaces it: the setup as a whole (its kitchens kept when the new reading has none), a card by its id, the requirements number by number. A reading that fails changes nothing, so a page without the theme never makes it unknown (the "theme unreadable" gap only when none is remembered). The one exception is the chef picker's kitchen: a picker read whose title can't be read has no kitchen, rather than the last picker's (whose advice would be another kitchen's). |
 | Remove | Everything at once: on the theme list (a new setup begins), or when no inn screen has shown for 30 s (`InnSession.ForgetAfter`: the inn was left, a fight, the open world), checked on every tick and on the next reading. The setup screen after a session no longer clears the menu. |
 | Protect / carry | Nothing outlives the inn visit. |
 
