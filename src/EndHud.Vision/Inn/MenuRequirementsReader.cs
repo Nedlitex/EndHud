@@ -7,12 +7,12 @@ namespace EndHud.Vision.Inn;
 /// <param name="MinTypes">"至少需要3种不同的类型的菜品": dish types at least.</param>
 /// <param name="MinDishes">"至少需要6道菜品和3种饮品": dishes at least.</param>
 /// <param name="MinDrinks">The same line's drinks at least.</param>
-/// <param name="TraitRules">The theme's "至少有2道带有[素食]或[滋补]特性的菜品" rules.</param>
+/// <param name="DishRules">The theme's "至少有2道带有[素食]或[滋补]特性的菜品" rules.</param>
 /// <param name="Lines">The panel's lines as read, for the diagnostic log.</param>
-public sealed record MenuRequirements(int? Rating, int? MinTypes, int? MinDishes, int? MinDrinks, IReadOnlyList<TraitRule> TraitRules, IReadOnlyList<string> Lines)
+public sealed record MenuRequirements(int? Rating, int? MinTypes, int? MinDishes, int? MinDrinks, IReadOnlyList<DishRule> DishRules, IReadOnlyList<string> Lines)
 {
     /// <summary>How many of its numbers were read.</summary>
-    public int Found => (Rating is null ? 0 : 1) + (MinTypes is null ? 0 : 1) + (MinDishes is null ? 0 : 1) + (MinDrinks is null ? 0 : 1) + TraitRules.Count;
+    public int Found => (Rating is null ? 0 : 1) + (MinTypes is null ? 0 : 1) + (MinDishes is null ? 0 : 1) + (MinDrinks is null ? 0 : 1) + DishRules.Count;
 }
 
 /// <summary>
@@ -35,7 +35,7 @@ public sealed partial class MenuRequirementsReader(InnText text, InnData data)
         {
             var read = Parse([.. lines.OrderBy(l => l.Place.Y).Select(l => l.Text.Replace(" ", ""))], data);
             if (best is null || read.Found > best.Found) best = read;
-            if (best.Rating is not null && best.MinTypes is not null && best.MinDishes is not null && best.MinDrinks is not null && best.TraitRules.Count > 0) break;
+            if (best.Rating is not null && best.MinTypes is not null && best.MinDishes is not null && best.MinDrinks is not null && best.DishRules.Count > 0) break;
         }
         return best is { Found: > 0 } ? best : null;
     }
@@ -44,7 +44,7 @@ public sealed partial class MenuRequirementsReader(InnText text, InnData data)
     internal static MenuRequirements Parse(IReadOnlyList<string> lines, InnData data)
     {
         int? rating = null, types = null, dishes = null, drinks = null;
-        var rules = new List<TraitRule>();
+        var rules = new List<DishRule>();
         foreach (string read in lines)
         {
             string line = Normalise(read);
@@ -55,7 +55,7 @@ public sealed partial class MenuRequirementsReader(InnText text, InnData data)
                 dishes = int.Parse(c.Groups[1].Value);
                 if (c.Groups[2].Success) drinks = int.Parse(c.Groups[2].Value);
             }
-            if (TraitRule.Parse(line, data) is { } rule && !rules.Any(k => k.Count == rule.Count && k.AnyOf.SequenceEqual(rule.AnyOf))) rules.Add(rule);
+            if (DishRule.Parse(line, data) is { } rule && !rules.Any(k => k.Count == rule.Count && k.AnyOf.SequenceEqual(rule.AnyOf))) rules.Add(rule);
         }
         return new MenuRequirements(rating >= 1 && rating <= KitchenMath.MaxRating ? rating : null, types, dishes, drinks, rules, lines);
     }

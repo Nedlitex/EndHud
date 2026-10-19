@@ -21,9 +21,9 @@ public class InnPlannerTests(ITestOutputHelper output)
     private static readonly InnPlanner Planner = new(InnTestData.Inn);
 
     /// <summary>Rating 4 as the menu screen shows it: ≥3 types, 6–8 dishes, 3–8 drinks.</summary>
-    private static MenuRules Rating4(params TraitRule[] traitRules) => new(6, 8, 3, 8, 3, traitRules);
+    private static MenuRules Rating4(params DishRule[] dishRules) => new(6, 8, 3, 8, 3, dishRules);
 
-    private static TraitRule VeggyOrRich => new(2, ["Veggy", "Rich"]);
+    private static DishRule VeggyOrRich => new(2, ["Veggy", "Rich"]);
 
     private static IReadOnlyList<OperatorInfo> Roster => InnTestData.Library.Operators;
 
@@ -217,12 +217,12 @@ public class InnPlannerTests(ITestOutputHelper output)
     [Fact]
     public void The_menu_rule_on_the_setup_screen_is_read()
     {
-        var rule = TraitRule.Parse("至少有2道带有[素食]或[滋补]特性的菜品", Inn);
+        var rule = DishRule.Parse("至少有2道带有[素食]或[滋补]特性的菜品", Inn);
 
         Assert.NotNull(rule);
         Assert.Equal(2, rule.Count);
         Assert.Equal(["Veggy", "Rich"], rule.AnyOf);
-        Assert.Null(TraitRule.Parse("开启2次满堂彩", Inn));
+        Assert.Null(DishRule.Parse("开启2次满堂彩", Inn));
     }
 
     /// <summary>
@@ -301,7 +301,7 @@ public class InnPlannerTests(ITestOutputHelper output)
         var chefs = Roster.Where(o => !Inn.ChefBonuses.NotChefs.Contains(o.Id)).OrderBy(_ => random.Next()).Take(4 + seed % 2).ToList();
         var dishes = Inn.Dishes.OrderBy(_ => random.Next()).Take(6).Select(d => new MenuDish(d, null)).ToList();
         var drinks = Inn.Drinks.OrderBy(_ => random.Next()).Take(3).Select(d => new MenuDrink(d, null)).ToList();
-        var rules = new MenuRules(3, 4, 1, 2, 2, seed % 2 == 0 ? [new TraitRule(1, ["Sweet", "Salty"])] : []);
+        var rules = new MenuRules(3, 4, 1, 2, 2, seed % 2 == 0 ? [new DishRule(1, ["Sweet", "Salty"])] : []);
         var hot = seed % 3 == 0 ? new[] { "Sweet" } : [];
         var input = Input(Kitchens(kitchens, places), chefs, dishes, drinks, rules, hot);
 

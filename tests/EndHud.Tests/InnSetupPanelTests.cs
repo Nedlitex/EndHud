@@ -63,7 +63,7 @@ public class InnSetupPanelTests
         Assert.Equal(new[] { "Veggy", "Rich" }, input.HotTraits);
         // Rating 4's own rules (menu screen not seen): at least 3 types, 6 dishes, 3 drinks; 8 of each at most.
         Assert.Equal((6, 8, 3, 8, 3), (input.Rules.MinDishes, input.Rules.MaxDishes, input.Rules.MinDrinks, input.Rules.MaxDrinks, input.Rules.MinTypes));
-        var rule = Assert.Single(input.Rules.TraitRules);
+        var rule = Assert.Single(input.Rules.DishRules);
         Assert.Equal((2, "Veggy/Rich"), (rule.Count, string.Join("/", rule.AnyOf)));
         // Every dish and drink up to Rating 4, and those a theme's stars unlock; all unlimited.
         Assert.Equal(Inn.Dishes.Select(d => d.Id), input.Dishes.Select(d => d.Dish.Id));

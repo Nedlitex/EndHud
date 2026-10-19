@@ -8,13 +8,13 @@ public sealed record PlanKitchen(int Number, int Places);
 
 /// <summary>"At least <paramref name="Count"/> dishes with any of these traits" (至少有2道带有[素食]或[滋补]特性的菜品).</summary>
 /// <param name="AnyOf">Trait ids (<see cref="InnTrait.Id"/>).</param>
-public sealed partial record TraitRule(int Count, IReadOnlyList<string> AnyOf)
+public sealed partial record DishRule(int Count, IReadOnlyList<string> AnyOf)
 {
     /// <summary>
     /// The rule a 菜单要求 line states, or null when the line isn't one: "至少有N道带有[A]或[B]特性的菜品",
     /// as test_yuanyuan2's 养身心 shows it. Traits are matched by their Chinese names in brackets.
     /// </summary>
-    public static TraitRule? Parse(string line, InnData data)
+    public static DishRule? Parse(string line, InnData data)
     {
         var match = TraitRuleText().Match(line.Replace(" ", ""));
         if (!match.Success) return null;
@@ -22,7 +22,7 @@ public sealed partial record TraitRule(int Count, IReadOnlyList<string> AnyOf)
             .Select(m => data.Traits.FirstOrDefault(t => t.Zh == m.Groups[1].Value)?.Id)
             .ToList();
         if (traits.Count == 0 || traits.Any(t => t is null)) return null;
-        return new TraitRule(int.Parse(match.Groups[1].Value), [.. traits!]);
+        return new DishRule(int.Parse(match.Groups[1].Value), [.. traits!]);
     }
 
     [GeneratedRegex(@"至少有?(\d+)道带有(.+?)特性的菜品")]
@@ -35,22 +35,22 @@ public sealed partial record TraitRule(int Count, IReadOnlyList<string> AnyOf)
 /// <summary>
 /// What the menu must be (菜单要求 and the menu screen's counters "N/8"). The numbers are passed by
 /// the caller from what the screens show; only the trait rule's wording is known so far
-/// (<see cref="TraitRule.Parse"/>).
+/// (<see cref="DishRule.Parse"/>).
 /// </summary>
 /// <param name="MinTypes">Dish types (主食, 菜肴, 汤羹, 甜品) on the menu at least ("≥3 types" at Rating 4).</param>
-public sealed record MenuRules(int MinDishes, int MaxDishes, int MinDrinks, int MaxDrinks, int MinTypes, IReadOnlyList<TraitRule> TraitRules)
+public sealed record MenuRules(int MinDishes, int MaxDishes, int MinDrinks, int MaxDrinks, int MinTypes, IReadOnlyList<DishRule> DishRules)
 {
     /// <summary>The most dishes, and drinks, a menu has been seen to allow (the menu screen's counters "N/8" at Rating 4).</summary>
     public const int MostSeen = 8;
 
     /// <summary>
     /// An Inn Rating's own rules, for when the menu screen's 菜单要求 hasn't been read, with the
-    /// theme's <paramref name="traitRules"/>. Known only for Rating 4, as test_yuanyuan2's menu screen
+    /// theme's <paramref name="dishRules"/>. Known only for Rating 4, as test_yuanyuan2's menu screen
     /// states them: at least 3 dish types, 6 dishes and 3 drinks, and 8 of each at most. Null for a
     /// rating not seen yet (never guessed).
     /// </summary>
-    public static MenuRules? OfRating(int rating, IReadOnlyList<TraitRule> traitRules) =>
-        rating == 4 ? new MenuRules(6, MostSeen, 3, MostSeen, 3, traitRules) : null;
+    public static MenuRules? OfRating(int rating, IReadOnlyList<DishRule> dishRules) =>
+        rating == 4 ? new MenuRules(6, MostSeen, 3, MostSeen, 3, dishRules) : null;
 }
 
 /// <summary>Everything the planner works from.</summary>
@@ -107,7 +107,7 @@ public enum PlanReasonKind
 /// <summary>Why the plan is what it is, as data (the panel words it).</summary>
 /// <param name="Id">The dish or drink, when it's about one.</param>
 /// <param name="Kitchen">The kitchen, when it's about one.</param>
-/// <param name="Rule">Index into <see cref="MenuRules.TraitRules"/>, when it's about a rule.</param>
+/// <param name="Rule">Index into <see cref="MenuRules.DishRules"/>, when it's about a rule.</param>
 public sealed record PlanReason(PlanReasonKind Kind, string? Id = null, int? Kitchen = null, int? Rule = null, double Value = 0);
 
 /// <summary>A kitchen of the plan: its number and the chefs to put in it.</summary>
@@ -207,7 +207,7 @@ public sealed class InnPlanner(InnData inn)
         && dishes.Select(d => d.Dish.Id).Distinct().Count() == dishes.Count
         && drinks.Select(d => d.Drink.Id).Distinct().Count() == drinks.Count
         && dishes.Select(d => d.Dish.Type).Distinct().Count() >= rules.MinTypes
-        && rules.TraitRules.All(r => dishes.Count(d => d.Dish.Traits.Intersect(r.AnyOf).Any()) >= r.Count);
+        && rules.DishRules.All(r => dishes.Count(d => d.Dish.Traits.Intersect(r.AnyOf).Any()) >= r.Count);
 
     /// <summary>The score of a line-up and menu under the model.</summary>
     public InnPlanScore Evaluate(InnPlanInput input, IReadOnlyList<Kitchen> kitchens, IReadOnlyList<MenuDish> dishes, IReadOnlyList<MenuDrink> drinks)
@@ -442,8 +442,8 @@ public sealed class InnPlanner(InnData inn)
                 reasons.Add(new PlanReason(PlanReasonKind.DishValue, dish.Id, fastest.Number, Value: perSecond));
             }
             if (HotMatches(hot, dish) is var matches and > 0) reasons.Add(new PlanReason(PlanReasonKind.HotTraits, dish.Id, Value: matches));
-            for (int r = 0; r < input.Rules.TraitRules.Count; r++)
-                if (dish.Traits.Intersect(input.Rules.TraitRules[r].AnyOf).Any()) reasons.Add(new PlanReason(PlanReasonKind.MeetsRule, dish.Id, Rule: r));
+            for (int r = 0; r < input.Rules.DishRules.Count; r++)
+                if (dish.Traits.Intersect(input.Rules.DishRules[r].AnyOf).Any()) reasons.Add(new PlanReason(PlanReasonKind.MeetsRule, dish.Id, Rule: r));
             if (menu.Stock is { } stock && stock < eachDish) reasons.Add(new PlanReason(PlanReasonKind.ShortOfStock, dish.Id, Value: eachDish - stock));
         }
         double eachDrink = drinks.Count == 0 ? 0 : score.Orders * DrinksPerOrder / drinks.Count;
@@ -552,11 +552,11 @@ public sealed class InnPlanner(InnData inn)
 
         private int Types(IEnumerable<int> menu) => menu.Select(i => Dishes[i].Dish.Type).Distinct().Count();
 
-        private bool Has(int dish, TraitRule rule) => Dishes[dish].Dish.Traits.Intersect(rule.AnyOf).Any();
+        private bool Has(int dish, DishRule rule) => Dishes[dish].Dish.Traits.Intersect(rule.AnyOf).Any();
 
         /// <summary>How far the menu is from its types and trait rules.</summary>
         private int Shortfall(IReadOnlyCollection<int> menu) =>
-            Math.Max(0, Rules.MinTypes - Types(menu)) + Rules.TraitRules.Sum(r => Math.Max(0, r.Count - menu.Count(i => Has(i, r))));
+            Math.Max(0, Rules.MinTypes - Types(menu)) + Rules.DishRules.Sum(r => Math.Max(0, r.Count - menu.Count(i => Has(i, r))));
 
         private bool Valid(IReadOnlyCollection<int> menu) =>
             menu.Count >= Rules.MinDishes && menu.Count <= Rules.MaxDishes && Shortfall(menu) == 0;
@@ -565,11 +565,11 @@ public sealed class InnPlanner(InnData inn)
         public IEnumerable<int> UnmetRules()
         {
             bool countsOrTypes = Dishes.Count < Rules.MinDishes || Types(Enumerable.Range(0, Dishes.Count)) < Rules.MinTypes || Drinks.Count < Rules.MinDrinks;
-            var traitRules = Enumerable.Range(0, Rules.TraitRules.Count)
-                .Where(r => Enumerable.Range(0, Dishes.Count).Count(i => Has(i, Rules.TraitRules[r])) < Rules.TraitRules[r].Count).ToList();
+            var dishRules = Enumerable.Range(0, Rules.DishRules.Count)
+                .Where(r => Enumerable.Range(0, Dishes.Count).Count(i => Has(i, Rules.DishRules[r])) < Rules.DishRules[r].Count).ToList();
             // Rules each possible on their own but not together within the menu's size.
-            if (!countsOrTypes && traitRules.Count == 0) countsOrTypes = true;
-            return countsOrTypes ? traitRules.Prepend(-1) : traitRules;
+            if (!countsOrTypes && dishRules.Count == 0) countsOrTypes = true;
+            return countsOrTypes ? dishRules.Prepend(-1) : dishRules;
         }
 
         /// <summary>

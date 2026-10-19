@@ -40,7 +40,7 @@ public class InnMenuRequirementsReaderTests(ITestOutputHelper output)
         Assert.Equal(3, read.MinTypes);
         Assert.Equal(6, read.MinDishes);
         Assert.Equal(3, read.MinDrinks);
-        var rule = Assert.Single(read.TraitRules);
+        var rule = Assert.Single(read.DishRules);
         Assert.Equal(2, rule.Count);
         Assert.Equal(["Veggy", "Rich"], rule.AnyOf);
     }

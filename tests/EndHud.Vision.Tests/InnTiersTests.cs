@@ -22,7 +22,7 @@ public class InnTiersTests(ITestOutputHelper output)
         var input = new InnPlanInput(["Veggy", "Rich"], 4, 0, InnState.MaxTables,
             [new PlanKitchen(1, 2), new PlanKitchen(2, 2), new PlanKitchen(3, 2)], InnTestData.Library.Operators,
             [.. Inn.Dishes.Select(d => new MenuDish(d, null))], [.. Inn.Drinks.Select(d => new MenuDrink(d, null))],
-            new MenuRules(6, 8, 3, 8, 3, [new TraitRule(2, ["Veggy", "Rich"])]));
+            new MenuRules(6, 8, 3, 8, 3, [new DishRule(2, ["Veggy", "Rich"])]));
         var plan = Planner.Plan(input);
         return (input, plan, InnTierList.Of(Planner, input, plan));
     });

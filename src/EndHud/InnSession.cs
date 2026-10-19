@@ -192,7 +192,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// <summary>A newer reading of the requirements, what it missed taken from the older (the numbers don't change, only their colours).</summary>
     private static MenuRequirements Merge(MenuRequirements? old, MenuRequirements read) => old is null ? read : new MenuRequirements(
         read.Rating ?? old.Rating, read.MinTypes ?? old.MinTypes, read.MinDishes ?? old.MinDishes, read.MinDrinks ?? old.MinDrinks,
-        read.TraitRules.Count > 0 ? read.TraitRules : old.TraitRules, read.Lines);
+        read.DishRules.Count > 0 ? read.DishRules : old.DishRules, read.Lines);
 
     private void StartSession(TimeSpan at)
     {
@@ -471,20 +471,20 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             .Select(d => new MenuDrink(d, d.Unlimited ? null : Stock(d.Id))).ToList();
 
         // The theme's trait rules: as 营业设定 states them, and as the menu screen does.
-        var traitRules = setup.MenuRules.Select(line => TraitRule.Parse(line, data)).OfType<TraitRule>().Concat(r?.TraitRules ?? [])
+        var dishRules = setup.MenuRules.Select(line => DishRule.Parse(line, data)).OfType<DishRule>().Concat(r?.DishRules ?? [])
             .DistinctBy(t => $"{t.Count}:{string.Join("/", t.AnyOf)}").ToList();
-        var known = MenuRules.OfRating(rating, traitRules);
+        var known = MenuRules.OfRating(rating, dishRules);
         int minDishes = r?.MinDishes ?? known?.MinDishes ?? 1, minDrinks = r?.MinDrinks ?? known?.MinDrinks ?? 0, minTypes = r?.MinTypes ?? known?.MinTypes ?? 1;
         // The counters' "N/8" give the most allowed; unread, the rating's (8 of each at Rating 4).
         int maxDishes = _dishCounter?.Allowed ?? known?.MaxDishes ?? MenuRules.MostSeen, maxDrinks = _drinkCounter?.Allowed ?? known?.MaxDrinks ?? MenuRules.MostSeen;
-        var rules = new MenuRules(minDishes, Math.Max(minDishes, maxDishes), minDrinks, Math.Max(minDrinks, maxDrinks), minTypes, traitRules);
+        var rules = new MenuRules(minDishes, Math.Max(minDishes, maxDishes), minDrinks, Math.Max(minDrinks, maxDrinks), minTypes, dishRules);
         var input = new InnPlanInput(InnPlanner.HotTraitsOf(setup.HotTraits, setup.Theme), rating, SiQualityPercent: 0, InnState.MaxTables,
             kitchens, chefs, dishes, drinks, rules);
         string key = string.Join("|",
             string.Join(",", input.HotTraits), rating, string.Join(",", kitchens.Select(k => $"{k.Number}:{k.Places}")),
             string.Join(",", dishes.Select(d => $"{d.Dish.Id}:{d.Stock}").Order()), string.Join(",", drinks.Select(d => $"{d.Drink.Id}:{d.Stock}").Order()),
             $"{rules.MinDishes}-{rules.MaxDishes}/{rules.MinDrinks}-{rules.MaxDrinks}/{rules.MinTypes}",
-            string.Join(",", traitRules.Select(t => $"{t.Count}:{string.Join("/", t.AnyOf)}")));
+            string.Join(",", dishRules.Select(t => $"{t.Count}:{string.Join("/", t.AnyOf)}")));
         return new InnSetupInputs([], input, key);
     }
 
