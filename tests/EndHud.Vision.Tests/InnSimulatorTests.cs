@@ -1,0 +1,201 @@
+using EndHud.Vision.Inn;
+using Xunit;
+
+namespace EndHud.Vision.Tests;
+
+/// <summary>A kitchen's queue, the counter, and a session replayed through them (<see cref="InnSimulator"/>).</summary>
+public class InnSimulatorTests
+{
+    private const int Rating = 4;
+    private const int SiQuality = 5;
+
+    private static Dish Dish(string zh) => InnTestData.Dish(zh);
+
+    /// <summary>The eight dishes the 派单 panel of test_yuanyuan2 lists, all unlimited.</summary>
+    internal static IReadOnlyList<MenuDish> RecordedMenu { get; } =
+        [.. new[] { "白瓜肉丸汤", "莓果甜汤", "果味沙拉", "“勺里游”", "坛子肉", "茄果鳞肉汤", "肉包子", "缘缘菜饭" }.Select(zh => new MenuDish(Dish(zh), null))];
+
+    /// <summary>Kitchen 1 as in test_yuanyuan2, kitchen 2 as test_yuanyuan1's kitchen 3, kitchen 3 with no chefs; the first <paramref name="count"/>.</summary>
+    internal static InnKitchens Kitchens(int count = 3) => new(InnTestData.Inn,
+        [.. new[] { InnTestData.Kitchen(1, "Perlica", "Avywenna"), InnTestData.Kitchen(2, "Xaihi", "Yvonne"), InnTestData.PlainKitchen(3) }.Take(count)],
+        Rating, SiQuality);
+
+    /// <summary>
+    /// The order times of test_yuanyuan1's session (the research note: 23 orders, the session starting
+    /// at 150 s of the recording) and how many dishes each had (1 dish + drink = 1, 2 dishes = 2,
+    /// a gourmand's requests counted as dishes). Which dish each was isn't known from the note, so the
+    /// dishes are drawn from <see cref="RecordedMenu"/> at random with a fixed seed: guests pick at random (owner).
+    /// </summary>
+    internal static IReadOnlyList<InnOrder> RecordedOrderTimes(int seed = 1, int tables = 6)
+    {
+        (double At, int Table, int Dishes)[] recorded =
+        [
+            (166, 4, 1), (181, 5, 1), (193, 2, 1), (205, 6, 1), (217, 1, 2), (229, 3, 1), (241, 2, 1), (266, 5, 2),
+            (267, 4, 1), (280, 1, 1), (299, 3, 1), (313, 2, 2), (322, 5, 1), (334, 6, 2), (346, 1, 1), (361, 3, 1),
+            (373, 4, 1), (385, 5, 1), (400, 2, 1), (412, 6, 2), (427, 4, 1), (439, 1, 1), (454, 5, 1),
+        ];
+        var random = new Random(seed);
+        return [.. recorded.Select(r => new InnOrder(r.At - 150, (r.Table - 1) % tables + 1,
+            [.. Enumerable.Range(0, r.Dishes).Select(_ => RecordedMenu[random.Next(RecordedMenu.Count)].Dish)]))];
+    }
+
+    /// <summary>
+    /// What a player does without advice: each dish ordered and not yet cooking or on the counter
+    /// goes to the first kitchen with room, and nothing is cooked ahead.
+    /// </summary>
+    internal static IReadOnlyList<InnAction> FirstFreeKitchen(InnSimulator inn)
+    {
+        var have = inn.Counter.Dishes.Concat(inn.Queues.SelectMany(q => q.Dishes.Select(d => d.Dish))).Select(d => d.Id).ToList();
+        var free = inn.Queues.ToDictionary(q => q.Kitchen, q => q.FreeSlots);
+        var actions = new List<InnAction>();
+        foreach (var order in inn.Outstanding)
+        {
+            if (have.Remove(order.Dish.Id)) continue;
+            if (free.Where(f => f.Value > 0).Select(f => (int?)f.Key).Min() is not { } kitchen) break;
+            actions.Add(new QueueDish(kitchen, order.Dish));
+            free[kitchen]--;
+        }
+        return actions;
+    }
+
+    [Fact]
+    public void A_kitchen_queues_three_dishes_and_refuses_a_fourth()
+    {
+        var queue = new KitchenQueue(1);
+
+        Assert.True(queue.TryAdd(Dish("肉包子"), 15));
+        Assert.True(queue.TryAdd(Dish("坛子肉"), 27));
+        Assert.True(queue.TryAdd(Dish("果味沙拉"), 30));
+        Assert.False(queue.TryAdd(Dish("缘缘菜饭"), 15));
+
+        Assert.Equal(3, queue.Dishes.Count);
+        Assert.False(queue.HasFreeSlot);
+        Assert.Equal(72, queue.SecondsUntilEmpty);
+        Assert.Equal(42, queue.SecondsUntilOut(1));
+        Assert.Throws<ArgumentException>(() => new KitchenQueue(1, Enumerable.Repeat(new QueuedDish(Dish("肉包子"), 15), 4)));
+    }
+
+    [Fact]
+    public void Dishes_come_out_in_order_and_the_next_starts_at_once()
+    {
+        var queue = new KitchenQueue(1);
+        queue.TryAdd(Dish("肉包子"), 15);
+        queue.TryAdd(Dish("坛子肉"), 27);
+
+        Assert.Empty(queue.Tick(10));
+        Assert.Equal([Dish("肉包子")], queue.Tick(10));
+        Assert.Equal(22, queue.Dishes[0].SecondsLeft); // 5 s of 坛子肉 done
+        Assert.Equal([Dish("坛子肉")], queue.Tick(30));
+        Assert.Empty(queue.Dishes);
+    }
+
+    /// <summary>Any slot can be taken out; the dish cooking loses what it had done, and the next starts from nothing.</summary>
+    [Fact]
+    public void A_dish_taken_out_while_cooking_is_lost_and_the_next_starts()
+    {
+        var queue = new KitchenQueue(1);
+        queue.TryAdd(Dish("坛子肉"), 27);
+        queue.TryAdd(Dish("肉包子"), 15);
+        queue.Tick(20);
+
+        var removed = queue.RemoveAt(0);
+
+        Assert.Equal((Dish("坛子肉"), 7.0), (removed.Dish, removed.SecondsLeft));
+        Assert.Equal(15, queue.SecondsUntilEmpty);
+        Assert.True(queue.TryAdd(Dish("缘缘菜饭"), 15));
+    }
+
+    [Fact]
+    public void The_counter_holds_eight_and_a_kitchen_waits_when_its_full()
+    {
+        var counter = new InnCounter();
+        for (int i = 0; i < 8; i++) Assert.True(counter.TryPut(Dish("肉包子")));
+        Assert.False(counter.TryPut(Dish("肉包子")));
+
+        var queue = new KitchenQueue(1);
+        queue.TryAdd(Dish("缘缘菜饭"), 15);
+        queue.TryAdd(Dish("肉包子"), 15);
+        Assert.Empty(queue.Tick(20, counter.Room));
+        Assert.Equal(0, queue.Dishes[0].SecondsLeft);
+        Assert.Equal(15, queue.Dishes[1].SecondsLeft); // nothing else cooks meanwhile
+
+        Assert.True(counter.TryTake(Dish("肉包子")));
+        Assert.Equal([Dish("缘缘菜饭")], queue.Tick(0.5, counter.Room));
+    }
+
+    /// <summary>C7 in the simulator: a policy that queues a fourth dish in one kitchen is refused.</summary>
+    [Fact]
+    public void The_simulator_refuses_a_fourth_dish_and_a_dish_out_of_stock()
+    {
+        var menu = new[] { new MenuDish(Dish("肉包子"), 1), new MenuDish(Dish("坛子肉"), null) };
+        var inn = new InnSimulator(Kitchens(1), menu);
+        int asked = 0;
+
+        var run = inn.Run([new InnOrder(0, 1, [Dish("坛子肉")])], _ => asked++ > 0 ? [] :
+            [new QueueDish(1, Dish("坛子肉")), new QueueDish(1, Dish("肉包子")), new QueueDish(1, Dish("肉包子")), new QueueDish(1, Dish("坛子肉")), new QueueDish(1, Dish("坛子肉"))]);
+
+        // The second 肉包子: no stock left. The last 坛子肉: the queue is full.
+        Assert.Equal([new QueueDish(1, Dish("肉包子")), new QueueDish(1, Dish("坛子肉"))], run.Refused);
+        Assert.Equal(1, run.Served);
+    }
+
+    /// <summary>
+    /// C3: replaying the recorded order times, following the advice serves every order, sooner on
+    /// average and at worst than sending each dish to the first kitchen with room, for 3, 2 and 1 kitchens.
+    /// </summary>
+    [Theory]
+    [InlineData(3, 1)]
+    [InlineData(3, 2)]
+    [InlineData(3, 3)]
+    [InlineData(2, 1)]
+    [InlineData(1, 1)]
+    public void Following_the_advice_serves_every_order_sooner_than_the_first_free_kitchen(int kitchens, int seed)
+    {
+        var orders = RecordedOrderTimes(seed);
+
+        var advised = new InnSimulator(Kitchens(kitchens), RecordedMenu).Run(orders, InnSimulator.Following(new DispatchAdvisor(Kitchens(kitchens))), overtime: 600);
+        var naive = new InnSimulator(Kitchens(kitchens), RecordedMenu).Run(orders, FirstFreeKitchen, overtime: 600);
+
+        Assert.Equal(orders.Count, advised.Served);
+        Assert.Empty(advised.Refused);
+        Assert.True(advised.Orders.Average(o => o.Waited!.Value) < naive.Orders.Where(o => o.Waited is not null).Average(o => o.Waited!.Value),
+            $"advised {advised.Orders.Average(o => o.Waited!.Value):F1} s, first free kitchen {naive.Orders.Where(o => o.Waited is not null).Average(o => o.Waited!.Value):F1} s");
+        Assert.True(advised.Orders.Max(o => o.Waited!.Value) <= naive.Orders.Max(o => o.Waited ?? double.MaxValue));
+    }
+
+    /// <summary>C6: one table to six, the replay serves every order.</summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    [InlineData(6)]
+    public void Any_number_of_tables_is_served(int tables)
+    {
+        var orders = RecordedOrderTimes(1, tables);
+
+        var run = new InnSimulator(Kitchens(), RecordedMenu).Run(orders, InnSimulator.Following(new DispatchAdvisor(Kitchens())), overtime: 600);
+
+        Assert.Equal(orders.Count, run.Served);
+        Assert.Empty(run.Refused);
+    }
+
+    /// <summary>The counter never holds more than eight, following the advice (cooking ahead stops at its room).</summary>
+    [Fact]
+    public void Following_the_advice_never_overfills_the_counter()
+    {
+        var kitchens = Kitchens();
+        var advisor = new DispatchAdvisor(kitchens);
+        var follow = InnSimulator.Following(advisor);
+        int most = 0;
+        var inn = new InnSimulator(kitchens, RecordedMenu);
+
+        inn.Run(RecordedOrderTimes(2), sim =>
+        {
+            int spare = sim.Counter.Dishes.Count + sim.Queues.Sum(q => q.Dishes.Count) - sim.Outstanding.Count;
+            most = Math.Max(most, sim.Counter.Dishes.Count);
+            Assert.True(spare <= InnCounter.Capacity, $"{spare} dishes cooked ahead at {sim.Now} s");
+            return follow(sim);
+        }, overtime: 600);
+
+        Assert.InRange(most, 1, InnCounter.Capacity);
+    }
+}
