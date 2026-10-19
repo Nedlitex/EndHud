@@ -101,6 +101,27 @@ internal sealed class HudConfig
     public const double MinGaugesScale = 0.5, MaxGaugesScale = 2;
 
     /// <summary>
+    /// Show the inn helper during an inn session: which dishes to queue in each kitchen,
+    /// when to start Full Blaze, and what a gourmand's request means. On by default, like every feature.
+    /// </summary>
+    public bool InnHelperEnabled { get; set; } = true;
+
+    /// <summary>Where the inn strip sits, as a fraction of the game window: its left edge and its top (it grows right and down as lines come and go).</summary>
+    public double InnStripX { get; set; } = DefaultInnStripX;
+
+    public double InnStripY { get; set; } = DefaultInnStripY;
+
+    /// <summary>The inn strip's size on top of following the game window (1 = 100%), from the menu's slider.</summary>
+    public double InnStripScale { get; set; } = 1;
+
+    public const double MinInnStripScale = 0.5, MaxInnStripScale = 2;
+
+    /// <summary>How opaque the inn strip is (1 = as drawn), from the menu's slider.</summary>
+    public double InnStripOpacity { get; set; } = 1;
+
+    public const double MinInnStripOpacity = 0.2, MaxInnStripOpacity = 1;
+
+    /// <summary>
     /// How far the menu and the debug panel have been dragged from their usual spots (the menu
     /// centred, the debug panel at the left), as a fraction of the game window's width and height.
     /// </summary>
@@ -122,6 +143,11 @@ internal sealed class HudConfig
     // Bottom middle, just above the game's own HP and skill-point bars.
     public const double DefaultGaugesCenterX = 0.5;
     public const double DefaultGaugesBottomY = 0.885;
+
+    // Right of the dispatch panel (which spans the middle of the screen) and below the table cards,
+    // above the Full Blaze meter at the right edge.
+    public const double DefaultInnStripX = 0.72;
+    public const double DefaultInnStripY = 0.16;
 
     public const double DefaultComboHintSeconds = 3;
     public const double DefaultComboHintLeadSeconds = 1;
@@ -196,6 +222,15 @@ internal static class ConfigStore
         config.RotationOpacity = double.IsFinite(config.RotationOpacity)
             ? Math.Clamp(config.RotationOpacity, HudConfig.MinRotationOpacity, HudConfig.MaxRotationOpacity)
             : 1;
+        config.InnStripScale = double.IsFinite(config.InnStripScale)
+            ? Math.Clamp(config.InnStripScale, HudConfig.MinInnStripScale, HudConfig.MaxInnStripScale)
+            : 1;
+        config.InnStripOpacity = double.IsFinite(config.InnStripOpacity)
+            ? Math.Clamp(config.InnStripOpacity, HudConfig.MinInnStripOpacity, HudConfig.MaxInnStripOpacity)
+            : 1;
+        // A place off the window would leave the strip where nobody can drag it back.
+        config.InnStripX = double.IsFinite(config.InnStripX) ? Math.Clamp(config.InnStripX, 0, 1) : HudConfig.DefaultInnStripX;
+        config.InnStripY = double.IsFinite(config.InnStripY) ? Math.Clamp(config.InnStripY, 0, 1) : HudConfig.DefaultInnStripY;
         return config;
     }
 

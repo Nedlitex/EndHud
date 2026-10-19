@@ -30,6 +30,34 @@ public class ConfigTests
     public void The_rotation_strips_opacity_defaults_to_opaque_and_a_hand_edited_one_is_kept_visible(string json, double expected) =>
         Assert.Equal(expected, ConfigStore.Parse(json).RotationOpacity);
 
+    [Fact]
+    public void The_inn_helper_is_on_by_default() => Assert.True(ConfigStore.Parse("{}").InnHelperEnabled);
+
+    [Theory]
+    [InlineData("{}", 1.0, 1.0)]
+    [InlineData("{\"InnStripScale\": 1.4, \"InnStripOpacity\": 0.5}", 1.4, 0.5)]
+    [InlineData("{\"InnStripScale\": 9, \"InnStripOpacity\": 4}", 2.0, 1.0)]
+    [InlineData("{\"InnStripScale\": 0, \"InnStripOpacity\": 0}", 0.5, 0.2)]
+    public void The_inn_strips_size_and_opacity_default_to_100_percent_and_hand_edited_ones_stay_in_range(string json, double scale, double opacity)
+    {
+        var config = ConfigStore.Parse(json);
+
+        Assert.Equal(scale, config.InnStripScale);
+        Assert.Equal(opacity, config.InnStripOpacity);
+    }
+
+    [Theory]
+    [InlineData("{}", HudConfig.DefaultInnStripX, HudConfig.DefaultInnStripY)]
+    [InlineData("{\"InnStripX\": 0.1, \"InnStripY\": 0.6}", 0.1, 0.6)]
+    [InlineData("{\"InnStripX\": -3, \"InnStripY\": 7}", 0.0, 1.0)]
+    public void The_inn_strips_place_defaults_to_the_right_and_a_hand_edited_one_stays_on_the_window(string json, double x, double y)
+    {
+        var config = ConfigStore.Parse(json);
+
+        Assert.Equal(x, config.InnStripX);
+        Assert.Equal(y, config.InnStripY);
+    }
+
     /// <summary>Before version 3 every start saved 50% (a slider bug), so 50% from then means the default.</summary>
     [Theory]
     [InlineData("""{ "GaugesScale": 0.5, "SettingsVersion": 2 }""", 1.0)]
