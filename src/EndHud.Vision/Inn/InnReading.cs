@@ -1,6 +1,9 @@
 namespace EndHud.Vision.Inn;
 
-/// <summary>Which of the inn's screens is showing (<see cref="InnScreen.Detect"/>).</summary>
+/// <summary>
+/// Which of the inn's screens is showing (<see cref="InnScreen.DetectAsync"/>). The drink bar and
+/// the results screen aren't told apart yet: no frame of either has been recorded.
+/// </summary>
 public enum InnScreenKind
 {
     /// <summary>营业设定 (and the theme list before it, 主题设定): theme, kitchens and chefs.</summary>
@@ -17,12 +20,6 @@ public enum InnScreenKind
 
     /// <summary>The dispatch panel (派单) over the session: a kitchen's dishes, chefs and queue.</summary>
     DispatchPanel,
-
-    /// <summary>The drink bar (饮品台) over the session.</summary>
-    DrinkBar,
-
-    /// <summary>The session's results.</summary>
-    Results,
 }
 
 /// <summary>The session's time left (the gold pill at the top left).</summary>
