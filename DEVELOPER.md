@@ -504,7 +504,15 @@ ordered dish not already carried, on the counter or queued to the kitchen that h
 menu, never past the counter's room or without stock, leaving one slot free for orders); fills every
 free slot at the session's start and when Full Blaze is near; and suggests taking a dish cooked
 ahead out for an order only when that wins by more than 5 s (a cooking dish only when barely
-started, since its progress is taken as lost). [`FullBlazeAdvisor`](src/EndHud.Vision/Inn/FullBlaze.cs)
+started, since its progress is taken as lost). A kitchen with no chef cannot cook (owner): one rule,
+`KitchenMath.Cooks`, which the planner, the advisor and the session all go by; such a kitchen gets no
+advice and isn't listed (a kitchen whose chefs weren't seen, `Kitchen.ChefsUnknown`, is taken to
+cook, at base speed). The end of a session (owner): nothing is cooked ahead in the last 40 s
+(`NoCookAheadSeconds`), nor ever a dish that wouldn't come out before the inn closes
+(`InnState.SecondsLeft`, a required field); once it has closed (`LastCall`, the timer at 0:00) the
+advice lists leftovers: each dish on the counter (or carried) to the table that ordered it, then the
+rest to tables still waiting with nothing cooking for them, oldest first, even a wrong dish ("a wrong
+dish still earns some money"). [`FullBlazeAdvisor`](src/EndHud.Vision/Inn/FullBlaze.cs)
 says when to start Full Blaze (满堂彩); whether it's running is inferred from the ready button going.
 [`GourmandAdvisor`](src/EndHud.Vision/Inn/GourmandAdvisor.cs) ranks what meets a gourmand's
 request and, for two requests, the order to serve them in. [`InnSimulator`](src/EndHud.Vision/Inn/InnSimulator.cs)
@@ -524,8 +532,18 @@ exactly for up to three), orders served are what the kitchens cook in 300 s capp
 tables bring, and a dish is worth its price × (1 + 10 % per matched 热门 trait); the 珍馐 chance
 only breaks ties. Chefs are placed by a beam search over bonus profiles, the menu greedily then by
 add/remove/swap; tests compare it with brute force on small cases. The plan carries the opening
-precook. Assumptions are constants (`EmptyKitchenCooks`, `MinGuestCycleSeconds`). About 1 s for
-three kitchens of two: run it off the UI thread.
+precook. A kitchen with no chef doesn't cook (`KitchenMath.Cooks`); assumptions are constants
+(`MinGuestCycleSeconds`). About 2 s for three kitchens of two over the whole roster and dish list:
+run it off the UI thread.
+
+[`InnTierList`](src/EndHud.Vision/Inn/InnTiers.cs) turns a plan into tier lists, so a player who
+lacks a chef or dish the plan names puts in one of the same tier. Per kitchen: its role (the menu's
+dish type its chefs cook fastest) and its chefs by what each adds there (the plan's income with them
+in a place less with a no-bonus cook there, the better place), against the best: T1 ≥ 90 %, T2 ≥
+75 %, T3 ≥ 50 %, the plan's own chefs first in T1, a chef planned in another kitchen not listed, at
+most 3 more names a tier. Dishes: T1 is the plan's menu (it meets every rule), the others by value
+per kitchen-second (price with the 热门 bonus over the cook time in the kitchen fastest at it) against
+the menu's best. Drinks: T1 the plan's, the others by value.
 
 ### Reading the inn's screens
 
@@ -543,13 +561,12 @@ corners, and other window shapes are EndHud's assumption, not checked.
 | `InnScreen.DetectAsync` | setup (营业设定, 主题设定), chef picker, menu, session, dispatch panel (titles by OCR, the timer by its digits) | all 20 frames, at every size (the session's first frame, fading in, at 4K only) |
 | `InnScreen.ReadClock` | time left, closed at 00:00 | every session frame |
 | `FireMeterReader` | fire "N/100", streak, ready (red button, 开启满堂彩) | all, at every size; hidden behind the dispatch panel |
-| `TableCardReader` | each table's state and, for an order, its dishes and drinks by picture, being made / ready, the pips | 56/56 items and 90/90 cards at 4K, 1440p and 1080p |
+| `TableCardReader` | each table's state and, for an order, its dishes and drinks by picture and whether each is served (its pip green, or the blue auto-serve spinner on it) | 56/56 items and 90/90 cards at 4K, 1440p and 1080p |
 | `DispatchPanelReader` | kitchen shown, chefs, 珍馐 chance, each dish's cook time, the queue (dish, time left) | 114–115 of 115 values per size, none wrong |
 | `BubbleReader` | a gourmand's speech bubble, its sentences matched with `InnData.MatchSaid` | the one recorded bubble, both requests, at every size |
-| `SetupReader` | theme, objective, menu rules, hot traits, kitchens with their chef places and chefs | all at 4K; objective and rules slip at 1440p |
+| `SetupReader` | theme, objective, menu rules, hot traits, kitchens with their chef places, how many hold a chef (the bar under each: red or grey) and the chefs | all at 4K; objective and rules slip at 1440p |
 | `MenuReader` | tab, cards in view and whether each is on the menu, stock ∞, the counters | tab and cards at every size; stock and counters partly |
 | `MenuRequirementsReader` | the menu screen's 菜单要求: Inn Rating ("4级客栈要求"), types, dishes and drinks at least, the theme's trait rule | all five on both menu frames, at every size |
-| `ChefPickerReader` | who each grid card of a kitchen's chef picker is (the cards show no names), and the chosen chefs' "大厨…" names | 12/12 cards named at 4K, 1440p and 1080p, none wrong; both chosen chefs |
 
 How the hard parts work:
 
@@ -562,34 +579,21 @@ How the hard parts work:
   larger for a moment), and every dish and drink picture is drawn the way the card draws it (103
   px at 4K over the disc's grey) and compared in colour over the whole disc but the badge's corner.
   A picture is named when it's within 20 (mean difference per channel) and 5 ahead of the next;
-  on the frames right pictures score 3–12 and the next ones are ≥ 7.6 behind.
+  on the frames right pictures score 3–12 and the next ones are ≥ 7.6 behind. An item is served
+  when its pip under the number is green or the blue spinner (a ring of cyan dots, the game serving
+  it on its own) sits on the disc's lower right (owner, 2026-10-19). The green smiley that can show
+  there means nothing useful and isn't read.
 - **OCR'd names** are matched to the data by the longest run of letters they share
   ([`InnNames`](src/EndHud.Vision/Inn/InnNames.cs)), and read at a few sizes (and once in the
   region's own greys, which a small window needs) until one in the data comes out.
 - **One OCR engine, one recognition at a time**: two callers sharing it read garbage now and then.
-- **The chef picker's cards** ([`ChefPickerReader`](src/EndHud.Vision/Inn/ChefPickerReader.cs))
-  show a portrait, two bonus icons and a flavor chip, no name. Cards are found by their dark label
-  bar ("暂无安排") in each of the four columns, so a scrolled list is read wherever its rows sit;
-  only cards wholly inside the list are read. The icons are told by colour (median hue and
-  brightness of their saturated pixels: gold 主食, green 菜肴, blue 汤羹, red 甜品, bright yellow
-  珍馐), the flavor character by its shape against the five glyphs cut from the frame at 4K
-  (Windows OCR read 3 of these 12 lone grey characters). Icons and flavor are the card's bonus
-  profile, matched against `InnData.ChefBonusesOf` over the roster (Si and the Endministrator
-  can't cook): 9 of the 12 recorded profiles belong to one operator, the others to 2–4. The
-  portrait (the same drawing as the wiki avatar) is compared with every avatar by the character
-  model (`PortraitMatcher.Differences`, cached per portrait). A card is named only when the
-  roster's closest avatar is one of the profile's candidates, within 0.07 and at least 0.03 ahead
-  of the other candidates; a profile and portrait that disagree leave it unnamed. Measured: a
-  card's own operator 0.017–0.056, the nearest other 0.076 (噗切娜 on 大潘's card) to 0.13. The
-  avatars are described for each window size in the background on first use (then cached in the
-  user folder): until then cards stay unnamed. Labels: tests/data/Fixtures/inn/README.md.
 - **The menu's requirements** ([`MenuRequirementsReader`](src/EndHud.Vision/Inn/MenuRequirementsReader.cs)):
   a met line turns light grey, so the ink takes that grey too; two OCR slips seen on the frames are
   put right ("品" as "口口", a line's start lost under the yellow tick). Only the wordings seen at
   Inn Rating 4 are understood.
-- **Chefs seen while scrolling** ([`ChefPickerMemory`](src/EndHud.Vision/Inn/ChefPickerMemory.cs)):
-  a picker screen shows twelve cards, so the named cards add up while the player scrolls, with the
-  chosen and placed chefs; an unnamed card adds nobody.
+- **The chef picker is not read** (owner, 2026-10-19: never require scrolling it). `InnScreen`
+  tells it apart so the setup panel shows over it; the panel works from the built-in roster. The
+  picker fixture and its labels stay as test data.
 
 Not built yet: the drink bar and the results screen (no frame recorded), a one-item order's
 picture place (no frame of one), Si's assists on 营业设定 (the planner takes 品质把控 as 0; it only
@@ -612,42 +616,55 @@ read (`ClockOnlyScreens`), so the strip can say what to install. The readers sit
 before a session, the setup screen's theme and kitchens and the menu screen's dishes and drinks (until
 the setup screen after a session); during it, each kitchen's chefs and queue (read off the dispatch
 panel when it shows that kitchen, otherwise moved on by cook times since: an estimate, and a dish
-turning ready on a table card takes it out of the estimate at once), the orders (oldest first),
-dishes on the counter (ready on a card, or cooked ahead and not yet claimed), the fire meter with
+turning served on a table card takes it off the counter or out of the estimate at once), the orders
+(oldest first, served items left out), dishes on the counter (cooked ahead and not yet claimed), the
+timer (0 s left once closed, for the end of the session's advice), the fire meter with
 `FullBlazeTracker`, and each gourmand's request. Without the setup screens, the kitchens and chefs
-come from the dispatch panel, and the Inn Rating from the cook times it shows. A session ends after
+come from the dispatch panel, and the Inn Rating from the cook times it shows. A kitchen the setup
+screen showed with every place empty is left out (it cannot cook) unless the dispatch panel has since
+named its chefs; one whose chefs were never seen is advised at base speed. A session ends after
 15 s without a session frame, on a setup or menu screen, or when the timer jumps up. `Advice(now)`
 runs `DispatchAdvisor` (every slot filled before the first order and from Full Blaze's "get
 ready"), `FullBlazeAdvisor` and `GourmandAdvisor`; an order with a picture not told apart is left
 out and its table named as unreadable, and a missing kitchen or menu is said, never guessed.
 [`InnStripView`](src/EndHud/InnStripView.cs) puts that in words (zh-CN only) and
-[`InnStrip`](src/EndHud/InnStrip.cs) draws it: one line per kitchen, a picture beside every dish and
+[`InnStrip`](src/EndHud/InnStrip.cs) draws it: the Full Blaze line ("开启满堂彩（R）" when full,
+"满堂彩快满了：先把厨房排满" from 80), at the last call a line per leftover ("收尾：把剩下的[图]X 端给桌3",
+"（不对也有钱）" after a wrong dish), one line per kitchen, a picture beside every dish and
 drink, wrapping between dishes at 470 units so the busiest strip fits right of the dispatch panel
 at 1080p, 1440p and 4K (InnStripLayoutTests). [`OverlayWindow.Inn`](src/EndHud/OverlayWindow.Inn.cs)
 shows it only on session frames, and a sample while the menu is open out of the inn. Settings:
 `InnHelperEnabled` (on), `InnStripX/Y`, `InnStripScale`, `InnStripOpacity`.
 
-**The setup panel** (before a session, on the setup, chef picker and menu screens). The frame
-reader reads the chef picker like the other setup screens (at most every 2 s) and, on the menu
-screen, its requirements too; a reading says whether its screen was read on that frame (`Fresh`).
-`InnSession` keeps, for the panel, every dish and drink card the menu screen showed (on the menu or
-not, with stock), the requirements and counters, the chefs seen (`ChefPickerMemory`: cleared when a
-session starts, or when no setup screen has shown for 15 s) and whether the setup screen's last
-reading failed. `SetupInputs()` turns them into the planner's input: hot traits (read, else the
-theme's), kitchens and chef places (营业设定), the chefs seen, the dishes and drinks, the menu rules
-(the requirements' minimums, the counters' "N/8" as maximums, or the minimums when unread; the
-theme's trait rules from both screens), the Inn Rating (requirements, else the theme's, else the
-highest), 6 tables and no 品质把控. Anything missing is a gap and there's no input (theme
-unreadable, no setup, no kitchens, no chefs, no menu, no drinks, requirements unreadable): nothing
-is planned from half a reading. [`InnSetupPlanning`](src/EndHud/InnSetupPanel.cs) runs the
-planner on the thread pool once per change of the input's key and redraws when done; an older plan
-is shown meanwhile only while everything it names is still available. `InnSetupView` words it
-(one line per kitchen with the chefs' avatars and names, then 菜单： and 饮品： with pictures, or
-the gaps' lines), drawn by `InnStrip` in its own frame (`InnSetupX/Y`, default low on the left,
+**The setup panel** (before a session, on the setup, chef picker and menu screens; owner,
+2026-10-19: never require scrolling or reading the chef picker). The frame reader reads the setup
+screen and the menu screen (with its requirements) at most every 2 s; the chef picker is only told
+apart. A reading says whether its screen was read on that frame (`Fresh`). `SetupInputs()` builds the
+planner's input: from 营业设定, the hot traits (read, else the theme's), the theme's trait rules and
+the kitchens with their places; built in, every operator in the library who can cook (Si and the
+Endministrator can't) and every dish and drink the Inn Rating unlocks, with those a theme's stars
+unlock (whether the player has them can't be seen; the tiers name substitutes). The menu screen,
+when seen, only refines it: each card's stock, the Inn Rating and the rules as 菜单要求 states them;
+unread, the rating's own rules are used (`MenuRules.OfRating`: known for Rating 4, at least 3 types,
+6 dishes and 3 drinks, 8 of each), never guessed for another rating. The gaps left are the theme
+unreadable, no setup seen and no kitchens; nothing asks the player to scroll or open a screen to feed
+it. [`InnSetupPlanning`](src/EndHud/InnSetupPanel.cs) runs the planner and `InnTierList` on the
+thread pool once per change of the input's key and redraws when done; an older plan is shown
+meanwhile only while everything it names is still available. `InnSetupView` words it as tier lists:
+
+```
+缘缘庄 · 推荐（没有的干员/菜换同档的）
+厨房一（主食）：T1 [avatar]昼雪 [avatar]秋栗　T3 …
+厨房二（菜肴）：T1 …　T2 …　T3 …
+菜单：T1 [picture]青菜养生粥 …　T2 …　T3 …
+饮品：T1 [picture]瓶装霞莓饮 …　T3 …
+```
+
+drawn by `InnStrip` in its own frame (`InnSetupX/Y`, default the middle right at 0.62, 0.38,
 clamped; the strip's size and opacity; draggable with the menu open, which shows a sample). Text
 only: nothing is drawn over the game's screens. InnSetupLayoutTests checks the fullest panel fits
-from its default place at 1080p, 1440p and 4K; InnRealFrameTests runs the four 养身心 setup frames
-through the real readers to a plan that meets every rule on screen with only what they showed.
+from its default place at 1080p, 1440p and 4K; InnRealFrameTests runs the 养身心 setup frame
+through the real readers to tier lists whose T1 meets every rule on screen.
 
 Assumptions the advice rests on, not measured: what Full Blaze's faster kitchens do to cook times
 (not modelled: the estimate runs at normal speed and is corrected each time the panel shows a
