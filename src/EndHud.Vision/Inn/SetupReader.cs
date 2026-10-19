@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using EndHud.Vision.Operators;
 
 namespace EndHud.Vision.Inn;
@@ -35,7 +36,7 @@ public sealed record InnSetup(string ThemeName, InnTheme? Theme, string? Objecti
 /// that finds the most of the screen's fixed parts (headings, a known theme, known traits) is kept.
 /// Measured on 4K frames of one theme (养身心).
 /// </summary>
-public sealed class SetupReader(InnText text, InnData data, IReadOnlyList<OperatorInfo> roster)
+public sealed partial class SetupReader(InnText text, InnData data, IReadOnlyList<OperatorInfo> roster)
 {
     // At 4K, on the centred 16:9 area: the theme's details on each screen, and 营业设定's kitchens.
     private static readonly PixelRect DetailsOnSetup = new(220, 280, 1260, 980), DetailsOnThemeList = new(1590, 280, 2040, 920);
@@ -97,7 +98,7 @@ public sealed class SetupReader(InnText text, InnData data, IReadOnlyList<Operat
         var theme = data.Themes.FirstOrDefault(t => t.Zh == themeName);
 
         int Heading(params string[] words) => lines.FindIndex(l => words.Any(l.Text.Contains));
-        int objective = Heading("加分项"), rules = Heading("菜单要求"), hot = Heading("热门信息", "热门特性");
+        int objective = Heading("加分项"), rules = Heading("菜单要求"), hot = lines.FindIndex(l => l.Text.Contains("热门信息") || HotLabel().IsMatch(l.Text));
         // A section's lines: after its heading, above the next heading's row (a chip beside the next
         // heading, "赏钱", stands a little higher than it).
         List<string> Section(int from, int to)
@@ -119,11 +120,12 @@ public sealed class SetupReader(InnText text, InnData data, IReadOnlyList<Operat
     /// <summary>The traits named in a row of chips ("素食 滋补"), in the order they stand.</summary>
     /// <summary>
     /// The hot chips: the ids named to the right of the 热门 row's label, on its row, and where the
-    /// label stands; nothing and null when there's no such row.
+    /// label stands; nothing and null when there's no such row. The label is "热门特性" (养身心) or
+    /// "热门类型" (舌上清流, the owner's screenshot): both seen in the game.
     /// </summary>
     internal static (List<string> Ids, PixelRect? Row) HotRow(IReadOnlyList<(string Text, PixelRect Place)> lines, InnData data)
     {
-        var row = lines.FirstOrDefault(l => l.Text.Contains("特性") && l.Text.Contains("热门"));
+        var row = lines.FirstOrDefault(l => HotLabel().IsMatch(l.Text));
         if (row.Text is null) return ([], null);
         var chips = lines.Where(l => l.Place.X > row.Place.Right && Math.Abs(l.Place.Y - row.Place.Y) <= row.Place.Height).Select(l => l.Text);
         return (HotIds(string.Concat(chips), data), row.Place);
@@ -238,4 +240,8 @@ public sealed class SetupReader(InnText text, InnData data, IReadOnlyList<Operat
         Math.Max(r, Math.Max(g, b)) <= 120 || (r >= 200 && g >= 70 && g <= 170 && b <= 90);
 
     private static string Letters(string s) => new([.. s.Where(char.IsLetter)]);
+
+    /// <summary>The hot row's label: 热门 then 类型 or 特性.</summary>
+    [GeneratedRegex("热门.*(类型|特性)")]
+    private static partial Regex HotLabel();
 }
