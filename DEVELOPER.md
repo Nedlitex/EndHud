@@ -667,7 +667,7 @@ meanwhile only while everything it names is still available. `InnSetupView` word
 饮品：T1 [picture]瓶装霞莓饮 …　T3 …
 ```
 
-drawn by `InnStrip` in its own frame (`InnSetupX/Y`, default the middle right at 0.62, 0.38,
+drawn by `InnStrip` in its own frame (`InnSetupX/Y`, default the lower left, left edge 0.06 and bottom edge 0.87 so it grows upward,
 clamped; the strip's size and opacity; draggable with the menu open, which shows a sample). Text
 only: nothing is drawn over the game's screens. InnSetupLayoutTests checks the fullest panel fits
 from its default place at 1080p, 1440p and 4K; InnRealFrameTests runs the 养身心 setup frame

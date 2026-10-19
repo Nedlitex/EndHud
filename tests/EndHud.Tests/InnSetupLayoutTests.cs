@@ -96,18 +96,19 @@ public class InnSetupLayoutTests
         double scale = ComboHintLayout.Scale(height, dpiScale: 1);
 
         double right = HudConfig.DefaultInnSetupX * width + (size.Width + Frame) * scale;
-        double bottom = HudConfig.DefaultInnSetupY * height + (size.Height + Frame) * scale;
+        // Anchored by its bottom: the fullest panel grows up, and must not run off the top.
+        double top = HudConfig.DefaultInnSetupBottomY * height - (size.Height + Frame) * scale;
 
         Assert.True(right <= width, $"right edge {right:F0} of {width} ({size.Width:F0} units wide at scale {scale:F2})");
-        Assert.True(bottom <= height, $"bottom edge {bottom:F0} of {height} ({size.Height:F0} units tall at scale {scale:F2})");
+        Assert.True(top >= 0, $"top edge {top:F0} ({size.Height:F0} units tall at scale {scale:F2})");
     }
 
     [Fact]
     public void The_sample_fits_too()
     {
         var size = Measure(InnSetupView.Sample(Inn, Library.Operators, Text));
-        double bottom = HudConfig.DefaultInnSetupY * 1080 + (size.Height + Frame) * ComboHintLayout.Scale(1080, dpiScale: 1);
-        Assert.True(bottom <= 1080, $"bottom edge {bottom:F0} of 1080");
+        double top = HudConfig.DefaultInnSetupBottomY * 1080 - (size.Height + Frame) * ComboHintLayout.Scale(1080, dpiScale: 1);
+        Assert.True(top >= 0, $"top edge {top:F0}");
     }
 
     [Fact]

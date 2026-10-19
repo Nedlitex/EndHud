@@ -40,6 +40,35 @@ public partial class I18nTests
         Assert.Equal([], used.Where(k => !defined.Contains(k)).ToArray());
     }
 
+    /// <summary>
+    /// Every entry loads as the app loads it. A string of only spaces can't (WPF builds an empty
+    /// sys:String with no constructor): the inn's setup panel crashed the app on the first one it
+    /// drew, and the key test above, which reads the file as text, couldn't see it.
+    /// </summary>
+    [Fact]
+    public void Every_string_loads()
+    {
+        var failed = new List<string>();
+        var thread = new Thread(() =>
+        {
+            // The compiled dictionary, as the app has it: reading the .xaml as text keeps the
+            // whitespace that compiling drops, and loads fine.
+            _ = System.IO.Packaging.PackUriHelper.UriSchemePack;
+            var dictionary = (System.Windows.ResourceDictionary)System.Windows.Application.LoadComponent(
+                new Uri("/EndHud;component/i18n/zh-CN.xaml", UriKind.Relative));
+            foreach (object key in dictionary.Keys.Cast<object>().ToList())
+            {
+                try { _ = dictionary[key]; }
+                catch (Exception ex) { failed.Add($"{key}: {ex.GetType().Name}"); }
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        Assert.Empty(failed);
+    }
+
     [GeneratedRegex(@"x:Key=""([^""]+)""")]
     private static partial Regex KeyDefinition();
 

@@ -103,7 +103,7 @@
         </Border>
         <!-- The inn helper's setup panel (chefs and menu to pick), its top-left corner at config InnSetupX/InnSetupY. -->
         <Border x:Name="InnSetupFrame" BorderThickness="2" Padding="6" CornerRadius="4" Background="Transparent"
-                Visibility="Collapsed"
+                Visibility="Collapsed" SizeChanged="InnSetupFrame_SizeChanged"
                 MouseLeftButtonDown="InnSetup_MouseDown" MouseMove="InnSetup_MouseMove"
                 MouseLeftButtonUp="InnSetup_MouseUp">
             <StackPanel>

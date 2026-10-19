@@ -351,7 +351,7 @@
     <sys:String x:Key="Inn.Setup.Tier.1" xml:space="preserve">T1 </sys:String>
     <sys:String x:Key="Inn.Setup.Tier.2" xml:space="preserve">T2 </sys:String>
     <sys:String x:Key="Inn.Setup.Tier.3" xml:space="preserve">T3 </sys:String>
-    <sys:String x:Key="Inn.Setup.Space" xml:space="preserve"> </sys:String>
+    <sys:String x:Key="Inn.Setup.Space">&#160;</sys:String>
     <sys:String x:Key="Inn.Setup.Menu">菜单：</sys:String>
     <sys:String x:Key="Inn.Setup.Drinks">饮品：</sys:String>
     <sys:String x:Key="Inn.Setup.Working">正在推荐…</sys:String>

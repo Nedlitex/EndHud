@@ -59,25 +59,27 @@ public class ConfigTests
     }
 
     [Theory]
-    [InlineData("{}", HudConfig.DefaultInnSetupX, HudConfig.DefaultInnSetupY)]
-    [InlineData("{\"InnSetupX\": 0.5, \"InnSetupY\": 0.2}", 0.5, 0.2)]
-    [InlineData("{\"InnSetupX\": -3, \"InnSetupY\": 7}", 0.0, 1.0)]
-    [InlineData("{\"InnSetupX\": 1.5, \"InnSetupY\": -0.1}", 1.0, 0.0)]
+    [InlineData("{}", HudConfig.DefaultInnSetupX, HudConfig.DefaultInnSetupBottomY)]
+    [InlineData("{\"InnSetupX\": 0.5, \"InnSetupBottomY\": 0.2}", 0.5, 0.2)]
+    [InlineData("{\"InnSetupX\": -3, \"InnSetupBottomY\": 7}", 0.0, 1.0)]
+    [InlineData("{\"InnSetupX\": 1.5, \"InnSetupBottomY\": -0.1}", 1.0, 0.0)]
+    // A place saved by the test build before the bottom anchor (its top edge) isn't misread as a bottom.
+    [InlineData("{\"InnSetupX\": 0.62, \"InnSetupY\": 0.38}", 0.62, HudConfig.DefaultInnSetupBottomY)]
     public void The_inn_setup_panels_place_defaults_and_a_hand_edited_one_stays_on_the_window(string json, double x, double y)
     {
         var config = ConfigStore.Parse(json);
 
         Assert.Equal(x, config.InnSetupX);
-        Assert.Equal(y, config.InnSetupY);
+        Assert.Equal(y, config.InnSetupBottomY);
     }
 
     [Fact]
-    public void The_inn_setup_panel_starts_at_the_middle_right()
+    public void The_inn_setup_panel_starts_in_the_blank_lower_left()
     {
-        // Owner, 2026-10-19: the middle right. Its left edge right of the window's middle, its top a
-        // little above the middle so the panel (which grows down) sits about the window's middle.
-        Assert.InRange(HudConfig.DefaultInnSetupX, 0.55, 0.75);
-        Assert.InRange(HudConfig.DefaultInnSetupY, 0.3, 0.45);
+        // Owner, 2026-10-19, from the game's setup screen: the blank area under the theme's details
+        // (x ≈ 0.06–0.38, y ≈ 0.57–0.87); anchored by its bottom at the area's bottom.
+        Assert.InRange(HudConfig.DefaultInnSetupX, 0.03, 0.1);
+        Assert.InRange(HudConfig.DefaultInnSetupBottomY, 0.84, 0.9);
     }
 
     /// <summary>Before version 3 every start saved 50% (a slider bug), so 50% from then means the default.</summary>

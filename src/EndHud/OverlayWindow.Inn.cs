@@ -232,7 +232,7 @@ public partial class OverlayWindow
         _config.InnStripX = HudConfig.DefaultInnStripX;
         _config.InnStripY = HudConfig.DefaultInnStripY;
         _config.InnSetupX = HudConfig.DefaultInnSetupX;
-        _config.InnSetupY = HudConfig.DefaultInnSetupY;
+        _config.InnSetupBottomY = HudConfig.DefaultInnSetupBottomY;
         ConfigStore.Save(_config);
         PlaceInnFromConfig();
         PlaceInnSetupFromConfig();
@@ -301,7 +301,17 @@ public partial class OverlayWindow
 
     // ---- Placing the setup panel ----
 
-    private void PlaceInnSetupFromConfig() => PlaceInnSetup(_config.InnSetupX * HintCanvas.ActualWidth, _config.InnSetupY * HintCanvas.ActualHeight);
+    private void PlaceInnSetupFromConfig() =>
+        PlaceInnSetup(_config.InnSetupX * HintCanvas.ActualWidth, _config.InnSetupBottomY * HintCanvas.ActualHeight - InnSetupHeight());
+
+    /// <summary>The panel's height on screen (after scaling).</summary>
+    private double InnSetupHeight() => InnSetupFrame.ActualHeight * ((InnSetupFrame.LayoutTransform as ScaleTransform)?.ScaleY ?? 1);
+
+    /// <summary>The panel grew or shrank (a new plan): keep its bottom where it was.</summary>
+    private void InnSetupFrame_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_innSetupDragOffset is null) PlaceInnSetupFromConfig();
+    }
 
     private void PlaceInnSetup(double left, double top)
     {
@@ -332,7 +342,7 @@ public partial class OverlayWindow
         InnSetupFrame.ReleaseMouseCapture();
         if (HintCanvas.ActualWidth <= 0 || HintCanvas.ActualHeight <= 0) return;
         _config.InnSetupX = Canvas.GetLeft(InnSetupFrame) / HintCanvas.ActualWidth;
-        _config.InnSetupY = Canvas.GetTop(InnSetupFrame) / HintCanvas.ActualHeight;
+        _config.InnSetupBottomY = (Canvas.GetTop(InnSetupFrame) + InnSetupHeight()) / HintCanvas.ActualHeight;
         ConfigStore.Save(_config);
     }
 }

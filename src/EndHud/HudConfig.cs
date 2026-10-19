@@ -113,12 +113,12 @@ internal sealed class HudConfig
 
     /// <summary>
     /// Where the inn's setup panel sits (the chefs and menu to pick, on the setup, chef picker and
-    /// menu screens), as a fraction of the game window: its left edge and its top; the middle right
-    /// by default. It shares the strip's size and opacity.
+    /// menu screens), as a fraction of the game window: its left edge and its BOTTOM edge, so it
+    /// grows upward from the setup screen's blank lower left. It shares the strip's size and opacity.
     /// </summary>
     public double InnSetupX { get; set; } = DefaultInnSetupX;
 
-    public double InnSetupY { get; set; } = DefaultInnSetupY;
+    public double InnSetupBottomY { get; set; } = DefaultInnSetupBottomY;
 
     /// <summary>The inn strip's size on top of following the game window (1 = 100%), from the menu's slider.</summary>
     public double InnStripScale { get; set; } = 1;
@@ -158,10 +158,12 @@ internal sealed class HudConfig
     public const double DefaultInnStripX = 0.72;
     public const double DefaultInnStripY = 0.16;
 
-    // The middle right (owner, 2026-10-19): left edge right of the window's middle, top a little
-    // above it so the panel, which grows down, sits about the middle. Drag it where it suits.
-    public const double DefaultInnSetupX = 0.62;
-    public const double DefaultInnSetupY = 0.38;
+    // The lower left (owner, 2026-10-19, after seeing it in the game): the setup screen's blank
+    // area under the theme's details, x ≈ 0.06–0.38, y ≈ 0.57–0.87. Anchored by its bottom at the
+    // area's bottom: a short panel sits in the blank, a tall one grows up over the theme's text
+    // instead of off the window. Drag it where it suits.
+    public const double DefaultInnSetupX = 0.06;
+    public const double DefaultInnSetupBottomY = 0.87;
 
     public const double DefaultComboHintSeconds = 3;
     public const double DefaultComboHintLeadSeconds = 1;
@@ -246,7 +248,7 @@ internal static class ConfigStore
         config.InnStripX = double.IsFinite(config.InnStripX) ? Math.Clamp(config.InnStripX, 0, 1) : HudConfig.DefaultInnStripX;
         config.InnStripY = double.IsFinite(config.InnStripY) ? Math.Clamp(config.InnStripY, 0, 1) : HudConfig.DefaultInnStripY;
         config.InnSetupX = double.IsFinite(config.InnSetupX) ? Math.Clamp(config.InnSetupX, 0, 1) : HudConfig.DefaultInnSetupX;
-        config.InnSetupY = double.IsFinite(config.InnSetupY) ? Math.Clamp(config.InnSetupY, 0, 1) : HudConfig.DefaultInnSetupY;
+        config.InnSetupBottomY = double.IsFinite(config.InnSetupBottomY) ? Math.Clamp(config.InnSetupBottomY, 0, 1) : HudConfig.DefaultInnSetupBottomY;
         return config;
     }
 
