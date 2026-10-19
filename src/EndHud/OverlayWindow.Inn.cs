@@ -13,8 +13,8 @@ namespace EndHud;
 /// The inn helper's two overlays. The strip: during an inn session, which dishes to queue in each
 /// kitchen, when to start Full Blaze, and what a gourmand asks for (<see cref="InnSession"/>,
 /// <see cref="InnStripView"/>), shown only on the session's frames (never in a fight). The setup
-/// panel: on the setup, chef picker and menu screens, tier lists of the chefs for each kitchen and
-/// the dishes and drinks for the menu, from the built-in roster and dish list
+/// panel: on the setup, chef picker and menu screens, a block per kitchen (its chefs and the menu
+/// dishes it cooks, each with substitutes) and the drinks, from the built-in roster and dish list
 /// (<see cref="InnSetupPlanning"/>, <see cref="InnSetupView"/>), worked out off the UI thread. Both are text only, shown as samples while the menu is open out of
 /// the inn, placed by their top-left corners as fractions of the game window, draggable while the
 /// menu is open, and share one size and opacity.

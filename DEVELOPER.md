@@ -543,14 +543,28 @@ precook. A kitchen with no chef doesn't cook (`KitchenMath.Cooks`); assumptions 
 (`MinGuestCycleSeconds`). About 2 s for three kitchens of two over the whole roster and dish list:
 run it off the UI thread.
 
-[`InnTierList`](src/EndHud.Vision/Inn/InnTiers.cs) turns a plan into tier lists, so a player who
-lacks a chef or dish the plan names puts in one of the same tier. Per kitchen: its role (the menu's
-dish type its chefs cook fastest) and its chefs by what each adds there (the plan's income with them
-in a place less with a no-bonus cook there, the better place), against the best: T1 ≥ 90 %, T2 ≥
-75 %, T3 ≥ 50 %, the plan's own chefs first in T1, a chef planned in another kitchen not listed, at
-most 3 more names a tier. Dishes: T1 is the plan's menu (it meets every rule), the others by value
-per kitchen-second (price with the 热门 bonus over the cook time in the kitchen fastest at it) against
-the menu's best. Drinks: T1 the plan's, the others by value.
+[`InnSuggester`](src/EndHud.Vision/Inn/InnSuggestions.cs) turns a plan into what the setup panel
+shows per kitchen, with substitutes for a player who lacks a chef, dish or drink the plan names.
+Each menu dish goes under the kitchen that cooks the larger share of it (`InnPlanner.MainKitchens`):
+the balance is solved through its dual (kitchen weights), and `InnPlanner.Shares` recovers the split
+from them, a dish only where its weighted cook time is least and dishes tied between kitchens shared
+by a small max-flow over the load left; the tests check the busiest kitchen's load equals the
+balance on random cases. Chef substitutes are ranked by what each adds in that kitchen (the plan's
+income with them in a place less with a no-bonus cook there, the better place); dish substitutes by
+value per second cooked in that kitchen (price with the 热门 bonus over its cook time there), of
+the kitchen's own dish types first; drink substitutes by value. Substitutes are handed out across
+the kitchens best first, at most 3 a row and each to one kitchen only, never a planned chef, menu
+dish or drink; a kitchen left with none takes the best listed elsewhere. A kitchen with no planned
+chef is unused and gets nothing.
+
+A theme's menu rule (`DishRule`) asks for at least N dishes with any of some traits
+("至少有2道带有[素食]或[滋补]特性的菜品", 养身心) or of any of some dish types
+("至少有1道[汤羹]类菜品", 舌上清流; the type's icon stands in the brackets, so a bracket is matched by
+the type name it contains). `DishRule.ParseAll` joins 菜单要求's lines (a rule may wrap) and cuts
+them at each "至少"; what isn't understood is kept as read, the plan is made without it and the panel
+says so ("看不懂菜单要求：…"). The 热门 chips are traits, dish types (汤羹) or 饮品 (any drink),
+matched longest name first (`SetupReader.HotIds`: a 甜品 chip is the dessert type, not also the
+trait 甜).
 
 ### Reading the inn's screens
 
@@ -571,9 +585,9 @@ corners, and other window shapes are EndHud's assumption, not checked.
 | `TableCardReader` | each table's state and, for an order, its dishes and drinks by picture and whether each is served (its pip green, or the blue auto-serve spinner on it) | 56/56 items and 90/90 cards at 4K, 1440p and 1080p |
 | `DispatchPanelReader` | kitchen shown, chefs, 珍馐 chance, each dish's cook time, the queue (dish, time left) | 114–115 of 115 values per size, none wrong |
 | `BubbleReader` | a gourmand's speech bubble, its sentences matched with `InnData.MatchSaid` | the one recorded bubble, both requests, at every size |
-| `SetupReader` | theme, objective, menu rules, hot traits, kitchens with their chef places, how many hold a chef (the bar under each: red or grey) and the chefs | all at 4K; objective and rules slip at 1440p |
+| `SetupReader` | theme, objective, menu rules, hot traits, dish types and 饮品, kitchens with their chef places, how many hold a chef (the bar under each: red or grey) and the chefs | all at 4K; objective and rules slip at 1440p |
 | `MenuReader` | tab, cards in view and whether each is on the menu, stock ∞, the counters | tab and cards at every size; stock and counters partly |
-| `MenuRequirementsReader` | the menu screen's 菜单要求: Inn Rating ("4级客栈要求"), types, dishes and drinks at least, the theme's trait rule | all five on both menu frames, at every size |
+| `MenuRequirementsReader` | the menu screen's 菜单要求: Inn Rating ("4级客栈要求"), types, dishes and drinks at least, the theme's trait or dish-type rule | all five on both menu frames, at every size |
 
 How the hard parts work:
 
@@ -647,31 +661,46 @@ shows it only on session frames, and a sample while the menu is open out of the 
 2026-10-19: never require scrolling or reading the chef picker). The frame reader reads the setup
 screen and the menu screen (with its requirements) at most every 2 s; the chef picker is only told
 apart. A reading says whether its screen was read on that frame (`Fresh`). `SetupInputs()` builds the
-planner's input: from 营业设定, the hot traits (read, else the theme's), the theme's trait rules and
-the kitchens with their places; built in, every operator in the library who can cook (Si and the
+planner's input: from 营业设定, the hot traits and types (read, else the theme's), the theme's rules
+(and those it couldn't understand, said on the panel) and the kitchens with their places; built in, every operator in the library who can cook (Si and the
 Endministrator can't) and every dish and drink the Inn Rating unlocks, with those a theme's stars
-unlock (whether the player has them can't be seen; the tiers name substitutes). The menu screen,
+unlock (whether the player has them can't be seen; the panel names substitutes). The menu screen,
 when seen, only refines it: each card's stock, the Inn Rating and the rules as 菜单要求 states them;
 unread, the rating's own rules are used (`MenuRules.OfRating`: known for Rating 4, at least 3 types,
 6 dishes and 3 drinks, 8 of each), never guessed for another rating. The gaps left are the theme
 unreadable, no setup seen and no kitchens; nothing asks the player to scroll or open a screen to feed
-it. [`InnSetupPlanning`](src/EndHud/InnSetupPanel.cs) runs the planner and `InnTierList` on the
+it. [`InnSetupPlanning`](src/EndHud/InnSetupPanel.cs) runs the planner and `InnSuggester` on the
 thread pool once per change of the input's key and redraws when done; an older plan is shown
-meanwhile only while everything it names is still available. `InnSetupView` words it as tier lists:
+meanwhile only while everything it names is still available. `InnSetupView` words it as one block
+per kitchen (owner, 2026-10-19: the tier lines were too hard to read), the drinks last:
 
 ```
-缘缘庄 · 推荐（没有的干员/菜换同档的）
-厨房一（主食）：T1 [avatar]昼雪 [avatar]秋栗　T3 …
-厨房二（菜肴）：T1 …　T2 …　T3 …
-菜单：T1 [picture]青菜养生粥 …　T2 …　T3 …
-饮品：T1 [picture]瓶装霞莓饮 …　T3 …
+缘缘庄 · 推荐（没有的干员/菜，换「可换」里的）
+厨房一 · 主食
+  干员：[avatar]昼雪　[avatar]秋栗
+  可换：[avatar]卡契尔　[avatar]大潘　[avatar]弭弗
+  做菜：[picture]青菜养生粥　[picture]界龙肉卷
+  可换：[picture]老麻抄手　[picture]至臻鳞肉卷　[picture]豌杂拌面
+厨房二 · 菜肴
+  …
+厨房三 · 不用            (no chef planned: nothing else)
+饮品：[picture]瓶装霞莓饮　[picture]陈酿葡萄露　[picture]潮前龙井
+  可换：[picture]瓶装优质兽奶　[picture]梨花香茶　[picture]游人酒
 ```
 
+A kitchen's heading names the dish types of its 做菜 (most first); 干员 are the planned chefs,
+做菜 the menu dishes it cooks mainly (each menu dish under exactly one kitchen), each 可换 the
+substitutes for the row above it. A row is a hanging label (`InnLine.Hanging`): the names wrap
+beside it, between names only, never inside one; rows are indented (`InnLine.Indent`, 16 units a
+step at 1080p) under a `Subheading`. The menu open out of the inn shows a sample of the same shape,
+three kitchens full. The panel is
 drawn by `InnStrip` in its own frame (`InnSetupX/Y`, default the lower left, left edge 0.06 and bottom edge 0.87 so it grows upward,
 clamped; the strip's size and opacity; draggable with the menu open, which shows a sample). Text
-only: nothing is drawn over the game's screens. InnSetupLayoutTests checks the fullest panel fits
-from its default place at 1080p, 1440p and 4K; InnRealFrameTests runs the 养身心 setup frame
-through the real readers to tier lists whose T1 meets every rule on screen.
+only: nothing is drawn over the game's screens. InnSetupLayoutTests checks the fullest panel (the
+menu shared 3/3/2, and all eight dishes in one kitchen) fits from its default bottom-left anchor at
+1080p, 1440p and 4K; InnSetupBlocksTests checks the blocks on real plans (养身心, a 舌上清流-like soup
+theme, 1–3 kitchens of 1–2 places, an unused kitchen); InnRealFrameTests runs the 养身心 setup frame
+through the real readers to kitchen blocks whose plan meets every rule on screen.
 
 Assumptions the advice rests on, not measured: what Full Blaze's faster kitchens do to cook times
 (not modelled: the estimate runs at normal speed and is corrected each time the panel shows a

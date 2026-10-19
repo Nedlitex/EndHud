@@ -15,7 +15,7 @@ internal sealed record InnSetupAdvice(InnPlan Plan, InnSuggestions Suggestions)
 }
 
 /// <summary>
-/// Works out the setup panel's plan and tiers off the UI thread (about two seconds), once per
+/// Works out the setup panel's plan and suggestions off the UI thread (about two seconds), once per
 /// change of its inputs (<see cref="InnSetupInputs.Key"/>): the setup screens are read every two
 /// seconds, and the same inputs are never planned twice. A plan for older inputs is kept until the
 /// new one is ready, and is shown meanwhile only while everything it names is still available
@@ -113,7 +113,7 @@ internal static class InnSetupView
         [InnSetupGap.NoKitchens] = "Inn.Setup.Gap.NoKitchens",
     };
 
-    /// <param name="advice">The plan and tiers to show (<see cref="InnSetupPlanning.Showable"/>); null while they're being worked out.</param>
+    /// <param name="advice">The plan and suggestions to show (<see cref="InnSetupPlanning.Showable"/>); null while they're being worked out.</param>
     /// <param name="data">The inn's data: the dish types' names.</param>
     /// <param name="text">The i18n lookup (<see cref="Loc.Get"/>; the tests pass zh-CN.xaml's strings).</param>
     /// <param name="problemKey">Why the inn can only be partly read (<see cref="PartyMonitor.InnProblem"/>), or null.</param>

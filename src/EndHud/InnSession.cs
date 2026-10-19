@@ -445,7 +445,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// its hot traits and rules, and the kitchens with their places (营业设定). Built in: every operator
     /// in the library who can cook (Si and the Endministrator can't), and every dish and drink the
     /// Inn Rating unlocks, with those a theme's stars unlock (whether the player has them can't be
-    /// seen: the tiers name others of the same worth). The menu screen, when seen, only refines it:
+    /// seen: the panel names substitutes). The menu screen, when seen, only refines it:
     /// each card's stock, the rating and the rules as 菜单要求 states them. Nothing asks the player
     /// to open a screen or scroll to feed it; a missing theme or kitchens is a gap, never a guess.
     /// </summary>
