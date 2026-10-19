@@ -93,7 +93,10 @@ internal static class InnDigits
     /// In a window smaller than 4K the region is first enlarged smoothly to its 4K size: telling ink
     /// from background pixel by pixel loses the thin strokes of glyphs a dozen pixels tall.
     /// </summary>
-    internal static List<Glyph> Glyphs(Frame frame, PixelRect region, InnText.Ink ink, double hudScale, double minHeightShare = MinHeightShare)
+    /// <param name="split">Cut blobs too wide for a digit into digits (off for a caller looking at a wide symbol, ∞).</param>
+    /// <param name="oneLine">Keep only the glyphs on the tallest one's line (off for a caller sorting out a row of several things itself).</param>
+    internal static List<Glyph> Glyphs(Frame frame, PixelRect region, InnText.Ink ink, double hudScale, double minHeightShare = MinHeightShare, bool split = true,
+        bool oneLine = true)
     {
         var r = region.ClampTo(frame.Width, frame.Height);
         if (r.Width < 4 || r.Height < 4) return [];
@@ -158,9 +161,9 @@ internal static class InnDigits
         int height = tallest.B - tallest.T + 1;
         var glyphs = new List<Glyph>();
         // Characters stand on one line: as tall as the tallest nearly, and ending where it ends.
-        foreach (var b in merged.Where(b => b.B - b.T + 1 >= height * minHeightShare && Math.Abs(b.B - tallest.B) <= height * 0.15))
+        foreach (var b in merged.Where(b => !oneLine || (b.B - b.T + 1 >= height * minHeightShare && Math.Abs(b.B - tallest.B) <= height * 0.15)))
         {
-            foreach (var (left, right) in Split(on, r.Width, b.L, b.R, b.T, b.B))
+            foreach (var (left, right) in split ? Split(on, r.Width, b.L, b.R, b.T, b.B) : [(b.L, b.R)])
             {
                 // The part's own rows.
                 int top = b.B, bottom = b.T;

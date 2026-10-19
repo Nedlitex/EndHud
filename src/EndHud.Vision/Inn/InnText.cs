@@ -159,23 +159,27 @@ public sealed class InnText
         yield return await ReadPlacedLinesAsync(frame, r, hudScale, PrepareGrey(frame, r, ink, hudScale));
     }
 
-    private async Task<IReadOnlyList<(string Text, PixelRect Place)>> ReadPlacedLinesAsync(Frame frame, PixelRect region, double hudScale, Frame? prepared)
+    private async Task<IReadOnlyList<(string Text, PixelRect Place)>> ReadPlacedLinesAsync(Frame frame, PixelRect region, double hudScale, Frame? prepared, bool words = false)
     {
         var r = region.ClampTo(frame.Width, frame.Height);
         if (prepared is null) return [];
         // The prepared image is the region enlarged by one factor, inside a padding.
         double fx = (prepared.Width - 2 * Padding) / (double)r.Width, fy = (prepared.Height - 2 * Padding) / (double)r.Height;
+        PixelRect Place(double left, double top, double right, double bottom) => new(
+            r.X + (int)Math.Round((left - Padding) / fx), r.Y + (int)Math.Round((top - Padding) / fy),
+            (int)Math.Round((right - left) / fx), (int)Math.Round((bottom - top) / fy));
         var lines = await RecognizeAsync(_engine, prepared);
-        return [.. lines.Where(l => l.Words.Count > 0).Select(l =>
-        {
-            double left = l.Words.Min(w => w.BoundingRect.X), top = l.Words.Min(w => w.BoundingRect.Y);
-            double right = l.Words.Max(w => w.BoundingRect.X + w.BoundingRect.Width), bottom = l.Words.Max(w => w.BoundingRect.Y + w.BoundingRect.Height);
-            var place = new PixelRect(
-                r.X + (int)Math.Round((left - Padding) / fx), r.Y + (int)Math.Round((top - Padding) / fy),
-                (int)Math.Round((right - left) / fx), (int)Math.Round((bottom - top) / fy));
-            return (string.Concat(l.Words.Select(w => w.Text)), place);
-        })];
+        if (words)
+            return [.. lines.SelectMany(l => l.Words).Select(w =>
+                (w.Text, Place(w.BoundingRect.X, w.BoundingRect.Y, w.BoundingRect.X + w.BoundingRect.Width, w.BoundingRect.Y + w.BoundingRect.Height)))];
+        return [.. lines.Where(l => l.Words.Count > 0).Select(l => (string.Concat(l.Words.Select(w => w.Text)), Place(
+            l.Words.Min(w => w.BoundingRect.X), l.Words.Min(w => w.BoundingRect.Y),
+            l.Words.Max(w => w.BoundingRect.X + w.BoundingRect.Width), l.Words.Max(w => w.BoundingRect.Y + w.BoundingRect.Height))))];
     }
+
+    /// <summary>Each word read in <paramref name="region"/> with where it is in the frame (a line may join things standing apart).</summary>
+    public Task<IReadOnlyList<(string Text, PixelRect Place)>> ReadPlacedWordsAsync(Frame frame, PixelRect region, Ink ink, double hudScale) =>
+        ReadPlacedLinesAsync(frame, region, hudScale, Prepare(frame, region.ClampTo(frame.Width, frame.Height), ink, hudScale), words: true);
 
     /// <summary>The image handed to the engine: black ink on white, enlarged to the region's 4K size.</summary>
     internal static Frame? Prepare(Frame frame, PixelRect region, Ink ink, double hudScale, int minHeight = MinHeight)
