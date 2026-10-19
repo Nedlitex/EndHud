@@ -548,6 +548,8 @@ corners, and other window shapes are EndHud's assumption, not checked.
 | `BubbleReader` | a gourmand's speech bubble, its sentences matched with `InnData.MatchSaid` | the one recorded bubble, both requests, at every size |
 | `SetupReader` | theme, objective, menu rules, hot traits, kitchens with their chef places and chefs | all at 4K; objective and rules slip at 1440p |
 | `MenuReader` | tab, cards in view and whether each is on the menu, stock ∞, the counters | tab and cards at every size; stock and counters partly |
+| `MenuRequirementsReader` | the menu screen's 菜单要求: Inn Rating ("4级客栈要求"), types, dishes and drinks at least, the theme's trait rule | all five on both menu frames, at every size |
+| `ChefPickerReader` | who each grid card of a kitchen's chef picker is (the cards show no names), and the chosen chefs' "大厨…" names | 12/12 cards named at 4K, 1440p and 1080p, none wrong; both chosen chefs |
 
 How the hard parts work:
 
@@ -565,10 +567,33 @@ How the hard parts work:
   ([`InnNames`](src/EndHud.Vision/Inn/InnNames.cs)), and read at a few sizes (and once in the
   region's own greys, which a small window needs) until one in the data comes out.
 - **One OCR engine, one recognition at a time**: two callers sharing it read garbage now and then.
+- **The chef picker's cards** ([`ChefPickerReader`](src/EndHud.Vision/Inn/ChefPickerReader.cs))
+  show a portrait, two bonus icons and a flavor chip, no name. Cards are found by their dark label
+  bar ("暂无安排") in each of the four columns, so a scrolled list is read wherever its rows sit;
+  only cards wholly inside the list are read. The icons are told by colour (median hue and
+  brightness of their saturated pixels: gold 主食, green 菜肴, blue 汤羹, red 甜品, bright yellow
+  珍馐), the flavor character by its shape against the five glyphs cut from the frame at 4K
+  (Windows OCR read 3 of these 12 lone grey characters). Icons and flavor are the card's bonus
+  profile, matched against `InnData.ChefBonusesOf` over the roster (Si and the Endministrator
+  can't cook): 9 of the 12 recorded profiles belong to one operator, the others to 2–4. The
+  portrait (the same drawing as the wiki avatar) is compared with every avatar by the character
+  model (`PortraitMatcher.Differences`, cached per portrait). A card is named only when the
+  roster's closest avatar is one of the profile's candidates, within 0.07 and at least 0.03 ahead
+  of the other candidates; a profile and portrait that disagree leave it unnamed. Measured: a
+  card's own operator 0.017–0.056, the nearest other 0.076 (噗切娜 on 大潘's card) to 0.13. The
+  avatars are described for each window size in the background on first use (then cached in the
+  user folder): until then cards stay unnamed. Labels: tests/data/Fixtures/inn/README.md.
+- **The menu's requirements** ([`MenuRequirementsReader`](src/EndHud.Vision/Inn/MenuRequirementsReader.cs)):
+  a met line turns light grey, so the ink takes that grey too; two OCR slips seen on the frames are
+  put right ("品" as "口口", a line's start lost under the yellow tick). Only the wordings seen at
+  Inn Rating 4 are understood.
+- **Chefs seen while scrolling** ([`ChefPickerMemory`](src/EndHud.Vision/Inn/ChefPickerMemory.cs)):
+  a picker screen shows twelve cards, so the named cards add up while the player scrolls, with the
+  chosen and placed chefs; an unnamed card adds nobody.
 
-Not built yet: identifying the chef picker's cards (they show no names; the plan matches portraits
-and bonus icons), the drink bar and the results screen (no frame recorded), a one-item order's
-picture place (no frame of one).
+Not built yet: the drink bar and the results screen (no frame recorded), a one-item order's
+picture place (no frame of one), Si's assists on 营业设定 (the planner takes 品质把控 as 0; it only
+breaks ties).
 
 ### The inn helper in the app
 
@@ -601,6 +626,28 @@ drink, wrapping between dishes at 470 units so the busiest strip fits right of t
 at 1080p, 1440p and 4K (InnStripLayoutTests). [`OverlayWindow.Inn`](src/EndHud/OverlayWindow.Inn.cs)
 shows it only on session frames, and a sample while the menu is open out of the inn. Settings:
 `InnHelperEnabled` (on), `InnStripX/Y`, `InnStripScale`, `InnStripOpacity`.
+
+**The setup panel** (before a session, on the setup, chef picker and menu screens). The frame
+reader reads the chef picker like the other setup screens (at most every 2 s) and, on the menu
+screen, its requirements too; a reading says whether its screen was read on that frame (`Fresh`).
+`InnSession` keeps, for the panel, every dish and drink card the menu screen showed (on the menu or
+not, with stock), the requirements and counters, the chefs seen (`ChefPickerMemory`: cleared when a
+session starts, or when no setup screen has shown for 15 s) and whether the setup screen's last
+reading failed. `SetupInputs()` turns them into the planner's input: hot traits (read, else the
+theme's), kitchens and chef places (营业设定), the chefs seen, the dishes and drinks, the menu rules
+(the requirements' minimums, the counters' "N/8" as maximums, or the minimums when unread; the
+theme's trait rules from both screens), the Inn Rating (requirements, else the theme's, else the
+highest), 6 tables and no 品质把控. Anything missing is a gap and there's no input (theme
+unreadable, no setup, no kitchens, no chefs, no menu, no drinks, requirements unreadable): nothing
+is planned from half a reading. [`InnSetupPlanning`](src/EndHud/InnSetupPanel.cs) runs the
+planner on the thread pool once per change of the input's key and redraws when done; an older plan
+is shown meanwhile only while everything it names is still available. `InnSetupView` words it
+(one line per kitchen with the chefs' avatars and names, then 菜单： and 饮品： with pictures, or
+the gaps' lines), drawn by `InnStrip` in its own frame (`InnSetupX/Y`, default low on the left,
+clamped; the strip's size and opacity; draggable with the menu open, which shows a sample). Text
+only: nothing is drawn over the game's screens. InnSetupLayoutTests checks the fullest panel fits
+from its default place at 1080p, 1440p and 4K; InnRealFrameTests runs the four 养身心 setup frames
+through the real readers to a plan that meets every rule on screen with only what they showed.
 
 Assumptions the advice rests on, not measured: what Full Blaze's faster kitchens do to cook times
 (not modelled: the estimate runs at normal speed and is corrected each time the panel shows a
