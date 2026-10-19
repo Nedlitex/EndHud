@@ -73,7 +73,7 @@ public class InnScreenTests
         Assert.Null(InnScreen.ReadClock(frame));
     }
 
-    /// <summary>The chef picker's title names its kitchen (厨房一): the panel there is that kitchen's advice.</summary>
+    /// <summary>The chef picker's title names its kitchen (kitchen 1): the panel there is that kitchen's advice.</summary>
     [Theory]
     [MemberData(nameof(Screens))]
     public async Task The_chef_pickers_kitchen_is_read(string screenName)

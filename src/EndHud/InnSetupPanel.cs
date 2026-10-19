@@ -93,7 +93,7 @@ internal sealed class InnSetupPlanning(Func<InnPlanInput, InnSetupAdvice> plan, 
     }
 }
 
-/// <summary>Where a piece of setup advice is shown: under a kitchen's card on 营业设定, in the chef picker, on 菜单设定.</summary>
+/// <summary>Where a piece of setup advice is shown: under a kitchen's card on the setup screen, in the chef picker, on the menu screen.</summary>
 internal enum InnAdviceSpot
 {
     Kitchen1 = 1,
@@ -110,14 +110,14 @@ internal sealed record InnAdvicePanel(InnAdviceSpot Spot, InnStripModel Model);
 /// The setup advice's words (owner, live test 2026-10-19), every string from i18n/zh-CN.xaml, as small
 /// panels where the game shows the choice they're about (<see cref="InnAdviceLayout"/> places them):
 /// <list type="bullet">
-/// <item><b>营业设定:</b> under each kitchen's card, that kitchen's advice only: the dish types it will
-/// cook, "推荐：" the chefs for its empty places, each with their avatar, and "可换：" substitutes for
+/// <item><b>The setup screen:</b> under each kitchen's card, that kitchen's advice only: the dish types it will
+/// cook, a "recommended" row with the chefs for its empty places, each with their avatar, and a "substitutes" row for
 /// one the player lacks. The chefs already placed are kept and never named (nor suggested anywhere
 /// else); a full kitchen says only that it's set.</item>
 /// <item><b>A chef picker:</b> the same advice for its kitchen, under a heading naming the kitchen.</item>
-/// <item><b>菜单设定:</b> the menu for the chefs actually placed (or, with none placed, for the chefs the
-/// plan would pick, and it says so): "菜品：" the dishes, ✓ before those already on the menu, and
-/// "饮品：" the drinks, each row with a short "可换：" row under it.</item>
+/// <item><b>The menu screen:</b> the menu for the chefs actually placed (or, with none placed, for the chefs the
+/// plan would pick, and it says so): a dishes row, a tick before those already on the menu, and
+/// a drinks row, each with a short substitutes row under it.</item>
 /// </list>
 /// Nothing anywhere else: not on the theme list, not in a session. What's missing (the theme, the
 /// kitchens) is said instead of a guess, in the first spot of the screen.
@@ -135,8 +135,8 @@ internal static class InnSetupView
     };
 
     /// <summary>
-    /// The panels for <paramref name="screen"/>: per kitchen on 营业设定, one in a chef picker, one on
-    /// 菜单设定; none on any other screen (the theme list, the session) or off the inn (null).
+    /// The panels for <paramref name="screen"/>: per kitchen on the setup screen, one in a chef picker, one on
+    /// the menu screen; none on any other screen (the theme list, the session) or off the inn (null).
     /// </summary>
     /// <param name="chefs">The plan for <see cref="InnSession.SetupInputs"/> (<see cref="InnSetupPlanning.Showable"/>); null while it's worked out.</param>
     /// <param name="menu">The plan for <see cref="InnSession.MenuInputs"/>; null while it's worked out.</param>
@@ -162,7 +162,7 @@ internal static class InnSetupView
         };
     }
 
-    /// <summary>营业设定: a panel under each kitchen's card.</summary>
+    /// <summary>The setup screen: a panel under each kitchen's card.</summary>
     public static IReadOnlyList<InnAdvicePanel> Setup(InnSetupInputs inputs, InnSetupAdvice? advice, InnData data, Func<string, string> text)
     {
         if (inputs.Input is not { } input) return [Gaps(InnAdviceSpot.Kitchen1, inputs, text)];
@@ -187,7 +187,7 @@ internal static class InnSetupView
         return [new InnAdvicePanel(InnAdviceSpot.Picker, new InnStripModel(lines))];
     }
 
-    /// <summary>菜单设定: the menu for the chefs placed, with what's on it already marked.</summary>
+    /// <summary>The menu screen: the menu for the chefs placed, with what's on it already marked.</summary>
     /// <param name="onMenu">The dishes and drinks on the menu now (<see cref="InnSession.OnMenu"/>).</param>
     public static IReadOnlyList<InnAdvicePanel> Menu(InnSetupInputs inputs, InnSetupAdvice? advice, IReadOnlyCollection<string> onMenu, InnData data,
         Func<string, string> text)

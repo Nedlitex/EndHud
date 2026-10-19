@@ -6,20 +6,20 @@ namespace EndHud;
 /// <summary>What the setup advice can't be worked out without, said to the player instead of a guess.</summary>
 internal enum InnSetupGap
 {
-    /// <summary>营业设定 shows, but its theme couldn't be read (something covers it), and none is remembered.</summary>
+    /// <summary>The setup screen shows, but its theme couldn't be read (something covers it), and none is remembered.</summary>
     ThemeUnreadable,
 
-    /// <summary>No 营业设定 seen since the theme list (EndHud started on the menu, say).</summary>
+    /// <summary>No setup screen seen since the theme list (EndHud started on the menu, say).</summary>
     NoSetup,
 
-    /// <summary>营业设定 was read without its kitchens.</summary>
+    /// <summary>The setup screen was read without its kitchens.</summary>
     NoKitchens,
 }
 
 /// <summary>What a piece of setup advice works from: the planner's input, or what's missing.</summary>
 /// <param name="Input">Null when anything is missing (<paramref name="Gaps"/>): no plan from half a reading.</param>
 /// <param name="Key">Changes when the input does: the plan is worked out again only then.</param>
-/// <param name="RulesNotUnderstood">菜单要求 lines (as read) the planner couldn't take in: the plan ignores them, and the advice says so.</param>
+/// <param name="RulesNotUnderstood">Menu requirement lines (as read) the planner couldn't take in: the plan ignores them, and the advice says so.</param>
 internal sealed record InnSetupInputs(IReadOnlyList<InnSetupGap> Gaps, InnPlanInput? Input, string Key, IReadOnlyList<string> RulesNotUnderstood)
 {
     /// <summary>
@@ -34,9 +34,9 @@ internal sealed record InnSetupInputs(IReadOnlyList<InnSetupGap> Gaps, InnPlanIn
 /// cook, menu etc currently picked, UNTIL go back to pick theme page (or exit the inn mode)"), in
 /// memory only. The durable-store checklist:
 /// <list type="bullet">
-/// <item><b>Create:</b> from readings: 营业设定 gives the theme (name, rules, hot types, objective) and
-/// the kitchens with their places and placed chefs; the chef picker its kitchen; 菜单设定 each card
-/// seen (on the menu or not, its stock), the counters and 菜单要求.</item>
+/// <item><b>Create:</b> from readings: the setup screen gives the theme (name, rules, hot types, objective) and
+/// the kitchens with their places and placed chefs; the chef picker its kitchen; the menu screen each card
+/// seen (on the menu or not, its stock), the counters and the menu requirements.</item>
 /// <item><b>Read:</b> the setup advice (<see cref="ForSetup"/>, <see cref="ForMenu"/>) and the session's
 /// kitchens and menu (<see cref="InnSession"/>). A part never read is a gap, never a guess.</item>
 /// <item><b>Correct:</b> a newer clear reading of a part replaces it (a card by its id, the kitchens as
@@ -54,19 +54,19 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
     private (int Chosen, int Allowed)? _dishCounter, _drinkCounter;
     private bool _setupUnreadable;
 
-    /// <summary>The last clear reading of 营业设定 (its kitchens kept from an earlier reading when this one had none); null when none since the theme list.</summary>
+    /// <summary>The last clear reading of the setup screen (its kitchens kept from an earlier reading when this one had none); null when none since the theme list.</summary>
     public InnSetup? Setup { get; private set; }
 
-    /// <summary>The dishes and drinks on the menu (菜单设定's red frames), by id.</summary>
+    /// <summary>The dishes and drinks on the menu (the menu screen's red frames), by id.</summary>
     public IReadOnlyDictionary<string, MenuCard> Menu => _menu;
 
-    /// <summary>The kitchen whose chef picker was last read (厨房一 = 1); null when none.</summary>
+    /// <summary>The kitchen whose chef picker was last read (kitchen one = 1); null when none.</summary>
     public int? PickerKitchen { get; private set; }
 
-    /// <summary>Takes in a reading of a setup screen (营业设定, a chef picker, 菜单设定).</summary>
+    /// <summary>Takes in a reading of a setup screen (the setup screen, a chef picker, the menu screen).</summary>
     public void Take(InnReading reading)
     {
-        // The theme is unreadable only while 营业设定 showing it is; elsewhere the last clear reading stands.
+        // The theme is unreadable only while the setup screen showing it is; elsewhere the last clear reading stands.
         if (reading.Screen != InnScreenKind.Setup) _setupUnreadable = false;
         switch (reading.Screen)
         {
@@ -111,7 +111,7 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
         read.DishRules.Count > 0 ? read.DishRules : old.DishRules, read.Lines);
 
     /// <summary>
-    /// The kitchens as 营业设定 showed them, each with its places and the chefs placed there (kept by
+    /// The kitchens as the setup screen showed them, each with its places and the chefs placed there (kept by
     /// the plan): the named ones, then one unnamed place for each place seen taken whose chef wasn't
     /// named. A kitchen's places as read; when they couldn't be told, its taken places (a kitchen
     /// showing neither may be locked: left out, the cautious side).
@@ -130,12 +130,12 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
     ];
 
     /// <summary>
-    /// What the chefs' advice works from (营业设定's columns, the chef picker): the theme, its hot
+    /// What the chefs' advice works from (the setup screen's columns, the chef picker): the theme, its hot
     /// types and rules, and the kitchens with their places, the chefs already placed kept. Built in:
     /// every operator in the library who can cook (Si and the Endministrator can't), and every dish
     /// and drink the Inn Rating unlocks, with those a theme's stars unlock (whether the player has
     /// them can't be seen: the advice names substitutes). The menu screen, when seen, refines it:
-    /// each card's stock, the rating and the rules as 菜单要求 states them.
+    /// each card's stock, the rating and the rules as the menu requirements state them.
     /// </summary>
     public InnSetupInputs ForSetup()
     {
@@ -149,7 +149,7 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
     }
 
     /// <summary>
-    /// What the menu advice works from (菜单设定): as <see cref="ForSetup"/>, but for the chefs actually
+    /// What the menu advice works from (the menu screen): as <see cref="ForSetup"/>, but for the chefs actually
     /// placed: only kitchens with a chef, each exactly as it is. With no chef placed anywhere, the
     /// chefs are planned too (<see cref="InnSetupInputs.ChefsPlanned"/>).
     /// </summary>
@@ -173,7 +173,7 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
         var drinks = data.Drinks.Where(d => d.Unlock.Rating is not { } needs || needs <= rating || _offered.ContainsKey(d.Id))
             .Select(d => new MenuDrink(d, d.Unlimited ? null : Stock(d.Id))).ToList();
 
-        // The theme's rules (a trait's or a dish type's): as 营业设定 states them, and as the menu screen does.
+        // The theme's rules (a trait's or a dish type's): as the setup screen states them, and as the menu screen does.
         var setupRules = DishRule.ParseAll(setup.MenuRules, data);
         var dishRules = setupRules.Rules.Concat(r?.DishRules ?? [])
             .DistinctBy(t => $"{t.Count}:{string.Join("/", t.AnyOf)}").ToList();

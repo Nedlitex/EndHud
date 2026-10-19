@@ -64,12 +64,12 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The owner's 养身心 setup, read by the real readers: 营业设定 alone gives a panel under each
+    /// The owner's recorded setup, read by the real readers: the setup screen alone gives a panel under each
     /// kitchen (owner, 2026-10-19), planned around the chefs placed (kitchen 1 full with Perlica and
     /// Avywenna, Chen Qianyu in kitchen 2, kitchen 3 empty); the chef picker for kitchen 1 is told by
     /// its title and shows kitchen 1's advice; the menu screen's two frames then give the menu for
     /// the chefs placed, meeting every requirement on screen (Rating 4: at least 3 types, 6 dishes
-    /// and 3 drinks; 养身心: at least 2 [素食] or [滋补] dishes).
+    /// and 3 drinks; the recorded theme: at least 2 Veggy or Rich dishes).
     /// </summary>
     [Fact]
     public async Task The_setup_picker_and_menu_screens_give_their_own_advice_from_what_was_read()
@@ -129,11 +129,11 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The owner's 舌上清流 (owner's screenshot, menu-soup-theme.jpg): the theme's soup rule and Rating
-    /// 4's requirements are read off 菜单设定 by the real readers (the setup is given as remembered
-    /// from 营业设定: Chen Qianyu in kitchen 1, its rules and hot types left out, so the rule can only
+    /// The owner's soup theme (owner's screenshot, menu-soup-theme.jpg): the theme's soup rule and Rating
+    /// 4's requirements are read off the menu screen by the real readers (the setup is given as remembered
+    /// from the setup screen: Chen Qianyu in kitchen 1, its rules and hot types left out, so the rule can only
     /// have come from the frame). The menu planned for Chen Qianyu's kitchen meets every rule: at
-    /// least one 汤羹, 3 types, 6 dishes, 3 drinks.
+    /// least one soup, 3 types, 6 dishes, 3 drinks.
     /// </summary>
     [Fact]
     public async Task The_soup_themes_menu_screen_gives_a_menu_for_the_chefs_placed_with_a_soup()

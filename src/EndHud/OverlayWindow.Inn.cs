@@ -16,7 +16,7 @@ namespace EndHud;
 /// top-left corner as a fraction of the game window, shown as a sample and draggable while the menu
 /// is open out of the inn. The setup advice: small panels where the game shows the choice they're
 /// about (<see cref="InnSetupView"/>, placed by <see cref="InnAdviceLayout"/>): under each kitchen's
-/// card on 营业设定, in a chef picker, on 菜单设定; nothing on the theme list. Their plans are worked
+/// card on the setup screen, in a chef picker, on the menu screen; nothing on the theme list. Their plans are worked
 /// out off the UI thread (<see cref="InnSetupPlanning"/>), one for the chefs and one for the menu.
 /// They follow the game's layout, so they aren't dragged. All share one size and opacity; text only.
 /// </summary>
@@ -25,7 +25,7 @@ public partial class OverlayWindow
     private InnSession? _innSession;
     private OperatorLibrary? _innLibrary; // the library the session was made with
     private bool _innOnScreen; // the last reading was a session frame
-    private InnScreenKind? _innSetupScreen; // the last reading's screen when it was 营业设定, a chef picker or 菜单设定
+    private InnScreenKind? _innSetupScreen; // the last reading's screen when it was the setup screen, a chef picker or the menu screen
     private string? _innKey, _innSetupKey;
     private InnSetupPlanning? _innChefPlanning, _innMenuPlanning;
     private readonly Dictionary<InnAdviceSpot, Border> _innAdviceFrames = [];
@@ -136,7 +136,7 @@ public partial class OverlayWindow
     }
 
     /// <summary>
-    /// The setup advice: on 营业设定, a chef picker and 菜单设定, the panels for that screen, from the
+    /// The setup advice: on the setup screen, a chef picker and the menu screen, the panels for that screen, from the
     /// plans for what's remembered of the setup (asked for off the UI thread when their inputs
     /// change; drawn again when ready); nothing on any other screen.
     /// </summary>

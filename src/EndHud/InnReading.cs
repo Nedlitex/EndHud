@@ -28,13 +28,13 @@ internal sealed record InnReading(InnScreenKind Screen, TimeSpan At, SessionCloc
 {
     public IReadOnlyList<TableCard?> TableCards => Tables ?? [];
 
-    /// <summary>On a chef picker: the kitchen it's for (厨房一 = 1), read off its title; null when unread or between reads.</summary>
+    /// <summary>On a chef picker: the kitchen it's for (kitchen one = 1), read off its title; null when unread or between reads.</summary>
     public int? PickerKitchen { get; init; }
 
     /// <summary>A session frame (with or without the dispatch panel over it).</summary>
     public bool InSession => Screen is InnScreenKind.Session or InnScreenKind.DispatchPanel;
 
-    /// <summary>A screen before the session with advice on it: 营业设定, a chef picker, the menu (not the theme list).</summary>
+    /// <summary>A screen before the session with advice on it: the setup screen, a chef picker, the menu (not the theme list).</summary>
     public bool OnSetupScreens => Screen is InnScreenKind.Setup or InnScreenKind.ChefPicker or InnScreenKind.Menu;
 }
 
@@ -58,7 +58,7 @@ internal interface IInnScreens
 
     Task<InnSetup?> ReadSetupAsync(Frame frame);
 
-    /// <summary>The kitchen a chef picker is for, off its title (厨房一 = 1); null when unread.</summary>
+    /// <summary>The kitchen a chef picker is for, off its title (kitchen one = 1); null when unread.</summary>
     Task<int?> ReadPickerKitchenAsync(Frame frame);
 
     Task<InnMenu?> ReadMenuAsync(Frame frame);

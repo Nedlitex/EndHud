@@ -46,8 +46,11 @@ public static partial class InnScreen
         return PickerKitchen(await text.ReadAsync(frame, layout.TopLeft(Title), TimerInk, layout.Scale) ?? "");
     }
 
-    /// <summary>"厨房二" → 2; null for a title naming no kitchen.</summary>
-    internal static int? PickerKitchen(string title) => KitchenTitle().Match(title) is { Success: true } m ? "一二三".IndexOf(m.Groups[1].Value[0]) + 1 : null;
+    /// <summary>The kitchen a picker's title names (kitchen two: 2); null for a title naming no kitchen.</summary>
+    internal static int? PickerKitchen(string title) => KitchenTitle().Match(title) is { Success: true } m ? KitchenNumerals.IndexOf(m.Groups[1].Value[0]) + 1 : null;
+
+    /// <summary>The Chinese numerals one, two and three, as the kitchens' titles write them.</summary>
+    private const string KitchenNumerals = "\u4e00\u4e8c\u4e09";
 
     /// <summary>The session's time left, or null when no timer is read (not in a session, or covered).</summary>
     public static SessionClock? ReadClock(Frame frame)

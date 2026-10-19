@@ -9,15 +9,15 @@ namespace EndHud.Tests;
 /// menu etc currently picked, UNTIL go back to pick theme page (or exit the inn mode), so when we
 /// change pages, you don't show unknown because the theme page is gone"). The theme, its rules and
 /// hot types, the kitchens with their placed chefs, the menu and its requirements are each taken
-/// from a clear reading of their screen and kept across 营业设定, the chef picker, 菜单设定 and the
-/// session; forgotten on the theme list (主题设定) or when no inn screen has shown for
+/// from a clear reading of their screen and kept across the setup screen, the chef picker, the menu screen and the
+/// session; forgotten on the theme list or when no inn screen has shown for
 /// <see cref="InnSession.ForgetAfter"/>.
 /// </summary>
 public class InnSetupMemoryTests
 {
     private const string Chen = "Chen_Qianyu";
 
-    /// <summary>营业设定 for 舌上清流: Chen Qianyu in kitchen 1, kitchens 2 and 3 empty.</summary>
+    /// <summary>The setup screen for the soup theme: Chen Qianyu in kitchen 1, kitchens 2 and 3 empty.</summary>
     private static InnReading Setup(double at, params SetupKitchen[] kitchens) =>
         new(InnScreenKind.Setup, S(at), Setup: new InnSetup("舌上清流", Inn.Themes.FirstOrDefault(t => t.Zh == "舌上清流"), "出售10道[汤羹]类菜品",
             ["至少有1道[汤羹]类菜品"], ["Soup", InnData.Drink],
@@ -30,7 +30,7 @@ public class InnSetupMemoryTests
 
     private static InnReading Picker(double at, int? kitchen, bool fresh = true) => new(InnScreenKind.ChefPicker, S(at), Fresh: fresh) { PickerKitchen = kitchen };
 
-    /// <summary>菜单设定: two soups on the menu, Rating 4's requirements and the soup rule read.</summary>
+    /// <summary>The menu screen: two soups on the menu, Rating 4's requirements and the soup rule read.</summary>
     private static InnReading Menu(double at) =>
         new(InnScreenKind.Menu, S(at), Menu: new InnMenu(MenuTab.AllDishes, (2, 8), (0, 8),
             [new MenuCard("melon-meatball-soup", "白瓜肉丸汤", true, true, null), new MenuCard("fin-mato-soup", "茄果鳞肉汤", true, true, null)]),

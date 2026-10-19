@@ -9,8 +9,8 @@ namespace EndHud.Tests;
 /// Where the setup advice shows and what it says (owner, live test 2026-10-19: "recommendation for
 /// cook only shows when picking cook, and the cook for each kitchen shows under each kitchen, not as
 /// a single panel. and then in the choose menu window, shows the recommended menu based on current
-/// state"). On 营业设定 one small panel under each kitchen's card with only that kitchen's chefs; in a
-/// chef picker that kitchen's; on 菜单设定 the menu for the chefs placed; nothing on the theme list.
+/// state"). On the setup screen one small panel under each kitchen's card with only that kitchen's chefs; in a
+/// chef picker that kitchen's; on the menu screen the menu for the chefs placed; nothing on the theme list.
 /// Real plans over the whole built-in roster and dish list (<see cref="InnSetupView"/>).
 /// </summary>
 public class InnSetupViewTests(ITestOutputHelper output)
@@ -25,12 +25,12 @@ public class InnSetupViewTests(ITestOutputHelper output)
         new(n, 2, [.. ids, .. Enumerable.Repeat<string?>(null, 2 - ids.Length)], [.. ids.Select(id => Library.Operators.Single(o => o.Id == id).NameZh), .. Enumerable.Repeat<string?>(null, 2 - ids.Length)])
         { ChefsPlaced = ids.Length };
 
-    /// <summary>营业设定 for 舌上清流 (at least one 汤羹 dish; 热门 汤羹 and 饮品) with these kitchens.</summary>
+    /// <summary>The setup screen for the soup theme (at least one soup dish; hot: soup and drinks) with these kitchens.</summary>
     private static InnReading Soup(double at, params SetupKitchen[] kitchens) =>
         new(InnScreenKind.Setup, S(at), Setup: new InnSetup("舌上清流", Inn.Themes.FirstOrDefault(t => t.Zh == "舌上清流"), "出售10道[汤羹]类菜品",
             ["至少有1道[汤羹]类菜品"], ["Soup", InnData.Drink], kitchens));
 
-    /// <summary>菜单设定: 白瓜肉丸汤 already on the menu; Rating 4's requirements and the soup rule.</summary>
+    /// <summary>The menu screen: a soup already on the menu; Rating 4's requirements and the soup rule.</summary>
     private static InnReading MenuScreen(double at) =>
         new(InnScreenKind.Menu, S(at), Menu: new InnMenu(MenuTab.AllDishes, (1, 8), (0, 8), [new MenuCard("melon-meatball-soup", "白瓜肉丸汤", true, true, null)]),
             Requirements: new MenuRequirements(4, 3, 6, 3, [new DishRule(1, ["Soup"])], []));
@@ -42,14 +42,14 @@ public class InnSetupViewTests(ITestOutputHelper output)
         return session;
     }
 
-    /// <summary>The owner's case: 舌上清流, Chen Qianyu placed in kitchen 1, kitchens 2 and 3 empty.</summary>
+    /// <summary>The owner's case: the soup theme, Chen Qianyu placed in kitchen 1, kitchens 2 and 3 empty.</summary>
     private static readonly Lazy<(InnSession Session, InnSetupAdvice Chefs, InnSetupAdvice Menu)> ChenInKitchen1 = new(() =>
     {
         var session = Session(Soup(0, With(1, Chen), Empty(2), Empty(3)), MenuScreen(2));
         return (session, InnSetupAdvice.For(Planner, session.SetupInputs().Input!), InnSetupAdvice.For(Planner, session.MenuInputs().Input!));
     });
 
-    /// <summary>Kitchen 1 full (Perlica, Avywenna), Chen Qianyu in kitchen 2, kitchen 3 empty: the owner's 养身心 line-up, for 舌上清流.</summary>
+    /// <summary>Kitchen 1 full (Perlica, Avywenna), Chen Qianyu in kitchen 2, kitchen 3 empty: the owner's recorded line-up, under the soup theme.</summary>
     private static readonly Lazy<(InnSession Session, InnSetupAdvice Chefs)> Kitchen1Full = new(() =>
     {
         var session = Session(Soup(0, With(1, "Perlica", "Avywenna"), With(2, Chen), Empty(3)));
@@ -69,7 +69,7 @@ public class InnSetupViewTests(ITestOutputHelper output)
             .Where(s => s.PictureId?.StartsWith(InnSetupView.OperatorPicture, StringComparison.Ordinal) == true)
             .Select(s => s.PictureId![InnSetupView.OperatorPicture.Length..])];
 
-    // ---- 营业设定: a panel under each kitchen ----
+    // ---- The setup screen: a panel under each kitchen ----
 
     [Fact]
     public void The_setup_screen_has_a_panel_under_each_kitchen_with_only_its_chefs()
@@ -88,7 +88,7 @@ public class InnSetupViewTests(ITestOutputHelper output)
         Assert.Equal(recommended.Count, recommended.Distinct().Count());
         Assert.DoesNotContain(Chen, panels.SelectMany(p => Chefs(p, "推荐：").Concat(Chefs(p, "可换："))));
         Assert.All(panels, p => Assert.InRange(Chefs(p, "可换：").Count, 1, InnSuggester.MaxSubstitutes));
-        // Every panel: what it cooks, then 推荐 and 可换; names only, every chef with their avatar; no other kitchen named.
+        // Every panel: what it cooks, then the recommended and substitutes rows; names only, every chef with their avatar; no other kitchen named.
         Assert.All(panels, p => Assert.Matches(@"^做(主食|菜肴|汤羹|甜品)(、(主食|菜肴|汤羹|甜品))*$", p.Model.Lines[0].Text));
         Assert.All(panels, p => Assert.Equal(["推荐：", "可换："], p.Model.Lines.Skip(1).Select(l => l.Text[..3])));
         Assert.All(panels, p => Assert.DoesNotContain(p.Model.Lines, l => l.Text.Contains("厨房")));
@@ -175,12 +175,12 @@ public class InnSetupViewTests(ITestOutputHelper output)
         Assert.Equal(["看不清是哪个厨房的干员选择"], Lines(panel));
     }
 
-    // ---- 菜单设定: the menu for the chefs placed ----
+    // ---- The menu screen: the menu for the chefs placed ----
 
     /// <summary>
-    /// 舌上清流 with Chen Qianyu in kitchen 1: the menu is planned for her kitchen alone, meets every
-    /// rule (Rating 4: ≥3 types, ≥6 dishes, ≥3 drinks; 舌上清流: ≥1 汤羹), marks what's on the menu
-    /// already, and has a short 可换 row under the dishes and under the drinks.
+    /// The soup theme with Chen Qianyu in kitchen 1: the menu is planned for her kitchen alone, meets every
+    /// rule (Rating 4: ≥3 types, ≥6 dishes, ≥3 drinks; the soup theme: ≥1 soup), marks what's on the menu
+    /// already, and has a short substitutes row under the dishes and under the drinks.
     /// </summary>
     [Fact]
     public void The_menu_screen_shows_the_menu_for_the_chefs_placed_meeting_every_rule()

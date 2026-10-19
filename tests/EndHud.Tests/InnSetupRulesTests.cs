@@ -5,7 +5,7 @@ using static EndHud.Tests.InnTestKit;
 namespace EndHud.Tests;
 
 /// <summary>
-/// The setup advice under a dish-type rule (owner, live, 2026-10-19): theme 舌上清流, 菜单要求
+/// The setup advice under a dish-type rule (owner, live, 2026-10-19): the soup theme, its menu requirement
 /// "至少有1道[汤羹]类菜品", 热门 汤羹 and 饮品. The panel's menu had no 汤羹 dish: the rule wasn't
 /// understood and was silently dropped. No fixture frame of this theme exists: the setup screen is
 /// given as the reader returns it (its lines and its 热门 ids), see InnDishTypeRuleTests for the

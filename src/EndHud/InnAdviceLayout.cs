@@ -8,13 +8,13 @@ namespace EndHud;
 /// setup screens out on the window's centred 16:9 area, scaled with it (as the inn's readers
 /// assume, see InnLayout); each spot is a fraction of that area, measured on the 4K fixtures:
 /// <list type="bullet">
-/// <item><b>Under a kitchen's card</b> (营业设定, setup-chefs-placed.jpg; the owner's 4K screenshot): the
-/// cards stand at x 0.418–0.588, 0.594–0.764 and 0.771–0.941; under a card's 干员加成 rows (or under
-/// "安排干员+" of an empty card, at y 0.53) the card is blank from y ≈ 0.66 to its bottom edge at
+/// <item><b>Under a kitchen's card</b> (the setup screen, setup-chefs-placed.jpg; the owner's 4K screenshot): the
+/// cards stand at x 0.418–0.588, 0.594–0.764 and 0.771–0.941; under a card's chef bonus rows (or under
+/// the place-a-chef button of an empty card, at y 0.53) the card is blank from y ≈ 0.66 to its bottom edge at
 /// 0.865. The spot is y 0.665–0.855, inset from the card's sides.</item>
-/// <item><b>The chef picker</b> (chef-picker.jpg): right of the grid, under 干员加成总览, blank from
+/// <item><b>The chef picker</b> (chef-picker.jpg): right of the grid, under the chef bonus overview, blank from
 /// y ≈ 0.68 (below the most bonus rows two chefs can have) to the bottom bar at 0.86; x 0.33–0.97.</item>
-/// <item><b>菜单设定</b> (menu-soup-theme.jpg, menu-dishes.jpg): the left column under 主题加分项,
+/// <item><b>The menu screen</b> (menu-soup-theme.jpg, menu-dishes.jpg): the left column under the theme bonus,
 /// blank from y ≈ 0.60 to the menu bar at 0.835; x 0.06–0.38.</item>
 /// </list>
 /// </summary>
