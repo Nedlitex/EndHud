@@ -38,6 +38,12 @@ public static partial class InnScreen
         return ReadTime(frame, layout, TimerBelowButton) is not null ? InnScreenKind.Session : null;
     }
 
+    /// <summary>The kitchen (1–3) whose chef picker is showing, from its title; null when unread.</summary>
+    public static Task<int?> ReadPickerKitchenAsync(InnText text, Frame frame) => Task.FromResult<int?>(null);
+
+    /// <summary>"厨房二" → 2; null for a title naming no kitchen.</summary>
+    internal static int? PickerKitchen(string title) => null;
+
     /// <summary>The session's time left, or null when no timer is read (not in a session, or covered).</summary>
     public static SessionClock? ReadClock(Frame frame)
     {

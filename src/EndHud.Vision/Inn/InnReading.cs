@@ -6,8 +6,11 @@ namespace EndHud.Vision.Inn;
 /// </summary>
 public enum InnScreenKind
 {
-    /// <summary>营业设定 (and the theme list before it, 主题设定): theme, kitchens and chefs.</summary>
+    /// <summary>营业设定: the theme's details, the kitchens and their chefs.</summary>
     Setup,
+
+    /// <summary>主题设定: the list of themes, before 营业设定. Choosing here starts a new setup.</summary>
+    ThemeList,
 
     /// <summary>A kitchen's chef picker (厨房一 … with the operator grid).</summary>
     ChefPicker,

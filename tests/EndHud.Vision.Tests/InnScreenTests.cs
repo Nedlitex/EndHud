@@ -17,7 +17,7 @@ public class InnScreenTests
 
     public static TheoryData<string, InnScreenKind, string?> Frames() => new()
     {
-        { "setup-theme", InnScreenKind.Setup, null },
+        { "setup-theme", InnScreenKind.ThemeList, null },
         { "setup-chefs-placed", InnScreenKind.Setup, null },
         { "chef-picker", InnScreenKind.ChefPicker, null },
         { "menu-dishes", InnScreenKind.Menu, null },
@@ -72,6 +72,25 @@ public class InnScreenTests
         Assert.Null(await InnScreen.DetectAsync(Text, frame));
         Assert.Null(InnScreen.ReadClock(frame));
     }
+
+    /// <summary>The chef picker's title names its kitchen (厨房一): the panel there is that kitchen's advice.</summary>
+    [Theory]
+    [MemberData(nameof(Screens))]
+    public async Task The_chef_pickers_kitchen_is_read(string screenName)
+    {
+        var screen = SimulatedScreen.Named(screenName);
+        var frame = await Load("chef-picker");
+
+        Assert.Equal(1, await InnScreen.ReadPickerKitchenAsync(Text, screen == SimulatedScreen.Uhd ? frame : screen.Render(frame)));
+    }
+
+    [Theory]
+    [InlineData("厨房一", 1)]
+    [InlineData("//厨房二", 2)]
+    [InlineData("厨房三", 3)]
+    [InlineData("厨房", null)]
+    [InlineData("营业设定", null)]
+    public void A_pickers_title_names_its_kitchen(string title, int? kitchen) => Assert.Equal(kitchen, InnScreen.PickerKitchen(title));
 
     private static async Task AssertRead(Frame frame, InnScreenKind kind, string? time, string what)
     {
