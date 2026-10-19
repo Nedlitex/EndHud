@@ -13,9 +13,9 @@ namespace EndHud;
 /// The inn helper's two overlays. The strip: during an inn session, which dishes to queue in each
 /// kitchen, when to start Full Blaze, and what a gourmand asks for (<see cref="InnSession"/>,
 /// <see cref="InnStripView"/>), shown only on the session's frames (never in a fight). The setup
-/// panel: on the setup, chef picker and menu screens, which chefs to put in each kitchen and which
-/// dishes and drinks to put on the menu (<see cref="InnSetupPlanning"/>, <see cref="InnSetupView"/>),
-/// worked out off the UI thread. Both are text only, shown as samples while the menu is open out of
+/// panel: on the setup, chef picker and menu screens, tier lists of the chefs for each kitchen and
+/// the dishes and drinks for the menu, from the built-in roster and dish list
+/// (<see cref="InnSetupPlanning"/>, <see cref="InnSetupView"/>), worked out off the UI thread. Both are text only, shown as samples while the menu is open out of
 /// the inn, placed by their top-left corners as fractions of the game window, draggable while the
 /// menu is open, and share one size and opacity.
 /// </summary>
@@ -100,7 +100,8 @@ public partial class OverlayWindow
             _innLibrary = library;
             _innPictures.Clear();
             _innSession = new InnSession(data, library.Operators);
-            _innSetupPlanning = new InnSetupPlanning(new InnPlanner(data).Plan);
+            var planner = new InnPlanner(data);
+            _innSetupPlanning = new InnSetupPlanning(input => InnSetupAdvice.For(planner, input));
         }
         return _innSession;
     }
@@ -141,11 +142,11 @@ public partial class OverlayWindow
         InnStripModel? model = null;
         if (_config.InnHelperEnabled)
         {
-            if (_innSetupOnScreen && _innSession is { } session && _innSetupPlanning is { } planning)
+            if (_innSetupOnScreen && _innSession is { } session && _innSetupPlanning is { } planning && _innLibrary?.Inn is { } inn)
             {
                 var inputs = session.SetupInputs();
                 planning.Request(inputs, () => Dispatcher.BeginInvoke(RenderInnSetup));
-                model = InnSetupView.Build(inputs, planning.Showable(inputs), Loc.Get, _party.InnProblem);
+                model = InnSetupView.Build(inputs, planning.Showable(inputs), inn, Loc.Get, _party.InnProblem);
             }
             else if (_menuOpen && !_innOnScreen && !_innSetupOnScreen)
                 model = InnSetupView.Sample(_party.Identifier?.Library.Inn, _party.Identifier?.Library.Operators ?? [], Loc.Get);

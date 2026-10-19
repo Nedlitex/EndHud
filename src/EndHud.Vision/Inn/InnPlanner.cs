@@ -38,7 +38,20 @@ public sealed partial record TraitRule(int Count, IReadOnlyList<string> AnyOf)
 /// (<see cref="TraitRule.Parse"/>).
 /// </summary>
 /// <param name="MinTypes">Dish types (主食, 菜肴, 汤羹, 甜品) on the menu at least ("≥3 types" at Rating 4).</param>
-public sealed record MenuRules(int MinDishes, int MaxDishes, int MinDrinks, int MaxDrinks, int MinTypes, IReadOnlyList<TraitRule> TraitRules);
+public sealed record MenuRules(int MinDishes, int MaxDishes, int MinDrinks, int MaxDrinks, int MinTypes, IReadOnlyList<TraitRule> TraitRules)
+{
+    /// <summary>The most dishes, and drinks, a menu has been seen to allow (the menu screen's counters "N/8" at Rating 4).</summary>
+    public const int MostSeen = 8;
+
+    /// <summary>
+    /// An Inn Rating's own rules, for when the menu screen's 菜单要求 hasn't been read, with the
+    /// theme's <paramref name="traitRules"/>. Known only for Rating 4, as test_yuanyuan2's menu screen
+    /// states them: at least 3 dish types, 6 dishes and 3 drinks, and 8 of each at most. Null for a
+    /// rating not seen yet (never guessed).
+    /// </summary>
+    public static MenuRules? OfRating(int rating, IReadOnlyList<TraitRule> traitRules) =>
+        rating == 4 ? new MenuRules(6, MostSeen, 3, MostSeen, 3, traitRules) : null;
+}
 
 /// <summary>Everything the planner works from.</summary>
 /// <param name="HotTraits">热门特性 as read (trait ids), or the theme's preferences when none were read (<see cref="InnPlanner.HotTraitsOf"/>).</param>

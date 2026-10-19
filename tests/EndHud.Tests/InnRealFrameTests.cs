@@ -64,12 +64,13 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
     }
 
     /// <summary>
-    /// C1 on the owner's 养身心 setup: 营业设定, 厨房一's chef picker, the menu's dishes and its drinks,
-    /// read by the real readers, give a plan that meets every requirement on screen and uses only
-    /// the chefs, dishes and drinks the screens showed.
+    /// The owner's 养身心 setup, read by the real readers: 营业设定 alone gives the panel's tier
+    /// lists (no chef picker, no menu screen needed; owner, 2026-10-19), meeting every requirement
+    /// on screen (Rating 4: at least 3 types, 6 dishes and 3 drinks; 养身心: at least 2 [素食] or
+    /// [滋补] dishes). With the menu screen's two frames seen as well, still the same shape.
     /// </summary>
     [Fact]
-    public async Task The_setup_screens_give_a_plan_of_only_what_they_showed_meeting_every_rule()
+    public async Task The_setup_screen_alone_gives_tier_lists_meeting_every_rule()
     {
         var (monitor, raised) = await Monitor();
         double at = 0;
@@ -79,33 +80,16 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
             at += 3;
         }
         await Show("setup-chefs-placed");
-        // The picker's portraits are compared with the avatars once those are described for this
-        // window size, in the background (seconds on a first start): until then its cards stay
-        // unnamed, and the screen is read again every two seconds, as here.
-        await Show("chef-picker");
-        for (int tries = 0; tries < 120 && raised[^1]!.Picker!.Cards.All(c => c.OperatorId is null); tries++)
-        {
-            await Task.Delay(500);
-            await Show("chef-picker");
-        }
-        await Show("menu-dishes");
-        await Show("menu-drinks");
-        var picker = raised.Last(r => r!.Picker is not null)!.Picker!;
+        await Show("chef-picker"); // told apart, nothing read
+        Assert.Equal(InnScreenKind.ChefPicker, raised[^1]!.Screen);
 
         var session = NewSession();
         foreach (var reading in raised) session.Update(reading!);
         var inputs = session.SetupInputs();
         Assert.Empty(inputs.Gaps);
-        var plan = new InnPlanner(Inn).Plan(inputs.Input!);
+        var advice = InnSetupAdvice.For(new InnPlanner(Inn), inputs.Input!);
+        var plan = advice.Plan;
 
-        // The chefs shown: the picker's named cards and chosen chefs, and the one placed in kitchen 2.
-        var shown = picker.Named.Append("Chen_Qianyu").ToHashSet();
-        Assert.Equal(15, shown.Count);
-        Assert.All(plan.Kitchens.SelectMany(k => k.Chefs), c => Assert.Contains(c.Id, shown));
-        var offered = raised.Where(r => r!.Menu is not null).SelectMany(r => r!.Menu!.Cards).Select(c => c.Id).ToHashSet();
-        Assert.All(plan.Dishes, d => Assert.Contains(d.Dish.Id, offered));
-        Assert.All(plan.Drinks, d => Assert.Contains(d.Drink.Id, offered));
-        // 菜单要求: Rating 4 (≥3 types, ≥6 dishes and 3 drinks) and 养身心's ≥2 [素食] or [滋补] dishes.
         Assert.True(plan.RulesMet);
         Assert.InRange(plan.Dishes.Count, 6, 8);
         Assert.InRange(plan.Drinks.Count, 3, 8);
@@ -113,10 +97,18 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
         Assert.True(plan.Dishes.Count(d => d.Dish.Traits.Contains("Veggy") || d.Dish.Traits.Contains("Rich")) >= 2);
         Assert.Equal(6, plan.Kitchens.Sum(k => k.Chefs.Count));
 
-        var lines = InnSetupView.Build(inputs, plan, Text).Lines.Select(l => l.Text).ToList();
+        var lines = InnSetupView.Build(inputs, advice, Inn, Text).Lines.Select(l => l.Text).ToList();
         foreach (string line in lines) output.WriteLine(line);
-        output.WriteLine($"picker named {picker.Cards.Count(c => c.OperatorId is not null)} of {picker.Cards.Count} cards, chosen {string.Join(" ", picker.Selected)}");
-        Assert.Equal(["缘缘庄 · 推荐", "厨房一：", "厨房二：", "厨房三：", "菜单：", "饮品："], lines.Select(l => l.Contains('：') ? l[..(l.IndexOf('：') + 1)] : l));
+        Assert.Equal("缘缘庄 · 推荐（没有的干员/菜换同档的）", lines[0]);
+        Assert.Equal(["厨房一", "厨房二", "厨房三", "菜单：", "饮品："], lines.Skip(1).Select(l => l.StartsWith("厨房") ? l[..3] : l[..(l.IndexOf('：') + 1)]));
+
+        // The menu screen seen too: it refines (stock, the rules as stated), the panel keeps its shape.
+        await Show("menu-dishes");
+        await Show("menu-drinks");
+        foreach (var reading in raised.Skip(2)) session.Update(reading!);
+        var refined = session.SetupInputs();
+        Assert.Empty(refined.Gaps);
+        Assert.Equal((6, 3, 3), (refined.Input!.Rules.MinDishes, refined.Input.Rules.MinDrinks, refined.Input.Rules.MinTypes));
     }
 
     [Fact]

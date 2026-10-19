@@ -33,18 +33,6 @@ internal enum InnSetupGap
 
     /// <summary>The theme list was seen, not 营业设定 with its kitchens.</summary>
     NoKitchens,
-
-    /// <summary>No chef picker read yet, or it named nobody.</summary>
-    NoChefs,
-
-    /// <summary>No dish of the menu screen seen.</summary>
-    NoMenu,
-
-    /// <summary>The menu needs drinks and no drink of the menu screen has been seen (its 饮品 tab).</summary>
-    NoDrinks,
-
-    /// <summary>The menu screen was seen, its 菜单要求 not read whole.</summary>
-    MenuRulesUnreadable,
 }
 
 /// <summary>What the setup panel works from: the planner's input, or what's missing.</summary>
@@ -96,14 +84,12 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     private readonly Dictionary<string, MenuCard> _menu = [];
     private bool _sessionSinceSetup;
     // For the setup panel: every dish and drink card the menu screen showed (on the menu or not),
-    // its requirements and counters, whether the setup screen's last reading failed, and the chefs
-    // seen (cleared when the setup screens close: a session starts, or none shows for EndAfter).
+    // its requirements and counters, and whether the setup screen's last reading failed. The menu
+    // screen only refines the plan (stock, the rules as stated); it's never needed.
     private readonly Dictionary<string, MenuCard> _offered = [];
     private MenuRequirements? _requirements;
     private (int Chosen, int Allowed)? _dishCounter, _drinkCounter;
     private bool _setupUnreadable;
-    private readonly ChefPickerMemory _chefs = new();
-    private TimeSpan? _setupScreensAt;
 
     // The session.
     private TimeSpan _lastSessionFrame, _advancedTo;
@@ -139,7 +125,6 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// <summary>Takes in one reading of the inn.</summary>
     public void Update(InnReading reading)
     {
-        if (reading.OnSetupScreens) _setupScreensAt = reading.At;
         // The theme is unreadable only while the setup screen showing it is; elsewhere the last good reading stands.
         if (reading.Screen != InnScreenKind.Setup) _setupUnreadable = false;
         switch (reading.Screen)
@@ -161,7 +146,6 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
                     }
                     // The theme list shows no kitchens; keep the ones the kitchens' screen showed.
                     _setup = setup.Kitchens is null && _setup?.Kitchens is { } kitchens ? setup with { Kitchens = kitchens } : setup;
-                    if (setup.Kitchens is { } placed) _chefs.TakePlaced(placed.SelectMany(k => k.Chefs));
                 }
                 return;
             case InnScreenKind.Menu:
@@ -178,8 +162,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
                 if (reading.Requirements is { } requirements) _requirements = Merge(_requirements, requirements);
                 return;
             case InnScreenKind.ChefPicker:
-                LeaveSession();
-                if (reading.Picker is { } picker) _chefs.Take(picker);
+                LeaveSession(); // nothing on it is needed: the panel works from the built-in roster
                 return;
         }
 
@@ -200,12 +183,6 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     public void Tick(TimeSpan now)
     {
         if (Active && now - _lastSessionFrame > EndAfter) LeaveSession();
-        // The setup screens closed without a session (the player left): the chefs are seen afresh next time.
-        if (!Active && _setupScreensAt is { } at && now - at > EndAfter)
-        {
-            _chefs.Clear();
-            _setupScreensAt = null;
-        }
     }
 
     /// <summary>A newer reading of the requirements, what it missed taken from the older (the numbers don't change, only their colours).</summary>
@@ -215,9 +192,6 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
 
     private void StartSession(TimeSpan at)
     {
-        // The setup screens closed into a session.
-        _chefs.Clear();
-        _setupScreensAt = null;
         ClearSession();
         Active = true;
         _sessionSinceSetup = true;
@@ -461,50 +435,48 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     }
 
     /// <summary>
-    /// What the setup panel works from (plan S6): the theme's hot traits and kitchens (营业设定), the
-    /// chefs the picker showed and those placed, the dishes and drinks the menu screen showed with
-    /// their stock, the menu's requirements and the Inn Rating (菜单要求). Anything missing is a gap
-    /// and there's no input: nothing is planned from half a reading.
+    /// What the setup panel works from (plan S6; owner, 2026-10-19). From the setup screen: the theme,
+    /// its hot traits and rules, and the kitchens with their places (营业设定). Built in: every operator
+    /// in the library who can cook (Si and the Endministrator can't), and every dish and drink the
+    /// Inn Rating unlocks, with those a theme's stars unlock (whether the player has them can't be
+    /// seen: the tiers name others of the same worth). The menu screen, when seen, only refines it:
+    /// each card's stock, the rating and the rules as 菜单要求 states them. Nothing asks the player
+    /// to open a screen or scroll to feed it; a missing theme or kitchens is a gap, never a guess.
     /// </summary>
     public InnSetupInputs SetupInputs()
     {
         // A setup screen that can't be read says only that.
         if (_setupUnreadable) return new InnSetupInputs([InnSetupGap.ThemeUnreadable], null, "theme-unreadable");
-        var gaps = new List<InnSetupGap>();
         // A kitchen's places as read; when they couldn't be told, the chefs placed there (a kitchen
         // showing neither may be locked: left out, the cautious side).
-        var kitchens = (_setup?.Kitchens ?? []).Select(k => new PlanKitchen(k.Number, Math.Min(KitchenMath.MaxChefs, k.ChefSlots ?? k.Chefs.Count(c => c is not null))))
+        var kitchens = (_setup?.Kitchens ?? []).Select(k => new PlanKitchen(k.Number,
+                Math.Min(KitchenMath.MaxChefs, k.ChefSlots ?? Math.Max(k.ChefsPlaced ?? 0, k.Chefs.Count(c => c is not null)))))
             .Where(k => k.Places > 0).Take(KitchenMath.MaxKitchens).ToList();
-        if (_setup is null) gaps.Add(InnSetupGap.NoSetup);
-        else if (kitchens.Count == 0) gaps.Add(InnSetupGap.NoKitchens);
-        var chefs = _chefs.Available.Select(id => roster.FirstOrDefault(o => o.Id == id)).OfType<OperatorInfo>().ToList();
-        if (!_chefs.PickerSeen || chefs.Count == 0) gaps.Add(InnSetupGap.NoChefs);
-        var dishes = _offered.Values.Where(c => DishOf(c.Id) is not null).Select(c => new MenuDish(DishOf(c.Id)!, c.Unlimited ? null : c.Stock)).ToList();
-        var drinks = _offered.Values.Where(c => IsDrink(c.Id!)).Select(c =>
-        {
-            var drink = data.Drinks.First(d => d.Id == c.Id);
-            return new MenuDrink(drink, drink.Unlimited || c.Unlimited ? null : c.Stock);
-        }).ToList();
-        var r = _requirements;
-        if (dishes.Count == 0) gaps.Add(InnSetupGap.NoMenu);
-        else if (r is not { MinDishes: not null, MinDrinks: { } minDrinks, MinTypes: not null }) gaps.Add(InnSetupGap.MenuRulesUnreadable);
-        else if (minDrinks > 0 && drinks.Count == 0) gaps.Add(InnSetupGap.NoDrinks);
-        if (gaps.Count > 0) return new InnSetupInputs(gaps, null, string.Join(",", gaps));
+        if (_setup is null) return new InnSetupInputs([InnSetupGap.NoSetup], null, "no-setup");
+        if (kitchens.Count == 0) return new InnSetupInputs([InnSetupGap.NoKitchens], null, "no-kitchens");
 
-        var setup = _setup!;
+        var setup = _setup;
+        var r = _requirements;
+        int rating = Math.Clamp(r?.Rating ?? setup.Theme?.Rating ?? KitchenMath.MaxRating, 1, KitchenMath.MaxRating);
+        var chefs = roster.Where(o => !data.ChefBonuses.NotChefs.Contains(o.Id)).ToList();
+        int? Stock(string id) => _offered.TryGetValue(id, out var card) && !card.Unlimited ? card.Stock : null;
+        var dishes = data.Dishes.Where(d => d.Unlock.Rating is not { } needs || needs <= rating || _offered.ContainsKey(d.Id))
+            .Select(d => new MenuDish(d, Stock(d.Id))).ToList();
+        var drinks = data.Drinks.Where(d => d.Unlock.Rating is not { } needs || needs <= rating || _offered.ContainsKey(d.Id))
+            .Select(d => new MenuDrink(d, d.Unlimited ? null : Stock(d.Id))).ToList();
+
         // The theme's trait rules: as 营业设定 states them, and as the menu screen does.
-        var traitRules = setup.MenuRules.Select(line => TraitRule.Parse(line, data)).OfType<TraitRule>().Concat(r!.TraitRules)
+        var traitRules = setup.MenuRules.Select(line => TraitRule.Parse(line, data)).OfType<TraitRule>().Concat(r?.TraitRules ?? [])
             .DistinctBy(t => $"{t.Count}:{string.Join("/", t.AnyOf)}").ToList();
-        int minD = r.MinDishes!.Value, minK = r.MinDrinks!.Value;
-        // The counters' "N/8" give the most allowed; unread, as few as required (a menu that fits for sure).
-        var rules = new MenuRules(minD, Math.Max(minD, _dishCounter?.Allowed ?? minD), minK, Math.Max(minK, _drinkCounter?.Allowed ?? minK),
-            r.MinTypes!.Value, traitRules);
-        int rating = Math.Clamp(r.Rating ?? setup.Theme?.Rating ?? KitchenMath.MaxRating, 1, KitchenMath.MaxRating);
+        var known = MenuRules.OfRating(rating, traitRules);
+        int minDishes = r?.MinDishes ?? known?.MinDishes ?? 1, minDrinks = r?.MinDrinks ?? known?.MinDrinks ?? 0, minTypes = r?.MinTypes ?? known?.MinTypes ?? 1;
+        // The counters' "N/8" give the most allowed; unread, the rating's (8 of each at Rating 4).
+        int maxDishes = _dishCounter?.Allowed ?? known?.MaxDishes ?? MenuRules.MostSeen, maxDrinks = _drinkCounter?.Allowed ?? known?.MaxDrinks ?? MenuRules.MostSeen;
+        var rules = new MenuRules(minDishes, Math.Max(minDishes, maxDishes), minDrinks, Math.Max(minDrinks, maxDrinks), minTypes, traitRules);
         var input = new InnPlanInput(InnPlanner.HotTraitsOf(setup.HotTraits, setup.Theme), rating, SiQualityPercent: 0, InnState.MaxTables,
             kitchens, chefs, dishes, drinks, rules);
         string key = string.Join("|",
             string.Join(",", input.HotTraits), rating, string.Join(",", kitchens.Select(k => $"{k.Number}:{k.Places}")),
-            string.Join(",", chefs.Select(c => c.Id).Order()),
             string.Join(",", dishes.Select(d => $"{d.Dish.Id}:{d.Stock}").Order()), string.Join(",", drinks.Select(d => $"{d.Drink.Id}:{d.Stock}").Order()),
             $"{rules.MinDishes}-{rules.MaxDishes}/{rules.MinDrinks}-{rules.MaxDrinks}/{rules.MinTypes}",
             string.Join(",", traitRules.Select(t => $"{t.Count}:{string.Join("/", t.AnyOf)}")));

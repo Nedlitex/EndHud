@@ -56,18 +56,27 @@ public class InnSetupLayoutTests
         : Load(InnData.PicturePath(Folder, id));
 
     /// <summary>
-    /// The fullest panel: three kitchens of two chefs with the longest names, eight dishes and eight
-    /// drinks with the longest names, and the note that the rules can't all be met.
+    /// The fullest panel: three kitchens, each with its role and as many chefs as its tiers hold (T1
+    /// two of its own and <see cref="InnTierList.MaxPerTier"/> more, T2 and T3 full) with the longest
+    /// names; eight dishes and eight drinks in T1 and full T2 and T3, the longest names; and the note
+    /// that the rules can't all be met.
     /// </summary>
     private static InnStripModel Fullest()
     {
-        var cooks = Library.Operators.Where(o => Inn.ChefBonusesOf(o).Count > 0).OrderByDescending(o => o.NameZh.Length).Take(6).ToList();
-        var dishes = Inn.Dishes.OrderByDescending(d => d.Zh.Length).ThenBy(d => d.Id).Take(8).Select(d => new MenuDish(d, null)).ToList();
-        var drinks = Inn.Drinks.OrderByDescending(d => d.Zh.Length).ThenBy(d => d.Id).Take(8).Select(d => new MenuDrink(d, null)).ToList();
-        var plan = new InnPlan([.. Enumerable.Range(1, 3).Select(k => new PlannedKitchen(k, cooks.Skip((k - 1) * 2).Take(2).ToList()))],
-            dishes, drinks, null, InnPlanScore.Zero, RulesMet: false, []);
+        int per = InnTierList.MaxPerTier;
+        var cooks = Library.Operators.Where(o => Inn.ChefBonusesOf(o).Count > 0).OrderByDescending(o => o.NameZh.Length).ThenBy(o => o.Id).ToList();
+        var dishes = Inn.Dishes.OrderByDescending(d => d.Zh.Length).ThenBy(d => d.Id).Select(d => new MenuDish(d, null)).ToList();
+        var drinks = Inn.Drinks.OrderByDescending(d => d.Zh.Length).ThenBy(d => d.Id).Select(d => new MenuDrink(d, null)).ToList();
+        var role = Inn.DishTypes.OrderByDescending(t => t.Zh.Length).First().Id;
+        var kitchens = Enumerable.Range(1, 3).Select(k => new KitchenTiers(k, role,
+            [cooks.Take(2 + per).ToList(), cooks.Skip(2 + per).Take(per).ToList(), cooks.Skip(2 + 2 * per).Take(per).ToList()])).ToList();
+        var tiers = new InnTiers(kitchens,
+            [dishes.Take(8).ToList(), dishes.Skip(8).Take(per).ToList(), dishes.Skip(8 + per).Take(per).ToList()],
+            [drinks.Take(8).ToList(), drinks.Skip(8).Take(per).ToList(), drinks.Skip(8 + per).Take(per).ToList()]);
+        var plan = new InnPlan([.. Enumerable.Range(1, 3).Select(k => new PlannedKitchen(k, cooks.Take(2).ToList()))],
+            dishes.Take(8).ToList(), drinks.Take(8).ToList(), null, InnPlanScore.Zero, RulesMet: false, []);
         var inputs = new InnSetupInputs([], new InnPlanInput([], 4, 0, 6, [], [], [], [], new MenuRules(6, 8, 3, 8, 3, [])), "k");
-        return InnSetupView.Build(inputs, plan, Text);
+        return InnSetupView.Build(inputs, new InnSetupAdvice(plan, tiers), Inn, Text);
     }
 
     private static Size Measure(InnStripModel model) => OnSta(() =>

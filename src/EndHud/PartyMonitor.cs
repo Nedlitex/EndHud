@@ -203,11 +203,10 @@ internal sealed class PartyMonitor : IDisposable
     /// <summary>What an inn reading saw, in a line, for the diagnostic export's pictures.</summary>
     internal static string DescribeInn(InnReading r) =>
         $"inn {r.Screen}, time left {r.Clock?.Left.ToString(@"m\:ss") ?? "-"}, " +
-        $"tables {string.Join(" ", r.TableCards.Select(t => t is null ? "?" : $"{t.State}{(t.Items.Count > 0 ? ":" + string.Join("+", t.Items.Select(i => i.Id ?? "?")) : "")}"))}, " +
+        $"tables {string.Join(" ", r.TableCards.Select(t => t is null ? "?" : $"{t.State}{(t.Items.Count > 0 ? ":" + string.Join("+", t.Items.Select(i => (i.Id ?? "?") + (i.Served ? " served" : ""))) : "")}"))}, " +
         $"fire {(r.Fire is { } f ? (f.Ready ? "ready" : f.Fire?.ToString() ?? "?") : "-")}" +
         (r.Panel is { } p ? $", panel kitchen {p.Kitchen}/{p.Kitchens} queue {string.Join("+", p.Queue.Where(q => q.Filled).Select(q => q.DishId ?? "?"))}" : "") +
         (r.Bubble is { } b ? $", bubble \"{b.Text}\"" : "") +
-        (r.Picker is { } k ? $", picker {k.Cards.Count} cards, named {string.Join("+", k.Cards.Select(c => c.OperatorId ?? "?"))}, chosen {string.Join("+", k.Selected)}" : "") +
         (r.Requirements is { } q ? $", menu rules: rating {q.Rating?.ToString() ?? "?"}, types {q.MinTypes?.ToString() ?? "?"}, dishes {q.MinDishes?.ToString() ?? "?"}, drinks {q.MinDrinks?.ToString() ?? "?"}" : "");
 
     /// <summary>The last game picture read (the game area only), for the diagnostic export.</summary>
