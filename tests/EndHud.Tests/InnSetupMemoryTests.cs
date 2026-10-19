@@ -122,7 +122,7 @@ public class InnSetupMemoryTests
     }
 
     [Fact]
-    public void The_chef_picker_remembers_its_kitchen_until_another_is_read()
+    public void The_chef_picker_remembers_its_kitchen_until_it_is_read_again()
     {
         var session = Walked();
         Assert.Equal(1, session.PickerKitchen);
@@ -130,6 +130,10 @@ public class InnSetupMemoryTests
         session.Update(Picker(6, 2));
         session.Update(Picker(7, null, fresh: false)); // between reads
         Assert.Equal(2, session.PickerKitchen);
+
+        // A picker read whose title couldn't be read: not the last picker's kitchen (that advice would be another kitchen's).
+        session.Update(Picker(9, null));
+        Assert.Null(session.PickerKitchen);
     }
 
     [Fact]
