@@ -26,7 +26,7 @@ public partial class OverlayWindow
 
     private readonly StripVisibility _stripVisibility = new();
     private (Rotation Rotation, RotationPosition Position)? _rotationPosition;
-    private string? _stripKey;
+    private readonly DrawnKey _stripKey = new();
     private Point? _rotationDragOffset;
 
     /// <summary>Keeps the recommended rotations up to date from GitHub (started by App).</summary>
@@ -89,8 +89,7 @@ public partial class OverlayWindow
             string.Join(",", steps.Select(s => $"{s.Action}{s.State}{s.Icon is not null}{s.Avatar is not null}{s.Note}"));
         string? key = view is null ? null
             : $"{view.Phase}|{Keys(view.Steps)}|{view.Next?.Phase}|{Keys(view.Next?.Steps ?? [])}|{string.Join(",", view.Reasons)}";
-        if (key == _stripKey) return;
-        _stripKey = key;
+        if (!_stripKey.Changed(key)) return;
         RotationContent.Content = view is null ? null : RotationStrip.Build(view);
         RotationFrame.Visibility = view is null ? Visibility.Collapsed : Visibility.Visible;
     }
@@ -250,7 +249,7 @@ public partial class OverlayWindow
         RotationFrame.BorderBrush = editing ? (Brush)FindResource("Accent") : Brushes.Transparent;
         RotationDragLabel.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
         RotationFrame.Cursor = editing ? Cursors.SizeAll : null;
-        _stripKey = null;
+        _stripKey.Invalidate();
         RenderRotation();
     }
 
