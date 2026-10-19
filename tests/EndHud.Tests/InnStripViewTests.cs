@@ -120,6 +120,14 @@ public class InnStripViewTests
     }
 
     [Fact]
+    public void The_full_blaze_lines_read_as_the_owner_worded_them()
+    {
+        // Owner, 2026-10-19: the ready line names the button and its key; "nearly full" stays from fire 80.
+        Assert.Equal("开启满堂彩（R）", Strip(Advice(Kitchens(), FullBlazeAdvice.StartNow)).Lines[0].Text);
+        Assert.Equal("满堂彩快满了：先把厨房排满", Strip(Advice(Kitchens(), FullBlazeAdvice.GetReady)).Lines[0].Text);
+    }
+
+    [Fact]
     public void While_full_blaze_runs_there_is_no_reminder_and_every_kitchen_stays_full()
     {
         var session = Prepared(1, 2);
