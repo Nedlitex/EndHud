@@ -26,6 +26,12 @@ public class InnSimulatorTests
     /// a gourmand's requests counted as dishes). Which dish each was isn't known from the note, so the
     /// dishes are drawn from <see cref="RecordedMenu"/> at random with a fixed seed: guests pick at random (owner).
     /// </summary>
+    /// <summary>
+    /// The recorded orders run past 5:00 (the last at 304 s), so the comparisons of ways of dispatching
+    /// let the replay serve long after the game's 18 s, until every order is served.
+    /// </summary>
+    private const double LongRun = 600;
+
     internal static IReadOnlyList<InnOrder> RecordedOrderTimes(int seed = 1, int tables = 6)
     {
         (double At, int Table, int Dishes)[] recorded =
@@ -153,8 +159,8 @@ public class InnSimulatorTests
     {
         var orders = RecordedOrderTimes(seed);
 
-        var advised = new InnSimulator(Kitchens(kitchens), RecordedMenu).Run(orders, InnSimulator.Following(new DispatchAdvisor(Kitchens(kitchens))), overtime: 600);
-        var naive = new InnSimulator(Kitchens(kitchens), RecordedMenu).Run(orders, FirstFreeKitchen, overtime: 600);
+        var advised = new InnSimulator(Kitchens(kitchens), RecordedMenu).Run(orders, InnSimulator.Following(new DispatchAdvisor(Kitchens(kitchens))), servingAfterClose: LongRun);
+        var naive = new InnSimulator(Kitchens(kitchens), RecordedMenu).Run(orders, FirstFreeKitchen, servingAfterClose: LongRun);
 
         Assert.Equal(orders.Count, advised.Served);
         Assert.Empty(advised.Refused);
@@ -172,10 +178,50 @@ public class InnSimulatorTests
     {
         var orders = RecordedOrderTimes(1, tables);
 
-        var run = new InnSimulator(Kitchens(), RecordedMenu).Run(orders, InnSimulator.Following(new DispatchAdvisor(Kitchens())), overtime: 600);
+        var run = new InnSimulator(Kitchens(), RecordedMenu).Run(orders, InnSimulator.Following(new DispatchAdvisor(Kitchens())), servingAfterClose: LongRun);
 
         Assert.Equal(orders.Count, run.Served);
         Assert.Empty(run.Refused);
+    }
+
+    /// <summary>
+    /// Owner, 2026-10-19: the inn serves 18 s after the timer's 00:00, then stops. A dish out at 327 s
+    /// is too late; the advisor is told the serving time left, not the timer's.
+    /// </summary>
+    [Fact]
+    public void The_simulated_inn_serves_18_seconds_after_the_timer_then_stops()
+    {
+        var inn = new InnSimulator(Kitchens(1), RecordedMenu);
+        var seen = new List<(double Now, double? ServingLeft)>();
+
+        var run = inn.Run([new InnOrder(0, 1, [Dish("坛子肉")])], sim =>
+        {
+            seen.Add((sim.Now, sim.State.ServingSecondsLeft));
+            return sim.Now == 300 ? [new QueueDish(1, Dish("坛子肉"))] : [];
+        });
+
+        Assert.Null(Assert.Single(run.Orders).ServedAt); // 27 s from 300 s: out at 327 s
+        Assert.Equal(318, seen.First(s => s.Now == 0).ServingLeft);
+        Assert.Equal(8, seen.First(s => s.Now == 310).ServingLeft);
+        Assert.True(seen.Max(s => s.Now) <= InnSimulator.SessionSeconds + InnState.ServingAfterCloseSeconds);
+    }
+
+    /// <summary>
+    /// Owner, 2026-10-19, in the replay: at 285 s table 1's 果味沙拉 (30 s) can still be out in the
+    /// 33 s the inn serves, so it waits and is served after 00:00; at 295 s table 2's 坛子肉 can't
+    /// (behind the salad: 47 s), so it gets a 肉包子 cooked ahead, a wrong dish, at once.
+    /// </summary>
+    [Fact]
+    public void In_the_replay_the_last_call_is_per_table_and_counts_the_18_seconds()
+    {
+        var menu = new[] { new MenuDish(Dish("肉包子"), null) };
+        var kitchens = Kitchens(1);
+
+        var run = new InnSimulator(kitchens, menu).Run([new InnOrder(285, 1, [Dish("果味沙拉")]), new InnOrder(295, 2, [Dish("坛子肉")])],
+            InnSimulator.Following(new DispatchAdvisor(kitchens)));
+
+        Assert.InRange(run.Orders[0].ServedAt!.Value, 314, 318);
+        Assert.InRange(run.Orders[1].ServedAt!.Value, 295, 296);
     }
 
     /// <summary>The counter never holds more than eight, following the advice (cooking ahead stops at its room).</summary>
@@ -194,7 +240,7 @@ public class InnSimulatorTests
             most = Math.Max(most, sim.Counter.Dishes.Count);
             Assert.True(spare <= InnCounter.Capacity, $"{spare} dishes cooked ahead at {sim.Now} s");
             return follow(sim);
-        }, overtime: 600);
+        }, servingAfterClose: LongRun);
 
         Assert.InRange(most, 1, InnCounter.Capacity);
     }

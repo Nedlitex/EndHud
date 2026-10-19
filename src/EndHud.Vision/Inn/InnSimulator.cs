@@ -53,6 +53,7 @@ public sealed class InnSimulator
     public const double SessionSeconds = 300;
 
     private readonly List<OrderedDish> _outstanding = [];
+    private double _servingAfterClose = InnState.ServingAfterCloseSeconds;
     private readonly Dictionary<string, int?> _stock;
 
     /// <param name="step">Seconds per step; the policy is asked once a step.</param>
@@ -78,23 +79,29 @@ public sealed class InnSimulator
     /// <summary>Ordered dishes the tables are still waiting for, oldest first.</summary>
     public IReadOnlyList<OrderedDish> Outstanding => _outstanding;
 
-    /// <summary>The inn as the advisor sees it.</summary>
+    /// <summary>The inn as the advisor sees it: the serving time left counts the time served after the timer's 00:00.</summary>
     public InnState State => new(Queues, Counter.Dishes, [], _outstanding,
-        [.. Menu.Select(m => m with { Stock = _stock[m.Dish.Id] })], Math.Max(0, SessionSeconds - Now));
+        [.. Menu.Select(m => m with { Stock = _stock[m.Dish.Id] })], Math.Max(0, SessionSeconds + _servingAfterClose - Now));
 
     /// <summary>
     /// Plays <paramref name="orders"/> with <paramref name="policy"/> until every order is served, or
-    /// <paramref name="overtime"/> seconds after the session's end (the inn closes to new guests at
-    /// 0:00 but serves those seated).
+    /// the inn stops serving: <paramref name="servingAfterClose"/> seconds after the timer's 00:00
+    /// (no new guests from 00:00; the seated ones are served until then).
     /// </summary>
-    public InnRun Run(IReadOnlyList<InnOrder> orders, InnPolicy policy, double overtime = 120)
+    /// <param name="servingAfterClose">
+    /// The game's <see cref="InnState.ServingAfterCloseSeconds"/>. A longer time is only for comparing
+    /// ways of dispatching over an order stream that runs past the end (the advisor is told it too).
+    /// </param>
+    public InnRun Run(IReadOnlyList<InnOrder> orders, InnPolicy policy, double servingAfterClose = InnState.ServingAfterCloseSeconds)
     {
+        _servingAfterClose = servingAfterClose;
         var byTable = new List<(InnOrder Order, List<Dish> Missing)>();
         var served = new Dictionary<InnOrder, double>();
         var refused = new List<InnAction>();
         var queue = new Queue<InnOrder>(orders.OrderBy(o => o.At));
 
-        while (Now <= SessionSeconds + overtime && (queue.Count > 0 || served.Count < orders.Count))
+        double end = SessionSeconds + servingAfterClose;
+        while (Now <= end && (queue.Count > 0 || served.Count < orders.Count))
         {
             while (queue.Count > 0 && queue.Peek().At <= Now)
             {
@@ -112,6 +119,7 @@ public sealed class InnSimulator
                     Counter.TryPut(dish);
 
             Now += Step;
+            if (Now > end) break; // the inn has stopped serving
             Serve(byTable, served);
         }
 
@@ -166,7 +174,7 @@ public sealed class InnSimulator
         }
     }
 
-    /// <summary>The player follows <paramref name="advisor"/>: every swap, dish to send and dish to cook ahead, and at the last call every leftover to hand out.</summary>
+    /// <summary>The player follows <paramref name="advisor"/>: every swap, dish to send and dish to cook ahead, and every leftover the last call hands out.</summary>
     /// <param name="openingUntil">Until this many seconds in, every free slot is filled (the opening, C16): by default the first second.</param>
     public static InnPolicy Following(DispatchAdvisor advisor, double openingUntil = 1) => inn =>
     {
