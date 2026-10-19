@@ -90,6 +90,17 @@
                 <ContentControl x:Name="RotationContent" />
             </StackPanel>
         </Border>
+        <!-- The inn helper's strip, its top-left corner at config InnStripX/InnStripY. -->
+        <Border x:Name="InnFrame" BorderThickness="2" Padding="6" CornerRadius="4" Background="Transparent"
+                Visibility="Collapsed"
+                MouseLeftButtonDown="Inn_MouseDown" MouseMove="Inn_MouseMove"
+                MouseLeftButtonUp="Inn_MouseUp">
+            <StackPanel>
+                <TextBlock x:Name="InnDragLabel" Visibility="Collapsed" Text="{DynamicResource Inn.Drag}"
+                           Foreground="{StaticResource Accent}" Margin="0,0,0,4" />
+                <ContentControl x:Name="InnContent" />
+            </StackPanel>
+        </Border>
         <!-- The gauges, centred on config GaugesCenterX, standing on GaugesBottomY. -->
         <Border x:Name="GaugeFrame" BorderThickness="2" Padding="6" CornerRadius="4" Background="Transparent"
                 Visibility="Collapsed" SizeChanged="GaugeFrame_SizeChanged"
@@ -321,6 +332,38 @@
                     </DockPanel>
                     <Button x:Name="GaugesResetButton" HorizontalAlignment="Left" Padding="10,2" Margin="0,4,0,0"
                             Content="{DynamicResource Menu.Gauges.ResetPosition}" Click="GaugesResetButton_Click" />
+                </StackPanel>
+            </Border>
+
+            <!-- Feature: the inn helper. Works without the squad panel's reading. -->
+            <Border Style="{StaticResource FeatureCard}">
+                <StackPanel>
+                    <DockPanel>
+                        <CheckBox x:Name="InnCheckBox" DockPanel.Dock="Right" Click="InnCheckBox_Click" Margin="0">
+                            <TextBlock Text="{DynamicResource Menu.Feature.On}" />
+                        </CheckBox>
+                        <TextBlock Text="{DynamicResource Menu.Inn}" Style="{StaticResource FeatureTitle}" />
+                    </DockPanel>
+                    <TextBlock Text="{DynamicResource Menu.Inn.Hint}" Foreground="#99FFFFFF" FontSize="11"
+                               TextWrapping="Wrap" Margin="0,4,0,4" />
+                    <DockPanel x:Name="InnSizeRow" Margin="0,4,0,0">
+                        <TextBlock Text="{DynamicResource Menu.Gauges.Size}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock x:Name="InnSizeText" DockPanel.Dock="Right" Width="44" TextAlignment="Right"
+                                   VerticalAlignment="Center" />
+                        <Slider x:Name="InnSizeSlider" Minimum="0.5" Maximum="2" TickFrequency="0.05"
+                                IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                                ValueChanged="InnSizeSlider_ValueChanged" />
+                    </DockPanel>
+                    <DockPanel x:Name="InnOpacityRow" Margin="0,4,0,0">
+                        <TextBlock Text="{DynamicResource Menu.Rotation.Opacity}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock x:Name="InnOpacityText" DockPanel.Dock="Right" Width="44" TextAlignment="Right"
+                                   VerticalAlignment="Center" />
+                        <Slider x:Name="InnOpacitySlider" Minimum="0.2" Maximum="1" TickFrequency="0.05"
+                                IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                                ValueChanged="InnOpacitySlider_ValueChanged" />
+                    </DockPanel>
+                    <Button x:Name="InnResetButton" HorizontalAlignment="Left" Padding="10,2" Margin="0,4,0,0"
+                            Content="{DynamicResource Menu.Inn.ResetPosition}" Click="InnResetButton_Click" />
                 </StackPanel>
             </Border>
 

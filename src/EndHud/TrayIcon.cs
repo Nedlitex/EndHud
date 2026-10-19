@@ -20,6 +20,7 @@ internal sealed class TrayIcon : IDisposable
     private readonly ToolStripMenuItem _showHud;
     private readonly ToolStripMenuItem _autoShow;
     private readonly ToolStripMenuItem _debugPanel;
+    private readonly ToolStripMenuItem _innHelper;
     private readonly ToolStripMenuItem _checkUpdates;
     private readonly ToolStripMenuItem _updateNow;
     private readonly ToolStripMenuItem _releaseNotes;
@@ -43,6 +44,7 @@ internal sealed class TrayIcon : IDisposable
         _autoShow = new ToolStripMenuItem(Loc.Get("Tray.AutoShow"), null,
             (_, _) => _overlay.SetAutoShow(!_overlay.AutoShow));
         _debugPanel = new ToolStripMenuItem(Loc.Get("Tray.DebugPanel"), null, (_, _) => _overlay.ToggleDebugPanel());
+        _innHelper = new ToolStripMenuItem(Loc.Get("Tray.InnHelper"), null, (_, _) => _overlay.SetInnHelper(!_overlay.InnHelperEnabled));
         _checkUpdates = new ToolStripMenuItem(Loc.Get("Tray.CheckUpdates"), null, async (_, _) => await CheckForUpdatesAsync());
         // Shown only when a newer release has been found.
         _updateNow = new ToolStripMenuItem("", null, async (_, _) =>
@@ -60,6 +62,7 @@ internal sealed class TrayIcon : IDisposable
             _showHud,
             new ToolStripMenuItem(Loc.Get("Tray.OpenMenu"), null, (_, _) => _overlay.ToggleMenu()),
             _autoShow,
+            _innHelper,
             _debugPanel,
             new ToolStripSeparator(),
             _updateNow,
@@ -116,6 +119,7 @@ internal sealed class TrayIcon : IDisposable
         _showHud.Checked = _overlay.HudOn;
         _autoShow.Checked = _overlay.AutoShow;
         _debugPanel.Checked = _overlay.DebugPanel;
+        _innHelper.Checked = _overlay.InnHelperEnabled;
         if (_updates.Available is { } release)
         {
             _updateNow.Text = Loc.Format(_updating ? "Tray.Updating" : "Tray.UpdateNow", release.Version.ToString(3));

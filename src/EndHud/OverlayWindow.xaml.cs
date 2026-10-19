@@ -79,6 +79,10 @@ public partial class OverlayWindow : Window
         _party.Updated += (state, error) => Dispatcher.BeginInvoke(() => ShowParty(state, error));
         _party.LibraryStatus += (key, args) => Dispatcher.BeginInvoke(() => ShowLibraryStatus(key, args));
         _party.NewOperators += added => NewOperatorsFound?.Invoke(added);
+        _party.InnUpdated += reading => Dispatcher.BeginInvoke(() => ShowInn(reading));
+        _party.ReadSquad = config.PartyOcrEnabled;
+        _party.ReadInn = config.InnHelperEnabled;
+        InitInnSettings();
 
         _winEventProc = OnWinEvent;
         _timer = new DispatcherTimer(TimeSpan.FromMilliseconds(500), DispatcherPriority.Background,
@@ -127,6 +131,7 @@ public partial class OverlayWindow : Window
     {
         _config.PartyOcrEnabled = enabled;
         ConfigStore.Save(_config);
+        _party.ReadSquad = enabled;
         PartySection.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
         PartyText.Text = Loc.Get("Party.Waiting");
         ApplyComboHintSettings();
@@ -228,6 +233,7 @@ public partial class OverlayWindow : Window
         SetComboHintEditing(open);
         SetRotationEditing(open);
         SetGaugesEditing(open);
+        SetInnEditing(open);
         SetPanelDragging(open);
 
         if (open)
@@ -327,6 +333,7 @@ public partial class OverlayWindow : Window
 
         ClockText.Text = DateTime.Now.ToString("HH:mm:ss");
         UpdateComboHints(); // timed hints end on time even when no new reading arrives
+        TickInn();
         Refresh(reassertTopmost: true);
     }
 
@@ -381,7 +388,8 @@ public partial class OverlayWindow : Window
 
         SizeText.Text = Loc.Format("Hud.Size", w, h, x, y);
         HudRoot.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-        _party.SetTarget(_game, show && _config.PartyOcrEnabled);
+        // The inn helper reads the game too, with the squad panel's reading off.
+        _party.SetTarget(_game, show && (_config.PartyOcrEnabled || _config.InnHelperEnabled));
 
         // Nothing to show (the game isn't focused): take the window away altogether. Left up, an
         // always-on-top window the size of a fullscreen game makes Windows treat it as a fullscreen

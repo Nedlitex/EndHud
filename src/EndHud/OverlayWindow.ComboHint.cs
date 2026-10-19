@@ -241,6 +241,7 @@ public partial class OverlayWindow
         PlaceComboHintsFromConfig();
         ScaleRotationStrip(scale);
         ScaleGauges(scale);
+        ScaleInnStrip(scale);
     }
 
     private void PlaceComboHintsFromConfig() =>
