@@ -220,8 +220,6 @@ public sealed record InnData(int Format, IReadOnlyList<InnDishType> DishTypes, I
         foreach (var group in Drinks.GroupBy(d => d.Id).Where(g => g.Count() > 1)) problems.Add($"Two drinks are {group.Key}.");
         // One picture per id: a drink can't share one with a dish.
         foreach (var drink in Drinks.Where(d => Dishes.Any(x => x.Id == d.Id))) problems.Add($"{drink.Id} is a dish and a drink.");
-        // One picture per id: a drink can't share one with a dish.
-        foreach (var drink in Drinks.Where(d => Dishes.Any(x => x.Id == d.Id))) problems.Add($"{drink.Id} is a dish and a drink.");
         foreach (var drink in Drinks)
         {
             if (string.IsNullOrWhiteSpace(drink.Zh)) problems.Add($"{drink.Id}: no Chinese name.");

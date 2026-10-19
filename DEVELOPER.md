@@ -491,6 +491,28 @@ slips, and a bubble wraps onto lines read one at a time. Each two-character piec
 counts by how rare it is among all requests, so the word that tells two of a gourmand's requests
 apart decides. Tested on the lines OCR read off the owner's recording (two gourmands, both found).
 
+### The session's advice
+
+The session's advice is worked out from a model of the kitchens, with no screen reading of its
+own. [`KitchenMath`](src/EndHud.Vision/Inn/KitchenMath.cs) gives a dish's cook time and choice
+(珍馐) chance in a kitchen: the Inn Rating's base (2/4/6/8 %) + the chefs' choice bonuses + Si's
+品质把控 + the flavor bonuses, which reproduces both recorded 派单 panels (18 %, every time listed).
+A kitchen queues 3 dishes, one cooking ([`KitchenQueue`](src/EndHud.Vision/Inn/KitchenQueue.cs));
+the counter holds 8. [`DispatchAdvisor`](src/EndHud.Vision/Inn/DispatchAdvisor.cs) sends each
+ordered dish not already carried, on the counter or queued to the kitchen that has it out soonest
+(ties: the better choice chance); cooks ahead in idle kitchens (slowest dishes first, spread over the
+menu, never past the counter's room or without stock, leaving one slot free for orders); fills every
+free slot at the session's start and when Full Blaze is near; and suggests taking a dish cooked
+ahead out for an order only when that wins by more than 5 s (a cooking dish only when barely
+started, since its progress is taken as lost). [`FullBlazeAdvisor`](src/EndHud.Vision/Inn/FullBlaze.cs)
+says when to start Full Blaze (满堂彩); whether it's running is inferred from the ready button going.
+[`GourmandAdvisor`](src/EndHud.Vision/Inn/GourmandAdvisor.cs) ranks what meets a gourmand's
+request and, for two requests, the order to serve them in. [`InnSimulator`](src/EndHud.Vision/Inn/InnSimulator.cs)
+replays an order stream through all this; on the recorded order times, following the advice
+halves the average wait against sending each dish to the first kitchen with room. What isn't known
+is a named constant saying so (a removed dish's progress and stock, the replace margin, what a full
+counter does to a kitchen).
+
 ### Reading the inn's screens
 
 The readers in [`src/EndHud.Vision/Inn/`](src/EndHud.Vision/Inn) return data records and draw
