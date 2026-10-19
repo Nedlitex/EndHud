@@ -113,8 +113,8 @@ internal sealed class HudConfig
 
     /// <summary>
     /// Where the inn's setup panel sits (the chefs and menu to pick, on the setup, chef picker and
-    /// menu screens), as a fraction of the game window: its left edge and its top. It shares the
-    /// strip's size and opacity.
+    /// menu screens), as a fraction of the game window: its left edge and its top; the middle right
+    /// by default. It shares the strip's size and opacity.
     /// </summary>
     public double InnSetupX { get; set; } = DefaultInnSetupX;
 
@@ -158,10 +158,10 @@ internal sealed class HudConfig
     public const double DefaultInnStripX = 0.72;
     public const double DefaultInnStripY = 0.16;
 
-    // Low on the left: over the setup screen's empty lower left and the menu screen's, below the
-    // theme's details and the menu's requirements (the chef picker's grid is there too: drag it).
-    public const double DefaultInnSetupX = 0.04;
-    public const double DefaultInnSetupY = 0.6;
+    // The middle right (owner, 2026-10-19): left edge right of the window's middle, top a little
+    // above it so the panel, which grows down, sits about the middle. Drag it where it suits.
+    public const double DefaultInnSetupX = 0.62;
+    public const double DefaultInnSetupY = 0.38;
 
     public const double DefaultComboHintSeconds = 3;
     public const double DefaultComboHintLeadSeconds = 1;
