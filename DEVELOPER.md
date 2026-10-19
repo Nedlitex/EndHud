@@ -516,8 +516,8 @@ counter does to a kitchen).
 ### Reading the inn's screens
 
 The readers in [`src/EndHud.Vision/Inn/`](src/EndHud.Vision/Inn) return data records and draw
-nothing; each returns null (or a null field) for what it can't read clearly, never a guess. They
-are not wired into the app yet. Chinese text is read with the Windows OCR engine for Simplified
+nothing; each returns null (or a null field) for what it can't read clearly, never a guess. The
+app runs them in its reading loop (see "The inn helper in the app" below). Chinese text is read with the Windows OCR engine for Simplified
 Chinese ([`InnText`](src/EndHud.Vision/Inn/InnText.cs): `InnText.TryCreate()` is null without that
 language). Measured on the owner's two recordings (`tests/data/Fixtures/inn`, what each frame
 shows in its README), at 4K and scaled to 1440p and 1080p (`SimulatedScreen`); the setup screens,
@@ -555,6 +555,43 @@ How the hard parts work:
 Not built yet: identifying the chef picker's cards (they show no names; the plan matches portraits
 and bonus icons), the drink bar and the results screen (no frame recorded), a one-item order's
 picture place (no frame of one).
+
+### The inn helper in the app
+
+The reading loop ([`PartyMonitor`](src/EndHud/PartyMonitor.cs)) looks for the inn before the squad
+panel ([`InnFrameReader`](src/EndHud/InnReading.cs)) and, on a frame of the inn, raises
+`InnUpdated(InnReading)` instead of reading the squad panel (the squad tracker is told "no panel
+seen", as it was before). Keeping a fight free of it: while the squad panel is on screen the inn
+is never looked for; with neither on screen it's looked for once a second (one small OCR read of
+the title); in a session the screen is told by the timer's digits and the dispatch panel's tabs
+(pixels, no OCR); the setup and menu screens are read at most every 2 s, and the gourmand's bubble
+only while a gourmand is at a table. Without the Simplified Chinese OCR language only the timer is
+read (`ClockOnlyScreens`), so the strip can say what to install. The readers sit behind
+`IInnScreens`, which the wire-up tests replace.
+
+[`InnSession`](src/EndHud/InnSession.cs) (on the UI thread, memory only) keeps what the advice needs:
+before a session, the setup screen's theme and kitchens and the menu screen's dishes and drinks (until
+the setup screen after a session); during it, each kitchen's chefs and queue (read off the dispatch
+panel when it shows that kitchen, otherwise moved on by cook times since: an estimate, and a dish
+turning ready on a table card takes it out of the estimate at once), the orders (oldest first),
+dishes on the counter (ready on a card, or cooked ahead and not yet claimed), the fire meter with
+`FullBlazeTracker`, and each gourmand's request. Without the setup screens, the kitchens and chefs
+come from the dispatch panel, and the Inn Rating from the cook times it shows. A session ends after
+15 s without a session frame, on a setup or menu screen, or when the timer jumps up. `Advice(now)`
+runs `DispatchAdvisor` (every slot filled before the first order and from Full Blaze's "get
+ready"), `FullBlazeAdvisor` and `GourmandAdvisor`; an order with a picture not told apart is left
+out and its table named as unreadable, and a missing kitchen or menu is said, never guessed.
+[`InnStripView`](src/EndHud/InnStripView.cs) puts that in words (zh-CN only) and
+[`InnStrip`](src/EndHud/InnStrip.cs) draws it: one line per kitchen, a picture beside every dish and
+drink, wrapping between dishes at 470 units so the busiest strip fits right of the dispatch panel
+at 1080p, 1440p and 4K (InnStripLayoutTests). [`OverlayWindow.Inn`](src/EndHud/OverlayWindow.Inn.cs)
+shows it only on session frames, and a sample while the menu is open out of the inn. Settings:
+`InnHelperEnabled` (on), `InnStripX/Y`, `InnStripScale`, `InnStripOpacity`.
+
+Assumptions the advice rests on, not measured: what Full Blaze's faster kitchens do to cook times
+(not modelled: the estimate runs at normal speed and is corrected each time the panel shows a
+kitchen); the menu screen's stock is the session's start, less the dishes the estimate saw cooked;
+Si's quality assist is taken as 0 (it only breaks ties between kitchens).
 
 ## Rotations
 
