@@ -39,7 +39,10 @@ internal enum InnSetupGap
 /// <param name="Input">Null when anything is missing (<paramref name="Gaps"/>): no plan from half a reading.</param>
 /// <param name="Key">Changes when the input does: the plan is worked out again only then.</param>
 /// <param name="RulesNotUnderstood">菜单要求 lines (as read) the planner couldn't take in: the plan ignores them, and the panel says so.</param>
-internal sealed record InnSetupInputs(IReadOnlyList<InnSetupGap> Gaps, InnPlanInput? Input, string Key, IReadOnlyList<string> RulesNotUnderstood);
+internal sealed record InnSetupInputs(IReadOnlyList<InnSetupGap> Gaps, InnPlanInput? Input, string Key, IReadOnlyList<string> RulesNotUnderstood)
+{
+    public bool ChefsPlanned { get; init; }
+}
 
 /// <summary>What to tell the player about one gourmand.</summary>
 /// <param name="Advice">The requests in plain words and what meets them; null when the request wasn't recognised.</param>
@@ -122,6 +125,14 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     private sealed record TableMemory(TableCard Card, TimeSpan SeenAt, TimeSpan OrderSince);
 
     private sealed record GourmandMemory(IReadOnlyList<GourmandRequest> Requests, string? Unread);
+
+    public static readonly TimeSpan ForgetAfter = TimeSpan.FromSeconds(30);
+
+    public IReadOnlyCollection<string> OnMenu => _menu.Keys;
+
+    public int? PickerKitchen => null;
+
+    public InnSetupInputs MenuInputs() => SetupInputs();
 
     /// <summary>A session is on (its frames seen within <see cref="EndAfter"/>).</summary>
     public bool Active { get; private set; }

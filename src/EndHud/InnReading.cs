@@ -28,6 +28,8 @@ internal sealed record InnReading(InnScreenKind Screen, TimeSpan At, SessionCloc
 {
     public IReadOnlyList<TableCard?> TableCards => Tables ?? [];
 
+    public int? PickerKitchen { get; init; }
+
     /// <summary>A session frame (with or without the dispatch panel over it).</summary>
     public bool InSession => Screen is InnScreenKind.Session or InnScreenKind.DispatchPanel;
 
