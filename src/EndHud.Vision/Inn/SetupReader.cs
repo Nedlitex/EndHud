@@ -108,19 +108,27 @@ public sealed class SetupReader(InnText text, InnData data, IReadOnlyList<Operat
         }
         int Next(int after) => new[] { objective, rules, hot }.Where(i => i > after).DefaultIfEmpty(-1).Min();
 
-        // The hot traits stand on 热门特性's row, to its right.
-        var traitsRow = lines.FirstOrDefault(l => l.Text.Contains("特性") && l.Text.Contains("热门"));
-        var traits = traitsRow.Text is null
-            ? []
-            : HotIds(string.Concat(lines.Where(l => l.Place.X > traitsRow.Place.Right && Math.Abs(l.Place.Y - traitsRow.Place.Y) <= traitsRow.Place.Height).Select(l => l.Text)), data);
+        var (traits, traitsRow) = HotRow(lines, data);
 
         var objectiveLines = Section(objective, Next(objective));
         int headings = new[] { objective, rules, hot }.Count(i => i >= 0);
         return new Details(themeName, theme, objectiveLines.Count > 0 ? string.Concat(objectiveLines) : null, Section(rules, Next(rules)), traits, headings,
-            traitsRow.Text is null ? null : traitsRow.Place);
+            traitsRow);
     }
 
     /// <summary>The traits named in a row of chips ("素食 滋补"), in the order they stand.</summary>
+    /// <summary>
+    /// The hot chips: the ids named to the right of the 热门 row's label, on its row, and where the
+    /// label stands; nothing and null when there's no such row.
+    /// </summary>
+    internal static (List<string> Ids, PixelRect? Row) HotRow(IReadOnlyList<(string Text, PixelRect Place)> lines, InnData data)
+    {
+        var row = lines.FirstOrDefault(l => l.Text.Contains("特性") && l.Text.Contains("热门"));
+        if (row.Text is null) return ([], null);
+        var chips = lines.Where(l => l.Place.X > row.Place.Right && Math.Abs(l.Place.Y - row.Place.Y) <= row.Place.Height).Select(l => l.Text);
+        return (HotIds(string.Concat(chips), data), row.Place);
+    }
+
     /// <summary>
     /// The 热门 ids named in a row of chips, in the order they stand: traits (<see cref="InnTrait.Id"/>),
     /// dish types (by name, "Soup") and 饮品 (<see cref="InnData.Drink"/>), as a theme's preferences

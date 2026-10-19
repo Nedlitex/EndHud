@@ -70,6 +70,39 @@ public class InnDishTypeRuleTests
         Assert.Equal(["Dessert", "Sweet"], SetupReader.HotIds("甜品 甜", Inn));
     }
 
+    /// <summary>
+    /// The 热门 row's label as the game writes it: "热门类型" on 舌上清流 (owner's screenshot, chips
+    /// 汤羹 and 饮品), "热门特性" on 养身心. The setup screen's OCR lines, placed as read: the label,
+    /// then its chips to its right on the same row.
+    /// </summary>
+    [Theory]
+    [InlineData("热门类型", "汤羹", "饮品", "Soup", InnData.Drink)]
+    [InlineData("热门特性", "素食", "滋补", "Veggy", "Rich")]
+    public void The_hot_row_is_read_whether_it_names_types_or_traits(string label, string first, string second, string firstId, string secondId)
+    {
+        (string, PixelRect)[] lines =
+        [
+            ("热门信息", new PixelRect(40, 600, 160, 40)),
+            (label, new PixelRect(40, 680, 160, 40)),
+            (first, new PixelRect(260, 682, 80, 36)),
+            (second, new PixelRect(380, 682, 80, 36)),
+        ];
+
+        var (ids, row) = SetupReader.HotRow(lines, Inn);
+
+        Assert.Equal([firstId, secondId], ids);
+        Assert.Equal(lines[1].Item2, row);
+    }
+
+    [Fact]
+    public void A_heading_without_types_or_traits_is_not_the_hot_row()
+    {
+        var (ids, row) = SetupReader.HotRow([("热门信息", new PixelRect(40, 600, 160, 40)), ("汤羹", new PixelRect(260, 602, 80, 36))], Inn);
+
+        Assert.Empty(ids);
+        Assert.Null(row);
+    }
+
     /// <summary>The live case: three kitchens of two places, the whole roster and dish list at Rating 4.</summary>
     [Fact]
     public void The_plan_for_a_soup_rule_puts_a_soup_on_the_menu()
