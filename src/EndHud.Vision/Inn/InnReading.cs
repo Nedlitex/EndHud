@@ -66,25 +66,17 @@ public enum TableState
     GourmandEating,
 }
 
-/// <summary>Where an ordered item is, from the badge on its picture.</summary>
-public enum ItemProgress
-{
-    /// <summary>No badge: not started.</summary>
-    Waiting,
-
-    /// <summary>A cyan flower: being made (in a kitchen or at the drink bar).</summary>
-    Making,
-
-    /// <summary>A green smiley: ready to carry.</summary>
-    Ready,
-}
-
 /// <summary>One item of a table's order.</summary>
 /// <param name="Id">The dish's or drink's id (<see cref="Dish.Id"/>, <see cref="InnDrink.Id"/>); null when its picture couldn't be told apart (never guessed).</param>
-public sealed record OrderItem(string? Id, ItemProgress Progress);
+/// <param name="Served">
+/// The item is served: its pip under the card's number is green, or its picture carries the blue
+/// spinner (the game serving it automatically, owner 2026-10-19). Nothing is left to cook or carry for it.
+/// The green smiley a picture can show means nothing useful (owner) and isn't read.
+/// </param>
+public sealed record OrderItem(string? Id, bool Served);
 
 /// <summary>A table card at the top of the session.</summary>
 /// <param name="Table">1–6, left to right.</param>
 /// <param name="Items">For <see cref="TableState.Order"/>: one per picture, left to right; otherwise empty.</param>
-/// <param name="Served">One per pip under the number, green = served; empty when there are none.</param>
+/// <param name="Served">One per pip under the number, green = served; empty when there are none (for an order, each item's <see cref="OrderItem.Served"/> says it).</param>
 public sealed record TableCard(int Table, TableState State, IReadOnlyList<OrderItem> Items, IReadOnlyList<bool> Served);

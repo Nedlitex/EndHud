@@ -70,10 +70,10 @@ internal static partial class InnTestKit
 
     /// <summary>A table's order: one item per id (null: a picture not told apart), none served yet.</summary>
     public static TableCard Order(int table, params string?[] ids) =>
-        new(table, TableState.Order, [.. ids.Select(id => new OrderItem(id, ItemProgress.Waiting))], [.. ids.Select(_ => false)]);
+        new(table, TableState.Order, [.. ids.Select(id => new OrderItem(id, Served: false))], [.. ids.Select(_ => false)]);
 
     public static TableCard Order(int table, params OrderItem[] items) =>
-        new(table, TableState.Order, items, [.. items.Select(_ => false)]);
+        new(table, TableState.Order, items, [.. items.Select(i => i.Served)]);
 
     /// <summary>Six cards: the ones given, the rest empty.</summary>
     public static IReadOnlyList<TableCard?> Tables(params TableCard?[] cards)

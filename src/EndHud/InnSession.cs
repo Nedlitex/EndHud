@@ -111,7 +111,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     private readonly SortedDictionary<int, KitchenMemory> _kitchens = [];
     private int _panelKitchens;
     private readonly TableMemory?[] _tables = new TableMemory?[TableCardReader.Tables];
-    private readonly Dictionary<string, int> _spares = [], _cooked = [], _readyBefore = [];
+    private readonly Dictionary<string, int> _spares = [], _cooked = [], _servedBefore = [];
     private readonly HashSet<string> _dishesSeen = [], _drinksSeen = [];
     private readonly Dictionary<int, GourmandMemory> _gourmands = [];
     private readonly HashSet<string> _unreadLogged = [];
@@ -242,7 +242,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         Array.Clear(_tables);
         _spares.Clear();
         _cooked.Clear();
-        _readyBefore.Clear();
+        _servedBefore.Clear();
         _dishesSeen.Clear();
         _drinksSeen.Clear();
         _gourmands.Clear();
@@ -326,21 +326,22 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             }
         }
 
-        // A dish turning ready came out of a kitchen: it's no longer cooking, nor spare on the counter.
-        var ready = new Dictionary<string, int>();
-        foreach (var item in LiveTables(at).Where(t => t.Card.State == TableState.Order).SelectMany(t => Unserved(t.Card)))
-            if (item.Progress == ItemProgress.Ready && item.Id is { } id && !IsDrink(id)) ready[id] = ready.GetValueOrDefault(id) + 1;
-        foreach (var (id, count) in ready)
+        // A dish turning served came off the counter (cooked ahead) or straight out of a kitchen the
+        // estimate still has it cooking in: it's no longer spare, nor cooking.
+        var served = new Dictionary<string, int>();
+        foreach (var item in LiveTables(at).Where(t => t.Card.State == TableState.Order).SelectMany(t => t.Card.Items))
+            if (item.Served && item.Id is { } id && !IsDrink(id)) served[id] = served.GetValueOrDefault(id) + 1;
+        foreach (var (id, count) in served)
         {
-            int more = count - _readyBefore.GetValueOrDefault(id);
+            int more = count - _servedBefore.GetValueOrDefault(id);
             for (int n = 0; n < more; n++)
             {
                 if (_spares.GetValueOrDefault(id) > 0) _spares[id]--;
                 else TakeOutOfQueue(id);
             }
         }
-        _readyBefore.Clear();
-        foreach (var (id, count) in ready) _readyBefore[id] = count;
+        _servedBefore.Clear();
+        foreach (var (id, count) in served) _servedBefore[id] = count;
     }
 
     /// <summary>The estimate still has this dish cooking, but it's out: take its first place in a queue away.</summary>
@@ -356,8 +357,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         }
     }
 
-    private static IEnumerable<OrderItem> Unserved(TableCard card) =>
-        card.Items.Where((_, i) => !(card.Served.Count == card.Items.Count && card.Served[i]));
+    private static IEnumerable<OrderItem> Unserved(TableCard card) => card.Items.Where(i => !i.Served);
 
     /// <summary>Tables seen recently enough to go by, oldest order first.</summary>
     private IEnumerable<TableMemory> LiveTables(TimeSpan now) =>
@@ -526,20 +526,14 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
 
         var queues = kitchens!.Kitchens.Select(k => Kitchen(k.Number).Queue).ToList();
         var outstanding = new List<OrderedDish>();
-        var counter = new List<Dish>();
         foreach (var table in LiveTables(now).Where(t => t.Card.State == TableState.Order && !unreadable.Contains(t.Card.Table)))
         {
             foreach (var item in Unserved(table.Card))
-            {
-                if (DishOf(item.Id) is not { } dish) continue; // a drink: no kitchen
-                if (item.Progress == ItemProgress.Ready) counter.Add(dish);
-                // Being made somewhere the estimate doesn't know of: nothing to send.
-                if (item.Progress == ItemProgress.Making && !queues.Any(q => q.Dishes.Any(d => d.Dish.Id == dish.Id))) continue;
-                outstanding.Add(new OrderedDish(table.Card.Table, dish));
-            }
+                if (DishOf(item.Id) is { } dish) outstanding.Add(new OrderedDish(table.Card.Table, dish)); // a drink: no kitchen
         }
+        // On the counter: the dishes cooked ahead that no table has been served yet.
         var spares = _spares.Where(s => s.Value > 0).SelectMany(s => Enumerable.Repeat(DishOf(s.Key)!, s.Value)).ToList();
-        var state = new InnState(queues, [.. counter, .. spares], [], outstanding, menu);
+        var state = new InnState(queues, spares, [], outstanding, menu);
 
         var left = _clock?.Left ?? TimeSpan.FromMinutes(5);
         var nextOut = queues.Where(q => q.Dishes.Count > 0).Select(q => (TimeSpan?)TimeSpan.FromSeconds(q.Dishes[0].SecondsLeft)).Min();
@@ -551,8 +545,6 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         var advisor = new DispatchAdvisor(kitchens);
         var dispatch = advisor.Advise(state, fillEverySlot);
 
-        // For a gourmand only spare dishes count as on the counter: the ready ones are other tables'.
-        var forGourmand = state with { Counter = spares };
         var drinks = MenuDrinks();
         var notes = new List<InnGourmandNote>();
         foreach (int table in gourmandTables)
@@ -564,7 +556,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
                 continue;
             }
             bool drinksUnknown = drinks.Count == 0 && memory.Requests.Any(r => GourmandCondition.Parse(r.When, data).ForDrink);
-            notes.Add(new InnGourmandNote(table, new GourmandAdvisor(advisor).Advise(memory.Requests, forGourmand, drinks), null, drinksUnknown));
+            notes.Add(new InnGourmandNote(table, new GourmandAdvisor(advisor).Advise(memory.Requests, state, drinks), null, drinksUnknown));
         }
         return new InnAdvice(dispatch, null, blaze, _blaze.Running, notes, unreadable, exact, !_ordersSeen);
     }

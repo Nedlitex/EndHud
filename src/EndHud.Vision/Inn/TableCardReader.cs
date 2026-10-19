@@ -12,8 +12,10 @@ namespace EndHud.Vision.Inn;
 /// dish and drink picture drawn the way the card draws it, colour kept and the disc's own grey
 /// around it, over the whole disc but the corner a badge covers. The best must be close and clearly
 /// ahead of the next, or the item is left unnamed.</item>
-/// <item>A badge on the disc's lower right: a cyan flower while the item is being made, a green
-/// smiley once it's ready. The pips under the card's number turn green with the smileys.</item>
+/// <item>Whether each item is served: its pip under the card's number is green, or a blue spinner
+/// (a ring of cyan dots) sits on the disc's lower right, the game serving it on its own. Both count
+/// as served (owner, 2026-10-19). The green smiley that can show there means nothing useful (owner)
+/// and is not read.</item>
 /// </list>
 /// Measured on 4K frames of the owner's recordings; see InnTableCardReaderTests for the accuracy.
 /// </summary>
@@ -76,13 +78,14 @@ public sealed class TableCardReader(InnText text, InnPictures pictures)
                 if (Says(Ordering)) return new TableCard(table, TableState.Ordering, [], []);
                 if (Says(Eating)) return new TableCard(table, TableState.Eating, [], []);
                 if (word.Length > 0) return null;
-                var items = new List<OrderItem>();
+                var discs = new List<Disc>();
                 foreach (double x in new[] { FirstDiscX, SecondDiscX })
-                {
-                    if (FindDisc(frame, layout, left + x) is not { } disc) continue;
-                    items.Add(new OrderItem(Identify(frame, disc), Badge(frame, disc)));
-                }
-                return items.Count == 0 ? null : new TableCard(table, TableState.Order, items, items.Count == 2 ? Pips(frame, layout, left) : []);
+                    if (FindDisc(frame, layout, left + x) is { } disc) discs.Add(disc);
+                if (discs.Count == 0) return null;
+                // An item is served when its pip is green or the game is serving it on its own (the spinner).
+                IReadOnlyList<bool> pips = discs.Count == 2 ? Pips(frame, layout, left) : [];
+                var items = discs.Select((disc, i) => new OrderItem(Identify(frame, disc), (pips.Count == discs.Count && pips[i]) || HasSpinner(frame, disc))).ToList();
+                return new TableCard(table, TableState.Order, items, pips);
         }
     }
 
@@ -327,11 +330,15 @@ public sealed class TableCardReader(InnText text, InnPictures pictures)
         return [.. refined.Concat(first.Skip(4).Select(p => (p.Picture.Id, p.Difference))).OrderBy(p => p.Difference)];
     }
 
-    /// <summary>The badge on the disc's lower right: a cyan flower (being made), a green smiley (ready), or none.</summary>
-    private static ItemProgress Badge(Frame frame, Disc disc)
+    /// <summary>
+    /// The blue spinner on the disc's lower right (a ring of cyan dots): the game is serving the item
+    /// on its own, so it counts as served (owner). The green smiley that can sit in the same corner
+    /// means nothing useful (owner) and is not looked for; it has no cyan.
+    /// </summary>
+    private static bool HasSpinner(Frame frame, Disc disc)
     {
         int from = (int)Math.Round(5 * disc.Scale), to = (int)Math.Round(75 * disc.Scale);
-        int cyan = 0, lime = 0, all = 0;
+        int cyan = 0, all = 0;
         for (int dy = from; dy < to; dy++)
         for (int dx = from; dx < to; dx++)
         {
@@ -340,13 +347,9 @@ public sealed class TableCardReader(InnText text, InnPictures pictures)
             all++;
             var (r, g, b) = frame.GetPixel(x, y);
             if (g - r >= 40 && b - r >= 40) cyan++;
-            else if (g >= 200 && r >= 140 && b <= 120 && g - b >= 100) lime++;
         }
-        // Measured at 4K: a smiley covers ~24 % of the corner, a flower's dots ~7.5 %, art without a badge 0.
-        if (all == 0) return ItemProgress.Waiting;
-        if (lime >= all * 0.08) return ItemProgress.Ready;
-        if (cyan >= all * 0.025) return ItemProgress.Making;
-        return ItemProgress.Waiting;
+        // Measured at 4K: the spinner's dots cover ~7.5 % of the corner, art without it 0.
+        return all > 0 && cyan >= all * 0.025;
     }
 
     /// <summary>The two pips under the number, green or not.</summary>

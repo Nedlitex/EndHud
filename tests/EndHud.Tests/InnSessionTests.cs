@@ -167,17 +167,30 @@ public class InnSessionTests
     }
 
     [Fact]
-    public void A_dish_turning_ready_on_a_card_is_out_of_the_kitchen_even_before_the_estimate_says_so()
+    public void A_dish_turning_served_on_a_card_is_out_of_the_kitchen_even_before_the_estimate_says_so()
     {
         var session = Prepared(1);
         session.Update(Session(10, tables: Tables(Order(2, A)), panel: Panel(1, 1, Menu[..5], (A, 30))));
 
-        // The card says A is ready long before the estimate's 30 s: the kitchen's A is gone, so a
-        // second order of A is not covered by it.
-        session.Update(Session(12, tables: Tables(Order(2, new OrderItem(A, ItemProgress.Ready)), Order(4, A))));
+        // The card says A is served (its pip green, or the auto-serve spinner on it) long before the
+        // estimate's 30 s: the kitchen's A is gone, so a second order of A is not covered by it.
+        session.Update(Session(12, tables: Tables(Order(2, new OrderItem(A, Served: true)), Order(4, A))));
 
         var advice = session.Advice(S(12))!;
         Assert.Contains(advice.Dispatch!.For(1).Queue, q => q.Dish.Id == A && q.Table == 4);
+    }
+
+    [Fact]
+    public void A_served_item_is_neither_cooked_nor_dispatched_while_the_rest_of_its_order_is()
+    {
+        var session = Prepared(1, 2);
+        // Table 6: A carries the blue auto-serve spinner (served), B is still to come.
+        session.Update(Session(10, tables: Tables(Order(6, new OrderItem(A, Served: true), new OrderItem(B, Served: false)))));
+
+        var advice = session.Advice(S(10))!;
+
+        Assert.DoesNotContain(Queued(advice), q => q.Table == 6 && q.Dish.Id == A);
+        Assert.Contains(Queued(advice), q => q.Table == 6 && q.Dish.Id == B);
     }
 
     [Fact]

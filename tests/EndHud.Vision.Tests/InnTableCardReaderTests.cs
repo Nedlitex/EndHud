@@ -20,59 +20,59 @@ public class InnTableCardReaderTests(ITestOutputHelper output)
     });
 
     // A card as the labels write it: "-" empty, "ordering", "eating", "paying", "gourmand",
-    // "gourmand ordering", "gourmand order", "gourmand eating", or the order's items "id:progress"
-    // joined by " + " (progress: w waiting, m being made, r ready).
+    // "gourmand ordering", "gourmand order", "gourmand eating", or the order's items "id:state"
+    // joined by " + " (state: s served, its pip green or the blue auto-serve spinner on it; w not).
     public static TheoryData<string, string[]> Frames() => new()
     {
         { "session-start", ["-", "-", "-", "-", "-", "-"] },
         { "session-first-order", ["-", "-", "-", "ordering", "-", "-"] },
         { "session-fire-0", ["-", "-", "-", "ordering", "-", "-"] },
         { "dispatch-panel-queue", ["ordering", "-", "-", "-", "-", "-"] },
-        { "session-fire-meter", ["melon-meatball-soup:w + bottled-duskberry-juice:r", "fin-mato-soup:w + berry-fruity-toss:w", "ordering", "-", "-", "-"] },
+        { "session-fire-meter", ["melon-meatball-soup:w + bottled-duskberry-juice:s", "fin-mato-soup:w + berry-fruity-toss:w", "ordering", "-", "-", "-"] },
         {
             "session-four-orders",
-            ["-", "fin-mato-soup:m + bottled-duskberry-juice:r", "-", "melon-meatball-soup:w + bottled-milk-a:r",
-             "mala-xiang-guo:w + pre-tide-lungjing:r", "mala-xiang-guo:w + bottled-duskberry-juice:w"]
+            ["-", "fin-mato-soup:s + bottled-duskberry-juice:s", "-", "melon-meatball-soup:w + bottled-milk-a:s",
+             "mala-xiang-guo:w + pre-tide-lungjing:s", "mala-xiang-guo:w + bottled-duskberry-juice:w"]
         },
         {
             "session-gourmand-arrives",
-            ["gourmand ordering", "eating", "-", "melon-meatball-soup:w + bottled-milk-a:r",
-             "mala-xiang-guo:m + pre-tide-lungjing:r", "mala-xiang-guo:w + bottled-duskberry-juice:r"]
+            ["gourmand ordering", "eating", "-", "melon-meatball-soup:w + bottled-milk-a:s",
+             "mala-xiang-guo:s + pre-tide-lungjing:s", "mala-xiang-guo:w + bottled-duskberry-juice:s"]
         },
         {
             "session-gourmand-order",
-            ["gourmand order", "eating", "-", "melon-meatball-soup:w + bottled-milk-a:r",
-             "mala-xiang-guo:r + pre-tide-lungjing:r", "mala-xiang-guo:w + bottled-duskberry-juice:r"]
+            ["gourmand order", "eating", "-", "melon-meatball-soup:w + bottled-milk-a:s",
+             "mala-xiang-guo:s + pre-tide-lungjing:s", "mala-xiang-guo:w + bottled-duskberry-juice:s"]
         },
         {
             "session-dispatch-panel",
-            ["paying", "fin-mato-soup:w + pre-tide-lungjing:r", "eating", "-", "gourmand ordering", "mala-xiang-guo:w + bottled-duskberry-juice:r"]
+            ["paying", "fin-mato-soup:w + pre-tide-lungjing:s", "eating", "-", "gourmand ordering", "mala-xiang-guo:w + bottled-duskberry-juice:s"]
         },
         {
             "session-paying-and-waiting",
-            ["fin-mato-soup:w + bottled-duskberry-juice:r", "paying", "gourmand", "mala-xiang-guo:w + bottled-duskberry-juice:r", "gourmand eating", "paying"]
+            ["fin-mato-soup:w + bottled-duskberry-juice:s", "paying", "gourmand", "mala-xiang-guo:w + bottled-duskberry-juice:s", "gourmand eating", "paying"]
         },
         {
             "session-gourmand-one-request",
-            ["fin-mato-soup:w + bottled-duskberry-juice:r", "paying", "gourmand", "mala-xiang-guo:w + bottled-duskberry-juice:r", "paying", "paying"]
+            ["fin-mato-soup:w + bottled-duskberry-juice:s", "paying", "gourmand", "mala-xiang-guo:w + bottled-duskberry-juice:s", "paying", "paying"]
         },
         {
             "session-two-dishes",
-            ["fin-mato-soup:r + bottled-duskberry-juice:r", "ordering", "gourmand eating", "mala-xiang-guo:w + bottled-duskberry-juice:r", "ordering", "paying"]
+            ["fin-mato-soup:s + bottled-duskberry-juice:s", "ordering", "gourmand eating", "mala-xiang-guo:w + bottled-duskberry-juice:s", "ordering", "paying"]
         },
         {
             "session-fire-92",
-            ["fin-mato-soup:r + bottled-duskberry-juice:r", "ordering", "gourmand eating", "mala-xiang-guo:w + bottled-duskberry-juice:r", "ordering", "paying"]
+            ["fin-mato-soup:s + bottled-duskberry-juice:s", "ordering", "gourmand eating", "mala-xiang-guo:w + bottled-duskberry-juice:s", "ordering", "paying"]
         },
         {
             "session-fire-ready",
-            ["ordering", "goldfloss-chiffon:r + mala-xiang-guo:w", "-", "paying", "goldfloss-chiffon:m + bottled-duskberry-juice:r",
+            ["ordering", "goldfloss-chiffon:s + mala-xiang-guo:w", "-", "paying", "goldfloss-chiffon:s + bottled-duskberry-juice:s",
              "spoon-swimmer:w + goldfloss-chiffon:w"]
         },
         {
             "session-closed",
-            ["mala-xiang-guo:w + pre-tide-lungjing:m", "-", "melon-meatball-soup:w + bottled-milk-a:r", "eating", "ordering",
-             "sweetbeans-on-snow:w + mala-xiang-guo:r"]
+            ["mala-xiang-guo:w + pre-tide-lungjing:s", "-", "melon-meatball-soup:w + bottled-milk-a:s", "eating", "ordering",
+             "sweetbeans-on-snow:w + mala-xiang-guo:s"]
         },
     };
 
@@ -146,6 +146,6 @@ public class InnTableCardReaderTests(ITestOutputHelper output)
         TableState.GourmandOrdering => "gourmand ordering",
         TableState.GourmandOrder => "gourmand order",
         TableState.GourmandEating => "gourmand eating",
-        _ => string.Join(" + ", card.Items.Select(i => $"{i.Id ?? "?"}:{i.Progress switch { ItemProgress.Making => "m", ItemProgress.Ready => "r", _ => "w" }}")),
+        _ => string.Join(" + ", card.Items.Select(i => $"{i.Id ?? "?"}:{(i.Served ? "s" : "w")}")),
     };
 }
