@@ -143,10 +143,25 @@ public sealed class InnText
     /// Each line read in <paramref name="region"/> with where it is in the frame, top to bottom, for a
     /// caller that finds a label first and then reads what stands beside it.
     /// </summary>
-    public async Task<IReadOnlyList<(string Text, PixelRect Place)>> ReadPlacedLinesAsync(Frame frame, PixelRect region, Ink ink, double hudScale)
+    public Task<IReadOnlyList<(string Text, PixelRect Place)>> ReadPlacedLinesAsync(Frame frame, PixelRect region, Ink ink, double hudScale) =>
+        ReadPlacedLinesAsync(frame, region, hudScale, Prepare(frame, region.ClampTo(frame.Width, frame.Height), ink, hudScale));
+
+    /// <summary>
+    /// Like <see cref="ReadPlacedLinesAsync(Frame, PixelRect, Ink, double)"/> at a few preparations
+    /// in turn (ink picked out at two sizes, then the region's own greys), for a caller that keeps
+    /// the attempt that makes the most sense: in a small window one reads what another misses.
+    /// </summary>
+    public async IAsyncEnumerable<IReadOnlyList<(string Text, PixelRect Place)>> ReadPlacedLinesAttemptsAsync(Frame frame, PixelRect region, Ink ink, double hudScale)
     {
         var r = region.ClampTo(frame.Width, frame.Height);
-        var prepared = Prepare(frame, r, ink, hudScale);
+        yield return await ReadPlacedLinesAsync(frame, r, hudScale, Prepare(frame, r, ink, hudScale));
+        yield return await ReadPlacedLinesAsync(frame, r, hudScale, Prepare(frame, r, ink, Math.Min(hudScale, 0.5)));
+        yield return await ReadPlacedLinesAsync(frame, r, hudScale, PrepareGrey(frame, r, ink, hudScale));
+    }
+
+    private async Task<IReadOnlyList<(string Text, PixelRect Place)>> ReadPlacedLinesAsync(Frame frame, PixelRect region, double hudScale, Frame? prepared)
+    {
+        var r = region.ClampTo(frame.Width, frame.Height);
         if (prepared is null) return [];
         // The prepared image is the region enlarged by one factor, inside a padding.
         double fx = (prepared.Width - 2 * Padding) / (double)r.Width, fy = (prepared.Height - 2 * Padding) / (double)r.Height;
