@@ -101,7 +101,8 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
         foreach (string line in lines) output.WriteLine(line);
         Assert.Equal("缘缘庄 · 推荐（没有的干员/菜，换「可换」里的）", lines[0]);
         string[] kitchen = ["干员：", "可换：", "做菜：", "可换："];
-        Assert.Equal(["厨房一", .. kitchen, "厨房二", .. kitchen, "厨房三", .. kitchen, "饮品：", "可换："],
+        // Kitchen 1 is full (Perlica and Avywenna placed): no chefs to suggest there.
+        Assert.Equal(["厨房一", "做菜：", "可换：", "厨房二", .. kitchen, "厨房三", .. kitchen, "饮品：", "可换："],
             lines.Skip(1).Select(l => l.StartsWith("厨房") ? l[..3] : l[..(l.IndexOf('：') + 1)]));
 
         // The menu screen seen too: it refines (stock, the rules as stated), the panel keeps its shape.

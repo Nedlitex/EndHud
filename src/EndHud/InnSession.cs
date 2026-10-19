@@ -22,28 +22,6 @@ internal enum InnGap
     NoMenu,
 }
 
-/// <summary>What the setup panel can't recommend without, said to the player instead of a guess.</summary>
-internal enum InnSetupGap
-{
-    /// <summary>The setup screen shows, but its theme couldn't be read (something covers it).</summary>
-    ThemeUnreadable,
-
-    /// <summary>No setup screen seen yet (EndHud started on the menu, say).</summary>
-    NoSetup,
-
-    /// <summary>The theme list was seen, not 营业设定 with its kitchens.</summary>
-    NoKitchens,
-}
-
-/// <summary>What the setup panel works from: the planner's input, or what's missing.</summary>
-/// <param name="Input">Null when anything is missing (<paramref name="Gaps"/>): no plan from half a reading.</param>
-/// <param name="Key">Changes when the input does: the plan is worked out again only then.</param>
-/// <param name="RulesNotUnderstood">菜单要求 lines (as read) the planner couldn't take in: the plan ignores them, and the panel says so.</param>
-internal sealed record InnSetupInputs(IReadOnlyList<InnSetupGap> Gaps, InnPlanInput? Input, string Key, IReadOnlyList<string> RulesNotUnderstood)
-{
-    public bool ChefsPlanned { get; init; }
-}
-
 /// <summary>What to tell the player about one gourmand.</summary>
 /// <param name="Advice">The requests in plain words and what meets them; null when the request wasn't recognised.</param>
 /// <param name="UnreadText">The bubble's text as read, when no request matched it.</param>
@@ -62,12 +40,14 @@ internal sealed record InnAdvice(DispatchAdvice? Dispatch, InnGap? Gap, FullBlaz
     IReadOnlyList<InnGourmandNote> Gourmands, IReadOnlyList<int> UnreadableTables, IReadOnlySet<int> ExactKitchens, bool Opening);
 
 /// <summary>
-/// What the helper knows of the inn, in memory only (plan S5/S7). Before a session: the setup
-/// screen's theme and kitchens, and the menu screen's dishes and drinks, kept until the next setup.
-/// During a session: each kitchen's chefs and queue (read off the dispatch panel whenever it shows
-/// that kitchen; otherwise moved on by cook times since, an estimate), the table cards' orders,
-/// what's ready, the Full Blaze meter, and each gourmand's request. It ends when no session frame
-/// has been seen for <see cref="EndAfter"/>, or a setup or menu screen shows, and is forgotten.
+/// What the helper knows of the inn, in memory only (plan S5/S7). Before a session: the setup as
+/// chosen so far (<see cref="InnSetupMemory"/>: theme, kitchens and chefs, menu), kept across pages
+/// and into the session, forgotten on the theme list or when no inn screen has shown for
+/// <see cref="ForgetAfter"/>. During a session: each kitchen's chefs and queue (read off the
+/// dispatch panel whenever it shows that kitchen; otherwise moved on by cook times since, an
+/// estimate), the table cards' orders, what's ready, the Full Blaze meter, and each gourmand's
+/// request. A session ends when no session frame has been seen for <see cref="EndAfter"/>, or a
+/// setup screen shows, and is forgotten.
 /// </summary>
 internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roster, Action<string>? log = null, Action<string>? warn = null)
 {
@@ -83,17 +63,9 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     private readonly Action<string> _log = log ?? DiagnosticLog.Info;
     private readonly Action<string> _warn = warn ?? (m => DiagnosticLog.Warn(m));
 
-    // Before the session: kept until the next setup screen after a session.
-    private InnSetup? _setup;
-    private readonly Dictionary<string, MenuCard> _menu = [];
-    private bool _sessionSinceSetup;
-    // For the setup panel: every dish and drink card the menu screen showed (on the menu or not),
-    // its requirements and counters, and whether the setup screen's last reading failed. The menu
-    // screen only refines the plan (stock, the rules as stated); it's never needed.
-    private readonly Dictionary<string, MenuCard> _offered = [];
-    private MenuRequirements? _requirements;
-    private (int Chosen, int Allowed)? _dishCounter, _drinkCounter;
-    private bool _setupUnreadable;
+    // The setup as chosen so far, kept across pages until the theme list or leaving the inn.
+    private readonly InnSetupMemory _memory = new(data, roster);
+    private TimeSpan? _lastInnReading;
 
     // The session.
     private TimeSpan _lastSessionFrame, _advancedTo;
@@ -126,13 +98,23 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
 
     private sealed record GourmandMemory(IReadOnlyList<GourmandRequest> Requests, string? Unread);
 
+    /// <summary>
+    /// No inn screen for this long means the inn was left (a fight, the open world): the setup is
+    /// forgotten. Longer than a screen's fade or a missed read, shorter than a trip out and back.
+    /// </summary>
     public static readonly TimeSpan ForgetAfter = TimeSpan.FromSeconds(30);
 
-    public IReadOnlyCollection<string> OnMenu => _menu.Keys;
+    /// <summary>The dishes and drinks on the menu, as the menu screen last showed them.</summary>
+    public IReadOnlyCollection<string> OnMenu => [.. _memory.Menu.Keys];
 
-    public int? PickerKitchen => null;
+    /// <summary>The kitchen whose chef picker was last read; null when none.</summary>
+    public int? PickerKitchen => _memory.PickerKitchen;
 
-    public InnSetupInputs MenuInputs() => SetupInputs();
+    /// <summary>What the chefs' advice works from (<see cref="InnSetupMemory.ForSetup"/>).</summary>
+    public InnSetupInputs SetupInputs() => _memory.ForSetup();
+
+    /// <summary>What the menu advice works from (<see cref="InnSetupMemory.ForMenu"/>).</summary>
+    public InnSetupInputs MenuInputs() => _memory.ForMenu();
 
     /// <summary>A session is on (its frames seen within <see cref="EndAfter"/>).</summary>
     public bool Active { get; private set; }
@@ -140,44 +122,19 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// <summary>Takes in one reading of the inn.</summary>
     public void Update(InnReading reading)
     {
-        // The theme is unreadable only while the setup screen showing it is; elsewhere the last good reading stands.
-        if (reading.Screen != InnScreenKind.Setup) _setupUnreadable = false;
+        // A reading long after the last: the inn was left in between, and what was chosen is gone.
+        if (_lastInnReading is { } last && reading.At - last > ForgetAfter) _memory.Forget();
+        _lastInnReading = reading.At;
         switch (reading.Screen)
         {
-            case InnScreenKind.Setup:
+            case InnScreenKind.ThemeList:
+                // Choosing a theme begins a new setup.
                 LeaveSession();
-                if (reading.Fresh) _setupUnreadable = reading.Setup is null;
-                if (reading.Setup is { } setup)
-                {
-                    if (_sessionSinceSetup)
-                    {
-                        // Setting up the next session: the last one's menu may change.
-                        _menu.Clear();
-                        _offered.Clear();
-                        _requirements = null;
-                        _dishCounter = _drinkCounter = null;
-                        _setup = null;
-                        _sessionSinceSetup = false;
-                    }
-                    // The theme list shows no kitchens; keep the ones the kitchens' screen showed.
-                    _setup = setup.Kitchens is null && _setup?.Kitchens is { } kitchens ? setup with { Kitchens = kitchens } : setup;
-                }
+                _memory.Forget();
                 return;
-            case InnScreenKind.Menu:
+            case InnScreenKind.Setup or InnScreenKind.Menu or InnScreenKind.ChefPicker:
                 LeaveSession();
-                foreach (var card in reading.Menu?.Cards ?? [])
-                {
-                    if (card.Id is null) continue;
-                    _offered[card.Id] = card;
-                    if (card.OnMenu) _menu[card.Id] = card;
-                    else _menu.Remove(card.Id);
-                }
-                if (reading.Menu?.Dishes is { } dishes) _dishCounter = dishes;
-                if (reading.Menu?.Drinks is { } drinks) _drinkCounter = drinks;
-                if (reading.Requirements is { } requirements) _requirements = Merge(_requirements, requirements);
-                return;
-            case InnScreenKind.ChefPicker:
-                LeaveSession(); // nothing on it is needed: the panel works from the built-in roster
+                _memory.Take(reading);
                 return;
         }
 
@@ -195,25 +152,27 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         if (reading.Bubble is { } bubble) TakeBubble(bubble);
     }
 
-    /// <summary>A frame that isn't the inn, or time passing: ends a session not seen for <see cref="EndAfter"/>.</summary>
+    /// <summary>
+    /// A frame that isn't the inn, or time passing: ends a session not seen for <see cref="EndAfter"/>,
+    /// and forgets the setup when no inn screen has shown for <see cref="ForgetAfter"/>.
+    /// </summary>
     public void Tick(TimeSpan now)
     {
         if (Active && now - _lastSessionFrame > EndAfter) LeaveSession();
+        if (_lastInnReading is { } last && now - last > ForgetAfter)
+        {
+            _memory.Forget();
+            _lastInnReading = null;
+        }
     }
-
-    /// <summary>A newer reading of the requirements, what it missed taken from the older (the numbers don't change, only their colours).</summary>
-    private static MenuRequirements Merge(MenuRequirements? old, MenuRequirements read) => old is null ? read : new MenuRequirements(
-        read.Rating ?? old.Rating, read.MinTypes ?? old.MinTypes, read.MinDishes ?? old.MinDishes, read.MinDrinks ?? old.MinDrinks,
-        read.DishRules.Count > 0 ? read.DishRules : old.DishRules, read.Lines);
 
     private void StartSession(TimeSpan at)
     {
         ClearSession();
         Active = true;
-        _sessionSinceSetup = true;
         _advancedTo = at;
         _lastSessionFrame = at;
-        _log($"inn: session started ({(_setup is null ? "setup not seen" : $"theme {_setup.ThemeName}")}, {_menu.Count} menu items seen)");
+        _log($"inn: session started ({(_memory.Setup is null ? "setup not seen" : $"theme {_memory.Setup.ThemeName}")}, {_memory.Menu.Count} menu items seen)");
     }
 
     private void LeaveSession()
@@ -385,7 +344,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     {
         var numbers = new SortedSet<int>();
         var empty = new HashSet<int>();
-        foreach (var k in _setup?.Kitchens ?? [])
+        foreach (var k in _memory.Setup?.Kitchens ?? [])
         {
             bool named = k.Chefs.Any(c => c is not null) || k.ChefNames.Any(n => n is not null);
             if (named || k.ChefsPlaced > 0) numbers.Add(k.Number);
@@ -400,7 +359,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         var kitchens = numbers.Select(n =>
         {
             IEnumerable<string?> ids = _kitchens.TryGetValue(n, out var seen) && seen.ChefsSeen ? seen.Chefs
-                : _setup?.Kitchens?.FirstOrDefault(k => k.Number == n)?.Chefs ?? [];
+                : _memory.Setup?.Kitchens?.FirstOrDefault(k => k.Number == n)?.Chefs ?? [];
             var chefs = ids.OfType<string>().Select(id => roster.FirstOrDefault(o => o.Id == id)).OfType<OperatorInfo>().Take(KitchenMath.MaxChefs).ToList();
             // Known to have a chef, or not known at all: either way it cooks (known-empty kitchens are out above).
             return new Kitchen(n, chefs) { ChefsUnknown = chefs.Count == 0 };
@@ -415,7 +374,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// </summary>
     private int Rating(IReadOnlyList<Kitchen> kitchens)
     {
-        if (_setup?.Theme is { } theme) return Math.Clamp(theme.Rating, 1, KitchenMath.MaxRating);
+        if (_memory.Setup?.Theme is { } theme) return Math.Clamp(theme.Rating, 1, KitchenMath.MaxRating);
         for (int rating = KitchenMath.MaxRating; rating >= 1; rating--)
         {
             bool agrees = true;
@@ -432,73 +391,23 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
 
     private IReadOnlyList<MenuDish> MenuDishes()
     {
-        var ids = _menu.Keys.Where(id => DishOf(id) is not null).Concat(_dishesSeen).Distinct().ToList();
+        var ids = _memory.Menu.Keys.Where(id => DishOf(id) is not null).Concat(_dishesSeen).Distinct().ToList();
         return [.. ids.Select(id =>
         {
-            int? stock = _menu.TryGetValue(id, out var card) && !card.Unlimited && card.Stock is { } n ? Math.Max(0, n - _cooked.GetValueOrDefault(id)) : null;
+            int? stock = _memory.Menu.TryGetValue(id, out var card) && !card.Unlimited && card.Stock is { } n ? Math.Max(0, n - _cooked.GetValueOrDefault(id)) : null;
             return new MenuDish(DishOf(id)!, stock);
         })];
     }
 
     private IReadOnlyList<MenuDrink> MenuDrinks()
     {
-        var ids = _menu.Keys.Where(IsDrink).Concat(_drinksSeen).Distinct();
+        var ids = _memory.Menu.Keys.Where(IsDrink).Concat(_drinksSeen).Distinct();
         return [.. ids.Select(id =>
         {
             var drink = data.Drinks.First(d => d.Id == id);
-            int? stock = !drink.Unlimited && _menu.TryGetValue(id, out var card) && !card.Unlimited ? card.Stock : null;
+            int? stock = !drink.Unlimited && _memory.Menu.TryGetValue(id, out var card) && !card.Unlimited ? card.Stock : null;
             return new MenuDrink(drink, stock);
         })];
-    }
-
-    /// <summary>
-    /// What the setup panel works from (plan S6; owner, 2026-10-19). From the setup screen: the theme,
-    /// its hot traits and rules, and the kitchens with their places (营业设定). Built in: every operator
-    /// in the library who can cook (Si and the Endministrator can't), and every dish and drink the
-    /// Inn Rating unlocks, with those a theme's stars unlock (whether the player has them can't be
-    /// seen: the panel names substitutes). The menu screen, when seen, only refines it:
-    /// each card's stock, the rating and the rules as 菜单要求 states them. Nothing asks the player
-    /// to open a screen or scroll to feed it; a missing theme or kitchens is a gap, never a guess.
-    /// </summary>
-    public InnSetupInputs SetupInputs()
-    {
-        // A setup screen that can't be read says only that.
-        if (_setupUnreadable) return new InnSetupInputs([InnSetupGap.ThemeUnreadable], null, "theme-unreadable", []);
-        // A kitchen's places as read; when they couldn't be told, the chefs placed there (a kitchen
-        // showing neither may be locked: left out, the cautious side).
-        var kitchens = (_setup?.Kitchens ?? []).Select(k => new PlanKitchen(k.Number,
-                Math.Min(KitchenMath.MaxChefs, k.ChefSlots ?? Math.Max(k.ChefsPlaced ?? 0, k.Chefs.Count(c => c is not null)))))
-            .Where(k => k.Places > 0).Take(KitchenMath.MaxKitchens).ToList();
-        if (_setup is null) return new InnSetupInputs([InnSetupGap.NoSetup], null, "no-setup", []);
-        if (kitchens.Count == 0) return new InnSetupInputs([InnSetupGap.NoKitchens], null, "no-kitchens", []);
-
-        var setup = _setup;
-        var r = _requirements;
-        int rating = Math.Clamp(r?.Rating ?? setup.Theme?.Rating ?? KitchenMath.MaxRating, 1, KitchenMath.MaxRating);
-        var chefs = roster.Where(o => !data.ChefBonuses.NotChefs.Contains(o.Id)).ToList();
-        int? Stock(string id) => _offered.TryGetValue(id, out var card) && !card.Unlimited ? card.Stock : null;
-        var dishes = data.Dishes.Where(d => d.Unlock.Rating is not { } needs || needs <= rating || _offered.ContainsKey(d.Id))
-            .Select(d => new MenuDish(d, Stock(d.Id))).ToList();
-        var drinks = data.Drinks.Where(d => d.Unlock.Rating is not { } needs || needs <= rating || _offered.ContainsKey(d.Id))
-            .Select(d => new MenuDrink(d, d.Unlimited ? null : Stock(d.Id))).ToList();
-
-        // The theme's rules (a trait's or a dish type's): as 营业设定 states them, and as the menu screen does.
-        var setupRules = DishRule.ParseAll(setup.MenuRules, data);
-        var dishRules = setupRules.Rules.Concat(r?.DishRules ?? [])
-            .DistinctBy(t => $"{t.Count}:{string.Join("/", t.AnyOf)}").ToList();
-        var known = MenuRules.OfRating(rating, dishRules);
-        int minDishes = r?.MinDishes ?? known?.MinDishes ?? 1, minDrinks = r?.MinDrinks ?? known?.MinDrinks ?? 0, minTypes = r?.MinTypes ?? known?.MinTypes ?? 1;
-        // The counters' "N/8" give the most allowed; unread, the rating's (8 of each at Rating 4).
-        int maxDishes = _dishCounter?.Allowed ?? known?.MaxDishes ?? MenuRules.MostSeen, maxDrinks = _drinkCounter?.Allowed ?? known?.MaxDrinks ?? MenuRules.MostSeen;
-        var rules = new MenuRules(minDishes, Math.Max(minDishes, maxDishes), minDrinks, Math.Max(minDrinks, maxDrinks), minTypes, dishRules);
-        var input = new InnPlanInput(InnPlanner.HotTraitsOf(setup.HotTraits, setup.Theme), rating, SiQualityPercent: 0, InnState.MaxTables,
-            kitchens, chefs, dishes, drinks, rules);
-        string key = string.Join("|",
-            string.Join(",", input.HotTraits), rating, string.Join(",", kitchens.Select(k => $"{k.Number}:{k.Places}")),
-            string.Join(",", dishes.Select(d => $"{d.Dish.Id}:{d.Stock}").Order()), string.Join(",", drinks.Select(d => $"{d.Drink.Id}:{d.Stock}").Order()),
-            $"{rules.MinDishes}-{rules.MaxDishes}/{rules.MinDrinks}-{rules.MaxDrinks}/{rules.MinTypes}",
-            string.Join(",", dishRules.Select(t => $"{t.Count}:{string.Join("/", t.AnyOf)}")), string.Join(",", setupRules.NotUnderstood));
-        return new InnSetupInputs([], input, key, setupRules.NotUnderstood);
     }
 
     /// <summary>

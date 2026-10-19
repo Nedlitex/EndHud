@@ -47,6 +47,7 @@ public class InnSessionTests
     [InlineData(InnScreenKind.Setup)]
     [InlineData(InnScreenKind.Menu)]
     [InlineData(InnScreenKind.ChefPicker)]
+    [InlineData(InnScreenKind.ThemeList)]
     public void A_setup_or_menu_screen_ends_the_session(InnScreenKind screen)
     {
         var session = Prepared();
@@ -106,13 +107,13 @@ public class InnSessionTests
     }
 
     [Fact]
-    public void The_menu_is_kept_until_the_setup_screen_after_a_session()
+    public void The_menu_is_forgotten_when_the_inn_was_left_in_between()
     {
         var session = Prepared();
         session.Update(Session(10));
         Assert.Null(session.Advice(S(10))!.Gap);
 
-        session.Update(SetupScreen(400, 1, 2, 3)); // setting up the next session
+        session.Update(SetupScreen(400, 1, 2, 3)); // back in the inn long after: the menu read before is gone (see InnSetupMemoryTests)
         session.Update(Session(410));
 
         Assert.Equal(InnGap.NoMenu, session.Advice(S(410))!.Gap);

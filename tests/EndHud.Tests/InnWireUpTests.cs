@@ -21,7 +21,7 @@ public class InnWireUpTests
         public InnScreenKind? Kind { get; set; }
         public DispatchPanel? Panel { get; set; }
         public IReadOnlyList<TableCard?> Tables { get; set; } = [.. Enumerable.Range(1, 6).Select(n => (TableCard?)new TableCard(n, TableState.Empty, [], []))];
-        public int Detections, BubbleReads, PanelReads, SetupReads;
+        public int Detections, BubbleReads, PanelReads, SetupReads, PickerReads;
 
         public Task<InnScreenKind?> DetectAsync(Frame frame)
         {
@@ -52,6 +52,14 @@ public class InnWireUpTests
         {
             SetupReads++;
             return Task.FromResult<InnSetup?>(null);
+        }
+
+        public int? PickerKitchen { get; set; }
+
+        public Task<int?> ReadPickerKitchenAsync(Frame frame)
+        {
+            PickerReads++;
+            return Task.FromResult(PickerKitchen);
         }
 
         public Task<InnMenu?> ReadMenuAsync(Frame frame) => Task.FromResult<InnMenu?>(null);
@@ -182,18 +190,38 @@ public class InnWireUpTests
         Assert.Equal(2, screens.SetupReads);
     }
 
-    /// <summary>The chef picker is told apart (the setup panel shows over it) and nothing on it is read (owner, 2026-10-19).</summary>
+    /// <summary>
+    /// Of the chef picker only its title is read, for its kitchen (the advice there is that kitchen's;
+    /// owner, 2026-10-19: never require reading the picker's grid), at once when it opens, then every two seconds.
+    /// </summary>
     [Fact]
-    public async Task The_chef_picker_is_a_setup_screen_and_nothing_on_it_is_read()
+    public async Task Of_the_chef_picker_only_its_kitchen_is_read_at_once_when_it_opens()
     {
         var (monitor, screens, raised) = Monitor();
+        screens.Kind = InnScreenKind.Setup;
+        Assert.True(await monitor.TryInnAsync(AnyFrame, S(0), false));
         screens.Kind = InnScreenKind.ChefPicker;
+        screens.PickerKitchen = 2;
 
-        foreach (double t in new[] { 0, 0.25, 2.0 }) Assert.True(await monitor.TryInnAsync(AnyFrame, S(t), false));
+        foreach (double t in new[] { 0.25, 0.5, 2.25 }) Assert.True(await monitor.TryInnAsync(AnyFrame, S(t), false));
 
-        Assert.Equal(0, screens.SetupReads);
+        Assert.Equal(1, screens.SetupReads);
+        Assert.Equal(2, screens.PickerReads);
+        Assert.Equal([2, null, 2], raised.Skip(1).Select(r => r!.PickerKitchen));
         Assert.All(raised, r => Assert.True(r!.OnSetupScreens));
-        Assert.All(raised, r => Assert.Null(r!.Setup));
+    }
+
+    /// <summary>The theme list is told apart and nothing on it is read: it shows no advice.</summary>
+    [Fact]
+    public async Task Nothing_on_the_theme_list_is_read()
+    {
+        var (monitor, screens, raised) = Monitor();
+        screens.Kind = InnScreenKind.ThemeList;
+
+        foreach (double t in new[] { 0, 2.5 }) Assert.True(await monitor.TryInnAsync(AnyFrame, S(t), false));
+
+        Assert.Equal((0, 0), (screens.SetupReads, screens.PickerReads));
+        Assert.All(raised, r => Assert.False(r!.OnSetupScreens));
     }
 
     [Fact]
@@ -213,6 +241,7 @@ public class InnWireUpTests
         public Task<DispatchPanel?> ReadPanelAsync(Frame frame) => throw new NotSupportedException();
         public Task<GourmandBubble?> ReadBubbleAsync(Frame frame) => throw new NotSupportedException();
         public Task<InnSetup?> ReadSetupAsync(Frame frame) => throw new NotSupportedException();
+        public Task<int?> ReadPickerKitchenAsync(Frame frame) => throw new NotSupportedException();
         public Task<InnMenu?> ReadMenuAsync(Frame frame) => throw new NotSupportedException();
         public Task<MenuRequirements?> ReadMenuRequirementsAsync(Frame frame) => throw new NotSupportedException();
     }
