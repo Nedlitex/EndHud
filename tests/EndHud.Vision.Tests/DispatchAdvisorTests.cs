@@ -6,7 +6,7 @@ namespace EndHud.Vision.Tests;
 /// <summary>
 /// Which kitchen each ordered dish goes to, what to cook ahead, and when to swap a dish cooked ahead
 /// for an order (<see cref="DispatchAdvisor"/>). The kitchens: 1 = 佩丽卡 + 艾维文娜 (菜肴 +20 %,
-/// 甜品 +10 %, 甜 +10 %), 2 = 赛希 + 伊冯 (甜品 +30 %, 鲜 +10 %), 3 = no chefs; Rating 4, Si's 品质把控 II.
+/// 甜品 +10 %, 甜 +10 %), 2 = 赛希 + 伊冯 (甜品 +30 %, 鲜 +10 %), 3 = a cook with no bonus; Rating 4, Si's 品质把控 II.
 /// Cook times there: 坛子肉 27/35/35 s, 白瓜肉丸汤 40/37/40, 果味沙拉 30/35/35, “勺里游” 27/32/35,
 /// 肉包子 and 缘缘菜饭 15 everywhere.
 /// </summary>
@@ -38,6 +38,37 @@ public class DispatchAdvisorTests
 
         var (kitchen, sent) = Assert.Single(Sent(advice));
         Assert.Equal((2, 1, 35.0), (kitchen, sent.Table!.Value, sent.ReadyIn)); // 2 over 3: 18 % 珍馐 against 13 %
+    }
+
+    /// <summary>
+    /// A kitchen known to have no chef cannot cook (owner, 2026-10-19): nothing is sent there, cooked
+    /// ahead there or swapped there, and it isn't listed as a kitchen to queue in.
+    /// </summary>
+    [Fact]
+    public void A_kitchen_with_no_chef_gets_no_advice_at_all()
+    {
+        var kitchens = new InnKitchens(InnTestData.Inn, [InnTestData.Kitchen(1, "Perlica", "Avywenna"), InnTestData.EmptyKitchen(2)], 4, 5);
+        var advisor = new DispatchAdvisor(kitchens);
+
+        // Kitchen 1 has 20 s of 果味沙拉 to go: an empty kitchen 2 would have 坛子肉 out sooner, were it cooking.
+        var advice = advisor.Advise(State([Queue(1, ("果味沙拉", 20)), Queue(2)], [Order(1, "坛子肉")]));
+        var opening = advisor.Opening(InnSimulatorTests.RecordedMenu);
+
+        Assert.Equal([1], advice.Kitchens.Select(k => k.Kitchen));
+        Assert.Equal(1, Assert.Single(Sent(advice)).Kitchen);
+        Assert.Equal([1], opening.Kitchens.Select(k => k.Kitchen));
+        Assert.Null(advisor.SoonestOut(State([Queue(1, ("果味沙拉", 20), ("坛子肉", 27), ("坛子肉", 27)), Queue(2)]), Dish("坛子肉")));
+    }
+
+    /// <summary>A kitchen whose chefs aren't known (setup never seen, no panel) is taken to cook, at base speed.</summary>
+    [Fact]
+    public void A_kitchen_whose_chefs_are_unknown_still_cooks()
+    {
+        var kitchens = new InnKitchens(InnTestData.Inn, [InnTestData.Kitchen(1, "Perlica", "Avywenna"), new Kitchen(2, []) { ChefsUnknown = true }], 4, 5);
+
+        var advice = new DispatchAdvisor(kitchens).Advise(State([Queue(1, ("果味沙拉", 20)), Queue(2)], [Order(1, "坛子肉")]));
+
+        Assert.Equal((2, 35.0), (Assert.Single(Sent(advice)).Kitchen, Assert.Single(Sent(advice)).Advice.ReadyIn));
     }
 
     /// <summary>On a tie, the kitchen with the better choice-dish chance, even when it's the later one.</summary>

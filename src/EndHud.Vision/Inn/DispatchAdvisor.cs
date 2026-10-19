@@ -62,6 +62,8 @@ public sealed record DispatchAdvice(IReadOnlyList<KitchenAdvice> Kitchens, IRead
 /// when queueing the order in its place has it out sooner than any kitchen could otherwise, by more
 /// than <see cref="ReplaceMarginSeconds"/>. A dish cooking is lost when taken out, so one is only
 /// worth taking out when it has barely started (<see cref="BarelyStartedSeconds"/>).</item>
+/// <item>A kitchen with no chef cannot cook (<see cref="KitchenMath.Cooks"/>): it gets no advice of
+/// any kind and isn't listed.</item>
 /// </list>
 /// </summary>
 public sealed class DispatchAdvisor(InnKitchens kitchens)
@@ -113,13 +115,16 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
         else plan.CookAheadInIdleKitchens();
 
         return new DispatchAdvice(
-            [.. Kitchens.Kitchens.Select(k => new KitchenAdvice(k.Number, plan.QueueFor(k.Number), plan.ReplacesFor(k.Number)))],
+            [.. Cooking.Select(k => new KitchenAdvice(k.Number, plan.QueueFor(k.Number), plan.ReplacesFor(k.Number)))],
             waiting, outOfStock);
     }
 
+    /// <summary>The kitchens that cook (<see cref="KitchenMath.Cooks"/>), by number: the only ones advised.</summary>
+    private IEnumerable<Kitchen> Cooking => Kitchens.Kitchens.Where(KitchenMath.Cooks).OrderBy(k => k.Number);
+
     /// <summary>The opening (C16): what to cook ahead in every kitchen before the first guest orders.</summary>
     public DispatchAdvice Opening(IReadOnlyList<MenuDish> menu) =>
-        Advise(new InnState([.. Kitchens.Kitchens.Select(k => new KitchenQueue(k.Number))], [], [], [], menu), fillEverySlot: true);
+        Advise(new InnState([.. Cooking.Select(k => new KitchenQueue(k.Number))], [], [], [], menu), fillEverySlot: true);
 
     /// <summary>
     /// The kitchen that would have <paramref name="dish"/> out soonest if queued now, and in how
@@ -145,7 +150,7 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
         {
             _advisor = advisor;
             _state = state;
-            foreach (var kitchen in advisor.Kitchens.Kitchens)
+            foreach (var kitchen in advisor.Cooking)
             {
                 _queues[kitchen.Number] = [];
                 _advice[kitchen.Number] = [];
@@ -154,7 +159,11 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
             foreach (var queue in state.Queues)
             {
                 if (!_queues.TryGetValue(queue.Kitchen, out var slots))
-                    throw new ArgumentException($"A queue for kitchen {queue.Kitchen}, which isn't in play.", nameof(state));
+                {
+                    // A kitchen with no chef has nothing cooking: its empty queue is no matter.
+                    if (queue.Dishes.Count == 0 && advisor.Kitchens.Kitchens.Any(k => k.Number == queue.Kitchen)) continue;
+                    throw new ArgumentException($"A queue for kitchen {queue.Kitchen}, which isn't in play or has no chef.", nameof(state));
+                }
                 slots.AddRange(queue.Dishes.Select((d, i) => new Slot(d.Dish, d.SecondsLeft, i, false, i == 0)));
             }
             foreach (var menu in state.Menu) _stock[menu.Dish.Id] = menu.Stock;

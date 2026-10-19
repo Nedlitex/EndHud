@@ -81,7 +81,7 @@ public enum PlanReasonKind
     /// <summary>A rule no menu of the available dishes can meet (<see cref="PlanReason.Rule"/>; -1 the types or counts).</summary>
     RuleUnmet,
 
-    /// <summary>A kitchen left without chefs: none left to put there (it doesn't cook, an assumption).</summary>
+    /// <summary>A kitchen left without chefs: none left to put there (it can't cook, <see cref="KitchenMath.Cooks"/>).</summary>
     KitchenUnstaffed,
 
     /// <summary>The guests limit the orders, not the kitchens.</summary>
@@ -149,12 +149,6 @@ public sealed class InnPlanner(InnData inn)
     /// more than the tables bring; in the recording the kitchens were the limit.
     /// </summary>
     public const double MinGuestCycleSeconds = 6 + 12 + 10 + 3 + 3;
-
-    /// <summary>
-    /// Whether a kitchen with no chef cooks. Not known: an assumption, the cautious side. The owner's
-    /// 养身心 run left kitchen 3 empty, which the plan reads as "using fewer kitchens".
-    /// </summary>
-    public static readonly bool EmptyKitchenCooks = false;
 
     /// <summary>Line-ups the beam keeps at each chef place.</summary>
     public const int BeamWidth = 20;
@@ -264,7 +258,7 @@ public sealed class InnPlanner(InnData inn)
             throw new ArgumentException($"Inn Rating {input.Rating}; the model knows 1 to {KitchenMath.MaxRating}.", nameof(input));
     }
 
-    private static bool Cooks(Kitchen kitchen) => EmptyKitchenCooks || kitchen.Chefs.Count > 0;
+    private static bool Cooks(Kitchen kitchen) => KitchenMath.Cooks(kitchen);
 
     /// <summary>Cook seconds and choice chances (0–1) of each dish in each kitchen that cooks.</summary>
     private (double[,] Seconds, double[,] Choice) Times(InnPlanInput input, IReadOnlyList<Kitchen> kitchens, IReadOnlyList<Dish> dishes)

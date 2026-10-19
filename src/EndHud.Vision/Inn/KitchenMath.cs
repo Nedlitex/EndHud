@@ -4,7 +4,16 @@ namespace EndHud.Vision.Inn;
 
 /// <summary>One of the inn's kitchens and the chefs put in it (none, one or two).</summary>
 /// <param name="Number">1 to <see cref="KitchenMath.MaxKitchens"/>, as the game numbers them.</param>
-public sealed record Kitchen(int Number, IReadOnlyList<OperatorInfo> Chefs);
+/// <param name="Chefs">The chefs known to be in it. Empty means the kitchen has no chef, unless <see cref="ChefsUnknown"/>.</param>
+public sealed record Kitchen(int Number, IReadOnlyList<OperatorInfo> Chefs)
+{
+    /// <summary>
+    /// Who cooks here couldn't be seen (no setup screen, no dispatch panel naming them): the kitchen
+    /// is taken to cook, at base speed for want of their bonuses. Only the session sets it; a kitchen
+    /// built from a line-up states its chefs.
+    /// </summary>
+    public bool ChefsUnknown { get; init; }
+}
 
 /// <summary>
 /// How long a dish takes in a kitchen and how often it comes out as a choice dish (珍馐), from the
@@ -18,6 +27,13 @@ public static class KitchenMath
 
     /// <summary>Each kitchen has at most two chef slots (owner; the setup screen).</summary>
     public const int MaxChefs = 2;
+
+    /// <summary>
+    /// Whether a kitchen cooks at all: a kitchen with no chef cannot (owner, 2026-10-19). One whose
+    /// chefs couldn't be seen (<see cref="Kitchen.ChefsUnknown"/>) is taken to. The planner, the
+    /// advisor and the session all go by this.
+    /// </summary>
+    public static bool Cooks(Kitchen kitchen) => kitchen.Chefs.Count > 0 || kitchen.ChefsUnknown;
 
     /// <summary>
     /// A kitchen's choice-dish chance before any chef, by Inn Rating 1 to 4 (the plan's evidence:

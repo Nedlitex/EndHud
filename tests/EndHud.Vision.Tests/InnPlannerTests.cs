@@ -398,7 +398,7 @@ public class InnPlannerTests(ITestOutputHelper output)
         var theme = Inn.Themes.Single(t => t.Zh == "养身心");
         var chefs = wholeRoster ? Roster : [InnTestData.Chef("Perlica"), InnTestData.Chef("Avywenna"), InnTestData.Chef("Chen_Qianyu")];
         var input = Input(Kitchens(3, 2), chefs, OwnersDishes, OwnersDrinks, Rating4(VeggyOrRich), InnPlanner.HotTraitsOf(["Veggy", "Rich"], theme));
-        var owners = new[] { InnTestData.Kitchen(1, "Perlica", "Avywenna"), InnTestData.Kitchen(2, "Chen_Qianyu"), InnTestData.PlainKitchen(3) };
+        var owners = new[] { InnTestData.Kitchen(1, "Perlica", "Avywenna"), InnTestData.Kitchen(2, "Chen_Qianyu"), InnTestData.EmptyKitchen(3) };
         var ownersMenu = OwnersMenu.Select(id => new MenuDish(Inn.Dishes.Single(d => d.Id == id), null)).ToList();
 
         var plan = Planner.Plan(input);

@@ -22,8 +22,11 @@ internal static class InnTestData
 
     public static Kitchen Kitchen(int number, params string[] chefs) => new(number, [.. chefs.Select(Chef)]);
 
-    /// <summary>A chef with no hobby or element the rules know: a kitchen at base speed.</summary>
-    public static Kitchen PlainKitchen(int number) => new(number, []);
+    /// <summary>A kitchen at base speed: one cook with no hobby or element the rules know.</summary>
+    public static Kitchen PlainKitchen(int number) => new(number, [new OperatorInfo("Plain", "Plain", "Plain", "")]);
+
+    /// <summary>A kitchen known to have no chef: it cannot cook (owner, 2026-10-19).</summary>
+    public static Kitchen EmptyKitchen(int number) => new(number, []);
 }
 
 /// <summary>
