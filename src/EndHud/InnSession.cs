@@ -460,8 +460,12 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         // A setup screen that can't be read says only that.
         if (_setupUnreadable) return new InnSetupInputs([InnSetupGap.ThemeUnreadable], null, "theme-unreadable");
         var gaps = new List<InnSetupGap>();
+        // A kitchen's places as read; when they couldn't be told, the chefs placed there (a kitchen
+        // showing neither may be locked: left out, the cautious side).
+        var kitchens = (_setup?.Kitchens ?? []).Select(k => new PlanKitchen(k.Number, Math.Min(KitchenMath.MaxChefs, k.ChefSlots ?? k.Chefs.Count(c => c is not null))))
+            .Where(k => k.Places > 0).Take(KitchenMath.MaxKitchens).ToList();
         if (_setup is null) gaps.Add(InnSetupGap.NoSetup);
-        else if (_setup.Kitchens is not { Count: > 0 }) gaps.Add(InnSetupGap.NoKitchens);
+        else if (kitchens.Count == 0) gaps.Add(InnSetupGap.NoKitchens);
         var chefs = _chefs.Available.Select(id => roster.FirstOrDefault(o => o.Id == id)).OfType<OperatorInfo>().ToList();
         if (!_chefs.PickerSeen || chefs.Count == 0) gaps.Add(InnSetupGap.NoChefs);
         var dishes = _offered.Values.Where(c => DishOf(c.Id) is not null).Select(c => new MenuDish(DishOf(c.Id)!, c.Unlimited ? null : c.Stock)).ToList();
@@ -477,8 +481,6 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         if (gaps.Count > 0) return new InnSetupInputs(gaps, null, string.Join(",", gaps));
 
         var setup = _setup!;
-        var kitchens = setup.Kitchens!.Select(k => new PlanKitchen(k.Number,
-            Math.Clamp(k.ChefSlots ?? Math.Max(1, k.Chefs.Count(c => c is not null)), 1, KitchenMath.MaxChefs))).Take(KitchenMath.MaxKitchens).ToList();
         // The theme's trait rules: as 营业设定 states them, and as the menu screen does.
         var traitRules = setup.MenuRules.Select(line => TraitRule.Parse(line, data)).OfType<TraitRule>().Concat(r!.TraitRules)
             .DistinctBy(t => $"{t.Count}:{string.Join("/", t.AnyOf)}").ToList();

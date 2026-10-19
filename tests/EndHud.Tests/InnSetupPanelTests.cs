@@ -143,6 +143,18 @@ public class InnSetupPanelTests
     }
 
     [Fact]
+    public void A_kitchen_whose_places_could_not_be_told_counts_only_its_placed_chefs()
+    {
+        var session = NewSession();
+        session.Update(Setup(0, new SetupKitchen(1, 2, [null, null], [null, null]), new SetupKitchen(2, null, [Placed, null], ["陈千语", null]),
+            new SetupKitchen(3, null, [null, null], [null, null])));
+        session.Update(Picker(2, Shown));
+        session.Update(Menu(4));
+
+        Assert.Equal(["1:2", "2:1"], session.SetupInputs().Input!.Kitchens.Select(k => $"{k.Number}:{k.Places}"));
+    }
+
+    [Fact]
     public void No_chefs_seen_says_to_open_the_picker_and_scroll_it()
     {
         var session = NewSession();
