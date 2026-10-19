@@ -125,52 +125,7 @@ public class InnSetupPanelTests
 
     // ---- What the player reads ----
 
-    [Fact]
-    public void A_full_panel_is_a_tier_line_per_kitchen_then_the_menus_tiers_then_the_drinks()
-    {
-        var inputs = Ready().SetupInputs();
-        var advice = Advice.Value;
-        var model = InnSetupView.Build(inputs, advice, Inn, Text);
-        var lines = model.Lines.Select(l => l.Text).ToList();
-
-        Assert.Equal("缘缘庄 · 推荐（没有的干员/菜换同档的）", lines[0]);
-        Assert.Matches(@"^厨房一(（\w+）)?：T1 ", lines[1]);
-        Assert.Matches(@"^厨房二(（\w+）)?：T1 ", lines[2]);
-        Assert.Matches(@"^厨房三(（\w+）)?：T1 ", lines[3]);
-        Assert.StartsWith("菜单：T1 ", lines[4]);
-        Assert.StartsWith("饮品：T1 ", lines[5]);
-        Assert.True(advice.Plan.RulesMet);
-        Assert.Equal(6, lines.Count);
-        // A kitchen's role is the dish type's name as the game writes it.
-        foreach (var kitchen in advice.Tiers.Kitchens.Where(k => k.Role is not null))
-            Assert.Contains($"（{Inn.DishTypes.Single(t => t.Id == kitchen.Role).Zh}）：", lines[kitchen.Number]);
-        // Every name has its picture: an operator's avatar, a dish's or drink's picture.
-        var marks = new[] { "Inn.Setup.Tier.1", "Inn.Setup.Tier.2", "Inn.Setup.Tier.3", "Inn.Between", "Inn.Setup.Space" }.Select(Text).ToHashSet();
-        var named = model.Lines.Skip(1).SelectMany(l => l.Segments).Where(s => !marks.Contains(s.Text) && !s.Text.EndsWith('：')).ToList();
-        Assert.All(named, s => Assert.NotNull(s.PictureId));
-        Assert.All(advice.Plan.Kitchens.SelectMany(k => k.Chefs), c => Assert.Contains(named, s => s.PictureId == InnSetupView.OperatorPicture + c.Id && s.Text == c.NameZh));
-        // The menu's T1 is the plan's menu, in its order, then T2 and T3.
-        var menu = model.Lines[4].Segments.Where(s => s.PictureId is not null).Select(s => s.PictureId).ToList();
-        Assert.Equal(advice.Tiers.Dishes.SelectMany(t => t).Select(d => d.Dish.Id), menu);
-        Assert.Equal(advice.Plan.Dishes.Select(d => d.Dish.Id), menu.Take(advice.Plan.Dishes.Count));
-        // No ids, no figures: names and the tier marks only.
-        Assert.DoesNotContain(lines.Skip(1), l => System.Text.RegularExpressions.Regex.Replace(l, "T[123] ", "").Any(char.IsAsciiLetterOrDigit));
-    }
-
-    [Fact]
-    public void Fewer_kitchens_and_places_give_fewer_lines()
-    {
-        var session = NewSession();
-        session.Update(Setup(0, new SetupKitchen(1, 2, [null, null], [null, null]), new SetupKitchen(2, 1, [null], [null])));
-        var inputs = session.SetupInputs();
-        var advice = InnSetupAdvice.For(Planner, inputs.Input!);
-        var lines = Lines(inputs, advice);
-
-        Assert.Equal(["1:2", "2:1"], inputs.Input!.Kitchens.Select(k => $"{k.Number}:{k.Places}"));
-        Assert.Equal(2, lines.Count(l => l.StartsWith("厨房")));
-        Assert.DoesNotContain(lines, l => l.StartsWith("厨房三"));
-        Assert.True(advice.Plan.Kitchens.Single(k => k.Number == 2).Chefs.Count <= 1);
-    }
+    // The full panel's blocks: see InnSetupBlocksTests.
 
     [Fact]
     public void Nothing_seen_says_only_that_the_theme_is_missing()
@@ -178,7 +133,7 @@ public class InnSetupPanelTests
         var session = NewSession();
         session.Update(new InnReading(InnScreenKind.Menu, S(0), Fresh: false));
 
-        Assert.Equal(["缘缘庄 · 推荐（没有的干员/菜换同档的）", "还没看到主题：打开「营业设定」"], Lines(session.SetupInputs(), null));
+        Assert.Equal(["缘缘庄 · 推荐（没有的干员/菜，换「可换」里的）", "还没看到主题：打开「营业设定」"], Lines(session.SetupInputs(), null));
     }
 
     [Fact]
@@ -210,7 +165,7 @@ public class InnSetupPanelTests
 
         var inputs = session.SetupInputs();
         Assert.Null(inputs.Input);
-        Assert.Equal(["缘缘庄 · 推荐（没有的干员/菜换同档的）", "看不清主题（画面被遮挡）"], Lines(inputs, Advice.Value));
+        Assert.Equal(["缘缘庄 · 推荐（没有的干员/菜，换「可换」里的）", "看不清主题（画面被遮挡）"], Lines(inputs, Advice.Value));
     }
 
     [Fact]
@@ -224,14 +179,14 @@ public class InnSetupPanelTests
     [Fact]
     public void While_the_plan_is_worked_out_the_panel_says_so()
     {
-        Assert.Equal(["缘缘庄 · 推荐（没有的干员/菜换同档的）", "正在推荐…"], Lines(Ready().SetupInputs(), null));
+        Assert.Equal(["缘缘庄 · 推荐（没有的干员/菜，换「可换」里的）", "正在推荐…"], Lines(Ready().SetupInputs(), null));
     }
 
     [Fact]
     public void Without_text_recognition_only_what_to_install()
     {
         var model = InnSetupView.Build(Ready().SetupInputs(), null, Inn, Text, "Inn.Problem.NoTextRecognition");
-        Assert.Equal(["缘缘庄 · 推荐（没有的干员/菜换同档的）", Text("Inn.Problem.NoTextRecognition")], model.Lines.Select(l => l.Text));
+        Assert.Equal(["缘缘庄 · 推荐（没有的干员/菜，换「可换」里的）", Text("Inn.Problem.NoTextRecognition")], model.Lines.Select(l => l.Text));
     }
 
     // ---- Worked out off the UI thread, once per change ----
@@ -293,13 +248,16 @@ public class InnSetupPanelTests
     // ---- The sample shown while the menu is open ----
 
     [Fact]
-    public void The_sample_has_every_kitchen_the_menu_and_drinks_in_tiers()
+    public void The_sample_has_every_kitchen_with_its_rows_and_the_drinks()
     {
         var model = InnSetupView.Sample(Inn, Library.Operators, Text);
         var lines = model.Lines.Select(l => l.Text).ToList();
+
         Assert.Equal(Text("Inn.Setup.Sample"), lines[0]);
-        Assert.Equal(["厨房一", "厨房二", "厨房三", "菜单：", "饮品："], lines.Skip(1).Select(l => l.StartsWith("厨房") ? l[..3] : l[..(l.IndexOf('：') + 1)]));
-        Assert.All(lines.Skip(1), l => Assert.Contains("T1 ", l));
+        var labels = lines.Skip(1).Select(l => l.StartsWith("厨房", StringComparison.Ordinal) ? l[..3] : l[..(l.IndexOf('：') + 1)]).ToList();
+        string[] kitchen = ["干员：", "可换：", "做菜：", "可换："];
+        Assert.Equal(["厨房一", .. kitchen, "厨房二", .. kitchen, "厨房三", .. kitchen, "饮品：", "可换："], labels);
+        Assert.DoesNotContain(lines, l => l.Contains("T1"));
         Assert.DoesNotContain(model.Lines.SelectMany(l => l.Segments),
             s => s.PictureId?.StartsWith(InnSetupView.OperatorPicture) == true && Library.Operators.First(o => s.PictureId == InnSetupView.OperatorPicture + o.Id) is var op && Inn.ChefBonusesOf(op).Count == 0);
     }
