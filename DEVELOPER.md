@@ -507,16 +507,23 @@ ahead out for an order only when that wins by more than 5 s (a cooking dish only
 started, since its progress is taken as lost). A kitchen with no chef cannot cook (owner): one rule,
 `KitchenMath.Cooks`, which the planner, the advisor and the session all go by; such a kitchen gets no
 advice and isn't listed (a kitchen whose chefs weren't seen, `Kitchen.ChefsUnknown`, is taken to
-cook, at base speed). The end of a session (owner): nothing is cooked ahead in the last 40 s
-(`NoCookAheadSeconds`), nor ever a dish that wouldn't come out before the inn closes
-(`InnState.SecondsLeft`, a required field); once it has closed (`LastCall`, the timer at 0:00) the
-advice lists leftovers: each dish on the counter (or carried) to the table that ordered it, then the
-rest to tables still waiting with nothing cooking for them, oldest first, even a wrong dish ("a wrong
-dish still earns some money"). [`FullBlazeAdvisor`](src/EndHud.Vision/Inn/FullBlaze.cs)
+cook, at base speed). The end of a session (owner): after the 5:00 timer reaches 00:00 the inn
+keeps serving the seated guests for 18 s (`InnState.ServingAfterCloseSeconds`), and every end rule
+counts against that serving time (`InnState.ServingSecondsLeft`, a required field: timer + 18 s
+before closing; after, 18 s from when the session first read 00:00, since the timer stays at 00:00).
+Nothing is cooked ahead in the last 40 s of serving (`NoCookAheadSeconds`), nor ever a dish that
+wouldn't come out before serving ends. The last call is per table and can come before 00:00: a table
+waiting for a dish whose own dish can no longer come out in time (its queued dish's time, or the
+best kitchen's queue + cook time, or no stock) is handed a dish left on the counter or carried, its
+own dish if there, else a wrong one ("a wrong dish still earns some money"), oldest table first; a
+table whose dish can still make it waits for it. A table waiting only for a drink never gets a dish
+(it wouldn't be served; drinks aren't outstanding dishes). Once closed, the dishes on the counter are
+also listed for the tables that ordered them. [`FullBlazeAdvisor`](src/EndHud.Vision/Inn/FullBlaze.cs)
 says when to start Full Blaze (满堂彩); whether it's running is inferred from the ready button going.
 [`GourmandAdvisor`](src/EndHud.Vision/Inn/GourmandAdvisor.cs) ranks what meets a gourmand's
 request and, for two requests, the order to serve them in. [`InnSimulator`](src/EndHud.Vision/Inn/InnSimulator.cs)
-replays an order stream through all this; on the recorded order times, following the advice
+replays an order stream through all this, serving 18 s after 5:00 like the game; on the recorded
+order times (served to the end, as they run past 5:00), following the advice
 halves the average wait against sending each dish to the first kitchen with room. What isn't known
 is a named constant saying so (a removed dish's progress and stock, the replace margin, what a full
 counter does to a kitchen).
@@ -629,7 +636,7 @@ ready"), `FullBlazeAdvisor` and `GourmandAdvisor`; an order with a picture not t
 out and its table named as unreadable, and a missing kitchen or menu is said, never guessed.
 [`InnStripView`](src/EndHud/InnStripView.cs) puts that in words (zh-CN only) and
 [`InnStrip`](src/EndHud/InnStrip.cs) draws it: the Full Blaze line ("开启满堂彩（R）" when full,
-"满堂彩快满了：先把厨房排满" from 80), at the last call a line per leftover ("收尾：把剩下的[图]X 端给桌3",
+"满堂彩快满了：先把厨房排满" from 80), at the last call (per table, possibly before 00:00) a line per leftover ("收尾：把剩下的[图]X 端给桌3",
 "（不对也有钱）" after a wrong dish), one line per kitchen, a picture beside every dish and
 drink, wrapping between dishes at 470 units so the busiest strip fits right of the dispatch panel
 at 1080p, 1440p and 4K (InnStripLayoutTests). [`OverlayWindow.Inn`](src/EndHud/OverlayWindow.Inn.cs)
