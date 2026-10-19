@@ -11,7 +11,13 @@ namespace EndHud.Vision.Inn;
 public sealed record KitchenSuggestion(int Number, IReadOnlyList<OperatorInfo> Chefs, IReadOnlyList<OperatorInfo> ChefSubstitutes,
     IReadOnlyList<MenuDish> Dishes, IReadOnlyList<MenuDish> DishSubstitutes, IReadOnlyList<DishType> Types)
 {
-    /// <summary>No chef is planned here: the kitchen can't cook.</summary>
+    /// <summary>Places already taken by a chef the player put in (kept by the plan).</summary>
+    public int Placed { get; init; }
+
+    /// <summary>Every place is taken already: nothing to suggest for its chefs.</summary>
+    public bool Full { get; init; }
+
+    /// <summary>No chef is planned or placed here: the kitchen can't cook.</summary>
     public bool Unused => Chefs.Count == 0;
 }
 

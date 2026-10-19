@@ -215,4 +215,43 @@ public class InnSuggestionsTests(ITestOutputHelper output)
 
         Assert.Empty(suggestions.Kitchens.Single().ChefSubstitutes);
     }
+
+    // ---- Chefs already placed ----
+
+    private static readonly Lazy<(InnPlanInput Input, InnPlan Plan, InnSuggestions Suggestions)> Placed = new(() =>
+    {
+        OperatorInfo Op(string id) => InnTestData.Library.Operators.Single(o => o.Id == id);
+        var input = Input(["Veggy", "Rich"], [new DishRule(2, ["Veggy", "Rich"])]) with
+        {
+            Kitchens = [new PlanKitchen(1, 2) { Placed = [Op("Chen_Qianyu")] }, new PlanKitchen(2, 2) { Placed = [Op("Perlica"), Op("Avywenna")] }, new PlanKitchen(3, 2)],
+        };
+        var plan = Planner.Plan(input);
+        return (input, plan, InnSuggester.Of(Planner, input, plan));
+    });
+
+    /// <summary>
+    /// Kitchen 1 half placed (Chen Qianyu), kitchen 2 full (Perlica, Avywenna), kitchen 3 empty: kitchen 1
+    /// gets one chef to put in, kitchen 2 none (it's full, nothing to swap), kitchen 3 two; no placed
+    /// chef is suggested anywhere, as a pick or a substitute.
+    /// </summary>
+    [Fact]
+    public void Placed_chefs_are_kept_and_only_empty_places_get_suggestions()
+    {
+        var (_, _, suggestions) = Placed.Value;
+        var byNumber = suggestions.Kitchens.ToDictionary(k => k.Number);
+        string[] placed = ["Chen_Qianyu", "Perlica", "Avywenna"];
+
+        Assert.Single(byNumber[1].Chefs);
+        Assert.Equal(1, byNumber[1].Placed);
+        Assert.False(byNumber[1].Full);
+        Assert.NotEmpty(byNumber[1].ChefSubstitutes);
+
+        Assert.True(byNumber[2].Full);
+        Assert.Empty(byNumber[2].Chefs);
+        Assert.Empty(byNumber[2].ChefSubstitutes);
+        Assert.False(byNumber[2].Unused);
+
+        Assert.Equal(2, byNumber[3].Chefs.Count);
+        Assert.All(suggestions.Kitchens.SelectMany(k => k.Chefs.Concat(k.ChefSubstitutes)), c => Assert.DoesNotContain(c.Id, placed));
+    }
 }

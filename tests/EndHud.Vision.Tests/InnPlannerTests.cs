@@ -434,4 +434,55 @@ public class InnPlannerTests(ITestOutputHelper output)
         $"{plan.Score.Income:F0} income, {plan.Score.Orders:F1} orders, {plan.Score.ChoiceDishes:F2} choice dishes; " +
         string.Join("; ", plan.Kitchens.Select(k => $"k{k.Number} {string.Join("+", k.Chefs.Select(c => c.Id))}")) +
         $"; dishes {string.Join(", ", plan.Dishes.Select(d => d.Dish.Id))}; drinks {string.Join(", ", plan.Drinks.Select(d => d.Drink.Id))}";
+
+    // ---- Chefs already placed (owner, 2026-10-19: plan around the chefs the player has put in) ----
+
+    private static OperatorInfo Op(string id) => Roster.Single(o => o.Id == id);
+
+    /// <summary>
+    /// Chen Qianyu placed in kitchen 1 of three two-place kitchens: she stays there, is put nowhere
+    /// else, and the plan fills the other five places; every rule still holds.
+    /// </summary>
+    [Fact]
+    public void A_placed_chef_stays_in_her_kitchen_and_only_the_empty_places_are_filled()
+    {
+        var kitchens = new[] { new PlanKitchen(1, 2) { Placed = [Op("Chen_Qianyu")] }, new PlanKitchen(2, 2), new PlanKitchen(3, 2) };
+        var input = Input(kitchens, rules: Rating4(VeggyOrRich), hot: ["Veggy", "Rich"]);
+
+        var plan = Planner.Plan(input);
+
+        AssertValid(input, plan);
+        Assert.Equal("Chen_Qianyu", plan.Kitchens.Single(k => k.Number == 1).Chefs[0].Id);
+        Assert.Single(plan.Kitchens.SelectMany(k => k.Chefs), c => c.Id == "Chen_Qianyu");
+        Assert.Equal(6, plan.Kitchens.Sum(k => k.Chefs.Count));
+    }
+
+    /// <summary>Every place taken: the line-up is exactly what's placed, and only the menu is planned for it.</summary>
+    [Fact]
+    public void With_every_place_taken_only_the_menu_is_planned()
+    {
+        var kitchens = new[] { new PlanKitchen(1, 1) { Placed = [Op("Chen_Qianyu")] }, new PlanKitchen(2, 2) { Placed = [Op("Perlica"), Op("Avywenna")] } };
+        var input = Input(kitchens, rules: Rating4(new DishRule(1, ["Soup"])), hot: ["Soup", InnData.Drink]);
+
+        var plan = Planner.Plan(input);
+
+        AssertValid(input, plan);
+        Assert.Equal(["1:Chen_Qianyu", "2:Avywenna+Perlica"],
+            plan.Kitchens.Select(k => $"{k.Number}:{string.Join("+", k.Chefs.Select(c => c.Id).Order(StringComparer.Ordinal))}"));
+        Assert.Contains(plan.Dishes, d => d.Dish.Type == DishType.Soup);
+    }
+
+    /// <summary>A chef seen in a place but not named takes that place: the plan fills only the other.</summary>
+    [Fact]
+    public void A_place_taken_by_a_chef_not_named_is_not_filled_again()
+    {
+        var kitchens = new[] { new PlanKitchen(1, 2) { Placed = [null] } };
+        var input = Input(kitchens);
+
+        var plan = Planner.Plan(input);
+
+        var kitchen = Assert.Single(plan.Kitchens);
+        Assert.Equal(2, kitchen.Chefs.Count);
+        Assert.Equal(1, kitchen.Chefs.Count(c => Roster.Any(o => o.Id == c.Id)));
+    }
 }

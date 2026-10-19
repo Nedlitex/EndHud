@@ -4,7 +4,15 @@ using EndHud.Vision.Operators;
 namespace EndHud.Vision.Inn;
 
 /// <summary>A kitchen the session has and how many chef places it has (1 or 2).</summary>
-public sealed record PlanKitchen(int Number, int Places);
+public sealed record PlanKitchen(int Number, int Places)
+{
+    /// <summary>
+    /// The chefs the player has already put in it, kept as they are (owner, 2026-10-19): an operator,
+    /// or null for a place seen taken by a chef whose name couldn't be read. None by default: a
+    /// kitchen with nothing placed.
+    /// </summary>
+    public IReadOnlyList<OperatorInfo?> Placed { get; init; } = [];
+}
 
 /// <summary>
 /// "At least <paramref name="Count"/> dishes with any of these traits, or of any of these types":
