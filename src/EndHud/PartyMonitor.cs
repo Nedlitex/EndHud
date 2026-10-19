@@ -4,13 +4,15 @@ using System.Net.Http;
 using System.Text.Json;
 using EndHud.Vision;
 using EndHud.Vision.Capture;
+using EndHud.Vision.Inn;
 using EndHud.Vision.Operators;
 
 namespace EndHud;
 
 /// <summary>
 /// Background loop: while the HUD is showing over the game, grab a frame of the game window
-/// every interval, read the squad panel and name the operators. Events fire on worker threads.
+/// every interval, read the squad panel and name the operators; in the inn, read the inn's screens
+/// instead (<see cref="InnFrameReader"/>). Events fire on worker threads.
 /// </summary>
 internal sealed class PartyMonitor : IDisposable
 {
@@ -21,7 +23,8 @@ internal sealed class PartyMonitor : IDisposable
     /// </summary>
     public static string LibraryFolder { get; } = Path.Combine(ConfigStore.Folder, "operators");
 
-    private static string ReferenceFolder => Path.Combine(LibraryFolder, OperatorLibrary.ReferenceFolderName);
+    /// <summary>The operator package's folder: the roster, avatars, and the inn's data and pictures.</summary>
+    internal static string ReferenceFolder => Path.Combine(LibraryFolder, OperatorLibrary.ReferenceFolderName);
 
     /// <summary>A manual check doesn't ask GitHub again if it was asked this recently; it reports that it's up to date as of then.</summary>
     public static readonly TimeSpan MinManualCheckInterval = TimeSpan.FromMinutes(15);
@@ -42,6 +45,38 @@ internal sealed class PartyMonitor : IDisposable
 
     /// <summary>Read the boss's statuses too (the loaded rotation asks about them); set by the overlay.</summary>
     public bool ReadBossStatuses { get; set; }
+
+    /// <summary>Read the squad panel (the "read the squad panel" setting); set by the overlay.</summary>
+    public bool ReadSquad { get; set; } = true;
+
+    /// <summary>Look for the inn and read it (the inn helper's setting); set by the overlay.</summary>
+    public bool ReadInn { get; set; } = true;
+
+    private volatile InnFrameReader? _innFrames;
+
+    /// <summary>
+    /// The inn's reader, set once the operator library (with the inn's data and pictures) has loaded;
+    /// replaceable by tests.
+    /// </summary>
+    internal InnFrameReader? InnFrames
+    {
+        get => _innFrames;
+        set => _innFrames = value;
+    }
+
+    /// <summary>
+    /// Why the inn can only be partly read (an i18n key), or null: without the Simplified Chinese
+    /// OCR language only the session's timer is read, so the helper can say what's missing.
+    /// </summary>
+    public string? InnProblem { get; private set; }
+
+    /// <summary>
+    /// A frame of the inn, as read; null for the first frame after the inn that isn't one of its
+    /// screens (a fight, the open world), so the inn's advice can be put away.
+    /// </summary>
+    public event Action<InnReading?>? InnUpdated;
+
+    private bool _inInn;
 
     private static readonly TimeSpan BossStatusEvery = TimeSpan.FromSeconds(1);
     private int _libraryBusy;
@@ -123,6 +158,56 @@ internal sealed class PartyMonitor : IDisposable
 
     public PartyMonitor(TimeSpan interval) => _interval = interval;
 
+    /// <summary>A reading with no squad panel in it: what the tracker is given for a frame of the inn.</summary>
+    private static readonly PartyState NothingSeen = new([]);
+
+    /// <summary>
+    /// One frame's inn reading (see <see cref="InnFrameReader"/>): true when the frame is the inn and
+    /// <see cref="InnUpdated"/> has been raised with it, so the squad panel isn't read; false when
+    /// it isn't (or the inn isn't read), and then the squad panel is read as always.
+    /// </summary>
+    /// <param name="now">A clock that keeps running.</param>
+    /// <param name="squadPanelSeen">The last squad reading saw the panel: the inn isn't looked for.</param>
+    internal async Task<bool> TryInnAsync(Frame frame, TimeSpan now, bool squadPanelSeen)
+    {
+        InnReading? reading = null;
+        try
+        {
+            if (ReadInn && _innFrames is { } inn) reading = await inn.ReadAsync(frame, now, squadPanelSeen);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // A reader's failure mustn't stop the capture; the squad panel is read as usual meanwhile.
+            DiagnosticLog.Throttled("inn-failed-" + ex.GetType().Name, RepeatLogEvery, $"reading the inn failed: {ex}", "ERROR");
+        }
+        if (reading is null)
+        {
+            if (_inInn)
+            {
+                _inInn = false;
+                DiagnosticLog.Info("inn: left");
+                InnUpdated?.Invoke(null);
+            }
+            return false;
+        }
+        if (!_inInn)
+        {
+            _inInn = true;
+            DiagnosticLog.Info($"inn: {reading.Screen} at {frame.Width}x{frame.Height}");
+        }
+        KeepRecent(frame, DescribeInn(reading));
+        InnUpdated?.Invoke(reading);
+        return true;
+    }
+
+    /// <summary>What an inn reading saw, in a line, for the diagnostic export's pictures.</summary>
+    internal static string DescribeInn(InnReading r) =>
+        $"inn {r.Screen}, time left {r.Clock?.Left.ToString(@"m\:ss") ?? "-"}, " +
+        $"tables {string.Join(" ", r.TableCards.Select(t => t is null ? "?" : $"{t.State}{(t.Items.Count > 0 ? ":" + string.Join("+", t.Items.Select(i => i.Id ?? "?")) : "")}"))}, " +
+        $"fire {(r.Fire is { } f ? (f.Ready ? "ready" : f.Fire?.ToString() ?? "?") : "-")}" +
+        (r.Panel is { } p ? $", panel kitchen {p.Kitchen}/{p.Kitchens} queue {string.Join("+", p.Queue.Where(q => q.Filled).Select(q => q.DishId ?? "?"))}" : "") +
+        (r.Bubble is { } b ? $", bubble \"{b.Text}\"" : "");
+
     /// <summary>The last game picture read (the game area only), for the diagnostic export.</summary>
     public Frame? LatestFrame { get; private set; }
 
@@ -144,7 +229,10 @@ internal sealed class PartyMonitor : IDisposable
     private const int RecentFrameCount = 6;
     private const int RecentFrameWidth = 960;
 
-    private void KeepRecent(Frame gameFrame, PartyState raw)
+    private void KeepRecent(Frame gameFrame, PartyState raw) =>
+        KeepRecent(gameFrame, $"panel {(raw.PanelVisible ? "seen" : "not seen")}, {DescribeLayout(raw)}");
+
+    private void KeepRecent(Frame gameFrame, string read)
     {
         var now = DateTime.Now;
         if (now - _recentAt < RecentFrameEvery) return;
@@ -153,7 +241,7 @@ internal sealed class PartyMonitor : IDisposable
             : gameFrame.ResizeSmooth(RecentFrameWidth, (int)Math.Round(gameFrame.Height * RecentFrameWidth / (double)gameFrame.Width));
         lock (_recent)
         {
-            _recent.Enqueue(new RecentFrame(now, small, $"panel {(raw.PanelVisible ? "seen" : "not seen")}, {DescribeLayout(raw)}, from {_source}"));
+            _recent.Enqueue(new RecentFrame(now, small, $"{read}, from {_source}"));
             while (_recent.Count > RecentFrameCount) _recent.Dequeue();
         }
     }
@@ -402,6 +490,48 @@ internal sealed class PartyMonitor : IDisposable
         _identifier = library.IsEmpty ? null : new SquadIdentifier(library);
         _bossStatuses = library.IsEmpty ? null : new BossStatusReader(library);
         _teamBuffs = library.IsEmpty ? null : new TeamBuffReader(library);
+        await LoadInnAsync(library);
+    }
+
+    private InnText? _innText;
+    private bool _innTextTried;
+
+    /// <summary>
+    /// The inn's readers over the library's inn data and the package's dish and drink pictures.
+    /// Without the Simplified Chinese OCR language only the timer can be read (<see cref="ClockOnlyScreens"/>).
+    /// </summary>
+    private async Task LoadInnAsync(OperatorLibrary library)
+    {
+        try
+        {
+            if (!_innTextTried)
+            {
+                _innTextTried = true;
+                _innText = InnText.TryCreate();
+                if (_innText is null) DiagnosticLog.Warn("inn: the Simplified Chinese OCR language isn't installed; only the session's timer can be read");
+            }
+            if (_innText is null)
+            {
+                InnProblem = "Inn.Problem.NoTextRecognition";
+                _innFrames = new InnFrameReader(new ClockOnlyScreens());
+                return;
+            }
+            if (library.Inn is not { } data)
+            {
+                DiagnosticLog.Warn("inn: the operator package has no inn data; the inn helper can't read the inn");
+                _innFrames = null;
+                return;
+            }
+            var pictures = await InnPictures.LoadAsync(ReferenceFolder, data);
+            DiagnosticLog.Info($"inn: {data.Dishes.Count} dishes, {data.Drinks.Count} drinks, {pictures.Count} pictures");
+            InnProblem = null;
+            _innFrames = new InnFrameReader(new InnScreens(_innText, pictures, data, library.Operators));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            DiagnosticLog.Error("inn: the inn's pictures couldn't be loaded; the inn helper can't read the inn", ex);
+            _innFrames = null;
+        }
     }
 
     private async Task RunAsync()
@@ -443,6 +573,8 @@ internal sealed class PartyMonitor : IDisposable
         OperatorMatch?[] lastNames = [];
         IReadOnlyList<TeamBuff> lastBuffs = []; // kept while the panel is out of sight (a cutscene over the HUD)
         var panelReadAt = DateTime.MinValue; // when a reading last saw the squad panel
+        bool panelSeenLast = false; // the last squad reading saw the panel (then the inn isn't looked for)
+        var innClock = Stopwatch.StartNew();
         try
         {
             while (!ct.IsCancellationRequested)
@@ -512,9 +644,18 @@ internal sealed class PartyMonitor : IDisposable
                         gameFrame = frame.Crop(client);
                     }
                     LatestFrame = gameFrame;
+                    // The inn first: in it the squad panel isn't on screen, and its screens are read instead.
+                    Enter("inn");
+                    if (await TryInnAsync(gameFrame, innClock.Elapsed, panelSeenLast))
+                    {
+                        if (ReadSquad) Report(tracker.Track(NothingSeen), null);
+                        continue;
+                    }
+                    if (!ReadSquad) continue;
                     Enter("read");
                     var raw = await reader.ReadAsync(gameFrame);
                     var state = tracker.Track(raw);
+                    panelSeenLast = raw.PanelVisible;
                     long readMs = clock.ElapsedMilliseconds;
                     KeepRecent(gameFrame, raw);
                     // The panel missed for 2 s in a row: say what was seen instead (a menu or a map
