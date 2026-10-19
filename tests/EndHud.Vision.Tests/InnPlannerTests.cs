@@ -151,7 +151,7 @@ public class InnPlannerTests(ITestOutputHelper output)
             foreach (string trait in new[] { "Meaty", "Finny" })
             {
                 var without = Planner.Plan(input with { Dishes = [.. offered.Where(d => !d.Dish.Traits.Contains(trait))] });
-                output.WriteLine($"  without {trait}: {without.Score.Income:F0}");
+                output.WriteLine($"  without {trait}: {Describe(without)}");
                 Assert.False(without.Score.BetterThan(plan.Score), $"kept off {trait}, the menu earns {without.Score.Income:F0} > {plan.Score.Income:F0}");
                 if (plan.Score.BetterThan(without.Score)) Assert.Contains(plan.Dishes, d => d.Dish.Traits.Contains(trait));
             }

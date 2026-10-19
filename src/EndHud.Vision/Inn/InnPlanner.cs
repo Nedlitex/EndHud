@@ -224,7 +224,7 @@ public sealed class InnPlanner(InnData inn)
             foreach (var lineUp in search.Beam(menu, drinks).Take(LineUpsTried))
             {
                 var kitchens = search.Materialize(lineUp, int.MaxValue);
-                var (m, d) = search.BestMenu(kitchens, drinks);
+                var (m, d) = search.BestMenu(kitchens, drinks, menu);
                 var score = search.Score(kitchens, m, d);
                 if (best is null || score.BetterThan(best.Value.Score))
                 {
@@ -236,7 +236,7 @@ public sealed class InnPlanner(InnData inn)
             if (!improved) break;
         }
 
-        var (finalKitchens, finalMenu, finalDrinks, finalScore) = search.FillEmptyPlaces(best!.Value);
+        var (finalKitchens, finalMenu, finalDrinks, finalScore) = search.FillEmptyPlaces(search.Polish(best!.Value));
         var dishes = finalMenu.Select(i => search.Dishes[i]).ToList();
         var drinkList = finalDrinks.Select(i => search.Drinks[i]).ToList();
         var cooking = finalKitchens.Where(Cooks).ToList();
@@ -566,11 +566,12 @@ public sealed class InnPlanner(InnData inn)
         /// most) up to each size the rules allow, each improved by adding, removing and swapping a
         /// dish while that pays; then the drinks for it, and the dishes again for those drinks.
         /// </summary>
-        public (int[] Menu, int[] Drinks) BestMenu(IReadOnlyList<Kitchen> kitchens, int[] drinks)
+        /// <param name="seed">A menu to improve as well (the plan's so far), so a change of one dish from it is never missed.</param>
+        public (int[] Menu, int[] Drinks) BestMenu(IReadOnlyList<Kitchen> kitchens, int[] drinks, int[]? seed = null)
         {
-            var menu = BestDishes(kitchens, drinks);
+            var menu = BestDishes(kitchens, drinks, seed);
             var newDrinks = BestDrinks(kitchens, menu);
-            if (!newDrinks.SequenceEqual(drinks)) menu = BestDishes(kitchens, newDrinks);
+            if (!newDrinks.SequenceEqual(drinks)) menu = BestDishes(kitchens, newDrinks, menu);
             return (menu, newDrinks);
         }
 
@@ -646,7 +647,7 @@ public sealed class InnPlanner(InnData inn)
             return best;
         }
 
-        private int[] BestDishes(IReadOnlyList<Kitchen> kitchens, int[] drinks)
+        private int[] BestDishes(IReadOnlyList<Kitchen> kitchens, int[] drinks, int[]? seed)
         {
             var ScoreOf = Scorer(kitchens, drinks);
 
@@ -670,6 +671,7 @@ public sealed class InnPlanner(InnData inn)
                 .ThenByDescending(m => m, Comparer<List<int>>.Create((a, b) => ScoreOf(a).BetterThan(ScoreOf(b)) ? 1 : ScoreOf(b).BetterThan(ScoreOf(a)) ? -1 : 0))
                 .Take(StartsImproved)
                 .ToList();
+            if (seed is { Length: > 0 }) chosen.Add([.. seed]);
             List<int>? best = null;
             foreach (var menu in chosen)
             {
@@ -872,9 +874,102 @@ public sealed class InnPlanner(InnData inn)
             if (!changed) return plan;
             // The old menu with the added chefs scores at least what it did; keep whichever menu is better now.
             var kept = Score(kitchens, plan.Menu, plan.Drinks);
-            var (menu, drinks) = BestMenu(kitchens, plan.Drinks);
+            var (menu, drinks) = BestMenu(kitchens, plan.Drinks, plan.Menu);
             var chosen = Score(kitchens, menu, drinks);
             return chosen.BetterThan(kept) ? (kitchens, menu, drinks, chosen) : (kitchens, plan.Menu, plan.Drinks, kept);
+        }
+
+        /// <summary>
+        /// The last improvement: line-ups one change away from the plan (a chef replaced by one not
+        /// placed, taken out, or two chefs of different kitchens swapped), each judged quickly with the
+        /// plan's menu (<see cref="QuickScore"/>); the best <see cref="LineUpsTried"/> get a full menu
+        /// search, and the best that beats the plan is taken, until none does. This finds a better
+        /// chef and dish changed together, which choosing chefs and menu in turn can't.
+        /// </summary>
+        public (Kitchen[] Kitchens, int[] Menu, int[] Drinks, InnPlanScore Score) Polish((Kitchen[] Kitchens, int[] Menu, int[] Drinks, InnPlanScore Score) plan)
+        {
+            for (int round = 0; round < MaxPolishRounds; round++)
+            {
+                var neighbours = Neighbours(plan.Kitchens)
+                    .Select(k => (Kitchens: k, Quick: Better(QuickScore(k, plan.Menu, plan.Drinks), OneDishChanged(k, plan.Menu, plan.Drinks))))
+                    .OrderByDescending(x => x.Quick, Comparer<InnPlanScore>.Create((a, b) => a.BetterThan(b) ? 1 : b.BetterThan(a) ? -1 : 0))
+                    .Take(LineUpsTried)
+                    .ToList();
+                var best = plan;
+                foreach (var (kitchens, _) in neighbours)
+                {
+                    var (menu, drinks) = BestMenu(kitchens, plan.Drinks, plan.Menu);
+                    var score = Score(kitchens, menu, drinks);
+                    if (score.BetterThan(best.Score)) best = (kitchens, menu, drinks, score);
+                }
+                if (ReferenceEquals(best.Kitchens, plan.Kitchens)) break;
+                plan = best;
+            }
+            return plan;
+        }
+
+        private static InnPlanScore Better(InnPlanScore a, InnPlanScore b) => b.BetterThan(a) ? b : a;
+
+        /// <summary>The best score of <paramref name="menu"/> or a valid menu one dish added, removed or swapped from it.</summary>
+        private InnPlanScore OneDishChanged(IReadOnlyList<Kitchen> kitchens, int[] menu, int[] drinks)
+        {
+            var score = Scorer(kitchens, drinks);
+            var best = score(menu);
+            var outside = Enumerable.Range(0, Dishes.Count).Where(i => !menu.Contains(i)).ToList();
+            void Try(List<int> candidate)
+            {
+                if (Valid(candidate)) best = Better(best, score(candidate));
+            }
+            if (menu.Length < Rules.MaxDishes)
+                foreach (int add in outside) Try([.. menu, add]);
+            if (menu.Length > Rules.MinDishes)
+                foreach (int remove in menu) Try([.. menu.Where(i => i != remove)]);
+            foreach (int remove in menu)
+                foreach (int add in outside) Try([.. menu.Where(i => i != remove), add]);
+            return best;
+        }
+
+        /// <summary>Rounds of <see cref="Polish"/> at most.</summary>
+        private const int MaxPolishRounds = 6;
+
+        private IEnumerable<Kitchen[]> Neighbours(Kitchen[] kitchens)
+        {
+            var used = kitchens.SelectMany(k => k.Chefs).Select(c => c.Id).ToHashSet();
+            // One spare chef per profile: the others of that profile change nothing.
+            var spare = _profiles.Select(p => p.Operators.FirstOrDefault(o => !used.Contains(o.Id))).OfType<OperatorInfo>().ToList();
+            Kitchen[] With(int k, IEnumerable<OperatorInfo> chefs)
+            {
+                var copy = kitchens.ToArray();
+                copy[k] = kitchens[k] with { Chefs = [.. chefs] };
+                return copy;
+            }
+            for (int k = 0; k < kitchens.Length; k++)
+            {
+                var chefs = kitchens[k].Chefs;
+                for (int i = 0; i < chefs.Count; i++)
+                {
+                    yield return With(k, chefs.Where((_, j) => j != i));
+                    foreach (var chef in spare) yield return With(k, chefs.Select((c, j) => j == i ? chef : c));
+                }
+                if (chefs.Count < _input.Kitchens[k].Places)
+                    foreach (var chef in spare) yield return With(k, [.. chefs, chef]);
+            }
+            for (int a = 0; a < kitchens.Length; a++)
+            {
+                for (int b = a + 1; b < kitchens.Length; b++)
+                {
+                    for (int i = 0; i < kitchens[a].Chefs.Count; i++)
+                    {
+                        for (int j = 0; j < kitchens[b].Chefs.Count; j++)
+                        {
+                            var copy = kitchens.ToArray();
+                            copy[a] = kitchens[a] with { Chefs = [.. kitchens[a].Chefs.Select((c, x) => x == i ? kitchens[b].Chefs[j] : c)] };
+                            copy[b] = kitchens[b] with { Chefs = [.. kitchens[b].Chefs.Select((c, x) => x == j ? kitchens[a].Chefs[i] : c)] };
+                            yield return copy;
+                        }
+                    }
+                }
+            }
         }
     }
 }
