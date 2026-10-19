@@ -38,7 +38,8 @@ internal enum InnSetupGap
 /// <summary>What the setup panel works from: the planner's input, or what's missing.</summary>
 /// <param name="Input">Null when anything is missing (<paramref name="Gaps"/>): no plan from half a reading.</param>
 /// <param name="Key">Changes when the input does: the plan is worked out again only then.</param>
-internal sealed record InnSetupInputs(IReadOnlyList<InnSetupGap> Gaps, InnPlanInput? Input, string Key);
+/// <param name="RulesNotUnderstood">菜单要求 lines (as read) the planner couldn't take in: the plan ignores them, and the panel says so.</param>
+internal sealed record InnSetupInputs(IReadOnlyList<InnSetupGap> Gaps, InnPlanInput? Input, string Key, IReadOnlyList<string> RulesNotUnderstood);
 
 /// <summary>What to tell the player about one gourmand.</summary>
 /// <param name="Advice">The requests in plain words and what meets them; null when the request wasn't recognised.</param>
@@ -451,14 +452,14 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     public InnSetupInputs SetupInputs()
     {
         // A setup screen that can't be read says only that.
-        if (_setupUnreadable) return new InnSetupInputs([InnSetupGap.ThemeUnreadable], null, "theme-unreadable");
+        if (_setupUnreadable) return new InnSetupInputs([InnSetupGap.ThemeUnreadable], null, "theme-unreadable", []);
         // A kitchen's places as read; when they couldn't be told, the chefs placed there (a kitchen
         // showing neither may be locked: left out, the cautious side).
         var kitchens = (_setup?.Kitchens ?? []).Select(k => new PlanKitchen(k.Number,
                 Math.Min(KitchenMath.MaxChefs, k.ChefSlots ?? Math.Max(k.ChefsPlaced ?? 0, k.Chefs.Count(c => c is not null)))))
             .Where(k => k.Places > 0).Take(KitchenMath.MaxKitchens).ToList();
-        if (_setup is null) return new InnSetupInputs([InnSetupGap.NoSetup], null, "no-setup");
-        if (kitchens.Count == 0) return new InnSetupInputs([InnSetupGap.NoKitchens], null, "no-kitchens");
+        if (_setup is null) return new InnSetupInputs([InnSetupGap.NoSetup], null, "no-setup", []);
+        if (kitchens.Count == 0) return new InnSetupInputs([InnSetupGap.NoKitchens], null, "no-kitchens", []);
 
         var setup = _setup;
         var r = _requirements;
@@ -470,8 +471,9 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         var drinks = data.Drinks.Where(d => d.Unlock.Rating is not { } needs || needs <= rating || _offered.ContainsKey(d.Id))
             .Select(d => new MenuDrink(d, d.Unlimited ? null : Stock(d.Id))).ToList();
 
-        // The theme's trait rules: as 营业设定 states them, and as the menu screen does.
-        var dishRules = setup.MenuRules.Select(line => DishRule.Parse(line, data)).OfType<DishRule>().Concat(r?.DishRules ?? [])
+        // The theme's rules (a trait's or a dish type's): as 营业设定 states them, and as the menu screen does.
+        var setupRules = DishRule.ParseAll(setup.MenuRules, data);
+        var dishRules = setupRules.Rules.Concat(r?.DishRules ?? [])
             .DistinctBy(t => $"{t.Count}:{string.Join("/", t.AnyOf)}").ToList();
         var known = MenuRules.OfRating(rating, dishRules);
         int minDishes = r?.MinDishes ?? known?.MinDishes ?? 1, minDrinks = r?.MinDrinks ?? known?.MinDrinks ?? 0, minTypes = r?.MinTypes ?? known?.MinTypes ?? 1;
@@ -484,8 +486,8 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             string.Join(",", input.HotTraits), rating, string.Join(",", kitchens.Select(k => $"{k.Number}:{k.Places}")),
             string.Join(",", dishes.Select(d => $"{d.Dish.Id}:{d.Stock}").Order()), string.Join(",", drinks.Select(d => $"{d.Drink.Id}:{d.Stock}").Order()),
             $"{rules.MinDishes}-{rules.MaxDishes}/{rules.MinDrinks}-{rules.MaxDrinks}/{rules.MinTypes}",
-            string.Join(",", dishRules.Select(t => $"{t.Count}:{string.Join("/", t.AnyOf)}")));
-        return new InnSetupInputs([], input, key);
+            string.Join(",", dishRules.Select(t => $"{t.Count}:{string.Join("/", t.AnyOf)}")), string.Join(",", setupRules.NotUnderstood));
+        return new InnSetupInputs([], input, key, setupRules.NotUnderstood);
     }
 
     /// <summary>

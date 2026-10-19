@@ -25,12 +25,22 @@ public sealed partial record DishRule(int Count, IReadOnlyList<string> AnyOf)
         return new DishRule(int.Parse(match.Groups[1].Value), [.. traits!]);
     }
 
+    /// <summary>Whether <paramref name="dish"/> counts towards the rule.</summary>
+    public bool Matches(Dish dish) => dish.Traits.Intersect(AnyOf).Any();
+
+    /// <summary>The rules in 菜单要求's lines as read, and what of them isn't understood.</summary>
+    public static DishRulesRead ParseAll(IReadOnlyList<string> lines, InnData data) =>
+        new([.. lines.Select(l => Parse(l, data)).OfType<DishRule>()], []);
+
     [GeneratedRegex(@"至少有?(\d+)道带有(.+?)特性的菜品")]
     private static partial Regex TraitRuleText();
 
     [GeneratedRegex(@"\[([^\]]+)\]")]
     private static partial Regex Brackets();
 }
+
+/// <summary>菜单要求 as read: the rules understood, and each rule that isn't (as read).</summary>
+public sealed record DishRulesRead(IReadOnlyList<DishRule> Rules, IReadOnlyList<string> NotUnderstood);
 
 /// <summary>
 /// What the menu must be (菜单要求 and the menu screen's counters "N/8"). The numbers are passed by
@@ -207,7 +217,7 @@ public sealed class InnPlanner(InnData inn)
         && dishes.Select(d => d.Dish.Id).Distinct().Count() == dishes.Count
         && drinks.Select(d => d.Drink.Id).Distinct().Count() == drinks.Count
         && dishes.Select(d => d.Dish.Type).Distinct().Count() >= rules.MinTypes
-        && rules.DishRules.All(r => dishes.Count(d => d.Dish.Traits.Intersect(r.AnyOf).Any()) >= r.Count);
+        && rules.DishRules.All(r => dishes.Count(d => r.Matches(d.Dish)) >= r.Count);
 
     /// <summary>The score of a line-up and menu under the model.</summary>
     public InnPlanScore Evaluate(InnPlanInput input, IReadOnlyList<Kitchen> kitchens, IReadOnlyList<MenuDish> dishes, IReadOnlyList<MenuDrink> drinks)
@@ -443,7 +453,7 @@ public sealed class InnPlanner(InnData inn)
             }
             if (HotMatches(hot, dish) is var matches and > 0) reasons.Add(new PlanReason(PlanReasonKind.HotTraits, dish.Id, Value: matches));
             for (int r = 0; r < input.Rules.DishRules.Count; r++)
-                if (dish.Traits.Intersect(input.Rules.DishRules[r].AnyOf).Any()) reasons.Add(new PlanReason(PlanReasonKind.MeetsRule, dish.Id, Rule: r));
+                if (input.Rules.DishRules[r].Matches(dish)) reasons.Add(new PlanReason(PlanReasonKind.MeetsRule, dish.Id, Rule: r));
             if (menu.Stock is { } stock && stock < eachDish) reasons.Add(new PlanReason(PlanReasonKind.ShortOfStock, dish.Id, Value: eachDish - stock));
         }
         double eachDrink = drinks.Count == 0 ? 0 : score.Orders * DrinksPerOrder / drinks.Count;
@@ -552,7 +562,7 @@ public sealed class InnPlanner(InnData inn)
 
         private int Types(IEnumerable<int> menu) => menu.Select(i => Dishes[i].Dish.Type).Distinct().Count();
 
-        private bool Has(int dish, DishRule rule) => Dishes[dish].Dish.Traits.Intersect(rule.AnyOf).Any();
+        private bool Has(int dish, DishRule rule) => rule.Matches(Dishes[dish].Dish);
 
         /// <summary>How far the menu is from its types and trait rules.</summary>
         private int Shortfall(IReadOnlyCollection<int> menu) =>

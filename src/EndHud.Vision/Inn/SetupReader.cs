@@ -121,7 +121,10 @@ public sealed class SetupReader(InnText text, InnData data, IReadOnlyList<Operat
     }
 
     /// <summary>The traits named in a row of chips ("素食 滋补"), in the order they stand.</summary>
-    private List<string> TraitIds(string row)
+    private List<string> TraitIds(string row) => HotIds(row, data);
+
+    /// <summary>The 热门 ids named in a row of chips, in the order they stand.</summary>
+    internal static List<string> HotIds(string row, InnData data)
     {
         string letters = Letters(row);
         return [.. data.Traits.Where(t => t.Zh is { Length: > 0 } zh && letters.Contains(zh))

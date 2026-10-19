@@ -75,7 +75,7 @@ public class InnSetupLayoutTests
             [drinks.Take(8).ToList(), drinks.Skip(8).Take(per).ToList(), drinks.Skip(8 + per).Take(per).ToList()]);
         var plan = new InnPlan([.. Enumerable.Range(1, 3).Select(k => new PlannedKitchen(k, cooks.Take(2).ToList()))],
             dishes.Take(8).ToList(), drinks.Take(8).ToList(), null, InnPlanScore.Zero, RulesMet: false, []);
-        var inputs = new InnSetupInputs([], new InnPlanInput([], 4, 0, 6, [], [], [], [], new MenuRules(6, 8, 3, 8, 3, [])), "k");
+        var inputs = new InnSetupInputs([], new InnPlanInput([], 4, 0, 6, [], [], [], [], new MenuRules(6, 8, 3, 8, 3, [])), "k", []);
         return InnSetupView.Build(inputs, new InnSetupAdvice(plan, tiers), Inn, Text);
     }
 
