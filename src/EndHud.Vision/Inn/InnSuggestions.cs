@@ -2,7 +2,7 @@ using EndHud.Vision.Operators;
 
 namespace EndHud.Vision.Inn;
 
-/// <summary>What the setup panel suggests for one kitchen.</summary>
+/// <summary>What the setup advice suggests for one kitchen.</summary>
 /// <param name="Chefs">The chefs the plan puts in its empty places (never one already placed, see <see cref="Placed"/>); none when it's full or isn't used.</param>
 /// <param name="ChefSubstitutes">The best chefs to put in instead of one the player lacks, best first (at most <see cref="InnSuggester.MaxSubstitutes"/>).</param>
 /// <param name="Dishes">The menu's dishes this kitchen cooks the larger share of, in the plan's order.</param>
@@ -21,7 +21,7 @@ public sealed record KitchenSuggestion(int Number, IReadOnlyList<OperatorInfo> C
     public bool Unused => Chefs.Count == 0 && Placed == 0;
 }
 
-/// <summary>The setup panel's suggestions: per kitchen, then the drinks.</summary>
+/// <summary>The setup advice's suggestions: per kitchen, then the drinks.</summary>
 /// <param name="Unplaced">Menu dishes no kitchen cooks (only when none can: no chef anywhere).</param>
 /// <param name="Drinks">The plan's drinks.</param>
 /// <param name="DrinkSubstitutes">The best off-menu drinks, best first, for a drink the player lacks.</param>
@@ -29,7 +29,7 @@ public sealed record InnSuggestions(IReadOnlyList<KitchenSuggestion> Kitchens, I
     IReadOnlyList<MenuDrink> Drinks, IReadOnlyList<MenuDrink> DrinkSubstitutes);
 
 /// <summary>
-/// The setup panel's suggestions from a plan (owner, 2026-10-19: "split this to each kitchen: in
+/// The setup advice's suggestions from a plan (owner, 2026-10-19: "split this to each kitchen: in
 /// kitchen 1, show suggested cook and suggested dish"). The plan is worked out from the whole
 /// built-in roster and dish list, so a player who lacks a chef, dish or drink it names puts in a
 /// substitute; each is ranked by what it's worth under the planner's model:

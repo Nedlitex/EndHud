@@ -6,7 +6,7 @@ using Xunit.Abstractions;
 namespace EndHud.Vision.Tests;
 
 /// <summary>
-/// The setup panel's suggestions (<see cref="InnSuggester"/>) from a plan over the whole built-in
+/// The setup advice's suggestions (<see cref="InnSuggester"/>) from a plan over the whole built-in
 /// roster and dish list: which kitchen cooks each menu dish (the balanced split of the planner's
 /// model, <see cref="InnPlanner.Shares"/>), and per kitchen the substitutes for its chefs and
 /// dishes, then the drinks'.

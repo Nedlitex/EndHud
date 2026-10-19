@@ -17,7 +17,7 @@ internal enum InnLineStyle
     /// <summary>Starts a card (a gourmand): accent colour, set apart from the lines above.</summary>
     Heading,
 
-    /// <summary>Starts a block within a card (a kitchen on the setup panel): accent colour, not set apart by a rule.</summary>
+    /// <summary>Starts a block within a card (a kitchen's dish types in its setup advice): accent colour, not set apart by a rule.</summary>
     Subheading,
 
     /// <summary>Secondary text (what was read off a bubble): dimmed.</summary>

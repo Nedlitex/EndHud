@@ -210,7 +210,7 @@ public partial class OverlayWindow
     /// <summary>A dish's or drink's picture from the operator package, loaded once; null when the package has none.</summary>
     private BitmapSource? InnPicture(string id)
     {
-        // An operator's avatar (the setup panel's chefs), as the combo banner shows it.
+        // An operator's avatar (the setup advice's chefs), as the combo banner shows it.
         if (id.StartsWith(InnSetupView.OperatorPicture, StringComparison.Ordinal))
         {
             string opId = id[InnSetupView.OperatorPicture.Length..];
