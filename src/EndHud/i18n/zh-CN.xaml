@@ -305,4 +305,46 @@
     <sys:String x:Key="Tray.Started">EndHud 已在系统托盘中运行。切换到游戏后会自动显示，按 Ctrl+Shift+M 或 Ctrl+F9 打开菜单，右键托盘图标可更改设置。</sys:String>
     <sys:String x:Key="Tray.Started.Manual">EndHud 已在系统托盘中运行。按 Ctrl+Shift+H 或 Ctrl+F10 显示 HUD，右键托盘图标可更改设置。</sys:String>
 
+    <!-- The inn helper: the session strip, the gourmand card, its menu card and tray item. -->
+    <sys:String x:Key="Inn.Kitchen.1">厨房一</sys:String>
+    <sys:String x:Key="Inn.Kitchen.2">厨房二</sys:String>
+    <sys:String x:Key="Inn.Kitchen.3">厨房三</sys:String>
+    <sys:String x:Key="Inn.Queue">{0} 建议排：</sys:String>
+    <sys:String x:Key="Inn.Nothing">—</sys:String>
+    <sys:String x:Key="Inn.Between">　</sys:String>
+    <sys:String x:Key="Inn.CookAhead">（预做）</sys:String>
+    <sys:String x:Key="Inn.Replace">{0} 换：</sys:String>
+    <sys:String x:Key="Inn.ReplaceArrow" xml:space="preserve"> → </sys:String>
+    <sys:String x:Key="Inn.ForTable">（桌{0}）</sys:String>
+    <sys:String x:Key="Inn.Blaze.StartNow">满堂彩已满 → 现在开启（按 R）</sys:String>
+    <sys:String x:Key="Inn.Blaze.GetReady">满堂彩快满了：先把厨房排满</sys:String>
+    <sys:String x:Key="Inn.Waiting">厨房都排满了，等有空位再排：</sys:String>
+    <sys:String x:Key="Inn.OutOfStock">没有库存了，做不了：</sys:String>
+    <sys:String x:Key="Inn.Unreadable">桌{0} 的点单看不清</sys:String>
+    <sys:String x:Key="Inn.Gap.NoKitchens">还没看到厨房：打开「派单」看一眼，就能按厨房给出建议</sys:String>
+    <sys:String x:Key="Inn.Gap.NoMenu">还没看到菜单：打开「派单」看一眼，就能知道菜单上有哪些菜</sys:String>
+    <sys:String x:Key="Inn.Problem.NoTextRecognition">缘缘庄助手需要 Windows 的简体中文文字识别：设置 → 时间和语言 → 语言和区域 → 添加“中文(简体，中国)”，然后重启 EndHud</sys:String>
+    <sys:String x:Key="Inn.Gourmand.Title">老饕（桌{0}）</sys:String>
+    <sys:String x:Key="Inn.Gourmand.Wants">要求：{0}</sys:String>
+    <sys:String x:Key="Inn.Gourmand.Options">可上：</sys:String>
+    <sys:String x:Key="Inn.Gourmand.Serve">按这个顺序上：</sys:String>
+    <sys:String x:Key="Inn.Gourmand.Unknown">没认出这位老饕的要求</sys:String>
+    <sys:String x:Key="Inn.Gourmand.Read">看到的字：{0}</sys:String>
+    <sys:String x:Key="Inn.Gourmand.NoneOnMenu">菜单里没有符合的</sys:String>
+    <sys:String x:Key="Inn.Gourmand.NoDrinksSeen">还不知道菜单上有哪些饮品：等有客人点过饮品后再推荐</sys:String>
+    <sys:String x:Key="Inn.Where.Wrap">（{0}）</sys:String>
+    <sys:String x:Key="Inn.Where.Carried">手上有</sys:String>
+    <sys:String x:Key="Inn.Where.Counter">出餐台有</sys:String>
+    <sys:String x:Key="Inn.Where.DrinkBar">饮品台</sys:String>
+    <sys:String x:Key="Inn.Where.Kitchen">{0}{1}秒</sys:String>
+    <sys:String x:Key="Inn.Where.KitchenAbout">{0}约{1}秒</sys:String>
+    <sys:String x:Key="Inn.Where.ToCook">排进{0}，{1}秒</sys:String>
+    <sys:String x:Key="Inn.Where.ToCookAbout">排进{0}，约{1}秒</sys:String>
+    <sys:String x:Key="Inn.Sample">缘缘庄助手示例</sys:String>
+    <sys:String x:Key="Inn.Drag">按住拖动，调整缘缘庄助手位置</sys:String>
+    <sys:String x:Key="Menu.Inn">缘缘庄助手</sys:String>
+    <sys:String x:Key="Menu.Inn.Hint">在缘缘庄营业时，按厨房列出该排的菜（带图片）、提醒开启满堂彩、解读老饕的要求。只给建议，不会替你操作。菜单打开时会显示示例，可直接拖动调整位置，并在下方调整大小和不透明度。</sys:String>
+    <sys:String x:Key="Menu.Inn.ResetPosition">恢复默认位置</sys:String>
+    <sys:String x:Key="Tray.InnHelper">缘缘庄助手</sys:String>
+
 </ResourceDictionary>
