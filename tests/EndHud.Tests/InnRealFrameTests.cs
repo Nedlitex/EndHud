@@ -64,54 +64,113 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The owner's 养身心 setup, read by the real readers: 营业设定 alone gives the panel's
-    /// per-kitchen suggestions (no chef picker, no menu screen needed; owner, 2026-10-19), meeting every requirement
-    /// on screen (Rating 4: at least 3 types, 6 dishes and 3 drinks; 养身心: at least 2 [素食] or
-    /// [滋补] dishes). With the menu screen's two frames seen as well, still the same shape.
+    /// The owner's 养身心 setup, read by the real readers: 营业设定 alone gives a panel under each
+    /// kitchen (owner, 2026-10-19), planned around the chefs placed (kitchen 1 full with Perlica and
+    /// Avywenna, Chen Qianyu in kitchen 2, kitchen 3 empty); the chef picker for kitchen 1 is told by
+    /// its title and shows kitchen 1's advice; the menu screen's two frames then give the menu for
+    /// the chefs placed, meeting every requirement on screen (Rating 4: at least 3 types, 6 dishes
+    /// and 3 drinks; 养身心: at least 2 [素食] or [滋补] dishes).
     /// </summary>
     [Fact]
-    public async Task The_setup_screen_alone_gives_kitchen_blocks_meeting_every_rule()
+    public async Task The_setup_picker_and_menu_screens_give_their_own_advice_from_what_was_read()
     {
         var (monitor, raised) = await Monitor();
+        var session = NewSession();
         double at = 0;
         async Task Show(string fixture)
         {
             Assert.True(await monitor.TryInnAsync(await Load(Path.Combine("inn", fixture + ".jpg")), S(at), squadPanelSeen: false), fixture);
+            session.Update(raised[^1]!);
             at += 3;
         }
-        await Show("setup-chefs-placed");
-        await Show("chef-picker"); // told apart, nothing read
-        Assert.Equal(InnScreenKind.ChefPicker, raised[^1]!.Screen);
+        var planner = new InnPlanner(Inn);
+        void Print(IEnumerable<InnAdvicePanel> panels)
+        {
+            foreach (var panel in panels)
+            {
+                output.WriteLine($"[{panel.Spot}]");
+                foreach (var line in panel.Model.Lines) output.WriteLine("  " + line.Text);
+            }
+        }
 
-        var session = NewSession();
-        foreach (var reading in raised) session.Update(reading!);
+        await Show("setup-chefs-placed");
         var inputs = session.SetupInputs();
         Assert.Empty(inputs.Gaps);
-        var advice = InnSetupAdvice.For(new InnPlanner(Inn), inputs.Input!);
-        var plan = advice.Plan;
+        Assert.Equal("1:Perlica+Avywenna 2:Chen_Qianyu 3:", string.Join(" ", inputs.Input!.Kitchens.Select(k => $"{k.Number}:{string.Join("+", k.Placed.Select(c => c?.Id))}")));
+        var chefs = InnSetupAdvice.For(planner, inputs.Input);
+        var columns = InnSetupView.ForScreen(InnScreenKind.Setup, session, chefs, null, Inn, Text);
+        Print(columns);
+        Assert.Equal([InnAdviceSpot.Kitchen1, InnAdviceSpot.Kitchen2, InnAdviceSpot.Kitchen3], columns.Select(p => p.Spot));
+        Assert.Contains("已排好", columns[0].Model.Lines.Select(l => l.Text));
+        Assert.StartsWith("推荐：", columns[1].Model.Lines[^2].Text);
+        Assert.StartsWith("推荐：", columns[2].Model.Lines[^2].Text);
 
-        Assert.True(plan.RulesMet);
-        Assert.InRange(plan.Dishes.Count, 6, 8);
-        Assert.InRange(plan.Drinks.Count, 3, 8);
-        Assert.True(plan.Dishes.Select(d => d.Dish.Type).Distinct().Count() >= 3);
-        Assert.True(plan.Dishes.Count(d => d.Dish.Traits.Contains("Veggy") || d.Dish.Traits.Contains("Rich")) >= 2);
-        Assert.Equal(6, plan.Kitchens.Sum(k => k.Chefs.Count));
+        await Show("chef-picker");
+        Assert.Equal(InnScreenKind.ChefPicker, raised[^1]!.Screen);
+        Assert.Equal(1, session.PickerKitchen);
+        var picker = Assert.Single(InnSetupView.ForScreen(InnScreenKind.ChefPicker, session, chefs, null, Inn, Text));
+        Print([picker]);
+        Assert.Equal("厨房一 · 推荐", picker.Model.Lines[0].Text);
 
-        var lines = InnSetupView.Build(inputs, advice, Inn, Text).Lines.Select(l => l.Text).ToList();
-        foreach (string line in lines) output.WriteLine(line);
-        Assert.Equal("缘缘庄 · 推荐（没有的干员/菜，换「可换」里的）", lines[0]);
-        string[] kitchen = ["干员：", "可换：", "做菜：", "可换："];
-        // Kitchen 1 is full (Perlica and Avywenna placed): no chefs to suggest there.
-        Assert.Equal(["厨房一", "做菜：", "可换：", "厨房二", .. kitchen, "厨房三", .. kitchen, "饮品：", "可换："],
-            lines.Skip(1).Select(l => l.StartsWith("厨房") ? l[..3] : l[..(l.IndexOf('：') + 1)]));
-
-        // The menu screen seen too: it refines (stock, the rules as stated), the panel keeps its shape.
         await Show("menu-dishes");
         await Show("menu-drinks");
-        foreach (var reading in raised.Skip(2)) session.Update(reading!);
-        var refined = session.SetupInputs();
-        Assert.Empty(refined.Gaps);
-        Assert.Equal((6, 3, 3), (refined.Input!.Rules.MinDishes, refined.Input.Rules.MinDrinks, refined.Input.Rules.MinTypes));
+        var menuInputs = session.MenuInputs();
+        Assert.Empty(menuInputs.Gaps);
+        Assert.False(menuInputs.ChefsPlanned);
+        Assert.Equal((6, 3, 3), (menuInputs.Input!.Rules.MinDishes, menuInputs.Input.Rules.MinDrinks, menuInputs.Input.Rules.MinTypes));
+        var menu = InnSetupAdvice.For(planner, menuInputs.Input);
+        Assert.Equal("1:Perlica+Avywenna 2:Chen_Qianyu", string.Join(" ", menu.Plan.Kitchens.Select(k => $"{k.Number}:{string.Join("+", k.Chefs.Select(c => c.Id))}")));
+        Assert.True(menu.Plan.RulesMet);
+        Assert.True(planner.MeetsRules(menuInputs.Input.Rules, menu.Plan.Dishes, menu.Plan.Drinks));
+        Assert.True(menu.Plan.Dishes.Count(d => d.Dish.Traits.Contains("Veggy") || d.Dish.Traits.Contains("Rich")) >= 2);
+        var panel = Assert.Single(InnSetupView.ForScreen(InnScreenKind.Menu, session, null, menu, Inn, Text));
+        Print([panel]);
+        Assert.Equal("推荐菜单（按现在的厨师）", panel.Model.Lines[0].Text);
+    }
+
+    /// <summary>
+    /// The owner's 舌上清流 (owner's screenshot, menu-soup-theme.jpg): the theme's soup rule and Rating
+    /// 4's requirements are read off 菜单设定 by the real readers (the setup is given as remembered
+    /// from 营业设定: Chen Qianyu in kitchen 1, its rules and hot types left out, so the rule can only
+    /// have come from the frame). The menu planned for Chen Qianyu's kitchen meets every rule: at
+    /// least one 汤羹, 3 types, 6 dishes, 3 drinks.
+    /// </summary>
+    [Fact]
+    public async Task The_soup_themes_menu_screen_gives_a_menu_for_the_chefs_placed_with_a_soup()
+    {
+        var (monitor, raised) = await Monitor();
+        var session = NewSession();
+        session.Update(new InnReading(InnScreenKind.Setup, S(0), Setup: new InnSetup("舌上清流", Inn.Themes.FirstOrDefault(t => t.Zh == "舌上清流"), null, [], [],
+        [
+            new SetupKitchen(1, 2, ["Chen_Qianyu", null], ["陈千语", null]) { ChefsPlaced = 1 },
+            new SetupKitchen(2, 2, [null, null], [null, null]) { ChefsPlaced = 0 },
+            new SetupKitchen(3, 2, [null, null], [null, null]) { ChefsPlaced = 0 },
+        ])));
+
+        Assert.True(await monitor.TryInnAsync(await Load(Path.Combine("inn", "menu-soup-theme.jpg")), S(3), squadPanelSeen: false));
+        var reading = raised[^1]!;
+        Assert.Equal(InnScreenKind.Menu, reading.Screen);
+        session.Update(reading);
+
+        var inputs = session.MenuInputs();
+        Assert.Empty(inputs.Gaps);
+        var rules = inputs.Input!.Rules;
+        Assert.Contains(rules.DishRules, r => r.Count == 1 && r.AnyOf.SequenceEqual(["Soup"]));
+        Assert.Equal((6, 3, 3), (rules.MinDishes, rules.MinDrinks, rules.MinTypes));
+        Assert.Equal("1:1:Chen_Qianyu", string.Join(" ", inputs.Input.Kitchens.Select(k => $"{k.Number}:{k.Places}:{string.Join("+", k.Placed.Select(c => c?.Id))}")));
+
+        var planner = new InnPlanner(Inn);
+        var advice = InnSetupAdvice.For(planner, inputs.Input);
+        Assert.True(advice.Plan.RulesMet);
+        Assert.True(planner.MeetsRules(rules, advice.Plan.Dishes, advice.Plan.Drinks));
+        Assert.Contains(advice.Plan.Dishes, d => d.Dish.Type == DishType.Soup);
+
+        var panel = Assert.Single(InnSetupView.ForScreen(InnScreenKind.Menu, session, null, advice, Inn, Text));
+        foreach (var line in panel.Model.Lines) output.WriteLine(line.Text);
+        Assert.Equal("推荐菜单（按现在的厨师）", panel.Model.Lines[0].Text);
+        Assert.Equal(["菜品：", "可换：", "饮品：", "可换："], panel.Model.Lines.Skip(1).Select(l => l.Text[..3]));
+        // Nothing is on the menu yet (0/8 and 0/8): nothing marked.
+        Assert.DoesNotContain(panel.Model.Lines.SelectMany(l => l.Segments), s => s.Text == "✓");
     }
 
     [Fact]

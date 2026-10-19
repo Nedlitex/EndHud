@@ -44,6 +44,8 @@
           CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\inn\menu-dishes.jpg')" />
     <None Include="..\data\Fixtures\inn\menu-drinks.jpg" Link="Fixtures\inn\menu-drinks.jpg"
           CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\inn\menu-drinks.jpg')" />
+    <None Include="..\data\Fixtures\inn\menu-soup-theme.jpg" Link="Fixtures\inn\menu-soup-theme.jpg"
+          CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\inn\menu-soup-theme.jpg')" />
   </ItemGroup>
 
 </Project>

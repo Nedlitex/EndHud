@@ -15,10 +15,8 @@ namespace EndHud;
 /// </summary>
 internal static class InnStrip
 {
-    /// <summary>A picture's size beside its name, at 1080p.</summary>
+    /// <summary>A picture's size beside its name, at 1080p (<see cref="InnStripLook.Normal"/>).</summary>
     internal const double PictureSize = 28;
-
-    private const double FontSize = 16;
 
     /// <summary>
     /// The lines' width at 1080p: a longer line wraps between dishes. Measured so the strip fits right
@@ -28,6 +26,9 @@ internal static class InnStrip
 
     /// <summary>How far in a line starts per step of its indent (a row under its heading), at 1080p.</summary>
     internal const double IndentStep = 16;
+
+    /// <summary>The accent bar down the card's left edge, at 1080p.</summary>
+    internal const double AccentBar = 3;
 
     // Frozen: shared by every strip drawn.
     private static readonly Brush Background = Frozen(Color.FromArgb(0xC0, 0x10, 0x14, 0x18));
@@ -46,28 +47,32 @@ internal static class InnStrip
     }
 
     /// <param name="picture">A dish's or drink's picture by id; null when there's none.</param>
-    public static FrameworkElement Build(InnStripModel model, Func<string, BitmapSource?> picture)
+    /// <param name="lineWidth">How wide the lines may be, at 1080p: <see cref="LineWidth"/> for the session's strip, a spot's width for setup advice (<see cref="InnAdviceLayout.LineWidth"/>).</param>
+    /// <param name="look">Its text and pictures' size: <see cref="InnStripLook.Normal"/>, or <see cref="InnStripLook.Compact"/> where a full panel must fit a small blank of the game's screen.</param>
+    public static FrameworkElement Build(InnStripModel model, Func<string, BitmapSource?> picture, double lineWidth, InnStripLook? look = null)
     {
+        look ??= InnStripLook.Normal;
         var lines = new StackPanel();
         foreach (var line in model.Lines)
         {
             if (line.Style == InnLineStyle.Heading && lines.Children.Count > 0)
                 lines.Children.Add(new Rectangle { Height = 1, Fill = RuleBrush, Margin = new Thickness(0, 8, 0, 4) });
-            lines.Children.Add(Line(line, picture));
+            lines.Children.Add(Line(line, picture, lineWidth, look));
         }
         return new Border
         {
             Background = Background,
             CornerRadius = new CornerRadius(4),
             BorderBrush = AccentBrush,
-            BorderThickness = new Thickness(3, 0, 0, 0),
-            Padding = new Thickness(12, 8, 14, 8),
+            BorderThickness = new Thickness(AccentBar, 0, 0, 0),
+            Padding = look.Padding,
             Child = lines,
         };
     }
 
-    private static UIElement Line(InnLine line, Func<string, BitmapSource?> picture)
+    private static UIElement Line(InnLine line, Func<string, BitmapSource?> picture, double lineWidth, InnStripLook look)
     {
+        double FontSize = look.FontSize, PictureSize = look.PictureSize;
         var (brush, size, weight) = line.Style switch
         {
             InnLineStyle.Accent => (AccentBrush, FontSize + 1, FontWeights.Bold),
@@ -77,7 +82,7 @@ internal static class InnStrip
             InnLineStyle.Dim => (DimBrush, FontSize - 3, FontWeights.Normal),
             _ => (TextBrush, FontSize, FontWeights.Normal),
         };
-        double indent = line.Indent * IndentStep, width = LineWidth - indent;
+        double indent = line.Indent * IndentStep, width = lineWidth - indent;
         TextBlock Text(InnSegment segment) => new()
         {
             Text = segment.Text,
@@ -125,7 +130,7 @@ internal static class InnStrip
             unit.Children.Add(Text(segment));
             if (!segment.KeepWithNext) unit = null;
         }
-        var margin = new Thickness(indent, 2, 0, 2);
+        var margin = new Thickness(indent, look.LineGap, 0, look.LineGap);
         if (label is null)
         {
             row.Margin = margin;
@@ -138,4 +143,18 @@ internal static class InnStrip
         labelled.Children.Add(row);
         return labelled;
     }
+}
+
+/// <summary>How large an inn panel's text and pictures are drawn, at 1080p (scaled with the window like the rest).</summary>
+/// <param name="LineGap">Space above and below each line.</param>
+internal sealed record InnStripLook(double FontSize, double PictureSize, double LineGap, Thickness Padding)
+{
+    /// <summary>The session's strip and the chefs' advice.</summary>
+    public static readonly InnStripLook Normal = new(16, InnStrip.PictureSize, 2, new Thickness(12, 8, 14, 8));
+
+    /// <summary>The menu's advice: a full menu (eight dishes, eight drinks, their substitutes) in the menu screen's blank column.</summary>
+    public static readonly InnStripLook Compact = new(13, 20, 1, new Thickness(10, 6, 10, 6));
+
+    /// <summary>The card's own width around its lines: the accent bar and the padding.</summary>
+    public double ChromeWidth => InnStrip.AccentBar + Padding.Left + Padding.Right;
 }

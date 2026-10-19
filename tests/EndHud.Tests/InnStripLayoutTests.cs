@@ -75,7 +75,7 @@ public class InnStripLayoutTests
 
     private static Size Measure(InnStripModel model, Func<string, BitmapSource?> picture) => OnSta(() =>
     {
-        var element = InnStrip.Build(model, picture);
+        var element = InnStrip.Build(model, picture, InnStrip.LineWidth);
         element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         return element.DesiredSize;
     });
@@ -149,7 +149,7 @@ public class InnStripLayoutTests
 
         var (images, texts) = OnSta(() =>
         {
-            var element = InnStrip.Build(model, id => id == missing ? null : PackagePicture(id));
+            var element = InnStrip.Build(model, id => id == missing ? null : PackagePicture(id), InnStrip.LineWidth);
             element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             element.Arrange(new Rect(element.DesiredSize));
             var all = Descendants(element).ToList();

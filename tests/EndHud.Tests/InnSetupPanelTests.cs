@@ -6,11 +6,11 @@ using static EndHud.Tests.InnTestKit;
 namespace EndHud.Tests;
 
 /// <summary>
-/// The setup panel (plan S6; owner, 2026-10-19): what it works from (<see cref="InnSession.SetupInputs"/>:
+/// The setup advice (plan S6; owner, 2026-10-19): what it works from (<see cref="InnSession.SetupInputs"/>:
 /// the setup screen's theme and kitchens, the built-in roster and dish list, refined by the menu
-/// screen when seen, never needing it), the plan and tiers worked out off the UI thread once per
-/// change (<see cref="InnSetupPlanning"/>), and what the player reads (<see cref="InnSetupView"/>):
-/// tier lists, or what's missing. Nothing asks the player to scroll or open a screen to feed it.
+/// screen when seen, never needing it), the plan worked out off the UI thread once per change
+/// (<see cref="InnSetupPlanning"/>), and what's said when something is missing. Nothing asks the
+/// player to scroll or open a screen to feed it. Where each piece shows: InnSetupViewTests.
 /// </summary>
 public class InnSetupPanelTests
 {
@@ -43,8 +43,7 @@ public class InnSetupPanelTests
     /// <summary>The plan for the setup screen alone, worked out once (two seconds over the whole roster).</summary>
     private static readonly Lazy<InnSetupAdvice> Advice = new(() => InnSetupAdvice.For(Planner, Ready().SetupInputs().Input!));
 
-    private static IReadOnlyList<string> Lines(InnSetupInputs inputs, InnSetupAdvice? advice) =>
-        [.. InnSetupView.Build(inputs, advice, Inn, Text).Lines.Select(l => l.Text)];
+    private static IReadOnlyList<string> Lines(IReadOnlyList<InnAdvicePanel> panels) => [.. Assert.Single(panels).Model.Lines.Select(l => l.Text)];
 
     // ---- What it works from ----
 
@@ -125,7 +124,7 @@ public class InnSetupPanelTests
 
     // ---- What the player reads ----
 
-    // The full panel's blocks: see InnSetupBlocksTests.
+    // Each spot's words: see InnSetupViewTests.
 
     [Fact]
     public void Nothing_seen_says_only_that_the_theme_is_missing()
@@ -133,7 +132,7 @@ public class InnSetupPanelTests
         var session = NewSession();
         session.Update(new InnReading(InnScreenKind.Menu, S(0), Fresh: false));
 
-        Assert.Equal(["缘缘庄 · 推荐（没有的干员/菜，换「可换」里的）", "还没看到主题：打开「营业设定」"], Lines(session.SetupInputs(), null));
+        Assert.Equal(["还没看到主题：打开「营业设定」"], Lines(InnSetupView.Menu(session.MenuInputs(), null, session.OnMenu, Inn, Text)));
     }
 
     [Fact]
@@ -165,7 +164,7 @@ public class InnSetupPanelTests
 
         var inputs = session.SetupInputs();
         Assert.Null(inputs.Input);
-        Assert.Equal(["缘缘庄 · 推荐（没有的干员/菜，换「可换」里的）", "看不清主题（画面被遮挡）"], Lines(inputs, Advice.Value));
+        Assert.Equal(["看不清主题（画面被遮挡）"], Lines(InnSetupView.Setup(inputs, Advice.Value, Inn, Text)));
     }
 
     [Fact]
@@ -174,19 +173,6 @@ public class InnSetupPanelTests
         var session = Ready();
         session.Update(new InnReading(InnScreenKind.Setup, S(6), Fresh: false));
         Assert.Empty(session.SetupInputs().Gaps);
-    }
-
-    [Fact]
-    public void While_the_plan_is_worked_out_the_panel_says_so()
-    {
-        Assert.Equal(["缘缘庄 · 推荐（没有的干员/菜，换「可换」里的）", "正在推荐…"], Lines(Ready().SetupInputs(), null));
-    }
-
-    [Fact]
-    public void Without_text_recognition_only_what_to_install()
-    {
-        var model = InnSetupView.Build(Ready().SetupInputs(), null, Inn, Text, "Inn.Problem.NoTextRecognition");
-        Assert.Equal(["缘缘庄 · 推荐（没有的干员/菜，换「可换」里的）", Text("Inn.Problem.NoTextRecognition")], model.Lines.Select(l => l.Text));
     }
 
     // ---- Worked out off the UI thread, once per change ----
@@ -243,22 +229,5 @@ public class InnSetupPanelTests
 
         Assert.Null(planning.Showable(inputs));
         Assert.Contains(logged, l => l.Contains("bad input"));
-    }
-
-    // ---- The sample shown while the menu is open ----
-
-    [Fact]
-    public void The_sample_has_every_kitchen_with_its_rows_and_the_drinks()
-    {
-        var model = InnSetupView.Sample(Inn, Library.Operators, Text);
-        var lines = model.Lines.Select(l => l.Text).ToList();
-
-        Assert.Equal(Text("Inn.Setup.Sample"), lines[0]);
-        var labels = lines.Skip(1).Select(l => l.StartsWith("厨房", StringComparison.Ordinal) ? l[..3] : l[..(l.IndexOf('：') + 1)]).ToList();
-        string[] kitchen = ["干员：", "可换：", "做菜：", "可换："];
-        Assert.Equal(["厨房一", .. kitchen, "厨房二", .. kitchen, "厨房三", .. kitchen, "饮品：", "可换："], labels);
-        Assert.DoesNotContain(lines, l => l.Contains("T1"));
-        Assert.DoesNotContain(model.Lines.SelectMany(l => l.Segments),
-            s => s.PictureId?.StartsWith(InnSetupView.OperatorPicture) == true && Library.Operators.First(o => s.PictureId == InnSetupView.OperatorPicture + o.Id) is var op && Inn.ChefBonusesOf(op).Count == 0);
     }
 }

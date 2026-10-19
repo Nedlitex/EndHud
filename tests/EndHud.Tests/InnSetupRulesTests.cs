@@ -5,7 +5,7 @@ using static EndHud.Tests.InnTestKit;
 namespace EndHud.Tests;
 
 /// <summary>
-/// The setup panel under a dish-type rule (owner, live, 2026-10-19): theme 舌上清流, 菜单要求
+/// The setup advice under a dish-type rule (owner, live, 2026-10-19): theme 舌上清流, 菜单要求
 /// "至少有1道[汤羹]类菜品", 热门 汤羹 and 饮品. The panel's menu had no 汤羹 dish: the rule wasn't
 /// understood and was silently dropped. No fixture frame of this theme exists: the setup screen is
 /// given as the reader returns it (its lines and its 热门 ids), see InnDishTypeRuleTests for the
@@ -38,12 +38,12 @@ public class InnSetupRulesTests
     }
 
     [Fact]
-    public void A_rule_not_understood_is_said_on_the_panel()
+    public void A_rule_not_understood_is_said_with_the_menu()
     {
         var inputs = Inputs(["至少有3道很奇怪的菜品"], ["Soup"]);
 
         Assert.Equal(["至少有3道很奇怪的菜品"], inputs.RulesNotUnderstood);
-        var lines = InnSetupView.Build(inputs, null, Inn, Text).Lines.Select(l => l.Text).ToList();
+        var lines = InnSetupView.Menu(inputs, null, [], Inn, Text).Single().Model.Lines.Select(l => l.Text).ToList();
         Assert.Contains("看不懂菜单要求：至少有3道很奇怪的菜品（推荐没有算上它）", lines);
     }
 }

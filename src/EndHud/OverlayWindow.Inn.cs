@@ -10,24 +10,26 @@ using EndHud.Vision.Operators;
 namespace EndHud;
 
 /// <summary>
-/// The inn helper's two overlays. The strip: during an inn session, which dishes to queue in each
+/// The inn helper's overlays. The strip: during an inn session, which dishes to queue in each
 /// kitchen, when to start Full Blaze, and what a gourmand asks for (<see cref="InnSession"/>,
-/// <see cref="InnStripView"/>), shown only on the session's frames (never in a fight). The setup
-/// panel: on the setup, chef picker and menu screens, a block per kitchen (its chefs and the menu
-/// dishes it cooks, each with substitutes) and the drinks, from the built-in roster and dish list
-/// (<see cref="InnSetupPlanning"/>, <see cref="InnSetupView"/>), worked out off the UI thread. Both are text only, shown as samples while the menu is open out of
-/// the inn, placed by their top-left corners as fractions of the game window, draggable while the
-/// menu is open, and share one size and opacity.
+/// <see cref="InnStripView"/>), shown only on the session's frames (never in a fight); placed by its
+/// top-left corner as a fraction of the game window, shown as a sample and draggable while the menu
+/// is open out of the inn. The setup advice: small panels where the game shows the choice they're
+/// about (<see cref="InnSetupView"/>, placed by <see cref="InnAdviceLayout"/>): under each kitchen's
+/// card on 营业设定, in a chef picker, on 菜单设定; nothing on the theme list. Their plans are worked
+/// out off the UI thread (<see cref="InnSetupPlanning"/>), one for the chefs and one for the menu.
+/// They follow the game's layout, so they aren't dragged. All share one size and opacity; text only.
 /// </summary>
 public partial class OverlayWindow
 {
     private InnSession? _innSession;
     private OperatorLibrary? _innLibrary; // the library the session was made with
     private bool _innOnScreen; // the last reading was a session frame
-    private bool _innSetupOnScreen; // the last reading was a setup, chef picker or menu screen
+    private InnScreenKind? _innSetupScreen; // the last reading's screen when it was 营业设定, a chef picker or 菜单设定
     private string? _innKey, _innSetupKey;
-    private InnSetupPlanning? _innSetupPlanning;
-    private Point? _innDragOffset, _innSetupDragOffset;
+    private InnSetupPlanning? _innChefPlanning, _innMenuPlanning;
+    private readonly Dictionary<InnAdviceSpot, Border> _innAdviceFrames = [];
+    private Point? _innDragOffset;
     private double _innWindowScale = 1;
     private bool _loadingInnSettings = true;
     private readonly Dictionary<string, BitmapSource?> _innPictures = [];
@@ -46,7 +48,7 @@ public partial class OverlayWindow
         {
             // Nothing is kept while it's off.
             _innSession = null;
-            _innSetupPlanning = null;
+            _innChefPlanning = _innMenuPlanning = null;
         }
         ApplyInnSettings();
         RenderInn();
@@ -62,7 +64,6 @@ public partial class OverlayWindow
         InnOpacitySlider.Value = _config.InnStripOpacity;
         InnOpacityText.Text = Loc.Format("Menu.Gauges.SizeValue", _config.InnStripOpacity * 100);
         InnContent.Opacity = _config.InnStripOpacity;
-        InnSetupContent.Opacity = _config.InnStripOpacity;
         _loadingInnSettings = false;
         ApplyInnSettings();
     }
@@ -80,14 +81,15 @@ public partial class OverlayWindow
         var now = InnClock.Now;
         if (reading is null)
         {
-            _innOnScreen = _innSetupOnScreen = false;
+            _innOnScreen = false;
+            _innSetupScreen = null;
             _innSession?.Tick(now);
             RenderInn();
             return;
         }
         if (Session() is { } session) session.Update(reading);
         _innOnScreen = reading.InSession;
-        _innSetupOnScreen = reading.OnSetupScreens;
+        _innSetupScreen = reading.OnSetupScreens ? reading.Screen : null;
         RenderInn();
     }
 
@@ -101,7 +103,8 @@ public partial class OverlayWindow
             _innPictures.Clear();
             _innSession = new InnSession(data, library.Operators);
             var planner = new InnPlanner(data);
-            _innSetupPlanning = new InnSetupPlanning(input => InnSetupAdvice.For(planner, input));
+            _innChefPlanning = new InnSetupPlanning(input => InnSetupAdvice.For(planner, input));
+            _innMenuPlanning = new InnSetupPlanning(input => InnSetupAdvice.For(planner, input));
         }
         return _innSession;
     }
@@ -110,7 +113,7 @@ public partial class OverlayWindow
     private void TickInn()
     {
         _innSession?.Tick(InnClock.Now);
-        if (_innOnScreen || _innSetupOnScreen || _innKey is not null || _innSetupKey is not null) RenderInn();
+        if (_innOnScreen || _innSetupScreen is not null || _innKey is not null || _innSetupKey is not null) RenderInn();
     }
 
     private void RenderInn()
@@ -128,34 +131,66 @@ public partial class OverlayWindow
         string? key = model?.Key;
         if (key == _innKey) return;
         _innKey = key;
-        InnContent.Content = model is null ? null : InnStrip.Build(model, InnPicture);
+        InnContent.Content = model is null ? null : InnStrip.Build(model, InnPicture, InnStrip.LineWidth);
         InnFrame.Visibility = model is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
     /// <summary>
-    /// The setup panel: on the setup screens, the plan for what they showed (asked for off the UI
-    /// thread when the inputs change; drawn again when it's ready), else what's missing. A sample
-    /// while the menu is open out of the inn.
+    /// The setup advice: on 营业设定, a chef picker and 菜单设定, the panels for that screen, from the
+    /// plans for what's remembered of the setup (asked for off the UI thread when their inputs
+    /// change; drawn again when ready); nothing on any other screen.
     /// </summary>
     private void RenderInnSetup()
     {
-        InnStripModel? model = null;
-        if (_config.InnHelperEnabled)
+        IReadOnlyList<InnAdvicePanel> panels = [];
+        if (_config.InnHelperEnabled && _innSetupScreen is { } screen && _innSession is { } session
+            && _innChefPlanning is { } chefPlanning && _innMenuPlanning is { } menuPlanning && _innLibrary?.Inn is { } inn)
         {
-            if (_innSetupOnScreen && _innSession is { } session && _innSetupPlanning is { } planning && _innLibrary?.Inn is { } inn)
+            InnSetupAdvice? chefs = null, menu = null;
+            if (screen == InnScreenKind.Menu)
+            {
+                var inputs = session.MenuInputs();
+                menuPlanning.Request(inputs, () => Dispatcher.BeginInvoke(RenderInnSetup));
+                menu = menuPlanning.Showable(inputs);
+            }
+            else
             {
                 var inputs = session.SetupInputs();
-                planning.Request(inputs, () => Dispatcher.BeginInvoke(RenderInnSetup));
-                model = InnSetupView.Build(inputs, planning.Showable(inputs), inn, Loc.Get, _party.InnProblem);
+                chefPlanning.Request(inputs, () => Dispatcher.BeginInvoke(RenderInnSetup));
+                chefs = chefPlanning.Showable(inputs);
             }
-            else if (_menuOpen && !_innOnScreen && !_innSetupOnScreen)
-                model = InnSetupView.Sample(_party.Identifier?.Library.Inn, _party.Identifier?.Library.Operators ?? [], Loc.Get);
+            panels = InnSetupView.ForScreen(screen, session, chefs, menu, inn, Loc.Get, _party.InnProblem);
         }
-        string? key = model?.Key;
+        // Drawn again when a panel's words change, or the window's size or the player's size does (the lines' width follows them).
+        string key = $"{HintCanvas.ActualWidth:F0}x{HintCanvas.ActualHeight:F0}@{InnScale():F3}\n"
+                     + string.Join("\n", panels.Select(p => $"{p.Spot}:{p.Model.Key}"));
         if (key == _innSetupKey) return;
-        _innSetupKey = key;
-        InnSetupContent.Content = model is null ? null : InnStrip.Build(model, InnPicture);
-        InnSetupFrame.Visibility = model is null ? Visibility.Collapsed : Visibility.Visible;
+        _innSetupKey = panels.Count == 0 ? null : key;
+        foreach (var frame in _innAdviceFrames.Values) frame.Visibility = Visibility.Collapsed;
+        foreach (var panel in panels) ShowAdvice(panel);
+    }
+
+    /// <summary>The size the inn's overlays are drawn at: the game window's, times the player's.</summary>
+    private double InnScale() => _innWindowScale * _config.InnStripScale;
+
+    /// <summary>Draws one advice panel in its spot, its lines no wider than the spot.</summary>
+    private void ShowAdvice(InnAdvicePanel panel)
+    {
+        if (!_innAdviceFrames.TryGetValue(panel.Spot, out var frame))
+        {
+            // Never in the way of the game's own clicks.
+            frame = new Border { IsHitTestVisible = false };
+            HintCanvas.Children.Add(frame);
+            _innAdviceFrames[panel.Spot] = frame;
+        }
+        double width = HintCanvas.ActualWidth, height = HintCanvas.ActualHeight, scale = InnScale();
+        var spot = InnAdviceLayout.Place(panel.Spot, width, height);
+        frame.LayoutTransform = new ScaleTransform(scale, scale);
+        frame.Opacity = _config.InnStripOpacity;
+        frame.Child = InnStrip.Build(panel.Model, InnPicture, InnAdviceLayout.LineWidth(panel.Spot, width, height, scale), InnAdviceLayout.Look(panel.Spot));
+        Canvas.SetLeft(frame, spot.Left);
+        Canvas.SetTop(frame, spot.Top);
+        frame.Visibility = Visibility.Visible;
     }
 
     /// <summary>The session's advice now; null (and logged) if working it out failed, so the overlay carries on.</summary>
@@ -223,7 +258,7 @@ public partial class OverlayWindow
         _config.InnStripOpacity = Math.Clamp(Math.Round(e.NewValue, 2), HudConfig.MinInnStripOpacity, HudConfig.MaxInnStripOpacity);
         InnOpacityText.Text = Loc.Format("Menu.Gauges.SizeValue", _config.InnStripOpacity * 100);
         InnContent.Opacity = _config.InnStripOpacity;
-        InnSetupContent.Opacity = _config.InnStripOpacity;
+        foreach (var frame in _innAdviceFrames.Values) frame.Opacity = _config.InnStripOpacity;
         ConfigStore.Save(_config);
     }
 
@@ -231,11 +266,8 @@ public partial class OverlayWindow
     {
         _config.InnStripX = HudConfig.DefaultInnStripX;
         _config.InnStripY = HudConfig.DefaultInnStripY;
-        _config.InnSetupX = HudConfig.DefaultInnSetupX;
-        _config.InnSetupBottomY = HudConfig.DefaultInnSetupBottomY;
         ConfigStore.Save(_config);
         PlaceInnFromConfig();
-        PlaceInnSetupFromConfig();
     }
 
     // ---- Placing the strip ----
@@ -245,11 +277,7 @@ public partial class OverlayWindow
         InnFrame.BorderBrush = editing ? (Brush)FindResource("Accent") : Brushes.Transparent;
         InnDragLabel.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
         InnFrame.Cursor = editing ? Cursors.SizeAll : null;
-        InnSetupFrame.BorderBrush = InnFrame.BorderBrush;
-        InnSetupDragLabel.Visibility = InnDragLabel.Visibility;
-        InnSetupFrame.Cursor = InnFrame.Cursor;
         _innKey = "";
-        _innSetupKey = "";
         RenderInn();
     }
 
@@ -259,9 +287,9 @@ public partial class OverlayWindow
         _innWindowScale = scale;
         double size = scale * _config.InnStripScale;
         InnFrame.LayoutTransform = new ScaleTransform(size, size);
-        InnSetupFrame.LayoutTransform = new ScaleTransform(size, size);
         PlaceInnFromConfig();
-        PlaceInnSetupFromConfig();
+        // The advice panels follow the game's layout and the size: drawn again.
+        RenderInnSetup();
     }
 
     private void PlaceInnFromConfig() => PlaceInn(_config.InnStripX * HintCanvas.ActualWidth, _config.InnStripY * HintCanvas.ActualHeight);
@@ -296,53 +324,6 @@ public partial class OverlayWindow
         if (HintCanvas.ActualWidth <= 0 || HintCanvas.ActualHeight <= 0) return;
         _config.InnStripX = Canvas.GetLeft(InnFrame) / HintCanvas.ActualWidth;
         _config.InnStripY = Canvas.GetTop(InnFrame) / HintCanvas.ActualHeight;
-        ConfigStore.Save(_config);
-    }
-
-    // ---- Placing the setup panel ----
-
-    private void PlaceInnSetupFromConfig() =>
-        PlaceInnSetup(_config.InnSetupX * HintCanvas.ActualWidth, _config.InnSetupBottomY * HintCanvas.ActualHeight - InnSetupHeight());
-
-    /// <summary>The panel's height on screen (after scaling).</summary>
-    private double InnSetupHeight() => InnSetupFrame.ActualHeight * ((InnSetupFrame.LayoutTransform as ScaleTransform)?.ScaleY ?? 1);
-
-    /// <summary>The panel grew or shrank (a new plan): keep its bottom where it was.</summary>
-    private void InnSetupFrame_SizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        if (_innSetupDragOffset is null) PlaceInnSetupFromConfig();
-    }
-
-    private void PlaceInnSetup(double left, double top)
-    {
-        (left, top) = ComboHintLayout.Place(left, top, HintCanvas.ActualWidth, HintCanvas.ActualHeight);
-        Canvas.SetLeft(InnSetupFrame, left);
-        Canvas.SetTop(InnSetupFrame, top);
-    }
-
-    private void InnSetup_MouseDown(object sender, MouseButtonEventArgs e)
-    {
-        if (!_menuOpen) return;
-        _innSetupDragOffset = e.GetPosition(InnSetupFrame);
-        InnSetupFrame.CaptureMouse();
-        e.Handled = true;
-    }
-
-    private void InnSetup_MouseMove(object sender, MouseEventArgs e)
-    {
-        if (_innSetupDragOffset is not { } offset) return;
-        var at = e.GetPosition(HintCanvas);
-        PlaceInnSetup(at.X - offset.X, at.Y - offset.Y);
-    }
-
-    private void InnSetup_MouseUp(object sender, MouseButtonEventArgs e)
-    {
-        if (_innSetupDragOffset is null) return;
-        _innSetupDragOffset = null;
-        InnSetupFrame.ReleaseMouseCapture();
-        if (HintCanvas.ActualWidth <= 0 || HintCanvas.ActualHeight <= 0) return;
-        _config.InnSetupX = Canvas.GetLeft(InnSetupFrame) / HintCanvas.ActualWidth;
-        _config.InnSetupBottomY = (Canvas.GetTop(InnSetupFrame) + InnSetupHeight()) / HintCanvas.ActualHeight;
         ConfigStore.Save(_config);
     }
 }

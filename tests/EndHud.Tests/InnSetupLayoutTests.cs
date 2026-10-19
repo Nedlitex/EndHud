@@ -11,17 +11,14 @@ using static EndHud.Tests.InnTestKit;
 namespace EndHud.Tests;
 
 /// <summary>
-/// The setup panel as drawn (<see cref="InnStrip"/> over <see cref="InnSetupView"/>), measured off
-/// screen: the fullest panel (a block per kitchen) fits from its default bottom-left anchor to the
-/// window's edge at 1080p, 1440p and 4K, and every operator, dish and drink has its picture beside
-/// its name, or its name alone without one.
+/// The setup advice as drawn (<see cref="InnStrip"/> over <see cref="InnSetupView"/>), measured off
+/// screen: each spot's fullest panel fits inside its spot (<see cref="InnAdviceLayout"/>: under a
+/// kitchen's card, the chef picker's blank, the menu screen's left column) at 1080p, 1440p and 4K,
+/// and every operator, dish and drink has its picture beside its name, or its name alone without one.
 /// </summary>
 [Collection(WpfCollection.Name)]
-public class InnSetupLayoutTests
+public class InnSetupLayoutTests(Xunit.Abstractions.ITestOutputHelper output)
 {
-    /// <summary>The overlay's frame around the panel: its padding and border (OverlayWindow.xaml).</summary>
-    private const double Frame = 2 * (6 + 2);
-
     private static T OnSta<T>(Func<T> work)
     {
         T result = default!;
@@ -56,12 +53,12 @@ public class InnSetupLayoutTests
         : Load(InnData.PicturePath(Folder, id));
 
     /// <summary>
-    /// The fullest panel: three kitchens, each with two chefs and three substitutes and two dish types
-    /// in its heading; the menu's eight dishes shared out as <paramref name="split"/> says, each
-    /// kitchen with three dish substitutes; eight drinks and three substitutes; the longest names
-    /// everywhere; a rule not understood and the note that the rules can't all be met.
+    /// The fullest advice: three kitchens, each with two chefs to put in, three substitutes and two
+    /// dish types; a menu of eight dishes and eight drinks, all on the menu already (each marked),
+    /// three substitutes each, picked with the chefs (the longer title), a rule not understood and
+    /// the note that the rules can't all be met. The longest names everywhere.
     /// </summary>
-    private static InnStripModel Fullest(params int[] split)
+    private static (InnSetupInputs Inputs, InnSetupAdvice Advice, IReadOnlyCollection<string> OnMenu) Fullest()
     {
         int per = InnSuggester.MaxSubstitutes;
         var cooks = Library.Operators.Where(o => Inn.ChefBonusesOf(o).Count > 0).OrderByDescending(o => o.NameZh.Length).ThenBy(o => o.Id).ToList();
@@ -72,70 +69,92 @@ public class InnSetupLayoutTests
         var offMenu = dishes.Skip(MenuRules.MostSeen).ToList();
         var kitchens = Enumerable.Range(0, 3).Select(k => new KitchenSuggestion(k + 1,
             cooks.Skip(k * (2 + per)).Take(2).ToList(), cooks.Skip(k * (2 + per) + 2).Take(per).ToList(),
-            menu.Skip(split.Take(k).Sum()).Take(split[k]).ToList(), offMenu.Skip(k * per).Take(per).ToList(), types)).ToList();
+            menu.Skip(k * 3).Take(3).ToList(), offMenu.Skip(k * per).Take(per).ToList(), types)).ToList();
         var suggestions = new InnSuggestions(kitchens, [], drinks.Take(MenuRules.MostSeen).ToList(), drinks.Skip(MenuRules.MostSeen).Take(per).ToList());
         var plan = new InnPlan([.. kitchens.Select(k => new PlannedKitchen(k.Number, k.Chefs))], menu, drinks.Take(MenuRules.MostSeen).ToList(), null,
             InnPlanScore.Zero, RulesMet: false, []);
-        var inputs = new InnSetupInputs([], new InnPlanInput([], 4, 0, 6, [], [], [], [], new MenuRules(6, 8, 3, 8, 3, [])), "k",
-            ["至少有2道带有[某种没见过的]特性的菜品"]);
-        return InnSetupView.Build(inputs, new InnSetupAdvice(plan, suggestions), Inn, Text);
+        var inputs = new InnSetupInputs([], new InnPlanInput([], 4, 0, 6, [new PlanKitchen(1, 2), new PlanKitchen(2, 2), new PlanKitchen(3, 2)], [], [], [],
+            new MenuRules(6, 8, 3, 8, 3, [])), "k", ["至少有2道带有[某种没见过的]特性的菜品"]) { ChefsPlanned = true };
+        return (inputs, new InnSetupAdvice(plan, suggestions), [.. menu.Select(d => d.Dish.Id), .. drinks.Select(d => d.Drink.Id)]);
     }
 
-    private static Size Measure(InnStripModel model) => OnSta(() =>
+    private static IReadOnlyList<InnAdvicePanel> Panels()
     {
-        var element = InnStrip.Build(model, PackagePicture);
+        var (inputs, advice, onMenu) = Fullest();
+        return [.. InnSetupView.Setup(inputs, advice, Inn, Text), .. InnSetupView.Picker(1, inputs, advice, Inn, Text), .. InnSetupView.Menu(inputs, advice, onMenu, Inn, Text)];
+    }
+
+    private static Size Measure(InnStripModel model, double lineWidth, InnStripLook look) => OnSta(() =>
+    {
+        var element = InnStrip.Build(model, PackagePicture, lineWidth, look);
         element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         return element.DesiredSize;
     });
 
     [Theory]
-    [InlineData(1920, 1080, 3)]
-    [InlineData(2560, 1440, 3)]
-    [InlineData(3840, 2160, 3)]
-    [InlineData(1920, 1080, 8)]
-    [InlineData(2560, 1440, 8)]
-    [InlineData(3840, 2160, 8)]
-    public void The_fullest_panel_fits_from_its_default_place_to_the_windows_edge(int width, int height, int dishesInTheFirstKitchen)
+    [InlineData(1920, 1080)]
+    [InlineData(2560, 1440)]
+    [InlineData(3840, 2160)]
+    public void Each_spots_fullest_panel_fits_inside_its_spot(int width, int height)
     {
-        // The menu shared 3/3/2, or all eight dishes in the first kitchen (its 做菜 row wraps most).
-        int[] split = dishesInTheFirstKitchen == 8 ? [8, 0, 0] : [3, 3, 2];
-        var size = Measure(Fullest(split));
         double scale = ComboHintLayout.Scale(height, dpiScale: 1);
+        var panels = Panels();
+        Assert.Equal([InnAdviceSpot.Kitchen1, InnAdviceSpot.Kitchen2, InnAdviceSpot.Kitchen3, InnAdviceSpot.Picker, InnAdviceSpot.Menu], panels.Select(p => p.Spot));
 
-        double right = HudConfig.DefaultInnSetupX * width + (size.Width + Frame) * scale;
-        // Anchored by its bottom: the fullest panel grows up, and must not run off the top.
-        double top = HudConfig.DefaultInnSetupBottomY * height - (size.Height + Frame) * scale;
-
-        Assert.True(right <= width, $"right edge {right:F0} of {width} ({size.Width:F0} units wide at scale {scale:F2})");
-        Assert.True(top >= 0, $"top edge {top:F0} ({size.Height:F0} units tall at scale {scale:F2})");
+        foreach (var panel in panels)
+        {
+            var spot = InnAdviceLayout.Place(panel.Spot, width, height);
+            var size = Measure(panel.Model, InnAdviceLayout.LineWidth(panel.Spot, width, height, scale), InnAdviceLayout.Look(panel.Spot));
+            output.WriteLine($"{panel.Spot} at {width}x{height}: {size.Width * scale:F0}x{size.Height * scale:F0} in {spot.Width:F0}x{spot.Height:F0}");
+            Assert.True(size.Width * scale <= spot.Width + 0.5, $"{panel.Spot}: {size.Width * scale:F0} wide in a spot {spot.Width:F0} wide");
+            Assert.True(size.Height * scale <= spot.Height + 0.5, $"{panel.Spot}: {size.Height * scale:F0} tall in a spot {spot.Height:F0} tall");
+        }
     }
 
+    /// <summary>The spots stay on the game's 16:9 area, and the kitchens' each under its own card (setup-chefs-placed.jpg).</summary>
     [Fact]
-    public void The_sample_fits_too()
+    public void The_spots_sit_in_the_games_blank_areas()
     {
-        var size = Measure(InnSetupView.Sample(Inn, Library.Operators, Text));
-        double top = HudConfig.DefaultInnSetupBottomY * 1080 - (size.Height + Frame) * ComboHintLayout.Scale(1080, dpiScale: 1);
-        Assert.True(top >= 0, $"top edge {top:F0}");
+        double[][] cards = [[0.418, 0.588], [0.594, 0.764], [0.771, 0.941]];
+        for (int k = 0; k < 3; k++)
+        {
+            var spot = InnAdviceLayout.Of((InnAdviceSpot)(k + 1));
+            Assert.InRange(spot.Left, cards[k][0], cards[k][1]);
+            Assert.InRange(spot.Left + spot.Width, cards[k][0], cards[k][1]);
+            Assert.InRange(spot.Top, 0.655, 0.7);
+            Assert.InRange(spot.Top + spot.Height, 0.8, 0.865);
+        }
+        var menu = InnAdviceLayout.Of(InnAdviceSpot.Menu);
+        Assert.True(menu.Left >= 0.05 && menu.Left + menu.Width <= 0.39 && menu.Top >= 0.6 && menu.Top + menu.Height <= 0.835);
+        var picker = InnAdviceLayout.Of(InnAdviceSpot.Picker);
+        Assert.True(picker.Left >= 0.33 && picker.Left + picker.Width <= 0.97 && picker.Top >= 0.68 && picker.Top + picker.Height <= 0.86);
+
+        // A window wider than 16:9: the game's area is centred, and the spots with it.
+        var wide = InnAdviceLayout.Place(InnAdviceSpot.Kitchen1, 2560, 1080);
+        Assert.Equal((2560 - 1920) / 2 + 0.424 * 1920, wide.Left, 3);
     }
 
     [Fact]
     public void Every_chef_dish_and_drink_has_its_picture_beside_its_name_or_its_name_alone_without_one()
     {
-        var model = Fullest(3, 3, 2);
-        var named = model.Lines.SelectMany(l => l.Segments).Where(s => s.PictureId is not null).ToList();
+        var models = Panels().Select(p => p.Model).ToList();
+        var named = models.SelectMany(m => m.Lines).SelectMany(l => l.Segments).Where(s => s.PictureId is not null).ToList();
         string missing = named.First(s => s.PictureId!.StartsWith(InnSetupView.OperatorPicture, StringComparison.Ordinal)).PictureId!;
 
-        var (images, texts) = OnSta(() =>
+        foreach (var model in models)
         {
-            var element = InnStrip.Build(model, id => id == missing ? null : PackagePicture(id));
-            element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            element.Arrange(new Rect(element.DesiredSize));
-            var all = Descendants(element).ToList();
-            return (all.OfType<Image>().Count(i => i.Source is not null), all.OfType<TextBlock>().Select(t => t.Text).ToList());
-        });
-
-        Assert.Equal(named.Count(s => s.PictureId != missing), images);
-        Assert.All(named, s => Assert.Contains(s.Text, texts));
+            var mine = model.Lines.SelectMany(l => l.Segments).Where(s => s.PictureId is not null).ToList();
+            var (images, texts) = OnSta(() =>
+            {
+                var element = InnStrip.Build(model, id => id == missing ? null : PackagePicture(id), InnStrip.LineWidth);
+                element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                element.Arrange(new Rect(element.DesiredSize));
+                var all = Descendants(element).ToList();
+                return (all.OfType<Image>().Count(i => i.Source is not null), all.OfType<TextBlock>().Select(t => t.Text).ToList());
+            });
+            Assert.Equal(mine.Count(s => s.PictureId != missing), images);
+            Assert.All(mine, s => Assert.Contains(s.Text, texts));
+        }
         Assert.True(named.All(s => PackagePicture(s.PictureId!) is not null), "the package has a picture for every chef, dish and drink shown");
     }
 

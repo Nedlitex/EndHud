@@ -92,6 +92,11 @@ public class InnSetupViewTests(ITestOutputHelper output)
         Assert.All(panels, p => Assert.Matches(@"^做(主食|菜肴|汤羹|甜品)(、(主食|菜肴|汤羹|甜品))*$", p.Model.Lines[0].Text));
         Assert.All(panels, p => Assert.Equal(["推荐：", "可换："], p.Model.Lines.Skip(1).Select(l => l.Text[..3])));
         Assert.All(panels, p => Assert.DoesNotContain(p.Model.Lines, l => l.Text.Contains("厨房")));
+        // Substitutes are never a chef recommended anywhere, nor twice; no ids or figures, only words.
+        var substitutes = panels.SelectMany(p => Chefs(p, "可换：")).ToList();
+        Assert.Empty(substitutes.Intersect(recommended));
+        Assert.Equal(substitutes.Count, substitutes.Distinct().Count());
+        Assert.All(panels.SelectMany(p => p.Model.Lines), l => Assert.DoesNotContain(l.Text, char.IsAsciiLetterOrDigit));
     }
 
     [Fact]
@@ -199,10 +204,17 @@ public class InnSetupViewTests(ITestOutputHelper output)
         var drinks = panel.Model.Lines[3].Segments.Where(s => s.PictureId is not null).Select(s => s.PictureId).ToList();
         Assert.Equal(menu.Plan.Drinks.Select(d => d.Drink.Id), drinks);
         Assert.All([panel.Model.Lines[2], panel.Model.Lines[4]], l => Assert.InRange(l.Segments.Count(s => s.PictureId is not null), 1, InnSuggester.MaxSubstitutes));
-        // ✓ marks exactly the dishes already on the menu, right before them.
-        var segments = panel.Model.Lines[1].Segments;
-        var marked = segments.Select((s, i) => (s, i)).Where(x => x.s.Text == "✓").Select(x => segments[x.i + 1].PictureId).ToList();
-        Assert.Equal(menu.Plan.Dishes.Select(d => d.Dish.Id).Where(id => id == "melon-meatball-soup"), marked);
+        Assert.All(panel.Model.Lines, l => Assert.DoesNotContain(l.Text, char.IsAsciiLetterOrDigit));
+
+        // ✓ marks exactly what's on the menu already, right before it: a recommended dish and drink put on.
+        string dish = menu.Plan.Dishes[1].Dish.Id, drink = menu.Plan.Drinks[0].Drink.Id;
+        var withSome = Assert.Single(InnSetupView.Menu(session.MenuInputs(), menu, [dish, drink, "melon-meatball-soup"], Inn, Text));
+        Lines(withSome);
+        List<string?> Marked(InnLine line) =>
+            [.. line.Segments.Select((s, i) => (s, i)).Where(x => x.s.Text == "✓").Select(x => line.Segments[x.i + 1].PictureId)];
+        Assert.Equal([dish], Marked(withSome.Model.Lines[1]));
+        Assert.Equal([drink], Marked(withSome.Model.Lines[3]));
+        Assert.Empty(Marked(withSome.Model.Lines[2]));
     }
 
     [Fact]

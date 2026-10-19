@@ -101,8 +101,9 @@ internal sealed class HudConfig
     public const double MinGaugesScale = 0.5, MaxGaugesScale = 2;
 
     /// <summary>
-    /// Show the inn helper during an inn session: which dishes to queue in each kitchen,
-    /// when to start Full Blaze, and what a gourmand's request means. On by default, like every feature.
+    /// Show the inn helper: before a session, the chefs to put in each kitchen and the menu to set;
+    /// during one, which dishes to queue in each kitchen, when to start Full Blaze, and what a
+    /// gourmand's request means. On by default, like every feature.
     /// </summary>
     public bool InnHelperEnabled { get; set; } = true;
 
@@ -111,21 +112,12 @@ internal sealed class HudConfig
 
     public double InnStripY { get; set; } = DefaultInnStripY;
 
-    /// <summary>
-    /// Where the inn's setup panel sits (the chefs and menu to pick, on the setup, chef picker and
-    /// menu screens), as a fraction of the game window: its left edge and its BOTTOM edge, so it
-    /// grows upward from the setup screen's blank lower left. It shares the strip's size and opacity.
-    /// </summary>
-    public double InnSetupX { get; set; } = DefaultInnSetupX;
-
-    public double InnSetupBottomY { get; set; } = DefaultInnSetupBottomY;
-
-    /// <summary>The inn strip's size on top of following the game window (1 = 100%), from the menu's slider.</summary>
+    /// <summary>The inn helper's size (the strip and the setup advice) on top of following the game window (1 = 100%), from the menu's slider.</summary>
     public double InnStripScale { get; set; } = 1;
 
     public const double MinInnStripScale = 0.5, MaxInnStripScale = 2;
 
-    /// <summary>How opaque the inn strip is (1 = as drawn), from the menu's slider.</summary>
+    /// <summary>How opaque the inn helper is (the strip and the setup advice; 1 = as drawn), from the menu's slider.</summary>
     public double InnStripOpacity { get; set; } = 1;
 
     public const double MinInnStripOpacity = 0.2, MaxInnStripOpacity = 1;
@@ -157,13 +149,6 @@ internal sealed class HudConfig
     // above the Full Blaze meter at the right edge.
     public const double DefaultInnStripX = 0.72;
     public const double DefaultInnStripY = 0.16;
-
-    // The lower left (owner, 2026-10-19, after seeing it in the game): the setup screen's blank
-    // area under the theme's details, x ≈ 0.06–0.38, y ≈ 0.57–0.87. Anchored by its bottom at the
-    // area's bottom: a short panel sits in the blank, a tall one grows up over the theme's text
-    // instead of off the window. Drag it where it suits.
-    public const double DefaultInnSetupX = 0.06;
-    public const double DefaultInnSetupBottomY = 0.87;
 
     public const double DefaultComboHintSeconds = 3;
     public const double DefaultComboHintLeadSeconds = 1;
@@ -247,8 +232,6 @@ internal static class ConfigStore
         // A place off the window would leave the strip where nobody can drag it back.
         config.InnStripX = double.IsFinite(config.InnStripX) ? Math.Clamp(config.InnStripX, 0, 1) : HudConfig.DefaultInnStripX;
         config.InnStripY = double.IsFinite(config.InnStripY) ? Math.Clamp(config.InnStripY, 0, 1) : HudConfig.DefaultInnStripY;
-        config.InnSetupX = double.IsFinite(config.InnSetupX) ? Math.Clamp(config.InnSetupX, 0, 1) : HudConfig.DefaultInnSetupX;
-        config.InnSetupBottomY = double.IsFinite(config.InnSetupBottomY) ? Math.Clamp(config.InnSetupBottomY, 0, 1) : HudConfig.DefaultInnSetupBottomY;
         return config;
     }
 
