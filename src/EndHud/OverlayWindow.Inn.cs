@@ -104,7 +104,7 @@ public partial class OverlayWindow
         InnStripModel? model = null;
         if (_config.InnHelperEnabled)
         {
-            if (_innOnScreen && _innSession?.Advice(InnClock.Now) is { } advice)
+            if (_innOnScreen && AdviceNow() is { } advice)
                 model = InnStripView.Build(advice, Loc.Get, _party.InnProblem);
             else if (_menuOpen && !_innOnScreen)
                 // Something to drag, size and see through while the menu is open, out of the inn.
@@ -115,6 +115,20 @@ public partial class OverlayWindow
         _innKey = key;
         InnContent.Content = model is null ? null : InnStrip.Build(model, InnPicture);
         InnFrame.Visibility = model is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    /// <summary>The session's advice now; null (and logged) if working it out failed, so the overlay carries on.</summary>
+    private InnAdvice? AdviceNow()
+    {
+        try
+        {
+            return _innSession?.Advice(InnClock.Now);
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or FormatException)
+        {
+            DiagnosticLog.Throttled("inn-advice-" + ex.GetType().Name, TimeSpan.FromSeconds(30), $"inn: working out the advice failed: {ex}", "ERROR");
+            return null;
+        }
     }
 
     /// <summary>A dish's or drink's picture from the operator package, loaded once; null when the package has none.</summary>

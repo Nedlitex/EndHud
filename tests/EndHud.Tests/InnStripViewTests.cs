@@ -185,7 +185,8 @@ public class InnStripViewTests
     {
         var strip = Strip(new InnAdvice(null, InnGap.NoKitchens, null, false, [], [], new HashSet<int>(), true), "Inn.Problem.NoTextRecognition");
 
-        Assert.Equal(Text("Inn.Problem.NoTextRecognition"), strip.Lines[0].Text);
+        // Only that: "open the dispatch panel" would not help, nothing on it can be read.
+        Assert.Equal(Text("Inn.Problem.NoTextRecognition"), Assert.Single(strip.Lines).Text);
     }
 
     // ---- The gourmand card ----

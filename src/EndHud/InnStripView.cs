@@ -64,7 +64,8 @@ internal static class InnStripView
         string F(string key, params object[] args) => string.Format(text(key), args);
         var lines = new List<InnLine>();
 
-        if (problemKey is not null) lines.Add(InnLine.Of(InnLineStyle.Note, new InnSegment(T(problemKey))));
+        // Nothing but the timer can be read: what to install is the only useful line.
+        if (problemKey is not null) return new InnStripModel([InnLine.Of(InnLineStyle.Note, new InnSegment(T(problemKey)))]);
 
         switch (advice.Blaze)
         {

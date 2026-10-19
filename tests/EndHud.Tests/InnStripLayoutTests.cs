@@ -70,7 +70,7 @@ public class InnStripLayoutTests
             [dishOptions[0], drinkOptions[0]]), null, false);
         var advice = new InnAdvice(new DispatchAdvice(kitchens, [new OrderedDish(5, longest[5])], [new OrderedDish(4, longest[6])]), null,
             FullBlazeAdvice.StartNow, false, [gourmand], [2, 3], new HashSet<int>(), false);
-        return InnStripView.Build(advice, Text, "Inn.Problem.NoTextRecognition");
+        return InnStripView.Build(advice, Text);
     }
 
     private static Size Measure(InnStripModel model, Func<string, BitmapSource?> picture) => OnSta(() =>
@@ -94,6 +94,18 @@ public class InnStripLayoutTests
 
         Assert.True(right <= width, $"right edge {right:F0} of {width} ({size.Width:F0} units wide at scale {scale:F2})");
         Assert.True(bottom <= height, $"bottom edge {bottom:F0} of {height} ({size.Height:F0} units tall at scale {scale:F2})");
+    }
+
+    [Fact]
+    public void The_sentence_saying_what_to_install_wraps_within_the_strip()
+    {
+        var model = InnStripView.Build(new InnAdvice(null, InnGap.NoKitchens, null, false, [], [], new HashSet<int>(), true), Text, "Inn.Problem.NoTextRecognition");
+
+        var size = Measure(model, PackagePicture);
+
+        Assert.True(size.Width <= InnStrip.LineWidth + 40, $"{size.Width:F0} units wide");
+        var oneLine = Measure(InnStripView.Build(new InnAdvice(null, InnGap.NoKitchens, null, false, [], [], new HashSet<int>(), true), Text), PackagePicture);
+        Assert.True(size.Height > oneLine.Height, $"{size.Height:F0} units tall against {oneLine.Height:F0} for one line: not wrapped");
     }
 
     [Fact]
