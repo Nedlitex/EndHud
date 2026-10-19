@@ -12,6 +12,7 @@ namespace EndHud.Vision.Inn;
 public sealed class InnText
 {
     private const int Padding = 12;
+    private const int MinHeight = 100;
     // Below this many ink pixels (at 4K size) a region holds no text worth reading.
     private const int MinInk = 20;
 
@@ -67,6 +68,22 @@ public sealed class InnText
         }
     }
 
+    /// <summary>
+    /// The text read at a few sizes in turn, for a caller looking for one of a few known words: the
+    /// engine reads a short line at one size and returns nothing (or a slip) at another.
+    /// </summary>
+    public async IAsyncEnumerable<string> ReadAttemptsAsync(Frame frame, PixelRect region, Ink ink, double hudScale)
+    {
+        foreach (int height in AttemptHeights)
+        {
+            var prepared = Prepare(frame, region, ink, hudScale, height);
+            if (prepared is null) yield break;
+            yield return string.Concat((await RecognizeAsync(_engine, prepared)).Select(l => string.Concat(l.Words.Select(w => w.Text))));
+        }
+    }
+
+    private static readonly int[] AttemptHeights = [MinHeight, 140, 70];
+
     /// <summary>Like <see cref="ReadAsync"/>, for a region holding only digits and their punctuation.</summary>
     public async Task<string?> ReadNumberAsync(Frame frame, PixelRect region, Ink ink, double hudScale)
     {
@@ -84,10 +101,19 @@ public sealed class InnText
     }
 
     /// <summary>The image handed to the engine: black ink on white, enlarged to the region's 4K size.</summary>
-    internal static Frame? Prepare(Frame frame, PixelRect region, Ink ink, double hudScale)
+    internal static Frame? Prepare(Frame frame, PixelRect region, Ink ink, double hudScale, int minHeight = MinHeight)
     {
         var r = region.ClampTo(frame.Width, frame.Height);
         if (r.Width < 2 || r.Height < 2) return null;
+        if (hudScale < 0.9)
+        {
+            // A small window: enlarge smoothly to the 4K size before telling ink from background,
+            // which loses the thin strokes of characters a dozen pixels tall.
+            double enlarge = Math.Min(4, 1 / hudScale);
+            frame = frame.Crop(r).ResizeSmooth((int)Math.Round(r.Width * enlarge), (int)Math.Round(r.Height * enlarge));
+            r = new PixelRect(0, 0, frame.Width, frame.Height);
+            hudScale = 1;
+        }
 
         var mask = new float[r.Width * r.Height];
         int count = 0;
@@ -99,7 +125,9 @@ public sealed class InnText
             mask[y * r.Width + x] = 1;
             count++;
         }
-        double scale = Math.Clamp(1 / hudScale, 1, 4);
+        // Enlarged to the region's 4K size at least, and to a height the engine reads reliably: it
+        // returned nothing for a clean 50 px line ("点餐中") that it read at twice the size.
+        double scale = Math.Clamp(Math.Max(1 / hudScale, minHeight / (double)r.Height), 1, 6);
         if (count * scale * scale < MinInk) return null;
 
         int innerW = (int)Math.Round(r.Width * scale), innerH = (int)Math.Round(r.Height * scale);
