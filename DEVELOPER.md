@@ -513,6 +513,20 @@ halves the average wait against sending each dish to the first kitchen with room
 is a named constant saying so (a removed dish's progress and stock, the replace margin, what a full
 counter does to a kitchen).
 
+### Planning a session
+
+[`InnPlanner`](src/EndHud.Vision/Inn/InnPlanner.cs) picks the chefs for each kitchen and the menu's
+dishes and drinks to earn the most in a 5-minute session under every menu rule on screen, from the
+chefs and dishes the player has (Si and the Endministrator never placed). The model is the
+measured one: the kitchens are the limit, an order is 1.2 dishes and 0.75 drinks, guests pick
+uniformly from the menu. Each dish is shared among the kitchens so they finish together (solved
+exactly for up to three), orders served are what the kitchens cook in 300 s capped by what the
+tables bring, and a dish is worth its price × (1 + 10 % per matched 热门 trait); the 珍馐 chance
+only breaks ties. Chefs are placed by a beam search over bonus profiles, the menu greedily then by
+add/remove/swap; tests compare it with brute force on small cases. The plan carries the opening
+precook. Assumptions are constants (`EmptyKitchenCooks`, `MinGuestCycleSeconds`). About 1 s for
+three kitchens of two: run it off the UI thread.
+
 ### Reading the inn's screens
 
 The readers in [`src/EndHud.Vision/Inn/`](src/EndHud.Vision/Inn) return data records and draw
