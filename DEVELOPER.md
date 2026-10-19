@@ -543,7 +543,11 @@ precook. A kitchen with no chef doesn't cook (`KitchenMath.Cooks`); assumptions 
 (`MinGuestCycleSeconds`). About 2 s for three kitchens of two over the whole roster and dish list:
 run it off the UI thread.
 
-[`InnSuggester`](src/EndHud.Vision/Inn/InnSuggestions.cs) turns a plan into what the setup panel
+Chefs the player has already put in (`PlanKitchen.Placed`, null for a place seen taken whose chef
+wasn't named: a cook of no bonus) stay first in their kitchen, are put nowhere else and are never
+swapped out; the beam fills only the empty places. With every place taken only the menu is planned.
+
+[`InnSuggester`](src/EndHud.Vision/Inn/InnSuggestions.cs) turns a plan into what the setup advice
 shows per kitchen, with substitutes for a player who lacks a chef, dish or drink the plan names.
 Each menu dish goes under the kitchen that cooks the larger share of it (`InnPlanner.MainKitchens`):
 the balance is solved through its dual (kitchen weights), and `InnPlanner.Shares` recovers the split
@@ -555,14 +559,16 @@ value per second cooked in that kitchen (price with the 热门 bonus over its co
 the kitchen's own dish types first; drink substitutes by value. Substitutes are handed out across
 the kitchens best first, at most 3 a row and each to one kitchen only, never a planned chef, menu
 dish or drink; a kitchen left with none takes the best listed elsewhere. A kitchen with no planned
-chef is unused and gets nothing.
+chef is unused and gets nothing. A kitchen's chefs to recommend are only those for its empty places
+(`KitchenSuggestion.Placed` counts the kept ones); a full kitchen (`Full`) gets no chefs and no chef
+substitutes, and a placed chef is never a substitute anywhere.
 
 A theme's menu rule (`DishRule`) asks for at least N dishes with any of some traits
 ("至少有2道带有[素食]或[滋补]特性的菜品", 养身心) or of any of some dish types
 ("至少有1道[汤羹]类菜品", 舌上清流; the type's icon stands in the brackets, so a bracket is matched by
 the type name it contains). `DishRule.ParseAll` joins 菜单要求's lines (a rule may wrap) and cuts
-them at each "至少"; what isn't understood is kept as read, the plan is made without it and the panel
-says so ("看不懂菜单要求：…"). The 热门 chips are traits, dish types (汤羹) or 饮品 (any drink),
+them at each "至少"; what isn't understood is kept as read, the plan is made without it and the menu
+advice says so ("看不懂菜单要求：…"). The 热门 chips are traits, dish types (汤羹) or 饮品 (any drink),
 matched longest name first (`SetupReader.HotIds`: a 甜品 chip is the dessert type, not also the
 trait 甜).
 
@@ -579,7 +585,8 @@ corners, and other window shapes are EndHud's assumption, not checked.
 
 | Reader | Reads | On the frames |
 |---|---|---|
-| `InnScreen.DetectAsync` | setup (营业设定, 主题设定), chef picker, menu, session, dispatch panel (titles by OCR, the timer by its digits) | all 20 frames, at every size (the session's first frame, fading in, at 4K only) |
+| `InnScreen.DetectAsync` | the setup screen, the theme list (its own kind: it starts a new setup), chef picker, menu, session, dispatch panel (titles by OCR, the timer by its digits) | all 20 frames, at every size (the session's first frame, fading in, at 4K only) |
+| `InnScreen.ReadPickerKitchenAsync` | which kitchen a chef picker is for, off its title (kitchen one = 1) | chef-picker, at every size |
 | `InnScreen.ReadClock` | time left, closed at 00:00 | every session frame |
 | `FireMeterReader` | fire "N/100", streak, ready (red button, 开启满堂彩) | all, at every size; hidden behind the dispatch panel |
 | `TableCardReader` | each table's state and, for an order, its dishes and drinks by picture and whether each is served (its pip green, or the blue auto-serve spinner on it) | 56/56 items and 90/90 cards at 4K, 1440p and 1080p |
@@ -612,9 +619,9 @@ How the hard parts work:
   a met line turns light grey, so the ink takes that grey too; two OCR slips seen on the frames are
   put right ("品" as "口口", a line's start lost under the yellow tick). Only the wordings seen at
   Inn Rating 4 are understood.
-- **The chef picker is not read** (owner, 2026-10-19: never require scrolling it). `InnScreen`
-  tells it apart so the setup panel shows over it; the panel works from the built-in roster. The
-  picker fixture and its labels stay as test data.
+- **The chef picker's grid is not read** (owner, 2026-10-19: never require scrolling it); only its
+  title, for the kitchen it's for, so the advice there is that kitchen's. The advice works from the
+  built-in roster. The picker fixture and its labels stay as test data.
 
 Not built yet: the drink bar and the results screen (no frame recorded), a one-item order's
 picture place (no frame of one), Si's assists on 营业设定 (the planner takes 品质把控 as 0; it only
@@ -628,14 +635,15 @@ panel ([`InnFrameReader`](src/EndHud/InnReading.cs)) and, on a frame of the inn,
 seen", as it was before). Keeping a fight free of it: while the squad panel is on screen the inn
 is never looked for; with neither on screen it's looked for once a second (one small OCR read of
 the title); in a session the screen is told by the timer's digits and the dispatch panel's tabs
-(pixels, no OCR); the setup and menu screens are read at most every 2 s, and the gourmand's bubble
-only while a gourmand is at a table. Without the Simplified Chinese OCR language only the timer is
+(pixels, no OCR); the setup and menu screens are read at once when one opens, then at most every
+2 s (of a chef picker only its title; of the theme list nothing), and the gourmand's bubble only
+while a gourmand is at a table. Without the Simplified Chinese OCR language only the timer is
 read (`ClockOnlyScreens`), so the strip can say what to install. The readers sit behind
 `IInnScreens`, which the wire-up tests replace.
 
 [`InnSession`](src/EndHud/InnSession.cs) (on the UI thread, memory only) keeps what the advice needs:
-before a session, the setup screen's theme and kitchens and the menu screen's dishes and drinks (until
-the setup screen after a session); during it, each kitchen's chefs and queue (read off the dispatch
+before a session and into it, the setup as chosen so far ([`InnSetupMemory`](src/EndHud/InnSetupMemory.cs),
+below); during it, each kitchen's chefs and queue (read off the dispatch
 panel when it shows that kitchen, otherwise moved on by cook times since: an estimate, and a dish
 turning served on a table card takes it off the counter or out of the estimate at once), the orders
 (oldest first, served items left out), dishes on the counter (cooked ahead and not yet claimed), the
@@ -644,7 +652,7 @@ timer (0 s left once closed, for the end of the session's advice), the fire mete
 come from the dispatch panel, and the Inn Rating from the cook times it shows. A kitchen the setup
 screen showed with every place empty is left out (it cannot cook) unless the dispatch panel has since
 named its chefs; one whose chefs were never seen is advised at base speed. A session ends after
-15 s without a session frame, on a setup or menu screen, or when the timer jumps up. `Advice(now)`
+15 s without a session frame, on a setup, menu or theme list screen, or when the timer jumps up. `Advice(now)`
 runs `DispatchAdvisor` (every slot filled before the first order and from Full Blaze's "get
 ready"), `FullBlazeAdvisor` and `GourmandAdvisor`; an order with a picture not told apart is left
 out and its table named as unreadable, and a missing kitchen or menu is said, never guessed.
@@ -657,50 +665,67 @@ at 1080p, 1440p and 4K (InnStripLayoutTests). [`OverlayWindow.Inn`](src/EndHud/O
 shows it only on session frames, and a sample while the menu is open out of the inn. Settings:
 `InnHelperEnabled` (on), `InnStripX/Y`, `InnStripScale`, `InnStripOpacity`.
 
-**The setup panel** (before a session, on the setup, chef picker and menu screens; owner,
-2026-10-19: never require scrolling or reading the chef picker). The frame reader reads the setup
-screen and the menu screen (with its requirements) at most every 2 s; the chef picker is only told
-apart. A reading says whether its screen was read on that frame (`Fresh`). `SetupInputs()` builds the
-planner's input: from 营业设定, the hot traits and types (read, else the theme's), the theme's rules
-(and those it couldn't understand, said on the panel) and the kitchens with their places; built in, every operator in the library who can cook (Si and the
-Endministrator can't) and every dish and drink the Inn Rating unlocks, with those a theme's stars
-unlock (whether the player has them can't be seen; the panel names substitutes). The menu screen,
-when seen, only refines it: each card's stock, the Inn Rating and the rules as 菜单要求 states them;
-unread, the rating's own rules are used (`MenuRules.OfRating`: known for Rating 4, at least 3 types,
-6 dishes and 3 drinks, 8 of each), never guessed for another rating. The gaps left are the theme
-unreadable, no setup seen and no kitchens; nothing asks the player to scroll or open a screen to feed
-it. [`InnSetupPlanning`](src/EndHud/InnSetupPanel.cs) runs the planner and `InnSuggester` on the
-thread pool once per change of the input's key and redraws when done; an older plan is shown
-meanwhile only while everything it names is still available. `InnSetupView` words it as one block
-per kitchen (owner, 2026-10-19: the tier lines were too hard to read), the drinks last:
+**What's remembered of the setup** ([`InnSetupMemory`](src/EndHud/InnSetupMemory.cs); owner, live
+test 2026-10-19: "remember which theme, cook, menu etc currently picked, UNTIL go back to pick
+theme page (or exit the inn mode)"). In memory only, nothing on disk. The store's checklist:
 
-```
-缘缘庄 · 推荐（没有的干员/菜，换「可换」里的）
-厨房一 · 主食
-  干员：[avatar]昼雪　[avatar]秋栗
-  可换：[avatar]卡契尔　[avatar]大潘　[avatar]弭弗
-  做菜：[picture]青菜养生粥　[picture]界龙肉卷
-  可换：[picture]老麻抄手　[picture]至臻鳞肉卷　[picture]豌杂拌面
-厨房二 · 菜肴
-  …
-厨房三 · 不用            (no chef planned: nothing else)
-饮品：[picture]瓶装霞莓饮　[picture]陈酿葡萄露　[picture]潮前龙井
-  可换：[picture]瓶装优质兽奶　[picture]梨花香茶　[picture]游人酒
-```
+| | |
+|---|---|
+| Create | From readings: the setup screen gives the theme (name, rules, hot types, objective) and the kitchens with their places and placed chefs (named, or a place seen taken by its red bar); a chef picker its kitchen; the menu screen each card seen (on the menu or not, its stock), the counters and the menu requirements. |
+| Read | The setup advice (`ForSetup`, `ForMenu`) and the session's kitchens, Inn Rating and menu. A part never read is a gap, never a guess. |
+| Correct | A newer clear reading of a part replaces it: the setup as a whole (its kitchens kept when the new reading has none), a card by its id, the requirements number by number. A reading that fails changes nothing, so a page without the theme never makes it unknown (the "theme unreadable" gap only when none is remembered). |
+| Remove | Everything at once: on the theme list (a new setup begins), or when no inn screen has shown for 30 s (`InnSession.ForgetAfter`: the inn was left, a fight, the open world), checked on every tick and on the next reading. The setup screen after a session no longer clears the menu. |
+| Protect / carry | Nothing outlives the inn visit. |
 
-A kitchen's heading names the dish types of its 做菜 (most first); 干员 are the planned chefs,
-做菜 the menu dishes it cooks mainly (each menu dish under exactly one kitchen), each 可换 the
-substitutes for the row above it. A row is a hanging label (`InnLine.Hanging`): the names wrap
-beside it, between names only, never inside one; rows are indented (`InnLine.Indent`, 16 units a
-step at 1080p) under a `Subheading`. The menu open out of the inn shows a sample of the same shape,
-three kitchens full. The panel is
-drawn by `InnStrip` in its own frame (`InnSetupX/Y`, default the lower left, left edge 0.06 and bottom edge 0.87 so it grows upward,
-clamped; the strip's size and opacity; draggable with the menu open, which shows a sample). Text
-only: nothing is drawn over the game's screens. InnSetupLayoutTests checks the fullest panel (the
-menu shared 3/3/2, and all eight dishes in one kitchen) fits from its default bottom-left anchor at
-1080p, 1440p and 4K; InnSetupBlocksTests checks the blocks on real plans (养身心, a 舌上清流-like soup
-theme, 1–3 kitchens of 1–2 places, an unused kitchen); InnRealFrameTests runs the 养身心 setup frame
-through the real readers to kitchen blocks whose plan meets every rule on screen.
+**The setup advice** (owner, live test 2026-10-19: "recommendation for cook only shows when picking
+cook, and the cook for each kitchen shows under each kitchen, not as a single panel. and then in
+the choose menu window, shows the recommended menu based on current state"). Small panels where the
+game shows the choice they're about, nothing on the theme list or in a session
+([`InnSetupView.ForScreen`](src/EndHud/InnSetupPanel.cs)); the words are in i18n/zh-CN.xaml
+(`Inn.Setup.*`) and the README shows them for the owner's case.
+
+- **Chefs** (the setup screen's kitchen columns and a chef picker) come from one plan of
+  `SetupInputs()`: the theme's hot types and rules, every kitchen with its places and the chefs
+  already placed (kept; only the empty places are planned), the built-in roster (everyone who can
+  cook; Si and the Endministrator can't) and every dish and drink the Inn Rating unlocks plus those
+  a theme's stars unlock. A column gives the dish types the kitchen will cook (`Inn.Setup.Cooks`),
+  then a recommended row (`Inn.Setup.Recommend`) with the chefs for its empty places and a
+  substitutes row (`Inn.Setup.Substitutes`, at most three); a full kitchen only says it's set
+  (`Inn.Setup.Full`), a kitchen the plan leaves empty that it needs no chef (`Inn.Setup.KitchenUnused`).
+  A chef picker shows the same under a heading naming its kitchen (`Inn.Setup.PickerTitle`); its
+  kitchen is read off its title, and an unread title says so (`Inn.Setup.PickerUnknown`).
+- **The menu** (the menu screen) comes from a second plan, of `MenuInputs()`: only the kitchens with a
+  chef placed, each exactly as it is (its places = its chefs), so the menu fits the chefs actually
+  there. With no chef placed anywhere it plans the chefs too and its title says so
+  (`Inn.Setup.MenuTitleChefsPicked` instead of `Inn.Setup.MenuTitle`). A tick (`Inn.Setup.OnMenu`)
+  marks a dish or drink already on the menu; the dishes and drinks rows each have a substitutes row.
+  The menu screen's stock, Inn Rating and requirements refine both plans; unread, the rating's own
+  rules are used (`MenuRules.OfRating`: known for Rating 4, at least 3 types, 6 dishes and 3 drinks,
+  8 of each), never guessed for another rating. Every rule holds, or the panel says the dishes on
+  offer can't meet them all (`Inn.Setup.RulesUnmet`); a rule not understood is said above it.
+- **Gaps** (`InnSetupGap`): the theme unreadable with none remembered, no setup screen seen since the
+  theme list, no kitchens; said in the screen's first spot. While a plan is worked out: `Inn.Setup.Working`.
+- [`InnSetupPlanning`](src/EndHud/InnSetupPanel.cs) runs the planner and `InnSuggester` on the thread
+  pool once per change of the input's key (two of them: the chefs' and the menu's, so switching
+  pages doesn't plan again) and redraws when done; an older plan is shown meanwhile only while
+  everything it names is still available and its kitchens hold the chefs placed now.
+- **Placement** ([`InnAdviceLayout`](src/EndHud/InnAdviceLayout.cs)): each spot is a fraction of the
+  window's centred 16:9 area, measured on the fixtures (kitchen cards at x 0.418–0.588, 0.594–0.764,
+  0.771–0.941, blank below y ≈ 0.66 to 0.865; the picker's blank x 0.33–0.97, y 0.68–0.86; the menu
+  screen's left column x 0.06–0.38, y 0.60–0.835). The panels follow the game's layout, so they aren't
+  dragged and have no place in config (the old panel's `InnSetupX`/`InnSetupBottomY` are gone; a
+  config still holding them loads). The lines wrap at the spot's width; the menu's panel is drawn
+  compact (`InnStripLook.Compact`: 13 px text, 20 px pictures at 1080p) so a full menu fits. The
+  strip's size and opacity apply; above 100% a panel can grow past its spot's bottom. The frames are
+  made in code and never hit-tested (they don't take the game's clicks). Text only.
+- Tests: InnSetupMemoryTests (kept across setup, picker, menu and session; a failed reading changes
+  nothing; forgotten on the theme list and after 30 s), InnSetupViewTests (each spot's words on real
+  plans: half-placed, full and empty kitchens, placed chefs suggested nowhere, the picker, the menu
+  meeting every rule, the tick, nothing on the theme list or in a session), InnSetupLayoutTests (each
+  spot's fullest panel inside its spot at 1080p, 1440p and 4K; a picture beside every name),
+  InnRealFrameTests (setup-chefs-placed, chef-picker, menu-dishes and menu-drinks through the real
+  readers; menu-soup-theme read end to end: the soup rule comes off the frame, and the menu planned
+  for the one kitchen with a chef has a soup and meets every rule).
 
 Assumptions the advice rests on, not measured: what Full Blaze's faster kitchens do to cook times
 (not modelled: the estimate runs at normal speed and is corrected each time the panel shows a
