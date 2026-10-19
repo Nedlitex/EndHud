@@ -91,6 +91,19 @@ internal sealed class InnSetupPlanning(Func<InnPlanInput, InnSetupAdvice> plan, 
     }
 }
 
+/// <summary>Where a piece of setup advice is shown: under a kitchen's card on 营业设定, in the chef picker, on 菜单设定.</summary>
+internal enum InnAdviceSpot
+{
+    Kitchen1 = 1,
+    Kitchen2 = 2,
+    Kitchen3 = 3,
+    Picker,
+    Menu,
+}
+
+/// <summary>One piece of setup advice and where it goes.</summary>
+internal sealed record InnAdvicePanel(InnAdviceSpot Spot, InnStripModel Model);
+
 /// <summary>
 /// The setup panel's words (plan S6; owner, 2026-10-19: "split this to each kitchen"), every string
 /// from i18n/zh-CN.xaml. A block per kitchen: its heading (the kitchen and the dish types it cooks,
@@ -105,6 +118,16 @@ internal static class InnSetupView
 {
     /// <summary>Prefix of an operator's picture id: their avatar, not a dish's picture.</summary>
     public const string OperatorPicture = "op:";
+
+    public static IReadOnlyList<InnAdvicePanel> ForScreen(InnScreenKind? screen, InnSession session, InnSetupAdvice? chefs, InnSetupAdvice? menu,
+        InnData data, Func<string, string> text, string? problemKey = null) => [];
+
+    public static IReadOnlyList<InnAdvicePanel> Setup(InnSetupInputs inputs, InnSetupAdvice? advice, InnData data, Func<string, string> text) => [];
+
+    public static IReadOnlyList<InnAdvicePanel> Picker(int? kitchen, InnSetupInputs inputs, InnSetupAdvice? advice, InnData data, Func<string, string> text) => [];
+
+    public static IReadOnlyList<InnAdvicePanel> Menu(InnSetupInputs inputs, InnSetupAdvice? advice, IReadOnlyCollection<string> onMenu, InnData data,
+        Func<string, string> text) => [];
 
     private static readonly Dictionary<InnSetupGap, string> GapKeys = new()
     {
