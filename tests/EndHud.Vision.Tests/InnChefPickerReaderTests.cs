@@ -123,3 +123,42 @@ public class InnChefPickerReaderTests(ITestOutputHelper output)
         Assert.True(reading is null || reading.Cards.Count == 0, $"{reading?.Cards.Count} cards on the menu screen");
     }
 }
+
+/// <summary>The chefs seen while the player scrolls the picker (<see cref="ChefPickerMemory"/>).</summary>
+public class ChefPickerMemoryTests
+{
+    private static ChefCard Card(string? id) => new(default, [ChefIcon.Entree, ChefIcon.Side], "Salty", id is null ? [] : [id], id);
+
+    [Fact]
+    public void Cards_seen_while_scrolling_add_up_and_unnamed_cards_add_nobody()
+    {
+        var memory = new ChefPickerMemory();
+        Assert.False(memory.PickerSeen);
+
+        memory.Take(new ChefPickerReading([Card("Lifeng"), Card(null), Card("Catcher")], ["Perlica"]));
+        memory.Take(new ChefPickerReading([Card("Catcher"), Card("Antal")], ["Perlica"]));
+        memory.TakePlaced(["Chen_Qianyu", null]);
+
+        Assert.True(memory.PickerSeen);
+        Assert.Equal(["Lifeng", "Catcher", "Perlica", "Antal", "Chen_Qianyu"], memory.Available);
+    }
+
+    [Fact]
+    public void Placed_chefs_alone_are_not_the_picker()
+    {
+        var memory = new ChefPickerMemory();
+        memory.TakePlaced(["Chen_Qianyu"]);
+        Assert.False(memory.PickerSeen);
+        Assert.Equal(["Chen_Qianyu"], memory.Available);
+    }
+
+    [Fact]
+    public void Clearing_forgets_everyone()
+    {
+        var memory = new ChefPickerMemory();
+        memory.Take(new ChefPickerReading([Card("Lifeng")], []));
+        memory.Clear();
+        Assert.False(memory.PickerSeen);
+        Assert.Empty(memory.Available);
+    }
+}
