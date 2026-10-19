@@ -14,13 +14,17 @@ public sealed record OrderedDish(int Table, Dish Dish);
 /// </summary>
 /// <param name="Queues">One per kitchen in play, by kitchen number.</param>
 /// <param name="Outstanding">Ordered and not yet given to the table, oldest first. Drinks aren't in it: they need no kitchen.</param>
-/// <param name="SecondsLeft">
-/// Seconds until the inn closes (the timer's 0:00; guests already seated are still served after it):
-/// 0 once it has closed, null when the timer hasn't been read. No default: a caller says what it knows.
+/// <param name="ServingSecondsLeft">
+/// Seconds the inn still serves: the timer's time left + <see cref="ServingAfterCloseSeconds"/> before
+/// it closes, and what's left of those 18 s after (<see cref="ServingLeft"/>, <see cref="ServingLeftAfterClose"/>);
+/// null when the timer hasn't been read. No default: a caller says what it knows.
 /// </param>
 public sealed record InnState(IReadOnlyList<KitchenQueue> Queues, IReadOnlyList<Dish> Counter, IReadOnlyList<Dish> Carried,
-    IReadOnlyList<OrderedDish> Outstanding, IReadOnlyList<MenuDish> Menu, double? SecondsLeft)
+    IReadOnlyList<OrderedDish> Outstanding, IReadOnlyList<MenuDish> Menu, double? ServingSecondsLeft)
 {
+    /// <summary>The timer has reached 00:00: no new guests, the seated ones served for what's left of the 18 s.</summary>
+    public bool Closed => ServingSecondsLeft <= ServingAfterCloseSeconds;
+
     /// <summary>The inn has at most six tables (owner).</summary>
     public const int MaxTables = 6;
 
@@ -54,7 +58,7 @@ public sealed record ReplaceAdvice(int Kitchen, int Slot, Dish Remove, Dish Put,
 /// <summary>What to do in one kitchen: dishes to queue, in order, and any swap.</summary>
 public sealed record KitchenAdvice(int Kitchen, IReadOnlyList<QueueAdvice> Queue, IReadOnlyList<ReplaceAdvice> Replaces);
 
-/// <summary>At the very end: give a dish left on the counter (or carried) to a table still waiting for one.</summary>
+/// <summary>The last call: give a dish left on the counter (or carried) to a table still waiting for one.</summary>
 /// <param name="Ordered">The dish the table is waiting for, which <paramref name="Dish"/> stands in for.</param>
 public sealed record LeftoverAdvice(Dish Dish, int Table, Dish Ordered)
 {
@@ -64,7 +68,10 @@ public sealed record LeftoverAdvice(Dish Dish, int Table, Dish Ordered)
 
 /// <param name="Waiting">Ordered dishes no kitchen has room for now (and no swap helps).</param>
 /// <param name="OutOfStock">Ordered dishes that can't be cooked: none left.</param>
-/// <param name="Leftovers">Once the inn has closed: what's left to hand out, the right dishes first (<see cref="DispatchAdvisor.LastCall"/>).</param>
+/// <param name="Leftovers">
+/// The last call: what's left to hand out to tables whose own dish can't come out before the inn stops
+/// serving, and once it has closed the dishes on the counter to the tables that ordered them; the right dishes first.
+/// </param>
 public sealed record DispatchAdvice(IReadOnlyList<KitchenAdvice> Kitchens, IReadOnlyList<OrderedDish> Waiting, IReadOnlyList<OrderedDish> OutOfStock,
     IReadOnlyList<LeftoverAdvice> Leftovers)
 {
@@ -90,11 +97,16 @@ public sealed record DispatchAdvice(IReadOnlyList<KitchenAdvice> Kitchens, IRead
 /// worth taking out when it has barely started (<see cref="BarelyStartedSeconds"/>).</item>
 /// <item>A kitchen with no chef cannot cook (<see cref="KitchenMath.Cooks"/>): it gets no advice of
 /// any kind and isn't listed.</item>
-/// <item><b>The end</b> (owner, 2026-10-19): nothing is cooked ahead in the last
-/// <see cref="NoCookAheadSeconds"/>, nor ever a dish that wouldn't come out before the inn closes.
-/// Once it has closed (<see cref="LastCall"/>), what's left on the counter or carried is handed out:
-/// a dish to the table that ordered it, and the rest to tables still waiting with nothing cooking
-/// for them, oldest first, even a wrong dish (it still earns some money).</item>
+/// <item><b>The end</b> (owner, 2026-10-19): the inn serves <see cref="InnState.ServingAfterCloseSeconds"/>
+/// after the timer's 00:00, and every rule here counts that time (<see cref="InnState.ServingSecondsLeft"/>).
+/// Nothing is cooked ahead in the last <see cref="NoCookAheadSeconds"/> of serving, nor ever a dish that
+/// wouldn't come out before serving ends. The last call is per table and can come before 00:00: a table
+/// waiting for a dish whose own dish can no longer come out in time (what's queued ahead of it + its
+/// cook time, or no stock) is handed a dish left on the counter or carried, its own dish if one is
+/// there, else a wrong one, which still earns some money; oldest table first. A table whose dish can
+/// still make it waits for it. Drinks need no kitchen and aren't outstanding dishes, so a table waiting
+/// only for a drink is never handed a dish (it wouldn't be served). Once closed, the dishes on the
+/// counter for the tables that ordered them are listed too.</item>
 /// </list>
 /// </summary>
 public sealed class DispatchAdvisor(InnKitchens kitchens)
@@ -111,7 +123,11 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
     /// </summary>
     public const double BarelyStartedSeconds = 5;
 
-    /// <summary>No dish is cooked ahead with less than this left before the inn closes (owner, 2026-10-19).</summary>
+    /// <summary>
+    /// No dish is cooked ahead with less than this left before the inn stops serving (owner, 2026-10-19:
+    /// "the last ~40 s"; counted against the serving time, 18 s past the timer's 00:00, as the owner's
+    /// "precook likewise counts the 18 s" says).
+    /// </summary>
     public const double NoCookAheadSeconds = 40;
 
     public InnKitchens Kitchens { get; } = kitchens;
@@ -127,7 +143,7 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
         var plan = new Plan(this, state);
         var waiting = new List<OrderedDish>();
         var outOfStock = new List<OrderedDish>();
-        var leftovers = LastCall(state) ? plan.HandOut() : [];
+        var leftovers = state.ServingSecondsLeft is { } servingLeft ? plan.HandOut(servingLeft, state.Closed) : [];
 
         foreach (var order in plan.Pending)
         {
@@ -154,15 +170,12 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
             waiting, outOfStock, leftovers);
     }
 
-    /// <summary>The inn has closed (the timer at 0:00): what's left on the counter is handed out, even to a table that ordered something else.</summary>
-    public static bool LastCall(InnState state) => state.SecondsLeft is <= 0;
-
     /// <summary>The kitchens that cook (<see cref="KitchenMath.Cooks"/>), by number: the only ones advised.</summary>
     private IEnumerable<Kitchen> Cooking => Kitchens.Kitchens.Where(KitchenMath.Cooks).OrderBy(k => k.Number);
 
     /// <summary>The opening (C16): what to cook ahead in every kitchen before the first guest orders.</summary>
     public DispatchAdvice Opening(IReadOnlyList<MenuDish> menu) =>
-        Advise(new InnState([.. Cooking.Select(k => new KitchenQueue(k.Number))], [], [], [], menu, InnSimulator.SessionSeconds), fillEverySlot: true);
+        Advise(new InnState([.. Cooking.Select(k => new KitchenQueue(k.Number))], [], [], [], menu, InnState.ServingLeft(InnSimulator.SessionSeconds)), fillEverySlot: true);
 
     /// <summary>
     /// The kitchen that would have <paramref name="dish"/> out soonest if queued now, and in how
@@ -220,25 +233,59 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
         private readonly List<Dish> _unclaimed = [];
 
         /// <summary>
-        /// The last call: each dish carried or on the counter goes to the order it covers, then what's
-        /// left to the orders nothing covers (nothing cooking for them), oldest first, one each. Those
-        /// orders are no longer sent to a kitchen.
+        /// Orders a kitchen still has to cook for, oldest first: queued (with when their dish is out)
+        /// or not yet (QueuedOut null: they're <see cref="Pending"/>).
         /// </summary>
-        public List<LeftoverAdvice> HandOut()
+        private readonly List<(OrderedDish Order, double? QueuedOut)> _fromKitchen = [];
+
+        /// <summary>
+        /// The last call (owner, 2026-10-19), with <paramref name="servingLeft"/> seconds of serving
+        /// left: each order whose own dish can't come out by then gets a dish carried or on the counter
+        /// that no order claims, its own dish if one is there, else (oldest order first) the first one
+        /// left: a wrong dish still earns money. Those not yet queued are no longer sent to a kitchen.
+        /// Once <paramref name="closed"/>, each dish carried or on the counter is listed first, for the order it covers.
+        /// </summary>
+        public List<LeftoverAdvice> HandOut(double servingLeft, bool closed)
         {
-            var handed = _byHand.Select(o => new LeftoverAdvice(o.Dish, o.Table, o.Dish)).ToList();
-            var pending = Pending.ToList();
+            var handed = closed ? _byHand.Select(o => new LeftoverAdvice(o.Dish, o.Table, o.Dish)).ToList() : [];
+            var late = Enumerable.Range(0, _fromKitchen.Count)
+                .Where(i => (_fromKitchen[i].QueuedOut ?? SoonestPossible(_fromKitchen[i].Order.Dish)) is not { } outIn || outIn > servingLeft)
+                .ToList();
             var left = new List<Dish>(_unclaimed);
-            foreach (var order in Pending)
+            var given = new SortedDictionary<int, Dish>();
+            // The right dishes first, then a wrong one each, oldest order first.
+            foreach (int i in late)
+            {
+                int own = left.FindIndex(d => d.Id == _fromKitchen[i].Order.Dish.Id);
+                if (own < 0) continue;
+                given[i] = left[own];
+                left.RemoveAt(own);
+            }
+            foreach (int i in late.Where(i => !given.ContainsKey(i)))
             {
                 if (left.Count == 0) break;
-                handed.Add(new LeftoverAdvice(left[0], order.Table, order.Dish));
+                given[i] = left[0];
                 left.RemoveAt(0);
-                pending.Remove(order);
+            }
+            var pending = Pending.ToList();
+            foreach (var (i, dish) in given)
+            {
+                var (order, queuedOut) = _fromKitchen[i];
+                handed.Add(new LeftoverAdvice(dish, order.Table, order.Dish));
+                if (queuedOut is null) pending.Remove(order);
             }
             Pending = pending;
             return handed;
         }
+
+        /// <summary>
+        /// The soonest <paramref name="dish"/> could be out if queued now: what's queued in a kitchen +
+        /// its cook time there, in the best kitchen (a full queue only delays the queueing, not the
+        /// dish: queued as a slot frees, it still comes out right after the dishes ahead of it); null
+        /// with no stock left or no kitchen cooking.
+        /// </summary>
+        private double? SoonestPossible(Dish dish) =>
+            InStock(dish) && _queues.Count > 0 ? _queues.Keys.Min(k => Left(k) + Cook(k, dish)) : null;
 
         /// <summary>
         /// Gives each ordered dish, oldest first, what's carried, then the counter, then the queued
@@ -261,8 +308,16 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
                     .Where(x => !x.Slot.Claimed && x.Slot.Dish.Id == order.Dish.Id)
                     .OrderBy(x => x.Out)
                     .FirstOrDefault();
-                if (queued.Slot is not null) _queues[queued.Kitchen][queued.Index] = queued.Slot with { Claimed = true };
-                else pending.Add(order);
+                if (queued.Slot is not null)
+                {
+                    _queues[queued.Kitchen][queued.Index] = queued.Slot with { Claimed = true };
+                    _fromKitchen.Add((order, queued.Out));
+                }
+                else
+                {
+                    pending.Add(order);
+                    _fromKitchen.Add((order, null));
+                }
             }
             _counterUsed = _state.Counter.Count;
             var byHand = _state.Carried.Concat(_state.Counter).ToList();
@@ -276,8 +331,8 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
 
         private bool HasFreeSlot(int kitchen) => _queues[kitchen].Count < KitchenQueue.Slots;
 
-        /// <summary>A dish cooked ahead out in <paramref name="readyIn"/> seconds is still worth it: not in the last <see cref="NoCookAheadSeconds"/>, and out before the inn closes.</summary>
-        private bool InTime(double readyIn) => _state.SecondsLeft is not { } left || (left >= NoCookAheadSeconds && readyIn <= left);
+        /// <summary>A dish cooked ahead out in <paramref name="readyIn"/> seconds is still worth it: not in the last <see cref="NoCookAheadSeconds"/> of serving, and out before serving ends.</summary>
+        private bool InTime(double readyIn) => _state.ServingSecondsLeft is not { } left || (left >= NoCookAheadSeconds && readyIn <= left);
 
         private bool AheadInTime(int kitchen, Dish dish) => InTime(Left(kitchen) + Cook(kitchen, dish));
 

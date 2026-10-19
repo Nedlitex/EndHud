@@ -222,7 +222,7 @@ public class DispatchAdvisorTests
             var dish = menu[random.Next(menu.Count)];
             outstanding.Add(new OrderedDish(6, dish));
 
-            var advice = advisor.Advise(new InnState(queues, [], [], outstanding, InnSimulatorTests.RecordedMenu, SecondsLeft: 200));
+            var advice = advisor.Advise(new InnState(queues, [], [], outstanding, InnSimulatorTests.RecordedMenu, ServingSecondsLeft: 200));
 
             var options = queues.Where(q => q.HasFreeSlot)
                 .Select(q => (q.Kitchen, ReadyIn: q.SecondsUntilEmpty + kitchens.CookSeconds(q.Kitchen, dish), Choice: kitchens.ChoicePercent(q.Kitchen, dish)))

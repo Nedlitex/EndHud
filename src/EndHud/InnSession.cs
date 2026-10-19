@@ -94,6 +94,9 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     // The session.
     private TimeSpan _lastSessionFrame, _advancedTo;
     private SessionClock? _clock;
+    // When the timer first read 00:00: it shows 00:00 from then on, and the inn serves
+    // InnState.ServingAfterCloseSeconds more, counted from here.
+    private TimeSpan? _closedAt;
     private readonly SortedDictionary<int, KitchenMemory> _kitchens = [];
     private int _panelKitchens;
     private readonly TableMemory?[] _tables = new TableMemory?[TableCardReader.Tables];
@@ -171,6 +174,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         Advance(reading.At);
         _lastSessionFrame = reading.At;
         if (reading.Clock is not null) _clock = reading.Clock;
+        if (reading.Clock is { Closed: true } && _closedAt is null) _closedAt = reading.At;
         _panelOpen = reading.Panel?.Kitchen;
         if (reading.Panel is { } panel) TakePanel(panel);
         if (reading.TableCards.Count > 0) TakeTables(reading.TableCards, reading.At);
@@ -211,6 +215,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     {
         Active = false;
         _clock = null;
+        _closedAt = null;
         _kitchens.Clear();
         _panelKitchens = 0;
         Array.Clear(_tables);
@@ -483,6 +488,16 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         return new InnSetupInputs([], input, key);
     }
 
+    /// <summary>
+    /// Seconds the inn still serves at <paramref name="now"/>: the timer's time left + 18 s before it
+    /// closes, then 18 s from when it first read 00:00 (<see cref="InnState.ServingAfterCloseSeconds"/>);
+    /// null when no timer has been read.
+    /// </summary>
+    private double? ServingLeft(TimeSpan now) =>
+        _closedAt is { } closedAt ? InnState.ServingLeftAfterClose((now - closedAt).TotalSeconds)
+        : _clock is { } clock ? InnState.ServingLeft(clock.Left.TotalSeconds)
+        : null;
+
     /// <summary>The advice now, the kitchens moved on to <paramref name="now"/>; null when no session is on.</summary>
     public InnAdvice? Advice(TimeSpan now)
     {
@@ -516,8 +531,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         }
         // On the counter: the dishes cooked ahead that no table has been served yet.
         var spares = _spares.Where(s => s.Value > 0).SelectMany(s => Enumerable.Repeat(DishOf(s.Key)!, s.Value)).ToList();
-        double? secondsLeft = _clock is { } clock ? (clock.Closed ? 0 : Math.Max(0, clock.Left.TotalSeconds)) : null;
-        var state = new InnState(queues, spares, [], outstanding, menu, secondsLeft);
+        var state = new InnState(queues, spares, [], outstanding, menu, ServingLeft(now));
 
         var left = _clock?.Left ?? TimeSpan.FromMinutes(5);
         var nextOut = queues.Where(q => q.Dishes.Count > 0).Select(q => (TimeSpan?)TimeSpan.FromSeconds(q.Dishes[0].SecondsLeft)).Min();
