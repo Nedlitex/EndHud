@@ -128,6 +128,8 @@ internal static class InnSetupView
             lines.AddRange(inputs.Gaps.Select(g => InnLine.Of(InnLineStyle.Note, new InnSegment(text(GapKeys[g])))));
             return new InnStripModel(lines);
         }
+        // A rule the planner couldn't take in: the plan ignores it, so the player must know.
+        lines.AddRange(inputs.RulesNotUnderstood.Select(r => InnLine.Of(InnLineStyle.Note, new InnSegment(string.Format(text("Inn.Setup.RuleNotUnderstood"), r)))));
         if (advice is null)
         {
             lines.Add(InnLine.Of(InnLineStyle.Dim, new InnSegment(text("Inn.Setup.Working"))));

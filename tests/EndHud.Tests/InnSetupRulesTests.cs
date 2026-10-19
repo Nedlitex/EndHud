@@ -44,6 +44,6 @@ public class InnSetupRulesTests
 
         Assert.Equal(["至少有3道很奇怪的菜品"], inputs.RulesNotUnderstood);
         var lines = InnSetupView.Build(inputs, null, Inn, Text).Lines.Select(l => l.Text).ToList();
-        Assert.Contains("看不懂菜单要求：至少有3道很奇怪的菜品", lines);
+        Assert.Contains("看不懂菜单要求：至少有3道很奇怪的菜品（推荐没有算上它）", lines);
     }
 }

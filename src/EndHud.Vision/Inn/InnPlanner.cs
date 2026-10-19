@@ -6,34 +6,70 @@ namespace EndHud.Vision.Inn;
 /// <summary>A kitchen the session has and how many chef places it has (1 or 2).</summary>
 public sealed record PlanKitchen(int Number, int Places);
 
-/// <summary>"At least <paramref name="Count"/> dishes with any of these traits" (至少有2道带有[素食]或[滋补]特性的菜品).</summary>
-/// <param name="AnyOf">Trait ids (<see cref="InnTrait.Id"/>).</param>
+/// <summary>
+/// "At least <paramref name="Count"/> dishes with any of these traits, or of any of these types":
+/// 至少有2道带有[素食]或[滋补]特性的菜品 (养身心), 至少有1道[汤羹]类菜品 (舌上清流).
+/// </summary>
+/// <param name="AnyOf">Trait ids (<see cref="InnTrait.Id"/>) or dish types (<see cref="DishType"/> by name, "Soup"), as a theme's preferences name them.</param>
 public sealed partial record DishRule(int Count, IReadOnlyList<string> AnyOf)
 {
     /// <summary>
-    /// The rule a 菜单要求 line states, or null when the line isn't one: "至少有N道带有[A]或[B]特性的菜品",
-    /// as test_yuanyuan2's 养身心 shows it. Traits are matched by their Chinese names in brackets.
+    /// The rule a 菜单要求 line states, or null when the line isn't one: "至少有N道带有[A]或[B]特性的菜品"
+    /// (traits by their Chinese names in brackets, test_yuanyuan2's 养身心) or "至少有N道[A]类菜品"
+    /// (a dish type, the owner's 舌上清流; the type's icon stands in the brackets and may be read as
+    /// a stray letter, so a bracket is matched by the type name it contains).
     /// </summary>
     public static DishRule? Parse(string line, InnData data)
     {
-        var match = TraitRuleText().Match(line.Replace(" ", ""));
-        if (!match.Success) return null;
-        var traits = Brackets().Matches(match.Groups[2].Value)
-            .Select(m => data.Traits.FirstOrDefault(t => t.Zh == m.Groups[1].Value)?.Id)
-            .ToList();
-        if (traits.Count == 0 || traits.Any(t => t is null)) return null;
-        return new DishRule(int.Parse(match.Groups[1].Value), [.. traits!]);
+        string text = line.Replace(" ", "");
+        if (TraitRuleText().Match(text) is { Success: true } traitRule)
+        {
+            var traits = Brackets().Matches(traitRule.Groups[2].Value)
+                .Select(m => data.Traits.FirstOrDefault(t => t.Zh == m.Groups[1].Value)?.Id)
+                .ToList();
+            if (traits.Count == 0 || traits.Any(t => t is null)) return null;
+            return new DishRule(int.Parse(traitRule.Groups[1].Value), [.. traits!]);
+        }
+        if (TypeRuleText().Match(text) is { Success: true } typeRule)
+        {
+            var named = Brackets().Matches(typeRule.Groups[2].Value).Select(m => m.Groups[1].Value).ToList();
+            var types = named.Select(n => data.DishTypes.Where(t => n.Contains(t.Zh, StringComparison.Ordinal)).Select(t => t.Id.ToString()).ToList()).ToList();
+            if (types.Count == 0 || types.Any(t => t.Count != 1)) return null;
+            return new DishRule(int.Parse(typeRule.Groups[1].Value), [.. types.Select(t => t[0])]);
+        }
+        return null;
     }
 
-    /// <summary>Whether <paramref name="dish"/> counts towards the rule.</summary>
-    public bool Matches(Dish dish) => dish.Traits.Intersect(AnyOf).Any();
+    /// <summary>Whether <paramref name="dish"/> counts towards the rule: it has one of the traits, or is of one of the types.</summary>
+    public bool Matches(Dish dish) => dish.Traits.Any(AnyOf.Contains) || AnyOf.Contains(dish.Type.ToString());
 
-    /// <summary>The rules in 菜单要求's lines as read, and what of them isn't understood.</summary>
-    public static DishRulesRead ParseAll(IReadOnlyList<string> lines, InnData data) =>
-        new([.. lines.Select(l => Parse(l, data)).OfType<DishRule>()], []);
+    /// <summary>
+    /// The rules in 菜单要求's lines as read (top to bottom), and what of them isn't understood. A rule
+    /// may wrap over two lines: the lines are joined and cut where each rule starts ("至少…"). The
+    /// Inn Rating's own wordings ("至少需要…") are understood elsewhere (<see cref="MenuRequirementsReader"/>)
+    /// and are not rules here.
+    /// </summary>
+    public static DishRulesRead ParseAll(IReadOnlyList<string> lines, InnData data)
+    {
+        string text = string.Concat(lines.Select(l => l.Replace(" ", "")));
+        var rules = new List<DishRule>();
+        var notUnderstood = new List<string>();
+        foreach (string part in RuleStart().Split(text).Where(p => p.Length > 0))
+        {
+            if (Parse(part, data) is { } rule) rules.Add(rule);
+            else if (!part.StartsWith("至少需要", StringComparison.Ordinal)) notUnderstood.Add(part);
+        }
+        return new DishRulesRead(rules, notUnderstood);
+    }
 
     [GeneratedRegex(@"至少有?(\d+)道带有(.+?)特性的菜品")]
     private static partial Regex TraitRuleText();
+
+    [GeneratedRegex(@"至少有?(\d+)道(.+?)类的?菜品")]
+    private static partial Regex TypeRuleText();
+
+    [GeneratedRegex(@"(?=至少)")]
+    private static partial Regex RuleStart();
 
     [GeneratedRegex(@"\[([^\]]+)\]")]
     private static partial Regex Brackets();
@@ -44,8 +80,7 @@ public sealed record DishRulesRead(IReadOnlyList<DishRule> Rules, IReadOnlyList<
 
 /// <summary>
 /// What the menu must be (菜单要求 and the menu screen's counters "N/8"). The numbers are passed by
-/// the caller from what the screens show; only the trait rule's wording is known so far
-/// (<see cref="DishRule.Parse"/>).
+/// the caller from what the screens show; a theme's rules are read by <see cref="DishRule.Parse"/>.
 /// </summary>
 /// <param name="MinTypes">Dish types (主食, 菜肴, 汤羹, 甜品) on the menu at least ("≥3 types" at Rating 4).</param>
 public sealed record MenuRules(int MinDishes, int MaxDishes, int MinDrinks, int MaxDrinks, int MinTypes, IReadOnlyList<DishRule> DishRules)

@@ -22,7 +22,7 @@ public sealed record SetupKitchen(int Number, int? ChefSlots, IReadOnlyList<stri
 /// <param name="Theme">The theme in the inn data with that name; null when none has it.</param>
 /// <param name="Objective">主题加分项, as read ("开启2次满堂彩"); null when unread.</param>
 /// <param name="MenuRules">菜单要求, one line each, as read.</param>
-/// <param name="HotTraits">热门特性: the traits' ids (<see cref="InnTrait.Id"/>) whose names were read.</param>
+/// <param name="HotTraits">热门特性: the ids of the traits, dish types and 饮品 whose names were read (<see cref="SetupReader.HotIds"/>).</param>
 /// <param name="Kitchens">The kitchens and their chefs (营业设定); null on the theme list (主题设定), which shows none.</param>
 public sealed record InnSetup(string ThemeName, InnTheme? Theme, string? Objective, IReadOnlyList<string> MenuRules,
     IReadOnlyList<string> HotTraits, IReadOnlyList<SetupKitchen>? Kitchens);
@@ -78,7 +78,7 @@ public sealed class SetupReader(InnText text, InnData data, IReadOnlyList<Operat
         {
             var chips = new PixelRect(row.Right, row.Y - row.Height / 2, area.Right - row.Right, row.Height * 2);
             await foreach (string attempt in text.ReadAttemptsAsync(frame, chips, ChipInk, layout.Scale))
-                if (TraitIds(attempt) is var ids && ids.Count > traits.Count) traits = ids;
+                if (HotIds(attempt, data) is var ids && ids.Count > traits.Count) traits = ids;
         }
         return new InnSetup(best.ThemeName, best.Theme, best.Objective, best.MenuRules, traits, kitchens);
     }
@@ -112,7 +112,7 @@ public sealed class SetupReader(InnText text, InnData data, IReadOnlyList<Operat
         var traitsRow = lines.FirstOrDefault(l => l.Text.Contains("特性") && l.Text.Contains("热门"));
         var traits = traitsRow.Text is null
             ? []
-            : TraitIds(string.Concat(lines.Where(l => l.Place.X > traitsRow.Place.Right && Math.Abs(l.Place.Y - traitsRow.Place.Y) <= traitsRow.Place.Height).Select(l => l.Text)));
+            : HotIds(string.Concat(lines.Where(l => l.Place.X > traitsRow.Place.Right && Math.Abs(l.Place.Y - traitsRow.Place.Y) <= traitsRow.Place.Height).Select(l => l.Text)), data);
 
         var objectiveLines = Section(objective, Next(objective));
         int headings = new[] { objective, rules, hot }.Count(i => i >= 0);
@@ -121,15 +121,31 @@ public sealed class SetupReader(InnText text, InnData data, IReadOnlyList<Operat
     }
 
     /// <summary>The traits named in a row of chips ("素食 滋补"), in the order they stand.</summary>
-    private List<string> TraitIds(string row) => HotIds(row, data);
-
-    /// <summary>The 热门 ids named in a row of chips, in the order they stand.</summary>
+    /// <summary>
+    /// The 热门 ids named in a row of chips, in the order they stand: traits (<see cref="InnTrait.Id"/>),
+    /// dish types (by name, "Soup") and 饮品 (<see cref="InnData.Drink"/>), as a theme's preferences
+    /// name them (<see cref="InnPlanner.HotMatches(IReadOnlyCollection{string}, Dish)"/>).
+    /// </summary>
     internal static List<string> HotIds(string row, InnData data)
     {
-        string letters = Letters(row);
-        return [.. data.Traits.Where(t => t.Zh is { Length: > 0 } zh && letters.Contains(zh))
-            .OrderBy(t => letters.IndexOf(t.Zh!, StringComparison.Ordinal)).Select(t => t.Id)];
+        var letters = Letters(row).ToCharArray();
+        var named = data.Traits.Where(t => t.Zh is { Length: > 0 }).Select(t => (Zh: t.Zh!, t.Id))
+            .Concat(data.DishTypes.Select(t => (t.Zh, Id: t.Id.ToString())))
+            .Append((Zh: DrinkName, Id: InnData.Drink));
+        var found = new List<(int At, string Id)>();
+        // Longest names first, each taking its letters: 甜品 (a type) is not also 甜 (a trait).
+        foreach (var (zh, id) in named.OrderByDescending(n => n.Zh.Length))
+        {
+            int at = new string(letters).IndexOf(zh, StringComparison.Ordinal);
+            if (at < 0) continue;
+            found.Add((at, id));
+            Array.Fill(letters, ' ', at, zh.Length);
+        }
+        return [.. found.OrderBy(f => f.At).Select(f => f.Id)];
     }
+
+    /// <summary>The 热门 chip for any drink.</summary>
+    private const string DrinkName = "饮品";
 
     /// <summary>The kitchens of 营业设定, or null when there are none (the theme list).</summary>
     private async Task<IReadOnlyList<SetupKitchen>?> ReadKitchensAsync(Frame frame, InnLayout layout)

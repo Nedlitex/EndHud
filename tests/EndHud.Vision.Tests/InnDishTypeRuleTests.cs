@@ -66,6 +66,8 @@ public class InnDishTypeRuleTests
     {
         Assert.Equal(["Soup", InnData.Drink], SetupReader.HotIds("汤羹 饮品", Inn));
         Assert.Equal(["Veggy", "Rich"], SetupReader.HotIds("素食 滋补", Inn));
+        // 甜品 is the dessert type, not also the trait 甜.
+        Assert.Equal(["Dessert", "Sweet"], SetupReader.HotIds("甜品 甜", Inn));
     }
 
     /// <summary>The live case: three kitchens of two places, the whole roster and dish list at Rating 4.</summary>

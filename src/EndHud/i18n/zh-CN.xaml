@@ -355,6 +355,7 @@
     <sys:String x:Key="Inn.Setup.Menu">菜单：</sys:String>
     <sys:String x:Key="Inn.Setup.Drinks">饮品：</sys:String>
     <sys:String x:Key="Inn.Setup.Working">正在推荐…</sys:String>
+    <sys:String x:Key="Inn.Setup.RuleNotUnderstood">看不懂菜单要求：{0}（推荐没有算上它）</sys:String>
     <sys:String x:Key="Inn.Setup.RulesUnmet">现有的菜凑不齐全部菜单要求，上面已尽量接近</sys:String>
     <sys:String x:Key="Inn.Setup.Gap.ThemeUnreadable">看不清主题（画面被遮挡）</sys:String>
     <sys:String x:Key="Inn.Setup.Gap.NoSetup">还没看到主题：打开「营业设定」</sys:String>
