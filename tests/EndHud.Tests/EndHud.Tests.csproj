@@ -31,6 +31,11 @@
          submodule (tests/data); without it only those tests can't run. -->
     <None Include="..\data\Fixtures\combat-combos-nearly-refilled.jpg" Link="Fixtures\combat-combos-nearly-refilled.jpg"
           CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\combat-combos-nearly-refilled.jpg')" />
+    <!-- Inn frames for the inn wire-up's tests: the real readers end to end. -->
+    <None Include="..\data\Fixtures\inn\session-gourmand-order.jpg" Link="Fixtures\inn\session-gourmand-order.jpg"
+          CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\inn\session-gourmand-order.jpg')" />
+    <None Include="..\data\Fixtures\inn\dispatch-panel-queue.jpg" Link="Fixtures\inn\dispatch-panel-queue.jpg"
+          CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\inn\dispatch-panel-queue.jpg')" />
   </ItemGroup>
 
 </Project>
