@@ -574,7 +574,6 @@ internal sealed class PartyMonitor : IDisposable
         IReadOnlyList<TeamBuff> lastBuffs = []; // kept while the panel is out of sight (a cutscene over the HUD)
         var panelReadAt = DateTime.MinValue; // when a reading last saw the squad panel
         bool panelSeenLast = false; // the last squad reading saw the panel (then the inn isn't looked for)
-        var innClock = Stopwatch.StartNew();
         try
         {
             while (!ct.IsCancellationRequested)
@@ -646,7 +645,8 @@ internal sealed class PartyMonitor : IDisposable
                     LatestFrame = gameFrame;
                     // The inn first: in it the squad panel isn't on screen, and its screens are read instead.
                     Enter("inn");
-                    if (await TryInnAsync(gameFrame, innClock.Elapsed, panelSeenLast))
+                    // The overlay's advice runs on the same clock (InnClock), so its estimates line up with the readings.
+                    if (await TryInnAsync(gameFrame, InnClock.Now, panelSeenLast))
                     {
                         if (ReadSquad) Report(tracker.Track(NothingSeen), null);
                         continue;
