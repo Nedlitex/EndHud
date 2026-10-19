@@ -32,8 +32,11 @@ internal static class InnDigits
     /// </summary>
     /// <param name="minHeightShare">A glyph is at least this share of the tallest one's height: a
     /// number beside a label (the streak's) leaves out the label's shorter characters.</param>
+    /// <param name="dropUnknownLast">A unit may follow the number ("18%"): a last glyph that isn't a
+    /// character and is as wide as it is tall is left out. (A lower-case unit, "25s", is left out by
+    /// <paramref name="minHeightShare"/> instead.)</param>
     public static string? Read(Frame frame, PixelRect region, InnText.Ink ink, double hudScale, bool dropUnknownFirst = false,
-        double minHeightShare = MinHeightShare)
+        double minHeightShare = MinHeightShare, bool dropUnknownLast = false)
     {
         var glyphs = Glyphs(frame, region, ink, hudScale, minHeightShare);
         if (glyphs.Count == 0) return null;
@@ -43,7 +46,9 @@ internal static class InnDigits
             char? c = Classify(glyphs[i]);
             if (c is null)
             {
-                if (i == 0 && dropUnknownFirst) continue;
+                // A unit after the number is as wide as it is tall ("%"); a digit that failed isn't.
+                bool unit = i == glyphs.Count - 1 && dropUnknownLast && i > 0 && glyphs[i].Width >= glyphs[i].Height * 0.9;
+                if ((i == 0 && dropUnknownFirst) || unit) continue;
                 return null;
             }
             chars.Add(c.Value);
@@ -264,7 +269,8 @@ internal static class InnDigits
     /// <summary>
     /// The font's digits and '/': each the average of its glyphs on the inn frames at 4K (the timers,
     /// the fire meters and the streaks of Fixtures/inn; 7 and 9 were seen once each, the timer at
-    /// 04:57 and the meter at 92/100). Aspect is the glyph's width over its height. The colon is told
+    /// 04:57, faint, and the meter at 92/100; a second 7 is the average of six cook times on the
+    /// dispatch panel). Aspect is the glyph's width over its height. The colon is told
     /// by its shape (<see cref="IsColon"/>).
     /// </summary>
     internal static readonly Shape[] Shapes =
@@ -278,6 +284,7 @@ internal static class InnDigits
         S('5', 0.73, "0399999871|0698888882|0684333320|0880000000|1970010000|3986999610|4998778981|3871001795|0000000397|0000000299|3610000398|7862002695|1898778981|0158998510"),
         S('6', 0.77, "0000189100|0000695000|0004960000|0029910000|0189311000|0698788720|2998758992|5992000796|7960000298|8950000199|7960000298|5993001696|0698768992|0047998620"),
         S('7', 0.70, "4746444200|7999998078|0000000048|0000000074|0000000473|0000000640|0000003700|0000008400|0000065000|0000292000|0000740000|0004930000|0008700000|0026000000"),
+        S('7', 0.74, "8999888994|9999999999|4444444795|0000000890|0000004940|0000009900|0000059300|0000197000|0000692000|0002970000|0007920000|0029500000|0089100000|0494000000"),
         S('8', 0.74, "0038998400|0498436960|0970120493|2942331194|1963331393|2495223860|2149999600|0499869950|2971000494|6910000087|9900000079|6940000187|1894333894|0168998620"),
         S('9', 0.75, "0049999720|0997447992|7970000296|9900000078|9900000049|9900000049|7920000296|2994444994|0049994992|0000007940|0000029700|0000299000|0000792000|0007920000"),
     ];

@@ -80,6 +80,45 @@ public sealed class InnText
             if (prepared is null) yield break;
             yield return string.Concat((await RecognizeAsync(_engine, prepared)).Select(l => string.Concat(l.Words.Select(w => w.Text))));
         }
+        // Last, the region's own shades of grey (dark text kept dark, light text turned dark): in a
+        // small window picking ink pixel by pixel can break a character the engine reads whole.
+        if (PrepareGrey(frame, region, ink, hudScale) is { } grey)
+            yield return string.Concat((await RecognizeAsync(_engine, grey)).Select(l => string.Concat(l.Words.Select(w => w.Text))));
+    }
+
+    /// <summary>The region in grey, enlarged to 4K size (at least <see cref="MinHeight"/> tall), the text made the dark side.</summary>
+    internal static Frame? PrepareGrey(Frame frame, PixelRect region, Ink ink, double hudScale)
+    {
+        var r = region.ClampTo(frame.Width, frame.Height);
+        if (r.Width < 2 || r.Height < 2) return null;
+        double scale = Math.Clamp(Math.Max(1 / hudScale, MinHeight / (double)r.Height), 1, 6);
+        var big = frame.Crop(r).ResizeSmooth((int)Math.Round(r.Width * scale), (int)Math.Round(r.Height * scale));
+        // Which side the text is on: the ink's mean brightness against the rest's.
+        double inkSum = 0, restSum = 0;
+        int inkCount = 0, restCount = 0;
+        for (int y = r.Y; y < r.Bottom; y++)
+        for (int x = r.X; x < r.Right; x++)
+        {
+            var (cr, cg, cb) = frame.GetPixel(x, y);
+            double v = (cr + cg + cb) / 3.0;
+            if (ink(cr, cg, cb)) { inkSum += v; inkCount++; }
+            else { restSum += v; restCount++; }
+        }
+        if (inkCount == 0 || restCount == 0) return null;
+        bool invert = inkSum / inkCount > restSum / restCount;
+        int width = big.Width + Padding * 2, height = big.Height + Padding * 2;
+        var buffer = new byte[width * height * 4];
+        Array.Fill(buffer, (byte)255);
+        for (int y = 0; y < big.Height; y++)
+        for (int x = 0; x < big.Width; x++)
+        {
+            int i = (y * big.Width + x) * 4;
+            int v = (big.Bgra[i] + big.Bgra[i + 1] + big.Bgra[i + 2]) / 3;
+            byte g = (byte)(invert ? 255 - v : v);
+            int o = ((y + Padding) * width + x + Padding) * 4;
+            buffer[o] = buffer[o + 1] = buffer[o + 2] = g;
+        }
+        return new Frame(width, height, buffer);
     }
 
     private static readonly int[] AttemptHeights = [MinHeight, 140, 70];
@@ -98,6 +137,29 @@ public sealed class InnText
         var prepared = Prepare(frame, region, ink, hudScale);
         if (prepared is null) return [];
         return [.. (await RecognizeAsync(_engine, prepared)).Select(l => string.Concat(l.Words.Select(w => w.Text)))];
+    }
+
+    /// <summary>
+    /// Each line read in <paramref name="region"/> with where it is in the frame, top to bottom, for a
+    /// caller that finds a label first and then reads what stands beside it.
+    /// </summary>
+    public async Task<IReadOnlyList<(string Text, PixelRect Place)>> ReadPlacedLinesAsync(Frame frame, PixelRect region, Ink ink, double hudScale)
+    {
+        var r = region.ClampTo(frame.Width, frame.Height);
+        var prepared = Prepare(frame, r, ink, hudScale);
+        if (prepared is null) return [];
+        // The prepared image is the region enlarged by one factor, inside a padding.
+        double fx = (prepared.Width - 2 * Padding) / (double)r.Width, fy = (prepared.Height - 2 * Padding) / (double)r.Height;
+        var lines = await RecognizeAsync(_engine, prepared);
+        return [.. lines.Where(l => l.Words.Count > 0).Select(l =>
+        {
+            double left = l.Words.Min(w => w.BoundingRect.X), top = l.Words.Min(w => w.BoundingRect.Y);
+            double right = l.Words.Max(w => w.BoundingRect.X + w.BoundingRect.Width), bottom = l.Words.Max(w => w.BoundingRect.Y + w.BoundingRect.Height);
+            var place = new PixelRect(
+                r.X + (int)Math.Round((left - Padding) / fx), r.Y + (int)Math.Round((top - Padding) / fy),
+                (int)Math.Round((right - left) / fx), (int)Math.Round((bottom - top) / fy));
+            return (string.Concat(l.Words.Select(w => w.Text)), place);
+        })];
     }
 
     /// <summary>The image handed to the engine: black ink on white, enlarged to the region's 4K size.</summary>
