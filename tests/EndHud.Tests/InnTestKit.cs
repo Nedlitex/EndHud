@@ -46,11 +46,14 @@ internal static partial class InnTestKit
 
     // ---- The app's strings ----
 
+    /// <summary>XML's whitespace, all compiling drops around a string: an ideographic space (Inn.Between) is kept, as in the app.</summary>
+    private static readonly char[] XmlWhitespace = [' ', '\t', '\r', '\n'];
+
     private static readonly Lazy<IReadOnlyDictionary<string, string>> Strings = new(() =>
     {
         string xaml = File.ReadAllText(Path.Combine(RepositoryRoot(), "src", "EndHud", "i18n", "zh-CN.xaml"));
         return StringEntry().Matches(xaml).ToDictionary(m => m.Groups["key"].Value,
-            m => WebUtility.HtmlDecode(m.Groups["preserve"].Success ? m.Groups["value"].Value : m.Groups["value"].Value.Trim()));
+            m => WebUtility.HtmlDecode(m.Groups["preserve"].Success ? m.Groups["value"].Value : m.Groups["value"].Value.Trim(XmlWhitespace)));
     });
 
     /// <summary>A string of zh-CN.xaml; a missing key fails the test (the player would see the raw key).</summary>

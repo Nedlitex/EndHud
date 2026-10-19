@@ -26,6 +26,9 @@ internal static class InnStrip
     /// </summary>
     internal const double LineWidth = 470;
 
+    /// <summary>How far in a line starts per step of its indent (a row under its heading), at 1080p.</summary>
+    internal const double IndentStep = 16;
+
     // Frozen: shared by every strip drawn.
     private static readonly Brush Background = Frozen(Color.FromArgb(0xC0, 0x10, 0x14, 0x18));
     private static readonly Brush TextBrush = Frozen(Color.FromArgb(0xF2, 0xFF, 0xFF, 0xFF));
@@ -69,14 +72,39 @@ internal static class InnStrip
         {
             InnLineStyle.Accent => (AccentBrush, FontSize + 1, FontWeights.Bold),
             InnLineStyle.Heading => (AccentBrush, FontSize, FontWeights.SemiBold),
+            InnLineStyle.Subheading => (AccentBrush, FontSize, FontWeights.SemiBold),
             InnLineStyle.Note => (NoteBrush, FontSize - 2, FontWeights.Normal),
             InnLineStyle.Dim => (DimBrush, FontSize - 3, FontWeights.Normal),
             _ => (TextBrush, FontSize, FontWeights.Normal),
         };
-        // Pieces kept together (a marker and its dish) are one unit; the line wraps between units.
-        var row = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2), MaxWidth = LineWidth };
+        double indent = line.Indent * IndentStep, width = LineWidth - indent;
+        TextBlock Text(InnSegment segment) => new()
+        {
+            Text = segment.Text,
+            // A single long sentence (what's missing) wraps within the line.
+            TextWrapping = TextWrapping.Wrap,
+            MaxWidth = width,
+            Foreground = brush,
+            FontFamily = Font,
+            FontSize = size,
+            FontWeight = weight,
+            VerticalAlignment = VerticalAlignment.Center,
+            Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 3, ShadowDepth = 0, Opacity = 0.8 },
+        };
+
+        // Pieces kept together (a marker and its dish, a name and the space after it) are one unit; the line wraps between units.
+        var row = new WrapPanel { Orientation = Orientation.Horizontal };
+        var segments = line.Segments;
+        FrameworkElement? label = null;
+        if (line.Hanging && segments.Count > 1)
+        {
+            // A label ("干员："): the names wrap beside it, never under it.
+            // As tall as the first row of names, its words centred like theirs; at the top when the names wrap.
+            label = new Border { Height = PictureSize, VerticalAlignment = VerticalAlignment.Top, Child = Text(segments[0]) };
+            segments = [.. segments.Skip(1)];
+        }
         StackPanel? unit = null;
-        foreach (var segment in line.Segments)
+        foreach (var segment in segments)
         {
             if (unit is null)
             {
@@ -94,21 +122,20 @@ internal static class InnStrip
                     VerticalAlignment = VerticalAlignment.Center,
                 });
             }
-            unit.Children.Add(new TextBlock
-            {
-                Text = segment.Text,
-                // A single long sentence (what's missing) wraps within the line.
-                TextWrapping = TextWrapping.Wrap,
-                MaxWidth = LineWidth,
-                Foreground = brush,
-                FontFamily = Font,
-                FontSize = size,
-                FontWeight = weight,
-                VerticalAlignment = VerticalAlignment.Center,
-                Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 3, ShadowDepth = 0, Opacity = 0.8 },
-            });
+            unit.Children.Add(Text(segment));
             if (!segment.KeepWithNext) unit = null;
         }
-        return row;
+        var margin = new Thickness(indent, 2, 0, 2);
+        if (label is null)
+        {
+            row.Margin = margin;
+            row.MaxWidth = width;
+            return row;
+        }
+        var labelled = new DockPanel { Margin = margin, MaxWidth = width, LastChildFill = true };
+        DockPanel.SetDock(label, Dock.Left);
+        labelled.Children.Add(label);
+        labelled.Children.Add(row);
+        return labelled;
     }
 }

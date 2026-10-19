@@ -345,14 +345,13 @@
     <sys:String x:Key="Inn.Where.ToCookAbout">排进{0}，约{1}秒</sys:String>
     <sys:String x:Key="Inn.Sample">缘缘庄助手示例</sys:String>
     <sys:String x:Key="Inn.Drag">按住拖动，调整缘缘庄助手位置</sys:String>
-    <sys:String x:Key="Inn.Setup.Title">缘缘庄 · 推荐（没有的干员/菜换同档的）</sys:String>
-    <sys:String x:Key="Inn.Setup.Kitchen">{0}：</sys:String>
-    <sys:String x:Key="Inn.Setup.KitchenRole">{0}（{1}）：</sys:String>
-    <sys:String x:Key="Inn.Setup.Tier.1" xml:space="preserve">T1 </sys:String>
-    <sys:String x:Key="Inn.Setup.Tier.2" xml:space="preserve">T2 </sys:String>
-    <sys:String x:Key="Inn.Setup.Tier.3" xml:space="preserve">T3 </sys:String>
-    <sys:String x:Key="Inn.Setup.Space">&#160;</sys:String>
-    <sys:String x:Key="Inn.Setup.Menu">菜单：</sys:String>
+    <sys:String x:Key="Inn.Setup.Title">缘缘庄 · 推荐（没有的干员/菜，换「可换」里的）</sys:String>
+    <sys:String x:Key="Inn.Setup.KitchenTypes">{0} · {1}</sys:String>
+    <sys:String x:Key="Inn.Setup.KitchenUnused">{0} · 不用</sys:String>
+    <sys:String x:Key="Inn.Setup.TypeSeparator">、</sys:String>
+    <sys:String x:Key="Inn.Setup.Chefs">干员：</sys:String>
+    <sys:String x:Key="Inn.Setup.Cook">做菜：</sys:String>
+    <sys:String x:Key="Inn.Setup.Substitutes">可换：</sys:String>
     <sys:String x:Key="Inn.Setup.Drinks">饮品：</sys:String>
     <sys:String x:Key="Inn.Setup.Working">正在推荐…</sys:String>
     <sys:String x:Key="Inn.Setup.RuleNotUnderstood">看不懂菜单要求：{0}（推荐没有算上它）</sys:String>

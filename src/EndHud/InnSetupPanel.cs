@@ -3,14 +3,14 @@ using EndHud.Vision.Operators;
 
 namespace EndHud;
 
-/// <summary>What the setup panel shows: the plan, and its tier lists for a player who lacks some of what it names.</summary>
-internal sealed record InnSetupAdvice(InnPlan Plan, InnTiers Tiers)
+/// <summary>What the setup panel shows: the plan, per kitchen, with substitutes for a player who lacks some of what it names.</summary>
+internal sealed record InnSetupAdvice(InnPlan Plan, InnSuggestions Suggestions)
 {
-    /// <summary>The plan for <paramref name="input"/> and its tier lists (about two seconds over the whole roster: off the UI thread).</summary>
+    /// <summary>The plan for <paramref name="input"/> and its suggestions (about two seconds over the whole roster: off the UI thread).</summary>
     public static InnSetupAdvice For(InnPlanner planner, InnPlanInput input)
     {
         var plan = planner.Plan(input);
-        return new InnSetupAdvice(plan, InnTierList.Of(planner, input, plan));
+        return new InnSetupAdvice(plan, InnSuggester.Of(planner, input, plan));
     }
 }
 
@@ -92,10 +92,12 @@ internal sealed class InnSetupPlanning(Func<InnPlanInput, InnSetupAdvice> plan, 
 }
 
 /// <summary>
-/// The setup panel's words (plan S6; owner, 2026-10-19), every string from i18n/zh-CN.xaml: tier
-/// lists a player follows with what they own. One line per kitchen, with what it cooks best and its
-/// chefs in tiers T1, T2, T3 (avatar and name); then the menu's dishes in tiers (T1 is the plan's
-/// menu, meeting every rule) and the drinks in tiers (picture and name). Nothing else: no figures.
+/// The setup panel's words (plan S6; owner, 2026-10-19: "split this to each kitchen"), every string
+/// from i18n/zh-CN.xaml. A block per kitchen: its heading (the kitchen and the dish types it cooks,
+/// or that it isn't used), then indented rows: 干员 (the plan's chefs, each with their avatar) and
+/// 可换 (substitutes for them), 做菜 (the menu dishes it cooks mainly, each with its picture) and
+/// 可换 (off-menu dishes for one the player lacks). The drinks last, with theirs. Names only, no
+/// figures; a row wraps between names, never inside one, and a wrapped row stays beside its label.
 /// What's missing (the theme, the kitchens) is said instead, and an unreadable theme says only that.
 /// Nothing asks the player to open a screen or scroll to feed it.
 /// </summary>
@@ -135,72 +137,90 @@ internal static class InnSetupView
             lines.Add(InnLine.Of(InnLineStyle.Dim, new InnSegment(text("Inn.Setup.Working"))));
             return new InnStripModel(lines);
         }
-        lines.AddRange(TierLines(advice.Tiers, data, text));
+        lines.AddRange(Blocks(advice.Suggestions, data, text));
         if (!advice.Plan.RulesMet) lines.Add(InnLine.Of(InnLineStyle.Note, new InnSegment(text("Inn.Setup.RulesUnmet"))));
         return new InnStripModel(lines);
     }
 
     private static InnSegment Chef(OperatorInfo chef) => new(chef.NameZh, OperatorPicture + chef.Id);
 
-    private static IEnumerable<InnLine> TierLines(InnTiers tiers, InnData data, Func<string, string> text)
+    private static InnSegment Dish(Dish dish) => new(dish.Zh, dish.Id);
+
+    private static InnSegment Drink(InnDrink drink) => new(drink.Zh, drink.Id);
+
+    private static IEnumerable<InnLine> Blocks(InnSuggestions suggestions, InnData data, Func<string, string> text)
     {
-        foreach (var kitchen in tiers.Kitchens.OrderBy(k => k.Number))
+        foreach (var kitchen in suggestions.Kitchens.OrderBy(k => k.Number))
         {
             string name = text($"Inn.Kitchen.{kitchen.Number}");
-            string label = kitchen.Role is { } role && data.DishTypes.FirstOrDefault(t => t.Id == role)?.Zh is { } type
-                ? string.Format(text("Inn.Setup.KitchenRole"), name, type)
-                : string.Format(text("Inn.Setup.Kitchen"), name);
-            yield return Tiered(label, kitchen.Tiers.Select(t => t.Select(Chef).ToList()).ToList(), text);
+            if (kitchen.Unused)
+            {
+                yield return InnLine.Of(InnLineStyle.Subheading, new InnSegment(string.Format(text("Inn.Setup.KitchenUnused"), name)));
+                continue;
+            }
+            var types = kitchen.Types.Select(t => data.DishTypes.FirstOrDefault(x => x.Id == t)?.Zh).OfType<string>().ToList();
+            yield return InnLine.Of(InnLineStyle.Subheading, new InnSegment(types.Count == 0
+                ? name
+                : string.Format(text("Inn.Setup.KitchenTypes"), name, string.Join(text("Inn.Setup.TypeSeparator"), types))));
+            foreach (var row in Rows(text("Inn.Setup.Chefs"), kitchen.Chefs.Select(Chef), kitchen.ChefSubstitutes.Select(Chef), 1, text))
+                yield return row;
+            foreach (var row in Rows(text("Inn.Setup.Cook"), kitchen.Dishes.Select(d => Dish(d.Dish)), kitchen.DishSubstitutes.Select(d => Dish(d.Dish)), 1, text))
+                yield return row;
         }
-        yield return Tiered(text("Inn.Setup.Menu"), tiers.Dishes.Select(t => t.Select(d => new InnSegment(d.Dish.Zh, d.Dish.Id)).ToList()).ToList(), text);
-        if (tiers.Drinks.Any(t => t.Count > 0))
-            yield return Tiered(text("Inn.Setup.Drinks"), tiers.Drinks.Select(t => t.Select(d => new InnSegment(d.Drink.Zh, d.Drink.Id)).ToList()).ToList(), text);
+        // Only when no kitchen can cook: the menu on its own.
+        foreach (var row in Rows(text("Inn.Setup.Cook"), suggestions.Unplaced.Select(d => Dish(d.Dish)), [], 0, text))
+            yield return row;
+        foreach (var row in Rows(text("Inn.Setup.Drinks"), suggestions.Drinks.Select(d => Drink(d.Drink)), suggestions.DrinkSubstitutes.Select(d => Drink(d.Drink)), 0, text))
+            yield return row;
     }
 
-    /// <summary>"label T1 a b　T2 c d　T3 e": each tier's mark kept with its first name; an empty tier left out; a dash for none at all.</summary>
-    private static InnLine Tiered(string label, IReadOnlyList<List<InnSegment>> tiers, Func<string, string> text)
+    /// <summary>"label a b c" and, one step further in, "可换：d e"; nothing for no names, no 可换 row for no substitutes.</summary>
+    private static IEnumerable<InnLine> Rows(string label, IEnumerable<InnSegment> names, IEnumerable<InnSegment> substitutes, int indent, Func<string, string> text)
     {
-        var segments = new List<InnSegment> { new InnSegment(label).Kept() };
-        bool any = false;
-        for (int t = 0; t < tiers.Count; t++)
+        var main = names.ToList();
+        if (main.Count == 0) yield break;
+        yield return Row(label, main, indent, text);
+        var others = substitutes.ToList();
+        if (others.Count > 0) yield return Row(text("Inn.Setup.Substitutes"), others, indent + 1, text);
+    }
+
+    /// <summary>A labelled row of names: each name kept with the space after it, so the row wraps between names.</summary>
+    private static InnLine Row(string label, IReadOnlyList<InnSegment> names, int indent, Func<string, string> text)
+    {
+        var segments = new List<InnSegment> { new(label) };
+        for (int i = 0; i < names.Count; i++)
         {
-            if (tiers[t].Count == 0) continue;
-            if (any) segments.Add(new InnSegment(text("Inn.Between")));
-            segments.Add(new InnSegment(text($"Inn.Setup.Tier.{t + 1}")).Kept());
-            for (int i = 0; i < tiers[t].Count; i++)
+            if (i == names.Count - 1)
             {
-                if (i > 0) segments.Add(new InnSegment(text("Inn.Setup.Space")));
-                segments.Add(tiers[t][i]);
+                segments.Add(names[i]);
+                break;
             }
-            any = true;
+            segments.Add(names[i].Kept());
+            segments.Add(new InnSegment(text("Inn.Between")));
         }
-        if (!any) segments.Add(new InnSegment(text("Inn.Nothing")));
-        return new InnLine(InnLineStyle.Normal, segments);
+        return new InnLine(InnLineStyle.Normal, segments) { Indent = indent, Hanging = true };
     }
 
     /// <summary>
-    /// What to drag, size and see through while the menu is open out of the inn: three kitchens with
-    /// three tiers of chefs, the menu's tiers and the drinks', the size the real panel is at its fullest.
+    /// What to drag, size and see through while the menu is open out of the inn: three kitchens of
+    /// two chefs, each with three substitutes, three dishes and three substitutes, then eight drinks
+    /// and three substitutes, as large as the real panel gets at its fullest.
     /// </summary>
     public static InnStripModel Sample(InnData? data, IReadOnlyList<OperatorInfo> roster, Func<string, string> text)
     {
         var lines = new List<InnLine> { InnLine.Of(InnLineStyle.Heading, new InnSegment(text("Inn.Setup.Sample"))) };
         if (data is null) return new InnStripModel(lines);
         var cooks = roster.Where(o => data.ChefBonusesOf(o).Count > 0).ToList();
-        var types = data.DishTypes.ToList();
-        for (int k = 1; k <= KitchenMath.MaxKitchens; k++)
+        int per = InnSuggester.MaxSubstitutes, chefs = 2 + per, dishes = 3 + per;
+        var kitchens = Enumerable.Range(1, KitchenMath.MaxKitchens).Select(k =>
         {
-            var chefs = cooks.Skip((k - 1) * 2 * InnTierList.MaxPerTier).Take(2 * InnTierList.MaxPerTier).ToList();
-            List<List<InnSegment>> tiers = [[.. chefs.Take(2).Select(Chef)], [.. chefs.Skip(2).Take(2).Select(Chef)], [.. chefs.Skip(4).Take(2).Select(Chef)]];
-            string label = types.Count >= k
-                ? string.Format(text("Inn.Setup.KitchenRole"), text($"Inn.Kitchen.{k}"), types[k - 1].Zh)
-                : string.Format(text("Inn.Setup.Kitchen"), text($"Inn.Kitchen.{k}"));
-            lines.Add(Tiered(label, tiers, text));
-        }
-        var dishes = data.Dishes.Select(d => new InnSegment(d.Zh, d.Id)).ToList();
-        lines.Add(Tiered(text("Inn.Setup.Menu"), [[.. dishes.Take(MenuRules.MostSeen)], [.. dishes.Skip(8).Take(InnTierList.MaxPerTier)], [.. dishes.Skip(11).Take(InnTierList.MaxPerTier)]], text));
-        var drinks = data.Drinks.Select(d => new InnSegment(d.Zh, d.Id)).ToList();
-        lines.Add(Tiered(text("Inn.Setup.Drinks"), [[.. drinks.Take(3)], [.. drinks.Skip(3).Take(InnTierList.MaxPerTier)], [.. drinks.Skip(6).Take(InnTierList.MaxPerTier)]], text));
+            var people = cooks.Skip((k - 1) * chefs).Take(chefs).ToList();
+            var cooked = data.Dishes.Skip((k - 1) * dishes).Take(dishes).Select(d => new MenuDish(d, null)).ToList();
+            return new KitchenSuggestion(k, people.Take(2).ToList(), people.Skip(2).ToList(), cooked.Take(3).ToList(), cooked.Skip(3).ToList(),
+                [.. cooked.Take(3).Select(d => d.Dish.Type).Distinct()]);
+        }).ToList();
+        var drinks = data.Drinks.Select(d => new MenuDrink(d, null)).ToList();
+        lines.AddRange(Blocks(new InnSuggestions(kitchens, [], drinks.Take(MenuRules.MostSeen).ToList(), drinks.Skip(MenuRules.MostSeen).Take(per).ToList()), data, text));
         return new InnStripModel(lines);
     }
 }

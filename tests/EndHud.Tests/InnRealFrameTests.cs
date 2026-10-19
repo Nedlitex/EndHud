@@ -64,13 +64,13 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The owner's 养身心 setup, read by the real readers: 营业设定 alone gives the panel's tier
-    /// lists (no chef picker, no menu screen needed; owner, 2026-10-19), meeting every requirement
+    /// The owner's 养身心 setup, read by the real readers: 营业设定 alone gives the panel's
+    /// per-kitchen suggestions (no chef picker, no menu screen needed; owner, 2026-10-19), meeting every requirement
     /// on screen (Rating 4: at least 3 types, 6 dishes and 3 drinks; 养身心: at least 2 [素食] or
     /// [滋补] dishes). With the menu screen's two frames seen as well, still the same shape.
     /// </summary>
     [Fact]
-    public async Task The_setup_screen_alone_gives_tier_lists_meeting_every_rule()
+    public async Task The_setup_screen_alone_gives_kitchen_blocks_meeting_every_rule()
     {
         var (monitor, raised) = await Monitor();
         double at = 0;
@@ -99,8 +99,10 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
 
         var lines = InnSetupView.Build(inputs, advice, Inn, Text).Lines.Select(l => l.Text).ToList();
         foreach (string line in lines) output.WriteLine(line);
-        Assert.Equal("缘缘庄 · 推荐（没有的干员/菜换同档的）", lines[0]);
-        Assert.Equal(["厨房一", "厨房二", "厨房三", "菜单：", "饮品："], lines.Skip(1).Select(l => l.StartsWith("厨房") ? l[..3] : l[..(l.IndexOf('：') + 1)]));
+        Assert.Equal("缘缘庄 · 推荐（没有的干员/菜，换「可换」里的）", lines[0]);
+        string[] kitchen = ["干员：", "可换：", "做菜：", "可换："];
+        Assert.Equal(["厨房一", .. kitchen, "厨房二", .. kitchen, "厨房三", .. kitchen, "饮品：", "可换："],
+            lines.Skip(1).Select(l => l.StartsWith("厨房") ? l[..3] : l[..(l.IndexOf('：') + 1)]));
 
         // The menu screen seen too: it refines (stock, the rules as stated), the panel keeps its shape.
         await Show("menu-dishes");

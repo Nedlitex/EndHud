@@ -12,9 +12,9 @@ namespace EndHud.Tests;
 
 /// <summary>
 /// The setup panel as drawn (<see cref="InnStrip"/> over <see cref="InnSetupView"/>), measured off
-/// screen: the fullest panel fits from its default place to the window's edge at 1080p, 1440p and
-/// 4K, and every operator, dish and drink has its picture beside its name, or its name alone
-/// without one.
+/// screen: the fullest panel (a block per kitchen) fits from its default bottom-left anchor to the
+/// window's edge at 1080p, 1440p and 4K, and every operator, dish and drink has its picture beside
+/// its name, or its name alone without one.
 /// </summary>
 [Collection(WpfCollection.Name)]
 public class InnSetupLayoutTests
@@ -56,27 +56,29 @@ public class InnSetupLayoutTests
         : Load(InnData.PicturePath(Folder, id));
 
     /// <summary>
-    /// The fullest panel: three kitchens, each with its role and as many chefs as its tiers hold (T1
-    /// two of its own and <see cref="InnTierList.MaxPerTier"/> more, T2 and T3 full) with the longest
-    /// names; eight dishes and eight drinks in T1 and full T2 and T3, the longest names; and the note
-    /// that the rules can't all be met.
+    /// The fullest panel: three kitchens, each with two chefs and three substitutes and two dish types
+    /// in its heading; the menu's eight dishes shared out as <paramref name="split"/> says, each
+    /// kitchen with three dish substitutes; eight drinks and three substitutes; the longest names
+    /// everywhere; a rule not understood and the note that the rules can't all be met.
     /// </summary>
-    private static InnStripModel Fullest()
+    private static InnStripModel Fullest(params int[] split)
     {
-        int per = InnTierList.MaxPerTier;
+        int per = InnSuggester.MaxSubstitutes;
         var cooks = Library.Operators.Where(o => Inn.ChefBonusesOf(o).Count > 0).OrderByDescending(o => o.NameZh.Length).ThenBy(o => o.Id).ToList();
         var dishes = Inn.Dishes.OrderByDescending(d => d.Zh.Length).ThenBy(d => d.Id).Select(d => new MenuDish(d, null)).ToList();
         var drinks = Inn.Drinks.OrderByDescending(d => d.Zh.Length).ThenBy(d => d.Id).Select(d => new MenuDrink(d, null)).ToList();
-        var role = Inn.DishTypes.OrderByDescending(t => t.Zh.Length).First().Id;
-        var kitchens = Enumerable.Range(1, 3).Select(k => new KitchenTiers(k, role,
-            [cooks.Take(2 + per).ToList(), cooks.Skip(2 + per).Take(per).ToList(), cooks.Skip(2 + 2 * per).Take(per).ToList()])).ToList();
-        var tiers = new InnTiers(kitchens,
-            [dishes.Take(8).ToList(), dishes.Skip(8).Take(per).ToList(), dishes.Skip(8 + per).Take(per).ToList()],
-            [drinks.Take(8).ToList(), drinks.Skip(8).Take(per).ToList(), drinks.Skip(8 + per).Take(per).ToList()]);
-        var plan = new InnPlan([.. Enumerable.Range(1, 3).Select(k => new PlannedKitchen(k, cooks.Take(2).ToList()))],
-            dishes.Take(8).ToList(), drinks.Take(8).ToList(), null, InnPlanScore.Zero, RulesMet: false, []);
-        var inputs = new InnSetupInputs([], new InnPlanInput([], 4, 0, 6, [], [], [], [], new MenuRules(6, 8, 3, 8, 3, [])), "k", []);
-        return InnSetupView.Build(inputs, new InnSetupAdvice(plan, tiers), Inn, Text);
+        var types = Inn.DishTypes.OrderByDescending(t => t.Zh.Length).Take(2).Select(t => t.Id).ToList();
+        var menu = dishes.Take(MenuRules.MostSeen).ToList();
+        var offMenu = dishes.Skip(MenuRules.MostSeen).ToList();
+        var kitchens = Enumerable.Range(0, 3).Select(k => new KitchenSuggestion(k + 1,
+            cooks.Skip(k * (2 + per)).Take(2).ToList(), cooks.Skip(k * (2 + per) + 2).Take(per).ToList(),
+            menu.Skip(split.Take(k).Sum()).Take(split[k]).ToList(), offMenu.Skip(k * per).Take(per).ToList(), types)).ToList();
+        var suggestions = new InnSuggestions(kitchens, [], drinks.Take(MenuRules.MostSeen).ToList(), drinks.Skip(MenuRules.MostSeen).Take(per).ToList());
+        var plan = new InnPlan([.. kitchens.Select(k => new PlannedKitchen(k.Number, k.Chefs))], menu, drinks.Take(MenuRules.MostSeen).ToList(), null,
+            InnPlanScore.Zero, RulesMet: false, []);
+        var inputs = new InnSetupInputs([], new InnPlanInput([], 4, 0, 6, [], [], [], [], new MenuRules(6, 8, 3, 8, 3, [])), "k",
+            ["至少有2道带有[某种没见过的]特性的菜品"]);
+        return InnSetupView.Build(inputs, new InnSetupAdvice(plan, suggestions), Inn, Text);
     }
 
     private static Size Measure(InnStripModel model) => OnSta(() =>
@@ -87,12 +89,17 @@ public class InnSetupLayoutTests
     });
 
     [Theory]
-    [InlineData(1920, 1080)]
-    [InlineData(2560, 1440)]
-    [InlineData(3840, 2160)]
-    public void The_fullest_panel_fits_from_its_default_place_to_the_windows_edge(int width, int height)
+    [InlineData(1920, 1080, 3)]
+    [InlineData(2560, 1440, 3)]
+    [InlineData(3840, 2160, 3)]
+    [InlineData(1920, 1080, 8)]
+    [InlineData(2560, 1440, 8)]
+    [InlineData(3840, 2160, 8)]
+    public void The_fullest_panel_fits_from_its_default_place_to_the_windows_edge(int width, int height, int dishesInTheFirstKitchen)
     {
-        var size = Measure(Fullest());
+        // The menu shared 3/3/2, or all eight dishes in the first kitchen (its 做菜 row wraps most).
+        int[] split = dishesInTheFirstKitchen == 8 ? [8, 0, 0] : [3, 3, 2];
+        var size = Measure(Fullest(split));
         double scale = ComboHintLayout.Scale(height, dpiScale: 1);
 
         double right = HudConfig.DefaultInnSetupX * width + (size.Width + Frame) * scale;
@@ -114,7 +121,7 @@ public class InnSetupLayoutTests
     [Fact]
     public void Every_chef_dish_and_drink_has_its_picture_beside_its_name_or_its_name_alone_without_one()
     {
-        var model = Fullest();
+        var model = Fullest(3, 3, 2);
         var named = model.Lines.SelectMany(l => l.Segments).Where(s => s.PictureId is not null).ToList();
         string missing = named.First(s => s.PictureId!.StartsWith(InnSetupView.OperatorPicture, StringComparison.Ordinal)).PictureId!;
 

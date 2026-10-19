@@ -263,6 +263,21 @@ public sealed class InnPlanner(InnData inn)
             [.. drinks.Select(d => Value(hot, d.Drink))], [.. drinks.Select(d => d.Stock)]);
     }
 
+    /// <summary>
+    /// The kitchen (its number) that cooks the larger share of each of <paramref name="dishes"/> under
+    /// the model, the kitchens' loads balanced (<see cref="Shares"/>); on an equal share, the faster
+    /// kitchen, then the lower number. Null for every dish when no kitchen cooks.
+    /// </summary>
+    public IReadOnlyList<int?> MainKitchens(InnPlanInput input, IReadOnlyList<Kitchen> kitchens, IReadOnlyList<MenuDish> dishes)
+    {
+        var cooking = kitchens.Where(Cooks).ToList();
+        if (cooking.Count == 0) return [.. dishes.Select(_ => (int?)null)];
+        var (seconds, _) = Times(input, cooking, [.. dishes.Select(d => d.Dish)]);
+        var shares = Shares(seconds);
+        return [.. Enumerable.Range(0, dishes.Count).Select(d => (int?)cooking[Enumerable.Range(0, cooking.Count)
+            .OrderByDescending(k => Math.Round(shares[k, d], 9)).ThenBy(k => seconds[k, d]).ThenBy(k => cooking[k].Number).First()].Number)];
+    }
+
     /// <summary>The plan for <paramref name="input"/>.</summary>
     /// <exception cref="ArgumentException">No kitchens or more than three, two with one number, places outside 1–2, or an unknown Inn Rating.</exception>
     public InnPlan Plan(InnPlanInput input)
@@ -378,7 +393,10 @@ public sealed class InnPlanner(InnData inn)
     /// planes λ_i t_id = λ_j t_jd and λ_k = 0; with at most three kitchens there are few, and every
     /// one is tried.
     /// </summary>
-    internal static double Balance(double[,] seconds)
+    internal static double Balance(double[,] seconds) => BalanceWeights(seconds).PerDish;
+
+    /// <summary><see cref="Balance"/>, with the kitchen weights λ that reach it.</summary>
+    private static (double PerDish, double[] Weights) BalanceWeights(double[,] seconds)
     {
         int kitchens = seconds.GetLength(0), dishes = seconds.GetLength(1);
         double F(ReadOnlySpan<double> lambda)
@@ -392,7 +410,7 @@ public sealed class InnPlanner(InnData inn)
             }
             return sum / dishes;
         }
-        if (kitchens == 1) return F([1.0]);
+        if (kitchens == 1) return (F([1.0]), [1.0]);
 
         // The planes, as coefficient rows c (c·λ = 0), each once.
         var planes = new List<double[]>();
@@ -419,7 +437,15 @@ public sealed class InnPlanner(InnData inn)
         }
 
         double best = 0;
+        var weights = new double[kitchens];
         Span<double> lambda = stackalloc double[kitchens];
+        void Keep(Span<double> at)
+        {
+            double value = F(at);
+            if (value <= best) return;
+            best = value;
+            at.CopyTo(weights);
+        }
         if (kitchens == 2)
         {
             foreach (var c in planes)
@@ -429,18 +455,119 @@ public sealed class InnPlanner(InnData inn)
                 if (Math.Abs(det) < 1e-12) continue;
                 lambda[0] = -c[1] / det;
                 lambda[1] = c[0] / det;
-                if (Feasible(lambda)) best = Math.Max(best, F(lambda));
+                if (Feasible(lambda)) Keep(lambda);
             }
-            return best;
+            return (best, weights);
         }
         for (int p = 0; p < planes.Count; p++)
         {
             for (int q = p + 1; q < planes.Count; q++)
             {
-                if (Solve3(planes[p], planes[q], lambda) && Feasible(lambda)) best = Math.Max(best, F(lambda));
+                if (Solve3(planes[p], planes[q], lambda) && Feasible(lambda)) Keep(lambda);
             }
         }
-        return best;
+        return (best, weights);
+    }
+
+    /// <summary>
+    /// How the balanced kitchens share each dish (<see cref="Balance"/>): [kitchen, dish], each dish's
+    /// column summing to 1. From the weights λ that reach the balance: a dish is cooked only where its
+    /// weighted time λ_k t_kd is least (complementary slackness), and every kitchen is loaded to the
+    /// balance. A dish least in one kitchen goes there whole; dishes tied between kitchens take what
+    /// load is left, a flow in units of weighted time (a tied dish costs the same weighted time in
+    /// each kitchen it's tied in, so the units carry over).
+    /// </summary>
+    internal static double[,] Shares(double[,] seconds)
+    {
+        int kitchens = seconds.GetLength(0), dishes = seconds.GetLength(1);
+        var shares = new double[kitchens, dishes];
+        if (kitchens == 0 || dishes == 0) return shares;
+        var (perDish, weights) = BalanceWeights(seconds);
+        if (kitchens == 1 || weights.Any(w => w <= 1e-12))
+        {
+            // One kitchen, or a degenerate balance: each dish where it cooks fastest.
+            for (int d = 0; d < dishes; d++) shares[Fastest(seconds, d), d] = 1;
+            return shares;
+        }
+
+        var load = new double[kitchens];
+        var tied = new List<(int Dish, double Work, int[] Kitchens)>();
+        for (int d = 0; d < dishes; d++)
+        {
+            double least = double.MaxValue;
+            for (int k = 0; k < kitchens; k++) least = Math.Min(least, weights[k] * seconds[k, d]);
+            int[] where = [.. Enumerable.Range(0, kitchens).Where(k => weights[k] * seconds[k, d] <= least * (1 + 1e-9))];
+            if (where.Length == 1)
+            {
+                shares[where[0], d] = 1;
+                load[where[0]] += seconds[where[0], d];
+            }
+            else tied.Add((d, least, where));
+        }
+        if (tied.Count == 0) return shares;
+
+        // Max flow: source -> tied dish (its weighted time) -> kitchen it's tied in -> sink (the weighted load left).
+        int n = tied.Count, source = 0, sink = n + kitchens + 1;
+        var capacity = new double[sink + 1, sink + 1];
+        for (int i = 0; i < n; i++)
+        {
+            capacity[source, 1 + i] = tied[i].Work;
+            foreach (int k in tied[i].Kitchens) capacity[1 + i, 1 + n + k] = double.MaxValue;
+        }
+        double total = perDish * dishes;
+        for (int k = 0; k < kitchens; k++) capacity[1 + n + k, sink] = Math.Max(0, weights[k] * (total - load[k]));
+        var flow = MaxFlow(capacity, source, sink);
+        for (int i = 0; i < n; i++)
+        {
+            int d = tied[i].Dish;
+            double sent = tied[i].Kitchens.Sum(k => flow[1 + i, 1 + n + k]);
+            if (sent <= 1e-12) shares[tied[i].Kitchens.MinBy(k => seconds[k, d]), d] = 1;
+            else foreach (int k in tied[i].Kitchens) shares[k, d] = flow[1 + i, 1 + n + k] / sent;
+        }
+        return shares;
+    }
+
+    private static int Fastest(double[,] seconds, int dish)
+    {
+        int fastest = 0;
+        for (int k = 1; k < seconds.GetLength(0); k++)
+            if (seconds[k, dish] < seconds[fastest, dish]) fastest = k;
+        return fastest;
+    }
+
+    /// <summary>Edmonds-Karp over a dense capacity matrix (a handful of nodes); returns the flow on each edge.</summary>
+    private static double[,] MaxFlow(double[,] capacity, int source, int sink)
+    {
+        int nodes = capacity.GetLength(0);
+        var flow = new double[nodes, nodes];
+        double Residual(int u, int v) => capacity[u, v] - flow[u, v] + flow[v, u];
+        while (true)
+        {
+            var parent = Enumerable.Repeat(-1, nodes).ToArray();
+            parent[source] = source;
+            var queue = new Queue<int>([source]);
+            while (queue.Count > 0 && parent[sink] < 0)
+            {
+                int u = queue.Dequeue();
+                for (int v = 0; v < nodes; v++)
+                {
+                    if (parent[v] >= 0 || Residual(u, v) <= 1e-12) continue;
+                    parent[v] = u;
+                    queue.Enqueue(v);
+                }
+            }
+            if (parent[sink] < 0) return flow;
+            double push = double.MaxValue;
+            for (int v = sink; v != source; v = parent[v]) push = Math.Min(push, Residual(parent[v], v));
+            for (int v = sink; v != source; v = parent[v])
+            {
+                int u = parent[v];
+                // Undo flow coming back first, then send forward.
+                double back = Math.Min(push, flow[v, u]);
+                flow[v, u] -= back;
+                flow[u, v] += push - back;
+            }
+        }
     }
 
     private static bool Feasible(Span<double> lambda)
