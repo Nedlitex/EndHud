@@ -177,7 +177,11 @@ public sealed class InnPlanner(InnData inn)
     public static IReadOnlyList<string> HotTraitsOf(IReadOnlyList<string> read, InnTheme? theme) =>
         read.Count > 0 ? read : theme?.Prefers ?? [];
 
-    /// <summary>The 热门 traits <paramref name="dish"/> matches: its traits and its type.</summary>
+    /// <summary>
+    /// The 热门 traits <paramref name="dish"/> matches: its traits and its type. The screen has only
+    /// shown traits as 热门特性 so far; a type counts when a theme's preferences (used when none were
+    /// read) name one, an assumption until a type-preferring theme is seen.
+    /// </summary>
     public static int HotMatches(IReadOnlyCollection<string> hot, Dish dish) =>
         dish.Traits.Count(hot.Contains) + (hot.Contains(dish.Type.ToString()) ? 1 : 0);
 
@@ -452,7 +456,7 @@ public sealed class InnPlanner(InnData inn)
         private readonly double[] _dishValues, _drinkValues;
 
         /// <summary>Chefs with the same bonuses, as one profile: its bonuses and its operators (in the input's order).</summary>
-        private readonly List<(OperatorInfo Representative, List<OperatorInfo> Operators)> _profiles;
+        private readonly List<(string Bonuses, List<OperatorInfo> Operators)> _profiles;
 
         public Search(InnPlanner planner, InnPlanInput input, HashSet<string> hot)
         {
@@ -467,7 +471,7 @@ public sealed class InnPlanner(InnData inn)
                 .Where(o => !inn.ChefBonuses.NotChefs.Contains(o.Id))
                 .DistinctBy(o => o.Id)
                 .GroupBy(o => string.Join("|", inn.ChefBonusesOf(o).Select(b => $"{b.Kind}:{b.Percent}:{b.DishType}:{b.Flavor}").Order(StringComparer.Ordinal)))
-                .Select(g => (g.First(), g.ToList()))];
+                .Select(g => (g.Key, g.ToList()))];
         }
 
         /// <summary>The dishes and drinks that can go on the menu (offered, in stock, each once).</summary>

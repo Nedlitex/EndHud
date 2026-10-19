@@ -246,6 +246,25 @@ public class InnPlannerTests(ITestOutputHelper output)
         Assert.Equal(kitchenBound, score.KitchenBound);
     }
 
+    /// <summary>
+    /// A dish short of stock earns only what can be cooked: 肉包子 with 5 left, where one kitchen
+    /// would serve 20 (16.7 orders × 1.2), earns 5 × 12; the plan says it runs short.
+    /// </summary>
+    [Fact]
+    public void A_dish_short_of_stock_earns_only_its_stock()
+    {
+        var input = Input(Kitchens(1, 1), [Plain("Plain")], [new MenuDish(InnTestData.Dish("肉包子"), 5)], [],
+            new MenuRules(1, 1, 0, 0, 1, []));
+
+        var score = Planner.Evaluate(input, [new Kitchen(1, [Plain("Plain")])], input.Dishes, []);
+        var plan = Planner.Plan(input);
+
+        Assert.Equal(60, score.Income, 6);
+        var short_ = Assert.Single(plan.Reasons, r => r.Kind == PlanReasonKind.ShortOfStock);
+        Assert.Equal("meat-baozi", short_.Id);
+        Assert.Equal(15, short_.Value, 6);
+    }
+
     /// <summary>Two dishes, one kitchen fast at each: the loads balance (each dish where it's fast).</summary>
     [Fact]
     public void The_kitchens_share_the_dishes_each_where_it_cooks_fastest()
@@ -388,6 +407,9 @@ public class InnPlannerTests(ITestOutputHelper output)
 
         AssertValid(input, plan);
         output.WriteLine($"owner: {ownersScore.Income:F0} income, {ownersScore.Orders:F1} orders, {ownersScore.ChoiceDishes:F2} choice dishes");
+        // For the report: the same, were an empty kitchen to cook at base speed (unknown; the planner assumes not).
+        var ifEmptyCooked = Planner.Evaluate(input, [owners[0], owners[1], new Kitchen(3, [Plain("Nobody")])], ownersMenu, plan.Drinks);
+        output.WriteLine($"owner, if kitchen 3 cooked without a chef: {ifEmptyCooked.Income:F0} income, {ifEmptyCooked.Orders:F1} orders");
         output.WriteLine($"plan:  {Describe(plan)}");
         Assert.False(ownersScore.BetterThan(plan.Score));
         // The owner's chefs in the owner's kitchens with the planner's menu score no more than the plan either.
