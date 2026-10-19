@@ -19,20 +19,15 @@ public sealed class InnText
     private readonly OcrEngine _engine;
     // One recognition at a time: the engine read garbage when two callers shared it at once.
     private readonly SemaphoreSlim _busy = new(1, 1);
-    // Numbers alone ("04:46", "92/100") read more reliably with the English engine, when there is one.
-    private readonly OcrEngine _digits;
 
-    private InnText(OcrEngine engine, OcrEngine digits)
-    {
-        _engine = engine;
-        _digits = digits;
-    }
+    private InnText(OcrEngine engine) => _engine = engine;
 
-    /// <summary>The reader, or null when the Simplified Chinese OCR language isn't installed (Windows Settings → Language).</summary>
+    /// <summary>
+    /// The reader, or null when the Simplified Chinese OCR language isn't installed (Windows Settings
+    /// → Language). Numbers are not read with it: see <see cref="InnDigits"/>.
+    /// </summary>
     public static InnText? TryCreate() =>
-        OcrEngine.TryCreateFromLanguage(new Language("zh-Hans-CN")) is { } engine
-            ? new InnText(engine, OcrEngine.TryCreateFromLanguage(new Language("en-US")) ?? engine)
-            : null;
+        OcrEngine.TryCreateFromLanguage(new Language("zh-Hans-CN")) is { } engine ? new InnText(engine) : null;
 
     /// <summary>Which pixels are text.</summary>
     public delegate bool Ink(byte r, byte g, byte b);
@@ -122,14 +117,6 @@ public sealed class InnText
     }
 
     private static readonly int[] AttemptHeights = [MinHeight, 140, 70];
-
-    /// <summary>Like <see cref="ReadAsync"/>, for a region holding only digits and their punctuation.</summary>
-    public async Task<string?> ReadNumberAsync(Frame frame, PixelRect region, Ink ink, double hudScale)
-    {
-        var prepared = Prepare(frame, region, ink, hudScale);
-        if (prepared is null) return null;
-        return string.Concat((await RecognizeAsync(_digits, prepared)).Select(l => string.Concat(l.Words.Select(w => w.Text))));
-    }
 
     /// <summary>The lines read in <paramref name="region"/>, each with its words joined, top to bottom.</summary>
     public async Task<IReadOnlyList<string>> ReadLinesAsync(Frame frame, PixelRect region, Ink ink, double hudScale)

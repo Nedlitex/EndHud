@@ -491,6 +491,49 @@ slips, and a bubble wraps onto lines read one at a time. Each two-character piec
 counts by how rare it is among all requests, so the word that tells two of a gourmand's requests
 apart decides. Tested on the lines OCR read off the owner's recording (two gourmands, both found).
 
+### Reading the inn's screens
+
+The readers in [`src/EndHud.Vision/Inn/`](src/EndHud.Vision/Inn) return data records and draw
+nothing; each returns null (or a null field) for what it can't read clearly, never a guess. They
+are not wired into the app yet. Chinese text is read with the Windows OCR engine for Simplified
+Chinese ([`InnText`](src/EndHud.Vision/Inn/InnText.cs): `InnText.TryCreate()` is null without that
+language). Measured on the owner's two recordings (`tests/data/Fixtures/inn`, what each frame
+shows in its README), at 4K and scaled to 1440p and 1080p (`SimulatedScreen`); the setup screens,
+the menu and the dispatch panel are placed on the centred 16:9 area, the session's HUD by its
+corners, and other window shapes are EndHud's assumption, not checked.
+
+| Reader | Reads | On the frames |
+|---|---|---|
+| `InnScreen.DetectAsync` | setup (营业设定, 主题设定), chef picker, menu, session, dispatch panel (titles by OCR, the timer by its digits) | all 20 frames, at every size (the session's first frame, fading in, at 4K only) |
+| `InnScreen.ReadClock` | time left, closed at 00:00 | every session frame |
+| `FireMeterReader` | fire "N/100", streak, ready (red button, 开启满堂彩) | all, at every size; hidden behind the dispatch panel |
+| `TableCardReader` | each table's state and, for an order, its dishes and drinks by picture, being made / ready, the pips | 56/56 items and 90/90 cards at 4K, 1440p and 1080p |
+| `DispatchPanelReader` | kitchen shown, chefs, 珍馐 chance, each dish's cook time, the queue (dish, time left) | 114–115 of 115 values per size, none wrong |
+| `BubbleReader` | a gourmand's speech bubble, its sentences matched with `InnData.MatchSaid` | the one recorded bubble, both requests, at every size |
+| `SetupReader` | theme, objective, menu rules, hot traits, kitchens with their chef places and chefs | all at 4K; objective and rules slip at 1440p |
+| `MenuReader` | tab, cards in view and whether each is on the menu, stock ∞, the counters | tab and cards at every size; stock and counters partly |
+
+How the hard parts work:
+
+- **Numbers** (timer, fire, streak, cook times, counters) are read by their glyphs' shapes
+  ([`InnDigits`](src/EndHud.Vision/Inn/InnDigits.cs)), not OCR: Windows OCR misread 04:25 as
+  "04•.26" without saying so. The shapes are averaged from the frames at 4K; a glyph not clearly
+  one of them makes the number unreadable.
+- **Ordered dishes and drinks** ([`TableCardReader`](src/EndHud.Vision/Inn/TableCardReader.cs)):
+  each picture's grey disc is found by fitting a circle to its edge (a new order's card is drawn
+  larger for a moment), and every dish and drink picture is drawn the way the card draws it (103
+  px at 4K over the disc's grey) and compared in colour over the whole disc but the badge's corner.
+  A picture is named when it's within 20 (mean difference per channel) and 5 ahead of the next;
+  on the frames right pictures score 3–12 and the next ones are ≥ 7.6 behind.
+- **OCR'd names** are matched to the data by the longest run of letters they share
+  ([`InnNames`](src/EndHud.Vision/Inn/InnNames.cs)), and read at a few sizes (and once in the
+  region's own greys, which a small window needs) until one in the data comes out.
+- **One OCR engine, one recognition at a time**: two callers sharing it read garbage now and then.
+
+Not built yet: identifying the chef picker's cards (they show no names; the plan matches portraits
+and bonus icons), the drink bar and the results screen (no frame recorded), a one-item order's
+picture place (no frame of one).
+
 ## Rotations
 
 ### The file
@@ -819,7 +862,7 @@ src/EndHud.Vision/       everything that reads the screen
   Capture/               Windows.Graphics.Capture of a single window
   Operators/             operator library, recognition (character model), learning, operator counters, status icons
   Rotations/             rotation format, store, recommended-rotation sync, and the tracker that finds the current step
-  Inn/                   the inn's dishes, themes and chef rules (InnData)
+  Inn/                   the inn: its data (InnData), gourmands, and the readers of its screens
   Assets/ccip/           the character recognition model (Git LFS; see tools/ccip-model)
   Assets/operator-portraits.json  in-game portrait references (the model's numbers; built from test fixtures)
   PartyReader.cs         squad panel: level, HP, combo, portraits
