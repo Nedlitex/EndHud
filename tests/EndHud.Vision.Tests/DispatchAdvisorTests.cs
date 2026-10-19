@@ -19,10 +19,10 @@ public class DispatchAdvisorTests
     private static KitchenQueue Queue(int kitchen, params (string Dish, double SecondsLeft)[] dishes) =>
         new(kitchen, dishes.Select(d => new QueuedDish(Dish(d.Dish), d.SecondsLeft)));
 
-    /// <param name="secondsLeft">Until the inn closes; by default mid-session, far from the end.</param>
+    /// <param name="servingLeft">Until the inn stops serving (the timer + <see cref="InnState.ServingAfterCloseSeconds"/>); by default mid-session, far from the end.</param>
     private static InnState State(IReadOnlyList<KitchenQueue> queues, IReadOnlyList<OrderedDish>? outstanding = null,
-        IReadOnlyList<string>? counter = null, IReadOnlyList<string>? carried = null, IReadOnlyList<MenuDish>? menu = null, double? secondsLeft = 200) =>
-        new(queues, [.. (counter ?? []).Select(Dish)], [.. (carried ?? []).Select(Dish)], outstanding ?? [], menu ?? InnSimulatorTests.RecordedMenu, secondsLeft);
+        IReadOnlyList<string>? counter = null, IReadOnlyList<string>? carried = null, IReadOnlyList<MenuDish>? menu = null, double? servingLeft = 200) =>
+        new(queues, [.. (counter ?? []).Select(Dish)], [.. (carried ?? []).Select(Dish)], outstanding ?? [], menu ?? InnSimulatorTests.RecordedMenu, servingLeft);
 
     private static OrderedDish Order(int table, string dish) => new(table, Dish(dish));
 
@@ -76,9 +76,9 @@ public class DispatchAdvisorTests
     [Fact]
     public void No_dish_is_cooked_ahead_in_the_last_40_seconds()
     {
-        var idle = Advisor().Advise(State([Queue(1), Queue(2), Queue(3)], secondsLeft: 39));
-        var everywhere = Advisor().Advise(State([Queue(1), Queue(2), Queue(3)], secondsLeft: 39), fillEverySlot: true);
-        var ordered = Advisor().Advise(State([Queue(1), Queue(2), Queue(3)], [Order(1, "肉包子")], secondsLeft: 10));
+        var idle = Advisor().Advise(State([Queue(1), Queue(2), Queue(3)], servingLeft: 39));
+        var everywhere = Advisor().Advise(State([Queue(1), Queue(2), Queue(3)], servingLeft: 39), fillEverySlot: true);
+        var ordered = Advisor().Advise(State([Queue(1), Queue(2), Queue(3)], [Order(1, "肉包子")], servingLeft: 10));
 
         Assert.Empty(All(idle));
         Assert.Empty(All(everywhere));
@@ -90,7 +90,7 @@ public class DispatchAdvisorTests
     [Fact]
     public void A_dish_is_cooked_ahead_only_if_it_comes_out_before_closing()
     {
-        var advice = Advisor().Advise(State([Queue(1, ("果味沙拉", 20)), Queue(2), Queue(3)], secondsLeft: 45), fillEverySlot: true);
+        var advice = Advisor().Advise(State([Queue(1, ("果味沙拉", 20)), Queue(2), Queue(3)], servingLeft: 45), fillEverySlot: true);
 
         Assert.NotEmpty(All(advice));
         Assert.All(All(advice), a => Assert.True(a.Advice.ReadyIn <= 45, $"{a.Advice.Dish.Zh} in kitchen {a.Kitchen} out in {a.Advice.ReadyIn} s"));
@@ -99,26 +99,57 @@ public class DispatchAdvisorTests
     /// <summary>
     /// Owner, 2026-10-19: at the very last, serve whatever is left; a wrong dish still earns some
     /// money. Once the inn has closed, a dish on the counter goes to the table that ordered it, and
-    /// what's left after that to a table still waiting with nothing cooking for it, oldest first.
+    /// what's left after that to a table still waiting whose own dish can't come out in the 18 s
+    /// the inn keeps serving, oldest first.
     /// </summary>
     [Fact]
     public void Once_the_inn_has_closed_whats_left_goes_to_the_tables_still_waiting_the_right_dish_first()
     {
+        // Just closed: 18 s of serving left. Table 4's 缘缘菜饭 is out in 10 s and it waits for it;
+        // table 3's 果味沙拉 can't be out before 30 s.
         var advice = Advisor().Advise(State([Queue(1, ("缘缘菜饭", 10)), Queue(2), Queue(3)],
-            [Order(4, "缘缘菜饭"), Order(3, "果味沙拉"), Order(2, "坛子肉")], counter: ["肉包子", "坛子肉"], secondsLeft: 0));
+            [Order(4, "缘缘菜饭"), Order(3, "果味沙拉"), Order(2, "坛子肉")], counter: ["肉包子", "坛子肉"], servingLeft: InnState.ServingLeftAfterClose(0)));
 
         Assert.Equal([new LeftoverAdvice(Dish("坛子肉"), 2, Dish("坛子肉")), new LeftoverAdvice(Dish("肉包子"), 3, Dish("果味沙拉"))], advice.Leftovers);
         Assert.Equal([true, false], advice.Leftovers.Select(l => l.Matches));
         Assert.DoesNotContain(Sent(advice), s => s.Advice.Table == 3); // it gets the leftover instead
-        Assert.Empty(All(advice).Where(a => a.Advice.CookAhead));
+        Assert.DoesNotContain(All(advice), a => a.Advice.CookAhead);
+    }
+
+    /// <summary>
+    /// Owner, 2026-10-19: the last call is per table and can come before 00:00. With 10 s on the
+    /// timer the inn serves 28 s more: a table whose dish can't be out by then gets a dish left
+    /// over (a wrong one still earns money); a table whose dish can make it waits for it.
+    /// </summary>
+    [Fact]
+    public void Before_closing_a_table_whose_dish_cant_come_out_in_time_gets_a_leftover_and_one_whose_dish_can_waits()
+    {
+        // Kitchen 1: 果味沙拉 out in 20 s (table 4's: in time), then 坛子肉 out in 47 s (table 5's: too late).
+        // Table 3's 白瓜肉丸汤 takes 37 s at best; table 2's 缘缘菜饭 15 s.
+        var advice = Advisor().Advise(State([Queue(1, ("果味沙拉", 20), ("坛子肉", 27)), Queue(2), Queue(3)],
+            [Order(4, "果味沙拉"), Order(5, "坛子肉"), Order(3, "白瓜肉丸汤"), Order(2, "缘缘菜饭")],
+            counter: ["肉包子", "“勺里游”"], servingLeft: InnState.ServingLeft(10)));
+
+        Assert.Equal([new LeftoverAdvice(Dish("肉包子"), 5, Dish("坛子肉")), new LeftoverAdvice(Dish("“勺里游”"), 3, Dish("白瓜肉丸汤"))], advice.Leftovers);
+        Assert.DoesNotContain(Sent(advice), s => s.Advice.Table == 3);
+        Assert.Contains(Sent(advice), s => s.Advice.Table == 2 && s.Advice.Dish.Id == Dish("缘缘菜饭").Id);
     }
 
     [Fact]
-    public void Before_the_inn_closes_nothing_is_handed_out_as_a_leftover()
+    public void Far_from_the_end_nothing_is_handed_out_as_a_leftover()
     {
-        var advice = Advisor().Advise(State([Queue(1), Queue(2), Queue(3)], [Order(3, "果味沙拉"), Order(2, "坛子肉")], counter: ["肉包子", "坛子肉"], secondsLeft: 30));
+        var advice = Advisor().Advise(State([Queue(1), Queue(2), Queue(3)], [Order(3, "果味沙拉"), Order(2, "坛子肉")], counter: ["肉包子", "坛子肉"], servingLeft: InnState.ServingLeft(30)));
 
         Assert.Empty(advice.Leftovers);
+    }
+
+    [Fact]
+    public void The_inn_serves_18_seconds_after_the_timers_00_00()
+    {
+        Assert.Equal(18, InnState.ServingAfterCloseSeconds);
+        Assert.Equal(28, InnState.ServingLeft(10));
+        Assert.Equal(13, InnState.ServingLeftAfterClose(5));
+        Assert.Equal(0, InnState.ServingLeftAfterClose(30));
     }
 
     /// <summary>On a tie, the kitchen with the better choice-dish chance, even when it's the later one.</summary>

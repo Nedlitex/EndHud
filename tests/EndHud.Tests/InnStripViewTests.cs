@@ -163,6 +163,77 @@ public class InnStripViewTests
         Assert.DoesNotContain(strip.Lines, l => l.Segments.Any(s => s.PictureId == B) && l.Text.StartsWith(QueueLabel(1)));
     }
 
+    /// <summary>
+    /// Owner, 2026-10-19: the inn serves 18 s after the timer's 00:00, counted from when the session
+    /// first read 00:00 (the timer shows 00:00 from then on). Table 3's 肉包子 (15 s) can still be
+    /// cooked just after closing, so it waits for it; 4 s later it can't, and gets the dessert left over.
+    /// </summary>
+    [Fact]
+    public void After_closing_the_18_seconds_count_down_from_when_the_timer_first_read_00_00()
+    {
+        var session = Prepared(1);
+        // A dessert cooked ahead, no table waiting for it: out at 15 s, a spare on the counter.
+        session.Update(Session(10, left: 22, panel: Panel(1, 1, Menu[..5], (D, 5))));
+        session.Update(Session(30, left: 2));
+        session.Update(Session(32, left: 0, tables: Tables(Order(3, E))));
+
+        var justClosed = Strip(session.Advice(S(32))!);
+        session.Update(Session(36, left: 0, tables: Tables(Order(3, E))));
+        var later = Strip(session.Advice(S(36))!);
+
+        Assert.DoesNotContain(justClosed.Lines, l => l.Text.StartsWith(Text("Inn.Leftover.Give")));
+        Assert.Contains(justClosed.Lines, l => l.Text.StartsWith(QueueLabel(1)) && l.Segments.Any(s => s.PictureId == E));
+        Assert.Contains($"{Text("Inn.Leftover.Give")}{Dish(D).Zh}{Format("Inn.Leftover.ToTable", 3)}{Text("Inn.Leftover.Wrong")}", later.Lines.Select(l => l.Text));
+    }
+
+    /// <summary>
+    /// Owner, 2026-10-19: the last call is per table and can come before 00:00. With 10 s on the
+    /// timer the inn serves 28 s more; table 3's soup takes 40 s, so it gets the 肉包子 left over now.
+    /// </summary>
+    [Fact]
+    public void Before_00_00_a_table_whose_dish_cant_come_out_in_time_gets_a_leftover()
+    {
+        var session = Prepared(1);
+        // 肉包子 cooked ahead: out at 19 s.
+        session.Update(Session(5, left: 25, panel: Panel(1, 1, Menu[..5], (E, 14))));
+        session.Update(Session(20, left: 10, tables: Tables(Order(3, A))));
+
+        var strip = Strip(session.Advice(S(20))!);
+
+        Assert.Contains($"{Text("Inn.Leftover.Give")}{Dish(E).Zh}{Format("Inn.Leftover.ToTable", 3)}{Text("Inn.Leftover.Wrong")}", strip.Lines.Select(l => l.Text));
+    }
+
+    /// <summary>Owner, 2026-10-19: a table waiting only for a drink is never handed a dish; it won't be served.</summary>
+    [Fact]
+    public void A_table_waiting_only_for_a_drink_never_gets_a_leftover_dish()
+    {
+        var session = Prepared(1);
+        session.Update(Session(5, left: 25, panel: Panel(1, 1, Menu[..5], (E, 14))));
+        session.Update(Session(20, left: 10, tables: Tables(Order(3, Juice), Order(5, new OrderItem(A, Served: true), new OrderItem(Tea, Served: false)))));
+        session.Update(Session(30, left: 0, tables: Tables(Order(3, Juice), Order(5, new OrderItem(A, Served: true), new OrderItem(Tea, Served: false)))));
+
+        var strip = Strip(session.Advice(S(40))!);
+
+        Assert.DoesNotContain(strip.Lines, l => l.Text.StartsWith(Text("Inn.Leftover.Give")));
+    }
+
+    /// <summary>
+    /// Owner, 2026-10-19: cooking ahead counts the 18 s too. With 30 s on the timer the inn serves 48 s
+    /// more, so an idle kitchen still cooks ahead; with 21 s (39 s of serving) it no longer does.
+    /// </summary>
+    [Fact]
+    public void Cooking_ahead_stops_40_seconds_before_the_inn_stops_serving_not_before_00_00()
+    {
+        var session = Prepared(1);
+        session.Update(Session(10, left: 30));
+        var at30 = Strip(session.Advice(S(10))!);
+        session.Update(Session(19, left: 21));
+        var at21 = Strip(session.Advice(S(19))!);
+
+        Assert.Contains(at30.Lines, l => l.Text.StartsWith(QueueLabel(1) + Text("Inn.CookAhead")));
+        Assert.DoesNotContain(at21.Lines, l => l.Text.Contains(Text("Inn.CookAhead")));
+    }
+
     [Fact]
     public void While_full_blaze_runs_there_is_no_reminder_and_every_kitchen_stays_full()
     {
