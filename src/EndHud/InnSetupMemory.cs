@@ -76,7 +76,9 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
                     Setup = setup.Kitchens is null && Setup?.Kitchens is { } kitchens ? setup with { Kitchens = kitchens } : setup;
                 break;
             case InnScreenKind.ChefPicker:
-                if (reading.PickerKitchen is { } kitchen) PickerKitchen = kitchen;
+                // Read on this frame: its kitchen, or none when the title couldn't be read (never the
+                // last picker's, whose advice would be another kitchen's). Between reads it stands.
+                if (reading.Fresh) PickerKitchen = reading.PickerKitchen;
                 break;
             case InnScreenKind.Menu:
                 foreach (var card in reading.Menu?.Cards ?? [])
