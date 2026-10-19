@@ -17,7 +17,7 @@ public class InnRealFrameTests
     {
         var text = InnText.TryCreate()
             ?? throw new InvalidOperationException("The inn tests need the Simplified Chinese OCR language (Windows Settings > Language).");
-        return new InnScreens(text, await InnPictures.LoadAsync(Folder, Inn), Inn, Library.Operators);
+        return new InnScreens(text, await InnPictures.LoadAsync(Folder, Inn), Inn, Library);
     });
 
     private static Task<Frame> Load(string name) => ImageFile.LoadAsync(Path.Combine(AppContext.BaseDirectory, "Fixtures", name));

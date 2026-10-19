@@ -206,7 +206,9 @@ internal sealed class PartyMonitor : IDisposable
         $"tables {string.Join(" ", r.TableCards.Select(t => t is null ? "?" : $"{t.State}{(t.Items.Count > 0 ? ":" + string.Join("+", t.Items.Select(i => i.Id ?? "?")) : "")}"))}, " +
         $"fire {(r.Fire is { } f ? (f.Ready ? "ready" : f.Fire?.ToString() ?? "?") : "-")}" +
         (r.Panel is { } p ? $", panel kitchen {p.Kitchen}/{p.Kitchens} queue {string.Join("+", p.Queue.Where(q => q.Filled).Select(q => q.DishId ?? "?"))}" : "") +
-        (r.Bubble is { } b ? $", bubble \"{b.Text}\"" : "");
+        (r.Bubble is { } b ? $", bubble \"{b.Text}\"" : "") +
+        (r.Picker is { } k ? $", picker {k.Cards.Count} cards, named {string.Join("+", k.Cards.Select(c => c.OperatorId ?? "?"))}, chosen {string.Join("+", k.Selected)}" : "") +
+        (r.Requirements is { } q ? $", menu rules: rating {q.Rating?.ToString() ?? "?"}, types {q.MinTypes?.ToString() ?? "?"}, dishes {q.MinDishes?.ToString() ?? "?"}, drinks {q.MinDrinks?.ToString() ?? "?"}" : "");
 
     /// <summary>The last game picture read (the game area only), for the diagnostic export.</summary>
     public Frame? LatestFrame { get; private set; }
@@ -525,7 +527,7 @@ internal sealed class PartyMonitor : IDisposable
             var pictures = await InnPictures.LoadAsync(ReferenceFolder, data);
             DiagnosticLog.Info($"inn: {data.Dishes.Count} dishes, {data.Drinks.Count} drinks, {pictures.Count} pictures");
             InnProblem = null;
-            _innFrames = new InnFrameReader(new InnScreens(_innText, pictures, data, library.Operators));
+            _innFrames = new InnFrameReader(new InnScreens(_innText, pictures, data, library));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {

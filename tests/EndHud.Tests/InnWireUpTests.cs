@@ -21,7 +21,7 @@ public class InnWireUpTests
         public InnScreenKind? Kind { get; set; }
         public DispatchPanel? Panel { get; set; }
         public IReadOnlyList<TableCard?> Tables { get; set; } = [.. Enumerable.Range(1, 6).Select(n => (TableCard?)new TableCard(n, TableState.Empty, [], []))];
-        public int Detections, BubbleReads, PanelReads, SetupReads;
+        public int Detections, BubbleReads, PanelReads, SetupReads, PickerReads;
 
         public Task<InnScreenKind?> DetectAsync(Frame frame)
         {
@@ -55,6 +55,14 @@ public class InnWireUpTests
         }
 
         public Task<InnMenu?> ReadMenuAsync(Frame frame) => Task.FromResult<InnMenu?>(null);
+
+        public Task<MenuRequirements?> ReadMenuRequirementsAsync(Frame frame) => Task.FromResult<MenuRequirements?>(null);
+
+        public Task<ChefPickerReading?> ReadChefPickerAsync(Frame frame)
+        {
+            PickerReads++;
+            return Task.FromResult<ChefPickerReading?>(new ChefPickerReading([], ["Perlica"]));
+        }
     }
 
     private static (PartyMonitor Monitor, FakeScreens Screens, List<InnReading?> Raised) Monitor()
@@ -181,6 +189,21 @@ public class InnWireUpTests
     }
 
     [Fact]
+    public async Task The_chef_picker_is_read_every_two_seconds_and_frames_between_say_so()
+    {
+        var (monitor, screens, raised) = Monitor();
+        screens.Kind = InnScreenKind.ChefPicker;
+
+        foreach (double t in new[] { 0, 0.25, 0.5, 1.9, 2.0, 2.5 }) Assert.True(await monitor.TryInnAsync(AnyFrame, S(t), false));
+
+        Assert.Equal(2, screens.PickerReads);
+        Assert.Equal([true, false, false, false, true, false], raised.Select(r => r!.Fresh));
+        Assert.Equal(["Perlica"], raised[0]!.Picker!.Selected);
+        Assert.Null(raised[1]!.Picker);
+        Assert.All(raised, r => Assert.True(r!.OnSetupScreens));
+    }
+
+    [Fact]
     public async Task A_reader_that_throws_does_not_stop_the_reading_the_squad_panel_is_read_instead()
     {
         var monitor = new PartyMonitor(TimeSpan.FromMilliseconds(250)) { InnFrames = new InnFrameReader(new ThrowingScreens()) };
@@ -198,5 +221,7 @@ public class InnWireUpTests
         public Task<GourmandBubble?> ReadBubbleAsync(Frame frame) => throw new NotSupportedException();
         public Task<InnSetup?> ReadSetupAsync(Frame frame) => throw new NotSupportedException();
         public Task<InnMenu?> ReadMenuAsync(Frame frame) => throw new NotSupportedException();
+        public Task<MenuRequirements?> ReadMenuRequirementsAsync(Frame frame) => throw new NotSupportedException();
+        public Task<ChefPickerReading?> ReadChefPickerAsync(Frame frame) => throw new NotSupportedException();
     }
 }
