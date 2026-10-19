@@ -36,6 +36,14 @@
           CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\inn\session-gourmand-order.jpg')" />
     <None Include="..\data\Fixtures\inn\dispatch-panel-queue.jpg" Link="Fixtures\inn\dispatch-panel-queue.jpg"
           CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\inn\dispatch-panel-queue.jpg')" />
+    <None Include="..\data\Fixtures\inn\setup-chefs-placed.jpg" Link="Fixtures\inn\setup-chefs-placed.jpg"
+          CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\inn\setup-chefs-placed.jpg')" />
+    <None Include="..\data\Fixtures\inn\chef-picker.jpg" Link="Fixtures\inn\chef-picker.jpg"
+          CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\inn\chef-picker.jpg')" />
+    <None Include="..\data\Fixtures\inn\menu-dishes.jpg" Link="Fixtures\inn\menu-dishes.jpg"
+          CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\inn\menu-dishes.jpg')" />
+    <None Include="..\data\Fixtures\inn\menu-drinks.jpg" Link="Fixtures\inn\menu-drinks.jpg"
+          CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\inn\menu-drinks.jpg')" />
   </ItemGroup>
 
 </Project>
