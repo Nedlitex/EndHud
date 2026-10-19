@@ -96,6 +96,30 @@ public class InnStripLayoutTests
         Assert.True(bottom <= height, $"bottom edge {bottom:F0} of {height} ({size.Height:F0} units tall at scale {scale:F2})");
     }
 
+    /// <summary>
+    /// The last call at its fullest: the Full Blaze line, a full counter (eight dishes, the longest
+    /// names) each handed to a table as a wrong dish, and three kitchens each sending an order.
+    /// </summary>
+    [Theory]
+    [InlineData(1920, 1080)]
+    [InlineData(2560, 1440)]
+    [InlineData(3840, 2160)]
+    public void The_last_calls_strip_fits_from_its_default_place_to_the_windows_edge(int width, int height)
+    {
+        var longest = Inn.Dishes.OrderByDescending(d => d.Zh.Length).ThenBy(d => d.Id).Take(9).ToList();
+        var leftovers = Enumerable.Range(0, InnCounter.Capacity).Select(i => new LeftoverAdvice(longest[i], i % 6 + 1, longest[8])).ToList();
+        var kitchens = Enumerable.Range(1, 3).Select(k => new KitchenAdvice(k, [new QueueAdvice(longest[k], k, 40)], [])).ToList();
+        var advice = new InnAdvice(new DispatchAdvice(kitchens, [], [], leftovers), null, FullBlazeAdvice.StartNow, false, [], [], new HashSet<int>(), false);
+        var size = Measure(InnStripView.Build(advice, Text), PackagePicture);
+        double scale = ComboHintLayout.Scale(height, dpiScale: 1);
+
+        double right = HudConfig.DefaultInnStripX * width + (size.Width + Frame) * scale;
+        double bottom = HudConfig.DefaultInnStripY * height + (size.Height + Frame) * scale;
+
+        Assert.True(right <= width, $"right edge {right:F0} of {width} ({size.Width:F0} units wide at scale {scale:F2})");
+        Assert.True(bottom <= height, $"bottom edge {bottom:F0} of {height} ({size.Height:F0} units tall at scale {scale:F2})");
+    }
+
     [Fact]
     public void The_sentence_saying_what_to_install_wraps_within_the_strip()
     {

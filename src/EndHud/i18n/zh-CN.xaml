@@ -318,6 +318,9 @@
     <sys:String x:Key="Inn.ForTable">（桌{0}）</sys:String>
     <sys:String x:Key="Inn.Blaze.StartNow">开启满堂彩（R）</sys:String>
     <sys:String x:Key="Inn.Blaze.GetReady">满堂彩快满了：先把厨房排满</sys:String>
+    <sys:String x:Key="Inn.Leftover.Give">收尾：把剩下的</sys:String>
+    <sys:String x:Key="Inn.Leftover.ToTable" xml:space="preserve"> 端给桌{0}</sys:String>
+    <sys:String x:Key="Inn.Leftover.Wrong">（不对也有钱）</sys:String>
     <sys:String x:Key="Inn.Waiting">厨房都排满了，等有空位再排：</sys:String>
     <sys:String x:Key="Inn.OutOfStock">没有库存了，做不了：</sys:String>
     <sys:String x:Key="Inn.Unreadable">桌{0} 的点单看不清</sys:String>

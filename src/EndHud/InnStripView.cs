@@ -48,8 +48,8 @@ internal sealed record InnStripModel(IReadOnlyList<InnLine> Lines)
 /// The inn strip's words (plan S7, C3, C4, C13–C17): the advice of one moment of a session, put
 /// as the player reads it, every string from i18n/zh-CN.xaml. A vertical list, one line per
 /// kitchen with the dishes to queue there in order (ordered ones first, then those to cook ahead,
-/// marked), each with its picture; the Full Blaze reminder above the kitchens; then what can't be
-/// read, and a card per gourmand: what they asked for in plain words and what on the menu meets it.
+/// marked), each with its picture; the Full Blaze reminder above the kitchens, and once the inn has
+/// closed, what's left to hand out to which table; then what can't be read, and a card per gourmand: what they asked for in plain words and what on the menu meets it.
 /// </summary>
 internal static class InnStripView
 {
@@ -83,6 +83,13 @@ internal static class InnStripView
         }
         else if (advice.Dispatch is { } dispatch)
         {
+            // The last call: what's left goes out first, the right dishes before the wrong ones.
+            foreach (var leftover in dispatch.Leftovers)
+            {
+                var segments = new List<InnSegment> { new InnSegment(T("Inn.Leftover.Give")).Kept(), Dish(leftover.Dish).Kept(), new InnSegment(F("Inn.Leftover.ToTable", leftover.Table)) };
+                if (!leftover.Matches) segments.Add(new InnSegment(T("Inn.Leftover.Wrong")));
+                lines.Add(new InnLine(InnLineStyle.Accent, segments));
+            }
             foreach (var kitchen in dispatch.Kitchens) lines.AddRange(KitchenLines(kitchen, T, F));
             foreach (var order in dispatch.Waiting)
                 lines.Add(InnLine.Of(InnLineStyle.Note, new InnSegment(T("Inn.Waiting")).Kept(), Dish(order.Dish).Kept(), new InnSegment(F("Inn.ForTable", order.Table))));

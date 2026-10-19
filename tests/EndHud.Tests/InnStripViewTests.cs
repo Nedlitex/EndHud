@@ -127,6 +127,42 @@ public class InnStripViewTests
         Assert.Equal("满堂彩快满了：先把厨房排满", Strip(Advice(Kitchens(), FullBlazeAdvice.GetReady)).Lines[0].Text);
     }
 
+    /// <summary>
+    /// The last call (owner, 2026-10-19): once the inn has closed, a line per dish to hand out, above
+    /// the kitchens, the right dish first; a wrong one says it still earns money.
+    /// </summary>
+    [Fact]
+    public void At_the_last_call_each_leftover_has_a_line_saying_which_table_to_give_it_to()
+    {
+        var advice = Advice(new DispatchAdvice([new KitchenAdvice(1, [], [])], [], [],
+            [new LeftoverAdvice(Dish(A), 2, Dish(A)), new LeftoverAdvice(Dish(B), 3, Dish(C))]));
+
+        var strip = Strip(advice);
+
+        Assert.Equal(["收尾：把剩下的白瓜肉丸汤 端给桌2", "收尾：把剩下的茄果鳞肉汤 端给桌3（不对也有钱）"], strip.Lines.Take(2).Select(l => l.Text));
+        Assert.Equal([A, B], strip.Lines.Take(2).Select(l => l.Segments.Single(s => s.PictureId is not null).PictureId));
+        Assert.Equal(QueueLabel(1) + Text("Inn.Nothing"), strip.Lines[2].Text);
+    }
+
+    /// <summary>
+    /// End to end: a dish cooked ahead comes out, the timer reaches 0:00, and the table still waiting
+    /// (for a soup nobody is cooking) is told to take it; the soup isn't sent to a kitchen.
+    /// </summary>
+    [Fact]
+    public void When_the_inn_closes_a_dish_left_on_the_counter_goes_to_a_table_still_waiting()
+    {
+        var session = Prepared(1);
+        session.Update(Session(10, left: 20, tables: Tables(Order(4, A)), panel: Panel(1, 1, Menu[..5], (A, 5), (E, null))));
+        // 肉包子 (cooked ahead, 15 s) is out by 30 s; so is table 4's soup, served at once.
+        session.Update(Session(30, left: 1, tables: Tables(Order(4, new OrderItem(A, Served: true)))));
+        session.Update(Session(32, left: 0, tables: Tables(Order(4, new OrderItem(A, Served: true)), Order(3, B))));
+
+        var strip = Strip(session.Advice(S(32))!);
+
+        Assert.Contains("收尾：把剩下的肉包子 端给桌3（不对也有钱）", strip.Lines.Select(l => l.Text));
+        Assert.DoesNotContain(strip.Lines, l => l.Segments.Any(s => s.PictureId == B) && l.Text.StartsWith(QueueLabel(1)));
+    }
+
     [Fact]
     public void While_full_blaze_runs_there_is_no_reminder_and_every_kitchen_stays_full()
     {
