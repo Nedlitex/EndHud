@@ -21,7 +21,7 @@ public class GourmandAdvisorTests
 
     private static InnState State(IReadOnlyList<KitchenQueue>? queues = null, IReadOnlyList<string>? counter = null, IReadOnlyList<string>? carried = null) =>
         new(queues ?? [new KitchenQueue(1), new KitchenQueue(2), new KitchenQueue(3)], [.. (counter ?? []).Select(Dish)], [.. (carried ?? []).Select(Dish)], [],
-            InnSimulatorTests.RecordedMenu);
+            InnSimulatorTests.RecordedMenu, SecondsLeft: 200);
 
     private static GourmandCondition Condition(string text) => GourmandCondition.Parse(text, Inn);
 

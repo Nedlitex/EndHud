@@ -33,7 +33,7 @@ public class InnStripViewTests
         IReadOnlyList<int>? unreadable = null, IReadOnlySet<int>? exact = null) =>
         new(dispatch, null, blaze, false, gourmands ?? [], unreadable ?? [], exact ?? new HashSet<int>(), false);
 
-    private static DispatchAdvice Kitchens(params KitchenAdvice[] kitchens) => new(kitchens, [], []);
+    private static DispatchAdvice Kitchens(params KitchenAdvice[] kitchens) => new(kitchens, [], [], []);
 
     /// <summary>Every dish or drink named on the strip comes with its picture (C14).</summary>
     private static void AssertPictureBesideEveryName(InnStripModel strip)
@@ -158,7 +158,7 @@ public class InnStripViewTests
     [Fact]
     public void Dishes_no_kitchen_has_room_for_and_dishes_out_of_stock_are_said()
     {
-        var advice = Advice(new DispatchAdvice([new KitchenAdvice(1, [], [])], [new OrderedDish(2, Dish(B))], [new OrderedDish(4, Dish(C))]));
+        var advice = Advice(new DispatchAdvice([new KitchenAdvice(1, [], [])], [new OrderedDish(2, Dish(B))], [new OrderedDish(4, Dish(C))], []));
 
         var strip = Strip(advice);
 

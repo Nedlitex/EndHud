@@ -544,7 +544,8 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         }
         // On the counter: the dishes cooked ahead that no table has been served yet.
         var spares = _spares.Where(s => s.Value > 0).SelectMany(s => Enumerable.Repeat(DishOf(s.Key)!, s.Value)).ToList();
-        var state = new InnState(queues, spares, [], outstanding, menu);
+        double? secondsLeft = _clock is { } clock ? (clock.Closed ? 0 : Math.Max(0, clock.Left.TotalSeconds)) : null;
+        var state = new InnState(queues, spares, [], outstanding, menu, secondsLeft);
 
         var left = _clock?.Left ?? TimeSpan.FromMinutes(5);
         var nextOut = queues.Where(q => q.Dishes.Count > 0).Select(q => (TimeSpan?)TimeSpan.FromSeconds(q.Dishes[0].SecondsLeft)).Min();

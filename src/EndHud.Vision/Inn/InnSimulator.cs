@@ -18,6 +18,12 @@ public sealed record QueueDish(int Kitchen, Dish Dish) : InnAction(Kitchen);
 
 public sealed record RemoveDish(int Kitchen, int Slot) : InnAction(Kitchen);
 
+/// <summary>
+/// Give a dish on the counter to a table in place of the dish it waits for (the last call,
+/// <see cref="LeftoverAdvice"/>): that item counts as served. Not a kitchen's action (Kitchen 0).
+/// </summary>
+public sealed record GiveLeftover(int Table, Dish Dish, Dish Ordered) : InnAction(0);
+
 /// <summary>What the player does at one moment, given the inn as it is.</summary>
 public delegate IReadOnlyList<InnAction> InnPolicy(InnSimulator inn);
 
@@ -74,7 +80,7 @@ public sealed class InnSimulator
 
     /// <summary>The inn as the advisor sees it.</summary>
     public InnState State => new(Queues, Counter.Dishes, [], _outstanding,
-        [.. Menu.Select(m => m with { Stock = _stock[m.Dish.Id] })]);
+        [.. Menu.Select(m => m with { Stock = _stock[m.Dish.Id] })], Math.Max(0, SessionSeconds - Now));
 
     /// <summary>
     /// Plays <paramref name="orders"/> with <paramref name="policy"/> until every order is served, or
@@ -99,7 +105,7 @@ public sealed class InnSimulator
             }
 
             foreach (var action in policy(this))
-                if (!Apply(action)) refused.Add(action);
+                if (!(action is GiveLeftover give ? Give(give, byTable) : Apply(action))) refused.Add(action);
 
             foreach (var kitchen in Queues)
                 foreach (var dish in kitchen.Tick(Step, Counter.Room))
@@ -132,6 +138,17 @@ public sealed class InnSimulator
         }
     }
 
+    /// <summary>A dish on the counter given to a table in place of one it waits for (a wrong dish when they differ).</summary>
+    private bool Give(GiveLeftover give, List<(InnOrder Order, List<Dish> Missing)> byTable)
+    {
+        int at = _outstanding.FindIndex(o => o.Table == give.Table && o.Dish.Id == give.Ordered.Id);
+        if (at < 0 || !Counter.TryTake(give.Dish)) return false;
+        _outstanding.RemoveAt(at);
+        var (_, missing) = byTable.First(t => t.Order.Table == give.Table && t.Missing.Any(d => d.Id == give.Ordered.Id));
+        missing.RemoveAt(missing.FindIndex(d => d.Id == give.Ordered.Id));
+        return true;
+    }
+
     /// <summary>Dishes on the counter go to the oldest order waiting for them.</summary>
     private void Serve(List<(InnOrder Order, List<Dish> Missing)> byTable, Dictionary<InnOrder, double> served)
     {
@@ -149,12 +166,13 @@ public sealed class InnSimulator
         }
     }
 
-    /// <summary>The player follows <paramref name="advisor"/>: every swap, dish to send and dish to cook ahead.</summary>
+    /// <summary>The player follows <paramref name="advisor"/>: every swap, dish to send and dish to cook ahead, and at the last call every leftover to hand out.</summary>
     /// <param name="openingUntil">Until this many seconds in, every free slot is filled (the opening, C16): by default the first second.</param>
     public static InnPolicy Following(DispatchAdvisor advisor, double openingUntil = 1) => inn =>
     {
         var advice = advisor.Advise(inn.State, fillEverySlot: inn.Now < openingUntil);
-        var actions = new List<InnAction>();
+        // The last call's wrong dishes; the right ones are served off the counter anyway.
+        var actions = new List<InnAction>(advice.Leftovers.Where(l => !l.Matches).Select(l => new GiveLeftover(l.Table, l.Dish, l.Ordered)));
         foreach (var kitchen in advice.Kitchens)
         {
             // Highest slot first, so taking one out doesn't move the others still to be taken.

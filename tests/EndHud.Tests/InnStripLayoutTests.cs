@@ -68,7 +68,7 @@ public class InnStripLayoutTests
             [new GourmandRequestAdvice(request, GourmandCondition.Parse(Inn.Gourmands[0].Requests[0].When, Inn).Describe(), dishOptions),
              new GourmandRequestAdvice(request, GourmandCondition.Parse(Inn.Gourmands[0].Requests[0].When, Inn).Describe(), drinkOptions)],
             [dishOptions[0], drinkOptions[0]]), null, false);
-        var advice = new InnAdvice(new DispatchAdvice(kitchens, [new OrderedDish(5, longest[5])], [new OrderedDish(4, longest[6])]), null,
+        var advice = new InnAdvice(new DispatchAdvice(kitchens, [new OrderedDish(5, longest[5])], [new OrderedDish(4, longest[6])], []), null,
             FullBlazeAdvice.StartNow, false, [gourmand], [2, 3], new HashSet<int>(), false);
         return InnStripView.Build(advice, Text);
     }
