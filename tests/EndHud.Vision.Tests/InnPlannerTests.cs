@@ -129,21 +129,55 @@ public class InnPlannerTests(ITestOutputHelper output)
         Assert.DoesNotContain(plan.Drinks, d => d.Drink.Price >= 60);
     }
 
-    /// <summary>海陆宴 (Ocean &amp; Land) prefers 肉食 and 水产: dishes with them pay 10 % more each and belong on the menu.</summary>
+    /// <summary>
+    /// 海陆宴 (Ocean &amp; Land) prefers 肉食 and 水产 (C8): such dishes pay 10 % more each and go on the
+    /// menu whenever that pays. Checked both ways for every kitchen shape, with every dish offered and
+    /// with the dishes the owner has: a menu kept off them must not earn more than the plan, and when
+    /// it earns less, the plan has them.
+    /// </summary>
     [Theory]
     [MemberData(nameof(KitchenShapes))]
-    public void Ocean_and_Land_puts_meaty_and_finny_dishes_on_the_menu(int kitchens, int places)
+    public void Ocean_and_Land_puts_meaty_and_finny_dishes_on_the_menu_when_they_pay(int kitchens, int places)
     {
         var theme = Inn.Themes.Single(t => t.Zh == "海陆宴");
-        var input = Input(Kitchens(kitchens, places), hot: InnPlanner.HotTraitsOf([], theme));
+        foreach (var offered in new[] { AllDishes, OwnersDishes })
+        {
+            var input = Input(Kitchens(kitchens, places), dishes: offered, hot: InnPlanner.HotTraitsOf([], theme));
+
+            var plan = Planner.Plan(input);
+            output.WriteLine(Describe(plan));
+
+            AssertValid(input, plan);
+            foreach (string trait in new[] { "Meaty", "Finny" })
+            {
+                var without = Planner.Plan(input with { Dishes = [.. offered.Where(d => !d.Dish.Traits.Contains(trait))] });
+                output.WriteLine($"  without {trait}: {without.Score.Income:F0}");
+                Assert.False(without.Score.BetterThan(plan.Score), $"kept off {trait}, the menu earns {without.Score.Income:F0} > {plan.Score.Income:F0}");
+                if (plan.Score.BetterThan(without.Score)) Assert.Contains(plan.Dishes, d => d.Dish.Traits.Contains(trait));
+            }
+            // With every dish offered, 界龙肉卷 (肉食, the dearest dish) always pays.
+            if (offered == AllDishes) Assert.Contains(plan.Dishes, d => d.Dish.Traits.Contains("Meaty"));
+            // Each dish on the menu that matches a 热门 trait says so.
+            foreach (var dish in plan.Dishes.Where(d => d.Dish.Traits.Intersect(input.HotTraits).Any()))
+                Assert.Contains(plan.Reasons, r => r.Kind == PlanReasonKind.HotTraits && r.Id == dish.Dish.Id);
+        }
+    }
+
+    /// <summary>
+    /// The 热门 bonus decides between two dishes alike in price, time and kitchen: 金丝小贝 (肉食) and
+    /// 八宝饭 (美观), both 80 and 35 s, in a kitchen with no bonus, one dish on the menu.
+    /// </summary>
+    [Theory]
+    [InlineData("Meaty", "金丝小贝")]
+    [InlineData("Lovely", "八宝饭")]
+    public void A_hot_trait_decides_between_dishes_alike(string hot, string expected)
+    {
+        var offered = new[] { new MenuDish(InnTestData.Dish("金丝小贝"), null), new MenuDish(InnTestData.Dish("八宝饭"), null) };
+        var input = Input(Kitchens(1, 1), [Plain("Plain")], offered, rules: new MenuRules(1, 1, 0, 8, 1, []), hot: [hot]);
 
         var plan = Planner.Plan(input);
 
-        AssertValid(input, plan);
-        Assert.Contains(plan.Dishes, d => d.Dish.Traits.Contains("Meaty"));
-        Assert.Contains(plan.Dishes, d => d.Dish.Traits.Contains("Finny"));
-        Assert.Contains(plan.Reasons, r => r.Kind == PlanReasonKind.HotTraits && plan.Dishes.Any(d => d.Dish.Id == r.Id));
-        output.WriteLine(Describe(plan));
+        Assert.Equal(expected, Assert.Single(plan.Dishes).Dish.Zh);
     }
 
     /// <summary>养身心's rule (≥2 dishes with 素食 or 滋补) holds whatever is offered, also when such dishes don't pay.</summary>

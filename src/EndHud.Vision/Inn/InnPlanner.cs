@@ -157,10 +157,13 @@ public sealed class InnPlanner(InnData inn)
     public static readonly bool EmptyKitchenCooks = false;
 
     /// <summary>Line-ups the beam keeps at each chef place.</summary>
-    public const int BeamWidth = 12;
+    public const int BeamWidth = 20;
 
     /// <summary>The best line-ups of a beam search each get their own menu.</summary>
-    public const int LineUpsTried = 4;
+    public const int LineUpsTried = 8;
+
+    /// <summary>Steps of Dinkelbach's method when the beam judges a line-up.</summary>
+    private const int DinkelbachSteps = 3;
 
     /// <summary>Rounds of chefs-then-menu at most.</summary>
     private const int MaxRounds = 4;
@@ -571,56 +574,134 @@ public sealed class InnPlanner(InnData inn)
             return (menu, newDrinks);
         }
 
+        /// <summary>Scores of menus already worked out, by line-up, drinks and dishes.</summary>
+        private readonly Dictionary<(string Kitchens, string Drinks, UInt128 Menu), InnPlanScore> _scores = [];
+
+        private static string KitchensKey(IReadOnlyList<Kitchen> kitchens) =>
+            string.Join("/", kitchens.Select(k => string.Join("+", k.Chefs.Select(c => c.Id).Order(StringComparer.Ordinal))));
+
+        /// <summary>The menu's score for the line-up and drinks, worked out once.</summary>
+        private Func<IReadOnlyCollection<int>, InnPlanScore> Scorer(IReadOnlyList<Kitchen> kitchens, int[] drinks)
+        {
+            string kitchensKey = KitchensKey(kitchens), drinksKey = string.Join(",", drinks);
+            return menu =>
+            {
+                if (Dishes.Count > 128) return Score(kitchens, [.. menu], drinks);
+                UInt128 mask = 0;
+                foreach (int i in menu) mask |= (UInt128)1 << i;
+                if (!_scores.TryGetValue((kitchensKey, drinksKey, mask), out var score))
+                    _scores[(kitchensKey, drinksKey, mask)] = score = Score(kitchens, [.. menu], drinks);
+                return score;
+            };
+        }
+
+        /// <summary>
+        /// Each dish's worth (its value and its share of the drinks an order brings) and its time with
+        /// every kitchen cooking it at once; null when no kitchen cooks.
+        /// </summary>
+        private (double[] Worth, double[] Together)? Weights(IReadOnlyList<Kitchen> kitchens, int[] drinks)
+        {
+            var (seconds, _) = TimesOf(kitchens);
+            int cooking = seconds.GetLength(0);
+            if (cooking == 0) return null;
+            double drinkShare = drinks.Length == 0 ? 0 : DrinksPerOrder * drinks.Average(i => _drinkValues[i]) / DishesPerOrder;
+            var together = Enumerable.Range(0, Dishes.Count).Select(d => 1 / Enumerable.Range(0, cooking).Sum(k => 1 / seconds[k, d])).ToArray();
+            var worth = Enumerable.Range(0, Dishes.Count).Select(d => _dishValues[d] + drinkShare).ToArray();
+            return (worth, together);
+        }
+
+        /// <summary>Greedy menus of every allowed size by worth − r × time.</summary>
+        private IEnumerable<List<int>> BuildAtRatio(double[] worth, double[] together, double r)
+        {
+            var weight = Enumerable.Range(0, Dishes.Count).Select(d => worth[d] - r * together[d]).ToArray();
+            for (int size = Math.Max(1, Rules.MinDishes); size <= Math.Min(Rules.MaxDishes, Dishes.Count); size++) yield return BuildBy(size, weight);
+        }
+
+        /// <summary>
+        /// A quick judge of a line-up for the beam: the better of <paramref name="menu"/> and the menus
+        /// one step of Dinkelbach's method gives from it for these kitchens (worth − r × time, r the
+        /// menu's own worth per second here), so a line-up that suits other dishes isn't judged only
+        /// by the dishes another line-up suits.
+        /// </summary>
+        public InnPlanScore QuickScore(IReadOnlyList<Kitchen> kitchens, int[] menu, int[] drinks)
+        {
+            var score = Scorer(kitchens, drinks);
+            var best = score(menu);
+            if (Weights(kitchens, drinks) is not var (worth, together) || menu.Length == 0) return best;
+            // Each step's best menu gives the next step's r, until it settles.
+            IReadOnlyList<int> current = menu;
+            for (int step = 0; step < DinkelbachSteps; step++)
+            {
+                double r = current.Sum(d => worth[d]) / current.Sum(d => together[d]);
+                IReadOnlyList<int>? next = null;
+                foreach (var candidate in BuildAtRatio(worth, together, r))
+                {
+                    if (!Valid(candidate)) continue;
+                    var s = score(candidate);
+                    if (s.BetterThan(best)) (best, next) = (s, candidate);
+                }
+                if (next is null) break;
+                current = next;
+            }
+            return best;
+        }
+
         private int[] BestDishes(IReadOnlyList<Kitchen> kitchens, int[] drinks)
         {
-            var cache = new Dictionary<UInt128, InnPlanScore>();
-            InnPlanScore ScoreOf(List<int> menu)
+            var ScoreOf = Scorer(kitchens, drinks);
+
+            // Starting menus: greedy by the score itself, and by a weight per dish for a range of
+            // thresholds r: value (with its share of the drinks) − r × its time with every kitchen
+            // cooking it. For one kitchen and no rules the best menu is the top of that order for
+            // some r (Dinkelbach's method for a best ratio); the swaps below take care of the rest.
+            int smallest = Math.Max(1, Rules.MinDishes), largest = Math.Min(Rules.MaxDishes, Dishes.Count);
+            var starts = new List<List<int>>();
+            for (int size = smallest; size <= largest; size++) starts.Add(Build(size, ScoreOf));
+            if (Weights(kitchens, drinks) is var (worth, together))
             {
-                UInt128 key = 0;
-                foreach (int i in menu) key |= (UInt128)1 << i;
-                if (Dishes.Count > 128 || !cache.TryGetValue(key, out var score))
-                {
-                    score = Score(kitchens, menu, drinks);
-                    if (Dishes.Count <= 128) cache[key] = score;
-                }
-                return score;
+                foreach (double r in Enumerable.Range(0, Dishes.Count).Select(d => worth[d] / together[d]).Append(0).Distinct())
+                    starts.AddRange(BuildAtRatio(worth, together, r));
             }
 
+            // The best few distinct starts (valid ones first) are improved by swaps.
+            var chosen = starts
+                .DistinctBy(m => string.Join(",", m.Order()))
+                .OrderByDescending(m => Valid(m))
+                .ThenByDescending(m => m, Comparer<List<int>>.Create((a, b) => ScoreOf(a).BetterThan(ScoreOf(b)) ? 1 : ScoreOf(b).BetterThan(ScoreOf(a)) ? -1 : 0))
+                .Take(StartsImproved)
+                .ToList();
             List<int>? best = null;
-            InnPlanScore? bestScore = null;
-            int smallest = Math.Max(1, Rules.MinDishes), largest = Math.Min(Rules.MaxDishes, Dishes.Count);
-            for (int size = smallest; size <= largest; size++)
+            foreach (var menu in chosen)
             {
-                var menu = Build(size, ScoreOf);
                 Improve(menu, ScoreOf);
-                var score = ScoreOf(menu);
-                bool valid = Valid(menu);
-                bool bestValid = best is not null && Valid(best);
-                if (best is null || (valid && !bestValid) || (valid == bestValid && score.BetterThan(bestScore!)))
-                    (best, bestScore) = (menu, score);
+                bool valid = Valid(menu), bestValid = best is not null && Valid(best);
+                if (best is null || (valid && !bestValid) || (valid == bestValid && ScoreOf(menu).BetterThan(ScoreOf(best))))
+                    best = menu;
             }
             return [.. (best ?? []).Order()];
         }
 
-        /// <summary>First the dishes that bring the menu closest to its rules (the best paying of those), then the best paying, up to <paramref name="size"/>.</summary>
-        private List<int> Build(int size, Func<List<int>, InnPlanScore> score)
+        /// <summary>Starting menus improved by swaps, per menu search.</summary>
+        private const int StartsImproved = 6;
+
+        /// <summary>
+        /// First the dishes that bring the menu closest to its rules, then the rest, each time the one
+        /// <paramref name="better"/> prefers, up to <paramref name="size"/>.
+        /// </summary>
+        private List<int> BuildWith(int size, Func<List<int>, int, int, bool> better)
         {
             var menu = new List<int>();
             while (menu.Count < size)
             {
-                int shortfall = Shortfall(menu);
-                int pick = -1;
-                (int Shortfall, InnPlanScore Score)? best = null;
+                int pick = -1, pickShortfall = int.MaxValue;
                 for (int i = 0; i < Dishes.Count; i++)
                 {
                     if (menu.Contains(i)) continue;
                     menu.Add(i);
-                    var candidate = (Shortfall: Shortfall(menu), Score: score(menu));
+                    int shortfall = Shortfall(menu);
                     menu.RemoveAt(menu.Count - 1);
-                    bool better = best is null
-                        || (shortfall > 0 && candidate.Shortfall < best.Value.Shortfall)
-                        || ((shortfall == 0 || candidate.Shortfall == best.Value.Shortfall) && candidate.Score.BetterThan(best.Value.Score));
-                    if (better) (pick, best) = (i, candidate);
+                    if (pick < 0 || shortfall < pickShortfall || (shortfall == pickShortfall && better(menu, i, pick)))
+                        (pick, pickShortfall) = (i, shortfall);
                 }
                 if (pick < 0) break;
                 menu.Add(pick);
@@ -628,8 +709,15 @@ public sealed class InnPlanner(InnData inn)
             return menu;
         }
 
+        /// <summary>Greedy by the score of the menu with each dish added.</summary>
+        private List<int> Build(int size, Func<IReadOnlyCollection<int>, InnPlanScore> score) =>
+            BuildWith(size, (menu, i, pick) => score([.. menu, i]).BetterThan(score([.. menu, pick])));
+
+        /// <summary>Greedy by a weight per dish.</summary>
+        private List<int> BuildBy(int size, double[] weight) => BuildWith(size, (_, i, pick) => weight[i] > weight[pick]);
+
         /// <summary>Add, remove or swap one dish, the best move each time, while the menu stays valid and pays more.</summary>
-        private void Improve(List<int> menu, Func<List<int>, InnPlanScore> score)
+        private void Improve(List<int> menu, Func<IReadOnlyCollection<int>, InnPlanScore> score)
         {
             if (!Valid(menu)) return;
             while (true)
@@ -725,7 +813,7 @@ public sealed class InnPlanner(InnData inn)
                         var candidate = new LineUp(kitchens, left);
                         string key = Key(candidate, lastOfKitchen ? kitchen : kitchen - 1);
                         if (next.ContainsKey(key)) continue;
-                        var score = Score(Materialize(candidate, kitchen), menu, drinks);
+                        var score = QuickScore(Materialize(candidate, kitchen), menu, drinks);
                         next[key] = (candidate, score, kitchens.Sum(a => a.Length));
                     }
                 }
