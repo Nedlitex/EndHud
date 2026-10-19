@@ -57,7 +57,7 @@ public sealed partial class SetupReader(InnText text, InnData data, IReadOnlyLis
     /// <summary>The setup, or null when it isn't a setup screen or no theme name can be read.</summary>
     public async Task<InnSetup?> ReadAsync(Frame frame, InnScreenKind screen)
     {
-        if (screen != InnScreenKind.Setup) return null;
+        if (screen is not (InnScreenKind.Setup or InnScreenKind.ThemeList)) return null;
         var layout = new InnLayout(frame);
         // Two layouts: on 营业设定 the details sit left and the kitchens right; on the theme list the details right.
         var kitchens = await ReadKitchensAsync(frame, layout);

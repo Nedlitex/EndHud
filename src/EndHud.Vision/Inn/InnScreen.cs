@@ -4,8 +4,8 @@ namespace EndHud.Vision.Inn;
 
 /// <summary>
 /// Which inn screen is showing, from text the game always draws in fixed places (two small OCR
-/// reads at most): the setup screens' and the menu's titles at the top left ("//营业设定",
-/// "//主题设定", "// 菜单设定"), a kitchen's chef picker ("厨房一"), and during the session the
+/// reads at most): the setup screens' and the menu's titles at the top left ("//营业设定", the
+/// theme list's "//主题设定", "// 菜单设定"), a kitchen's chef picker ("厨房一"), and during the session the
 /// timer ("04:46") in its gold pill. The pill sits under the "结束经营" button, or in the button's
 /// place when the dispatch panel is open; the panel is told by its "干员加成" heading.
 /// </summary>
@@ -26,7 +26,8 @@ public static partial class InnScreen
         var layout = new InnLayout(frame);
         string title = await text.ReadAsync(frame, layout.TopLeft(Title), TimerInk, layout.Scale) ?? "";
         // OCR may miss a character of a title ("//菜设定", "//营业设正"): two of them are enough.
-        if (title.Contains("营业") || title.Contains("主题")) return InnScreenKind.Setup;
+        if (title.Contains("营业")) return InnScreenKind.Setup;
+        if (title.Contains("主题")) return InnScreenKind.ThemeList;
         if (title.Contains("菜单") || title.Contains("菜设") || title.Contains("单设")) return InnScreenKind.Menu;
         if (KitchenTitle().IsMatch(title)) return InnScreenKind.ChefPicker;
         if (ReadTime(frame, layout, TimerAtTop) is not null)
@@ -39,10 +40,14 @@ public static partial class InnScreen
     }
 
     /// <summary>The kitchen (1–3) whose chef picker is showing, from its title; null when unread.</summary>
-    public static Task<int?> ReadPickerKitchenAsync(InnText text, Frame frame) => Task.FromResult<int?>(null);
+    public static async Task<int?> ReadPickerKitchenAsync(InnText text, Frame frame)
+    {
+        var layout = new InnLayout(frame);
+        return PickerKitchen(await text.ReadAsync(frame, layout.TopLeft(Title), TimerInk, layout.Scale) ?? "");
+    }
 
     /// <summary>"厨房二" → 2; null for a title naming no kitchen.</summary>
-    internal static int? PickerKitchen(string title) => null;
+    internal static int? PickerKitchen(string title) => KitchenTitle().Match(title) is { Success: true } m ? "一二三".IndexOf(m.Groups[1].Value[0]) + 1 : null;
 
     /// <summary>The session's time left, or null when no timer is read (not in a session, or covered).</summary>
     public static SessionClock? ReadClock(Frame frame)
@@ -96,6 +101,6 @@ public static partial class InnScreen
     [GeneratedRegex(@"^(\d{2}):(\d{2})$")]
     private static partial Regex Time();
 
-    [GeneratedRegex(@"^\W*厨房[一二三]")]
+    [GeneratedRegex(@"^\W*厨房([一二三])")]
     private static partial Regex KitchenTitle();
 }
