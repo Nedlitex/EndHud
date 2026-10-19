@@ -101,6 +101,17 @@
                 <ContentControl x:Name="InnContent" />
             </StackPanel>
         </Border>
+        <!-- The inn helper's setup panel (chefs and menu to pick), its top-left corner at config InnSetupX/InnSetupY. -->
+        <Border x:Name="InnSetupFrame" BorderThickness="2" Padding="6" CornerRadius="4" Background="Transparent"
+                Visibility="Collapsed"
+                MouseLeftButtonDown="InnSetup_MouseDown" MouseMove="InnSetup_MouseMove"
+                MouseLeftButtonUp="InnSetup_MouseUp">
+            <StackPanel>
+                <TextBlock x:Name="InnSetupDragLabel" Visibility="Collapsed" Text="{DynamicResource Inn.Setup.Drag}"
+                           Foreground="{StaticResource Accent}" Margin="0,0,0,4" />
+                <ContentControl x:Name="InnSetupContent" />
+            </StackPanel>
+        </Border>
         <!-- The gauges, centred on config GaugesCenterX, standing on GaugesBottomY. -->
         <Border x:Name="GaugeFrame" BorderThickness="2" Padding="6" CornerRadius="4" Background="Transparent"
                 Visibility="Collapsed" SizeChanged="GaugeFrame_SizeChanged"

@@ -58,6 +58,19 @@ public class ConfigTests
         Assert.Equal(y, config.InnStripY);
     }
 
+    [Theory]
+    [InlineData("{}", HudConfig.DefaultInnSetupX, HudConfig.DefaultInnSetupY)]
+    [InlineData("{\"InnSetupX\": 0.5, \"InnSetupY\": 0.2}", 0.5, 0.2)]
+    [InlineData("{\"InnSetupX\": -3, \"InnSetupY\": 7}", 0.0, 1.0)]
+    [InlineData("{\"InnSetupX\": 1.5, \"InnSetupY\": -0.1}", 1.0, 0.0)]
+    public void The_inn_setup_panels_place_defaults_to_the_lower_left_and_a_hand_edited_one_stays_on_the_window(string json, double x, double y)
+    {
+        var config = ConfigStore.Parse(json);
+
+        Assert.Equal(x, config.InnSetupX);
+        Assert.Equal(y, config.InnSetupY);
+    }
+
     /// <summary>Before version 3 every start saved 50% (a slider bug), so 50% from then means the default.</summary>
     [Theory]
     [InlineData("""{ "GaugesScale": 0.5, "SettingsVersion": 2 }""", 1.0)]

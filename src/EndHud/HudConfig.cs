@@ -111,6 +111,15 @@ internal sealed class HudConfig
 
     public double InnStripY { get; set; } = DefaultInnStripY;
 
+    /// <summary>
+    /// Where the inn's setup panel sits (the chefs and menu to pick, on the setup, chef picker and
+    /// menu screens), as a fraction of the game window: its left edge and its top. It shares the
+    /// strip's size and opacity.
+    /// </summary>
+    public double InnSetupX { get; set; } = DefaultInnSetupX;
+
+    public double InnSetupY { get; set; } = DefaultInnSetupY;
+
     /// <summary>The inn strip's size on top of following the game window (1 = 100%), from the menu's slider.</summary>
     public double InnStripScale { get; set; } = 1;
 
@@ -148,6 +157,11 @@ internal sealed class HudConfig
     // above the Full Blaze meter at the right edge.
     public const double DefaultInnStripX = 0.72;
     public const double DefaultInnStripY = 0.16;
+
+    // Low on the left: over the setup screen's empty lower left and the menu screen's, below the
+    // theme's details and the menu's requirements (the chef picker's grid is there too: drag it).
+    public const double DefaultInnSetupX = 0.04;
+    public const double DefaultInnSetupY = 0.6;
 
     public const double DefaultComboHintSeconds = 3;
     public const double DefaultComboHintLeadSeconds = 1;
@@ -231,6 +245,8 @@ internal static class ConfigStore
         // A place off the window would leave the strip where nobody can drag it back.
         config.InnStripX = double.IsFinite(config.InnStripX) ? Math.Clamp(config.InnStripX, 0, 1) : HudConfig.DefaultInnStripX;
         config.InnStripY = double.IsFinite(config.InnStripY) ? Math.Clamp(config.InnStripY, 0, 1) : HudConfig.DefaultInnStripY;
+        config.InnSetupX = double.IsFinite(config.InnSetupX) ? Math.Clamp(config.InnSetupX, 0, 1) : HudConfig.DefaultInnSetupX;
+        config.InnSetupY = double.IsFinite(config.InnSetupY) ? Math.Clamp(config.InnSetupY, 0, 1) : HudConfig.DefaultInnSetupY;
         return config;
     }
 
