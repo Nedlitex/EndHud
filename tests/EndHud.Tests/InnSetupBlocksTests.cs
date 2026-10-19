@@ -121,9 +121,11 @@ public class InnSetupBlocksTests(ITestOutputHelper output)
             s => Assert.True(s.Text.Trim('　', ' ', ' ').Length == 0 || s.Text.EndsWith('：') || s.Text.StartsWith("厨房", StringComparison.Ordinal)
                 || s.Text.StartsWith("看不懂", StringComparison.Ordinal) || s.Text.StartsWith("现有的菜", StringComparison.Ordinal), $"\"{s.Text}\" has no picture"));
         Assert.DoesNotContain(model.Lines, l => l.Text.Any(char.IsAsciiLetterOrDigit));
-        // Rows sit indented under their heading.
-        Assert.All(model.Lines.Where(l => l.Text.StartsWith("干员：", StringComparison.Ordinal) || l.Text.StartsWith("做菜：", StringComparison.Ordinal)),
+        // As the owner drew it: a kitchen's rows and every 可换 one step in, headings and 饮品 not.
+        Assert.All(model.Lines.Where(l => new[] { "干员：", "做菜：", "可换：" }.Any(p => l.Text.StartsWith(p, StringComparison.Ordinal))),
             l => Assert.Equal(1, l.Indent));
+        Assert.All(model.Lines.Where(l => l.Text.StartsWith("厨房", StringComparison.Ordinal) || l.Text.StartsWith("饮品：", StringComparison.Ordinal)),
+            l => Assert.Equal(0, l.Indent));
     }
 
     [Fact]

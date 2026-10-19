@@ -174,14 +174,15 @@ internal static class InnSetupView
             yield return row;
     }
 
-    /// <summary>"label a b c" and, one step further in, "可换：d e"; nothing for no names, no 可换 row for no substitutes.</summary>
+    /// <summary>"label a b c" and under it "可换：d e"; nothing for no names, no 可换 row for no substitutes.</summary>
     private static IEnumerable<InnLine> Rows(string label, IEnumerable<InnSegment> names, IEnumerable<InnSegment> substitutes, int indent, Func<string, string> text)
     {
         var main = names.ToList();
         if (main.Count == 0) yield break;
         yield return Row(label, main, indent, text);
         var others = substitutes.ToList();
-        if (others.Count > 0) yield return Row(text("Inn.Setup.Substitutes"), others, indent + 1, text);
+        // Under its row, as the owner drew it: a kitchen's rows and their 可换 one step in, the drinks' 可换 one step in.
+        if (others.Count > 0) yield return Row(text("Inn.Setup.Substitutes"), others, Math.Max(indent, 1), text);
     }
 
     /// <summary>A labelled row of names: each name kept with the space after it, so the row wraps between names.</summary>
