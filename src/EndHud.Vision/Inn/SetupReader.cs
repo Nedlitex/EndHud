@@ -7,7 +7,15 @@ namespace EndHud.Vision.Inn;
 /// <param name="ChefSlots">How many chef places it has; null when they can't be told.</param>
 /// <param name="Chefs">The chefs placed, left to right: the operator's id, null when empty or unread.</param>
 /// <param name="ChefNames">The names as read ("佩丽卡"), null when empty or unread.</param>
-public sealed record SetupKitchen(int Number, int? ChefSlots, IReadOnlyList<string?> Chefs, IReadOnlyList<string?> ChefNames);
+public sealed record SetupKitchen(int Number, int? ChefSlots, IReadOnlyList<string?> Chefs, IReadOnlyList<string?> ChefNames)
+{
+    /// <summary>
+    /// How many of its places hold a chef, by the bar under each (dark red with a chef, grey
+    /// without), whoever they are; null when the places couldn't be told. 0 means the kitchen is
+    /// known to have no chef, and so cannot cook (<see cref="KitchenMath.Cooks"/>).
+    /// </summary>
+    public int? ChefsPlaced { get; init; }
+}
 
 /// <summary>What the setup screens show of the session to come.</summary>
 /// <param name="ThemeName">The theme's name as read ("养身心").</param>
@@ -140,7 +148,8 @@ public sealed class SetupReader(InnText text, InnData data, IReadOnlyList<Operat
         {
             double left = (title.X - originX) / layout.Scale;
             var places = SlotOffsets.Select(offset => left + offset).ToList();
-            int slots = places.Count(x => IsSlot(frame, layout, x));
+            var slotPlaces = places.Where(x => IsSlot(frame, layout, x)).ToList();
+            int slots = slotPlaces.Count;
             var names = new string?[places.Count];
             foreach (var line in lines!.Where(l => ChefName(l.Text) is not null && l.Place.X >= title.X && l.Place.X < title.X + KitchenWidth * layout.Scale))
             {
@@ -151,7 +160,10 @@ public sealed class SetupReader(InnText text, InnData data, IReadOnlyList<Operat
             }
             var ids = names.Select(n => n is null ? null : Closest(n)).ToArray();
             kitchens.Add(new SetupKitchen(number, slots > 0 ? slots : null, ids,
-                [.. names.Select((n, i) => ids[i] is { } id ? roster.First(o => o.Id == id).NameZh : n)]));
+                [.. names.Select((n, i) => ids[i] is { } id ? roster.First(o => o.Id == id).NameZh : n)])
+            {
+                ChefsPlaced = slots > 0 ? slotPlaces.Count(x => HasChef(frame, layout, x)) : null,
+            });
         }
         return kitchens;
     }
@@ -180,6 +192,18 @@ public sealed class SetupReader(InnText text, InnData data, IReadOnlyList<Operat
         bool beige = sr is >= 170 and <= 215 && sg is >= 160 and <= 205 && sb is >= 145 and <= 195 && sr - sb is >= 8 and <= 40;
         bool dark = Math.Max(br, Math.Max(bg, bb)) <= 120;
         return beige && dark;
+    }
+
+    /// <summary>
+    /// A chef place's bar is dark red with a chef in it, dark grey without. Measured at 4K on
+    /// setup-chefs-placed: red ≈ (85, 1, 0), grey ≈ (91, 91, 91).
+    /// </summary>
+    private static bool HasChef(Frame frame, InnLayout layout, double x)
+    {
+        var bar = layout.Centered(new PixelRect((int)Math.Round(x), (int)BarY, 1, 1));
+        if (bar.X < 0 || bar.X >= frame.Width || bar.Y < 0 || bar.Y >= frame.Height) return false;
+        var (r, g, b) = frame.GetPixel(bar.X, bar.Y);
+        return r - g >= 40 && r - b >= 40;
     }
 
     /// <summary>The screens' text: dark grey, and the orange of trait names in brackets.</summary>

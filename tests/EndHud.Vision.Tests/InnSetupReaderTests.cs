@@ -43,8 +43,8 @@ public class InnSetupReaderTests(ITestOutputHelper output)
         Assert.Equal(["Veggy", "Rich"], setup.HotTraits);
         Assert.NotNull(setup.Kitchens);
         Assert.Equal(
-            ["1: 2 places, Perlica Avywenna", "2: 2 places, Chen_Qianyu -", "3: 2 places, - -"],
-            setup.Kitchens.Select(k => $"{k.Number}: {k.ChefSlots} places, {string.Join(" ", k.Chefs.Select(c => c ?? "-"))}"));
+            ["1: 2 places, 2 taken, Perlica Avywenna", "2: 2 places, 1 taken, Chen_Qianyu -", "3: 2 places, 0 taken, - -"],
+            setup.Kitchens.Select(k => $"{k.Number}: {k.ChefSlots} places, {k.ChefsPlaced} taken, {string.Join(" ", k.Chefs.Select(c => c ?? "-"))}"));
         if (screen == SimulatedScreen.Uhd)
         {
             Assert.Equal("开启2次满堂彩", setup.Objective);

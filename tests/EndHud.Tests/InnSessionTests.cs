@@ -180,6 +180,43 @@ public class InnSessionTests
         Assert.Contains(advice.Dispatch!.For(1).Queue, q => q.Dish.Id == A && q.Table == 4);
     }
 
+    /// <summary>
+    /// The owner's 养身心 setup: kitchens 1 and 2 staffed, kitchen 3's places both empty. Kitchen 3
+    /// cannot cook (owner, 2026-10-19): even with its dispatch tab opened (naming nobody), it gets no
+    /// line, no dish to cook ahead and no order.
+    /// </summary>
+    [Fact]
+    public void A_kitchen_the_setup_screen_showed_without_a_chef_is_not_a_kitchen_to_queue_in()
+    {
+        var session = NewSession();
+        session.Update(new InnReading(InnScreenKind.Setup, S(0), Setup: new InnSetup("theme", null, null, [], [],
+        [
+            new SetupKitchen(1, 2, [null, null], ["chef", "chef"]) { ChefsPlaced = 2 },
+            new SetupKitchen(2, 2, [null, null], ["chef", null]) { ChefsPlaced = 1 },
+            new SetupKitchen(3, 2, [null, null], [null, null]) { ChefsPlaced = 0 },
+        ])));
+        session.Update(MenuScreen(1, Menu));
+        session.Update(Session(10, tables: Tables(Order(1, A), Order(2, B), Order(3, C), Order(4, D)), panel: Panel(3, 3, Menu[..5])));
+
+        var advice = session.Advice(S(10))!;
+
+        Assert.Equal([1, 2], advice.Dispatch!.Kitchens.Select(k => k.Kitchen));
+    }
+
+    /// <summary>A kitchen whose chefs weren't seen (no setup screen; the panel names nobody) is still taken to cook.</summary>
+    [Fact]
+    public void A_kitchen_whose_chefs_were_never_seen_is_still_a_kitchen_to_queue_in()
+    {
+        var session = NewSession();
+        session.Update(MenuScreen(1, Menu));
+        session.Update(Session(10, tables: Tables(Order(1, A)), panel: Panel(1, 3, Menu[..5])));
+
+        var advice = session.Advice(S(10))!;
+
+        Assert.Equal([1, 2, 3], advice.Dispatch!.Kitchens.Select(k => k.Kitchen));
+        Assert.Contains(Queued(advice), q => q.Table == 1 && q.Dish.Id == A);
+    }
+
     [Fact]
     public void A_served_item_is_neither_cooked_nor_dispatched_while_the_rest_of_its_order_is()
     {

@@ -384,16 +384,26 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         if (_unreadLogged.Add(bubble.Text)) _warn($"inn: a gourmand's request wasn't recognised; read \"{bubble.Text}\"");
     }
 
-    /// <summary>The kitchens in play with their chefs, or null when none has been seen.</summary>
+    /// <summary>
+    /// The kitchens that cook, with their chefs, or null when none has been seen. A kitchen the setup
+    /// screen showed with no chef in any place cannot cook (<see cref="KitchenMath.Cooks"/>) and is
+    /// left out, unless the dispatch panel has since named its chefs. A kitchen whose chefs weren't
+    /// seen (no setup screen, an unread name, a panel naming nobody) is taken to cook, at base speed.
+    /// </summary>
     private InnKitchens? Kitchens()
     {
         var numbers = new SortedSet<int>();
-        if (_setup?.Kitchens is { } setupKitchens)
-            foreach (var k in setupKitchens.Where(k => k.Chefs.Any(c => c is not null) || k.ChefNames.Any(n => n is not null))) numbers.Add(k.Number);
+        var empty = new HashSet<int>();
+        foreach (var k in _setup?.Kitchens ?? [])
+        {
+            bool named = k.Chefs.Any(c => c is not null) || k.ChefNames.Any(n => n is not null);
+            if (named || k.ChefsPlaced > 0) numbers.Add(k.Number);
+            else if (k.ChefsPlaced == 0) empty.Add(k.Number);
+        }
         if (numbers.Count == 0)
             for (int k = 1; k <= _panelKitchens; k++) numbers.Add(k);
         foreach (int k in _kitchens.Keys) numbers.Add(k);
-        numbers.RemoveWhere(k => k is < 1 or > KitchenMath.MaxKitchens);
+        numbers.RemoveWhere(k => k is < 1 or > KitchenMath.MaxKitchens || (empty.Contains(k) && !(_kitchens.TryGetValue(k, out var seen) && seen.ChefsSeen)));
         if (numbers.Count == 0) return null;
 
         var kitchens = numbers.Select(n =>
@@ -401,7 +411,8 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             IEnumerable<string?> ids = _kitchens.TryGetValue(n, out var seen) && seen.ChefsSeen ? seen.Chefs
                 : _setup?.Kitchens?.FirstOrDefault(k => k.Number == n)?.Chefs ?? [];
             var chefs = ids.OfType<string>().Select(id => roster.FirstOrDefault(o => o.Id == id)).OfType<OperatorInfo>().Take(KitchenMath.MaxChefs).ToList();
-            return new Kitchen(n, chefs);
+            // Known to have a chef, or not known at all: either way it cooks (known-empty kitchens are out above).
+            return new Kitchen(n, chefs) { ChefsUnknown = chefs.Count == 0 };
         }).ToList();
         return new InnKitchens(data, kitchens, Rating(kitchens), siQualityPercent: 0);
     }
