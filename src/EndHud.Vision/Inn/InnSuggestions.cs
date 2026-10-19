@@ -3,7 +3,7 @@ using EndHud.Vision.Operators;
 namespace EndHud.Vision.Inn;
 
 /// <summary>What the setup panel suggests for one kitchen.</summary>
-/// <param name="Chefs">The plan's chefs for it; none when it isn't used (it can't cook, and nothing else is suggested for it).</param>
+/// <param name="Chefs">The chefs the plan puts in its empty places (never one already placed, see <see cref="Placed"/>); none when it's full or isn't used.</param>
 /// <param name="ChefSubstitutes">The best chefs to put in instead of one the player lacks, best first (at most <see cref="InnSuggester.MaxSubstitutes"/>).</param>
 /// <param name="Dishes">The menu's dishes this kitchen cooks the larger share of, in the plan's order.</param>
 /// <param name="DishSubstitutes">Off-menu dishes that would do best here, best first, for a dish the player lacks.</param>
@@ -18,7 +18,7 @@ public sealed record KitchenSuggestion(int Number, IReadOnlyList<OperatorInfo> C
     public bool Full { get; init; }
 
     /// <summary>No chef is planned or placed here: the kitchen can't cook.</summary>
-    public bool Unused => Chefs.Count == 0;
+    public bool Unused => Chefs.Count == 0 && Placed == 0;
 }
 
 /// <summary>The setup panel's suggestions: per kitchen, then the drinks.</summary>
@@ -63,6 +63,10 @@ public static class InnSuggester
         var inn = planner.Inn;
         var hot = input.HotTraits.ToHashSet();
         var kitchens = plan.Kitchens.OrderBy(k => k.Number).Select(k => new Kitchen(k.Number, k.Chefs)).ToArray();
+        // Chefs already placed are each planned kitchen's first chefs, kept: suggestions are for the places left.
+        var places = kitchens.ToDictionary(k => k.Number, k => input.Kitchens.FirstOrDefault(p => p.Number == k.Number) is { } p
+            ? (Count: p.Places, Placed: p.Placed.Count)
+            : (Count: k.Chefs.Count, Placed: 0));
 
         // Each menu dish to the kitchen cooking most of it.
         var main = planner.MainKitchens(input, kitchens, plan.Dishes);
@@ -70,20 +74,22 @@ public static class InnSuggester
         var unplaced = plan.Dishes.Where((_, i) => main[i] is null).ToList();
 
         // What each chef not in the plan adds in each kitchen used.
-        var planned = kitchens.SelectMany(k => k.Chefs).Select(c => c.Id).ToHashSet();
+        var planned = kitchens.SelectMany(k => k.Chefs).Select(c => c.Id)
+            .Concat(input.Kitchens.SelectMany(k => k.Placed).OfType<OperatorInfo>().Select(o => o.Id)).ToHashSet();
         var cooks = input.Chefs.Where(o => !inn.ChefBonuses.NotChefs.Contains(o.Id) && !planned.Contains(o.Id)).DistinctBy(o => o.Id).ToList();
         var chefWorth = new List<(int Kitchen, OperatorInfo Item, double Worth)>();
         for (int k = 0; k < kitchens.Length; k++)
         {
-            if (!KitchenMath.Cooks(kitchens[k])) continue;
-            int places = input.Kitchens.FirstOrDefault(p => p.Number == kitchens[k].Number)?.Places ?? kitchens[k].Chefs.Count;
+            var (count, placed) = places[kitchens[k].Number];
+            // Only a kitchen that cooks, in its empty places: a full kitchen gets no chef substitutes.
+            if (!KitchenMath.Cooks(kitchens[k]) || count <= placed) continue;
             foreach (var chef in cooks)
             {
-                double worth = Enumerable.Range(0, Math.Max(1, places)).Max(place => Adds(planner, input, plan, kitchens, k, place, chef));
+                double worth = Enumerable.Range(placed, count - placed).Max(place => Adds(planner, input, plan, kitchens, k, place, chef));
                 if (worth > InnPlanner.Tolerance) chefWorth.Add((kitchens[k].Number, chef, worth));
             }
         }
-        var used = kitchens.Where(KitchenMath.Cooks).Select(k => k.Number).ToList();
+        var used = kitchens.Where(k => KitchenMath.Cooks(k) && places[k.Number].Count > places[k.Number].Placed).Select(k => k.Number).ToList();
         var chefSubs = HandOut(used, [chefWorth], c => c.Id);
 
         // Off-menu dishes by value per second in each kitchen, its own dish types first.
@@ -109,10 +115,14 @@ public static class InnSuggester
             .OrderByDescending(d => d.Value).ThenBy(d => d.Drink.Drink.Id, StringComparer.Ordinal)
             .Take(MaxSubstitutes).Select(d => d.Drink).ToList();
 
-        var suggestions = kitchens.Select(k => KitchenMath.Cooks(k)
-            ? new KitchenSuggestion(k.Number, k.Chefs, chefSubs.GetValueOrDefault(k.Number) ?? [], dishesOf[k.Number],
-                dishSubs.GetValueOrDefault(k.Number) ?? [], Types(dishesOf[k.Number]))
-            : new KitchenSuggestion(k.Number, [], [], [], [], [])).ToList();
+        var suggestions = kitchens.Select(k =>
+        {
+            var (count, placed) = places[k.Number];
+            return (KitchenMath.Cooks(k)
+                ? new KitchenSuggestion(k.Number, [.. k.Chefs.Skip(placed)], chefSubs.GetValueOrDefault(k.Number) ?? [], dishesOf[k.Number],
+                    dishSubs.GetValueOrDefault(k.Number) ?? [], Types(dishesOf[k.Number]))
+                : new KitchenSuggestion(k.Number, [], [], [], [], [])) with { Placed = placed, Full = placed >= count };
+        }).ToList();
         return new InnSuggestions(suggestions, unplaced, plan.Drinks, drinkSubs);
     }
 

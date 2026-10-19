@@ -228,7 +228,10 @@ public sealed class InnPlanner(InnData inn)
     /// <summary>Rounds of chefs-then-menu at most.</summary>
     private const int MaxRounds = 4;
 
-    /// <summary>A cook with no bonus: a kitchen at base speed (a place the beam hasn't filled yet).</summary>
+    /// <summary>
+    /// A cook with no bonus: a kitchen at base speed (a place the beam hasn't filled yet, or one taken
+    /// by a chef whose name couldn't be read, <see cref="PlanKitchen.Placed"/>). Its id is empty.
+    /// </summary>
     private static readonly OperatorInfo PlainCook = new("", "", "", "");
 
     public InnData Inn { get; } = inn;
@@ -286,8 +289,12 @@ public sealed class InnPlanner(InnData inn)
             .OrderByDescending(k => Math.Round(shares[k, d], 9)).ThenBy(k => seconds[k, d]).ThenBy(k => cooking[k].Number).First()].Number)];
     }
 
-    /// <summary>The plan for <paramref name="input"/>.</summary>
-    /// <exception cref="ArgumentException">No kitchens or more than three, two with one number, places outside 1–2, or an unknown Inn Rating.</exception>
+    /// <summary>
+    /// The plan for <paramref name="input"/>. Chefs already placed (<see cref="PlanKitchen.Placed"/>)
+    /// stay where they are and are put nowhere else; each planned kitchen lists them first, then the
+    /// chefs the plan adds in its empty places.
+    /// </summary>
+    /// <exception cref="ArgumentException">No kitchens or more than three, two with one number, places outside 1–2, more chefs placed than places, a chef placed twice, or an unknown Inn Rating.</exception>
     public InnPlan Plan(InnPlanInput input)
     {
         Validate(input);
@@ -335,6 +342,11 @@ public sealed class InnPlanner(InnData inn)
             throw new ArgumentException("Two kitchens have one number.", nameof(input));
         if (input.Kitchens.FirstOrDefault(k => k.Places is < 1 or > KitchenMath.MaxChefs) is { } bad)
             throw new ArgumentException($"Kitchen {bad.Number} has {bad.Places} chef places; a kitchen has 1 to {KitchenMath.MaxChefs}.", nameof(input));
+        if (input.Kitchens.FirstOrDefault(k => k.Placed.Count > k.Places) is { } full)
+            throw new ArgumentException($"Kitchen {full.Number} has {full.Placed.Count} chefs placed in {full.Places} places.", nameof(input));
+        var placed = input.Kitchens.SelectMany(k => k.Placed).OfType<OperatorInfo>().Select(o => o.Id).ToList();
+        if (placed.Count != placed.Distinct().Count())
+            throw new ArgumentException("A chef is placed in two kitchens.", nameof(input));
         if (input.Rating < 1 || input.Rating > KitchenMath.MaxRating)
             throw new ArgumentException($"Inn Rating {input.Rating}; the model knows 1 to {KitchenMath.MaxRating}.", nameof(input));
     }
@@ -642,8 +654,14 @@ public sealed class InnPlanner(InnData inn)
         private readonly InnPlanInput _input;
         private readonly double[] _dishValues, _drinkValues;
 
-        /// <summary>Chefs with the same bonuses, as one profile: its bonuses and its operators (in the input's order).</summary>
+        /// <summary>Chefs with the same bonuses, as one profile: its bonuses and its operators (in the input's order). Never a placed chef.</summary>
         private readonly List<(string Bonuses, List<OperatorInfo> Operators)> _profiles;
+
+        /// <summary>Per kitchen (the input's order), the chefs already placed there: always its first chefs.</summary>
+        private readonly OperatorInfo[][] _placed;
+
+        /// <summary>Places of kitchen <paramref name="k"/> (the input's order) the plan may fill.</summary>
+        private int Free(int k) => _input.Kitchens[k].Places - _placed[k].Length;
 
         public Search(InnPlanner planner, InnPlanInput input, HashSet<string> hot)
         {
@@ -654,8 +672,11 @@ public sealed class InnPlanner(InnData inn)
             _dishValues = [.. Dishes.Select(d => Value(hot, d.Dish))];
             _drinkValues = [.. Drinks.Select(d => Value(hot, d.Drink))];
             var inn = planner.Inn;
+            // Chefs already placed stay where they are (a place taken by an unnamed chef holds a plain cook) and are put nowhere else.
+            _placed = [.. input.Kitchens.Select(k => k.Placed.Select(o => o ?? PlainCook).ToArray())];
+            var placed = input.Kitchens.SelectMany(k => k.Placed).OfType<OperatorInfo>().Select(o => o.Id).ToHashSet();
             _profiles = [.. input.Chefs
-                .Where(o => !inn.ChefBonuses.NotChefs.Contains(o.Id))
+                .Where(o => !inn.ChefBonuses.NotChefs.Contains(o.Id) && !placed.Contains(o.Id))
                 .DistinctBy(o => o.Id)
                 .GroupBy(o => string.Join("|", inn.ChefBonusesOf(o).Select(b => $"{b.Kind}:{b.Percent}:{b.DishType}:{b.Flavor}").Order(StringComparer.Ordinal)))
                 .Select(g => (g.Key, g.ToList()))];
@@ -960,7 +981,7 @@ public sealed class InnPlanner(InnData inn)
             var kitchens = new Kitchen[_input.Kitchens.Count];
             for (int k = 0; k < kitchens.Length; k++)
             {
-                var chefs = new List<OperatorInfo>();
+                var chefs = new List<OperatorInfo>(_placed[k]);
                 foreach (int profile in lineUp.Kitchens[k])
                 {
                     var operators = _profiles[profile].Operators;
@@ -983,7 +1004,7 @@ public sealed class InnPlanner(InnData inn)
         /// </summary>
         public IReadOnlyList<LineUp> Beam(int[] menu, int[] drinks)
         {
-            var places = _input.Kitchens.SelectMany((k, i) => Enumerable.Repeat(i, k.Places)).ToList();
+            var places = _input.Kitchens.SelectMany((_, i) => Enumerable.Repeat(i, Free(i))).ToList();
             var beam = new List<LineUp> { Empty() };
             for (int place = 0; place < places.Count; place++)
             {
@@ -1025,7 +1046,7 @@ public sealed class InnPlanner(InnData inn)
         {
             var parts = new List<string>();
             var finished = Enumerable.Range(0, finishedUpTo + 1)
-                .GroupBy(k => _input.Kitchens[k].Places)
+                .GroupBy(k => $"{Free(k)}/{string.Join("+", _placed[k].Select(c => c.Id))}")
                 .SelectMany(g => g.Select(k => $"{g.Key}:{string.Join(",", lineUp.Kitchens[k])}").Order(StringComparer.Ordinal));
             parts.AddRange(finished);
             parts.Add("#");
@@ -1137,7 +1158,8 @@ public sealed class InnPlanner(InnData inn)
             for (int k = 0; k < kitchens.Length; k++)
             {
                 var chefs = kitchens[k].Chefs;
-                for (int i = 0; i < chefs.Count; i++)
+                // The placed chefs (first) are never taken out or replaced.
+                for (int i = _placed[k].Length; i < chefs.Count; i++)
                 {
                     yield return With(k, chefs.Where((_, j) => j != i));
                     foreach (var chef in spare) yield return With(k, chefs.Select((c, j) => j == i ? chef : c));
@@ -1149,9 +1171,9 @@ public sealed class InnPlanner(InnData inn)
             {
                 for (int b = a + 1; b < kitchens.Length; b++)
                 {
-                    for (int i = 0; i < kitchens[a].Chefs.Count; i++)
+                    for (int i = _placed[a].Length; i < kitchens[a].Chefs.Count; i++)
                     {
-                        for (int j = 0; j < kitchens[b].Chefs.Count; j++)
+                        for (int j = _placed[b].Length; j < kitchens[b].Chefs.Count; j++)
                         {
                             var copy = kitchens.ToArray();
                             copy[a] = kitchens[a] with { Chefs = [.. kitchens[a].Chefs.Select((c, x) => x == i ? kitchens[b].Chefs[j] : c)] };
