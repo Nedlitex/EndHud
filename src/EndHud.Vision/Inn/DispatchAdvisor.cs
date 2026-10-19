@@ -23,6 +23,18 @@ public sealed record InnState(IReadOnlyList<KitchenQueue> Queues, IReadOnlyList<
 {
     /// <summary>The inn has at most six tables (owner).</summary>
     public const int MaxTables = 6;
+
+    /// <summary>
+    /// After the 5:00 session timer reaches 00:00 the inn keeps serving the guests already seated for
+    /// this long, then the session ends (owner, 2026-10-19: "after 5min, there is 18s for the left over time").
+    /// </summary>
+    public const double ServingAfterCloseSeconds = 18;
+
+    /// <summary>Seconds the inn still serves, the timer showing <paramref name="timerSecondsLeft"/> before it closes.</summary>
+    public static double ServingLeft(double timerSecondsLeft) => Math.Max(0, timerSecondsLeft) + ServingAfterCloseSeconds;
+
+    /// <summary>Seconds the inn still serves, <paramref name="secondsSinceClosed"/> after the timer first read 00:00.</summary>
+    public static double ServingLeftAfterClose(double secondsSinceClosed) => Math.Max(0, ServingAfterCloseSeconds - Math.Max(0, secondsSinceClosed));
 }
 
 /// <summary>A dish to put in a kitchen's queue.</summary>
