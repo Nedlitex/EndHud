@@ -538,8 +538,21 @@ dishes and drinks to earn the most in a 5-minute session under every menu rule o
 chefs and dishes the player has (Si and the Endministrator never placed; once the menu screen has
 shown cards, only the dishes and drinks it showed). Guests come on a clock, not as fast as the
 kitchens cook: test_yuanyuan1's first orders came 12 s apart with tables free, about 25 guests a
-session (`InnGuests`). An order is 1.2 dishes and 0.75 drinks, guests pick uniformly from the menu,
-and a dish is worth its price × (1 + 10 % per matched 热门 trait), plus the tips a 珍馐 dish is
+session (`InnGuests`). An order is 1.2 dishes and 0.75 drinks. Guests pick uniformly from the menu
+except for what the theme's text says they prefer ("客人更倾向带有[素食]、[滋补]特性的菜品", 养身心;
+"客人更倾向汤羹类菜品", 舌上清流: `InnObjective.GuestPreference`, into `InnPlanInput.Preferred`): a dish
+with a preferred trait or of a preferred type is picked `PreferenceWeight` (5) times as often, in the
+model's kitchen balance and income and in the simulator's order draws alike. The weight was measured
+with `trace-inn` on test_yuanyuan2 (养身心: 3 of 4 dishes ordered among the 3 preferred of 8; the most
+likely weight, but four dishes give an interval of 0.6 to over 100, so re-measure on a longer
+session). The 热门 chips alone don't shift orders (two 海陆宴 sessions, whose text names no
+preference: hot dishes 1.2× as often, 0.6–2.3, 38 dishes), so the preference is the text's; only
+before the text is read do the chips (else the theme's data) stand in (`InnPlanner.PreferenceOf`), and a
+later reading that lost the text's last sentence keeps the remembered text (`InnSetupMemory.Merge`).
+A preference changes the plan mostly through the chefs (the preferred dishes are most of the
+orders, so chefs speeding their types and flavours win) and which preferred dishes go on: a slow
+preferred dish ordered five times as often can swamp the kitchens, so the plan may carry fewer of
+them, with quick fillers. A dish is worth its price × (1 + 10 % per matched 热门 trait), plus the tips a 珍馐 dish is
 taken to bring (an unmeasured share, doubled when the theme's text says 珍馐 tips are raised:
 `ChoiceDishTipShare`). A theme's "出售N道珍馐菜品" is a target that ranks first. The model
 (each dish shared among the kitchens so they finish together, orders capped by the guests' clock
@@ -1085,6 +1098,7 @@ package, add it to `requirements.txt` with an exact version.
 | `identify <screenshot> --library <dir>` | Show each slot's learned match and closest wiki avatars (model differences, lower = closer). |
 | `learn <screenshot> --library <dir> --slots A,B,C,D` | Teach a library the squad in a screenshot (operator ids, slot order). |
 | `build-portrait-references <squads.json> <out.json>` | Rebuild EndHud's built-in in-game portrait references from labelled 4K squad screenshots. |
+| `trace-inn <video>` `[--every <s>] [--from <s>] [--to <s>] [--end-margin <s>] [--reference <dir>]` | Text only, never an image: per sampled frame (0.5 s) the inn screen, the timer, each table card's state and item ids and the dispatch panel's dishes and queue; then every order once (counted only after its table was seen choosing, items by a vote over the frames that showed them), the counts per dish and drink, gourmand orders apart, the menu and the theme as the screens state them. For measuring what guests order. `--end-margin` leaves out a recording's last seconds. |
 | `fetch-operators <dir>` | Download or update the roster, avatars and skill icons from the wiki into `<dir>/reference`, as the app does (`identify` and `learn` use the same layout). |
 
 
