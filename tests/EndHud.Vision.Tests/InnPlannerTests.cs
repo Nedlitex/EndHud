@@ -79,7 +79,7 @@ public class InnPlannerTests(ITestOutputHelper output)
         double previous = 0;
         for (int kitchens = 1; kitchens <= KitchenMath.MaxKitchens; kitchens++)
         {
-            double income = Planner.Plan(Input(Kitchens(kitchens, 2))).Score.Income;
+            double income = Planner.PlanByModel(Input(Kitchens(kitchens, 2))).Score.Income;
             Assert.True(income >= previous - InnPlanner.Tolerance, $"{kitchens} kitchens earn {income:F0}, fewer earned {previous:F0}");
             previous = income;
         }
@@ -144,13 +144,13 @@ public class InnPlannerTests(ITestOutputHelper output)
         {
             var input = Input(Kitchens(kitchens, places), dishes: offered, hot: InnPlanner.HotTraitsOf([], theme));
 
-            var plan = Planner.Plan(input);
+            var plan = Planner.PlanByModel(input);
             output.WriteLine(Describe(plan));
 
             AssertValid(input, plan);
             foreach (string trait in new[] { "Meaty", "Finny" })
             {
-                var without = Planner.Plan(input with { Dishes = [.. offered.Where(d => !d.Dish.Traits.Contains(trait))] });
+                var without = Planner.PlanByModel(input with { Dishes = [.. offered.Where(d => !d.Dish.Traits.Contains(trait))] });
                 output.WriteLine($"  without {trait}: {Describe(without)}");
                 Assert.False(without.Score.BetterThan(plan.Score), $"kept off {trait}, the menu earns {without.Score.Income:F0} > {plan.Score.Income:F0}");
                 if (plan.Score.BetterThan(without.Score)) Assert.Contains(plan.Dishes, d => d.Dish.Traits.Contains(trait));
@@ -226,15 +226,17 @@ public class InnPlannerTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The model on numbers worked out by hand: 肉包子 (12, 15 s) alone, no drinks. One plain kitchen
-    /// cooks 300 / 15 = 20 dishes, 1.2 a order: 16.7 orders, 240 income; two kitchens double it, three
-    /// triple it; with one table the guests limit it (300 / 34 s a guest = 8.8 orders).
+    /// The model on numbers worked out by hand: 肉包子 (12, 15 s) alone, no drinks, each dish worth
+    /// 12 × (1 + 13 % choice chance × the assumed tip share 0.5) = 12.78 (Rating 4's 8 % and Si's 5 %).
+    /// One plain kitchen cooks 300 / 15 = 20 dishes, 1.2 an order: 16.7 orders, 255.6 income. Two or
+    /// three kitchens could cook more than the guests bring: a guest every 12 s from 7 s, 25.4 orders,
+    /// 389.8 whatever the kitchens. With one table the table limits it: a turn of 35 s, 8.6 orders.
     /// </summary>
     [Theory]
-    [InlineData(1, Tables, 240.0, true)]
-    [InlineData(2, Tables, 480.0, true)]
-    [InlineData(3, Tables, 720.0, true)]
-    [InlineData(1, 1, 300.0 / InnPlanner.MinGuestCycleSeconds * 1.2 * 12, false)]
+    [InlineData(1, Tables, 20 * 12.78, true)]
+    [InlineData(2, Tables, (293.0 / 12 + 1) * 1.2 * 12.78, false)]
+    [InlineData(3, Tables, (293.0 / 12 + 1) * 1.2 * 12.78, false)]
+    [InlineData(1, 1, 300.0 / 35 * 1.2 * 12.78, false)]
     public void The_model_on_numbers_worked_out_by_hand(int kitchens, int tables, double income, bool kitchenBound)
     {
         var input = Input(Kitchens(kitchens, 1), tables: tables);
@@ -248,7 +250,7 @@ public class InnPlannerTests(ITestOutputHelper output)
 
     /// <summary>
     /// A dish short of stock earns only what can be cooked: 肉包子 with 5 left, where one kitchen
-    /// would serve 20 (16.7 orders × 1.2), earns 5 × 12; the plan says it runs short.
+    /// would serve 20 (16.7 orders × 1.2), earns 5 × 12.78; the plan says it runs short.
     /// </summary>
     [Fact]
     public void A_dish_short_of_stock_earns_only_its_stock()
@@ -259,7 +261,7 @@ public class InnPlannerTests(ITestOutputHelper output)
         var score = Planner.Evaluate(input, [new Kitchen(1, [Plain("Plain")])], input.Dishes, []);
         var plan = Planner.Plan(input);
 
-        Assert.Equal(60, score.Income, 6);
+        Assert.Equal(5 * 12.78, score.Income, 6); // each worth 12.78 with its choice-dish tips (see above)
         var short_ = Assert.Single(plan.Reasons, r => r.Kind == PlanReasonKind.ShortOfStock);
         Assert.Equal("meat-baozi", short_.Id);
         Assert.Equal(15, short_.Value, 6);
@@ -305,7 +307,7 @@ public class InnPlannerTests(ITestOutputHelper output)
         var hot = seed % 3 == 0 ? new[] { "Sweet" } : [];
         var input = Input(Kitchens(kitchens, places), chefs, dishes, drinks, rules, hot);
 
-        var plan = Planner.Plan(input);
+        var plan = Planner.PlanByModel(input);
         var best = BruteForce(input);
 
         AssertValid(input, plan);
@@ -401,7 +403,7 @@ public class InnPlannerTests(ITestOutputHelper output)
         var owners = new[] { InnTestData.Kitchen(1, "Perlica", "Avywenna"), InnTestData.Kitchen(2, "Chen_Qianyu"), InnTestData.EmptyKitchen(3) };
         var ownersMenu = OwnersMenu.Select(id => new MenuDish(Inn.Dishes.Single(d => d.Id == id), null)).ToList();
 
-        var plan = Planner.Plan(input);
+        var plan = Planner.PlanByModel(input);
         Assert.True(Planner.MeetsRules(input.Rules, ownersMenu, plan.Drinks));
         var ownersScore = Planner.Evaluate(input, owners, ownersMenu, plan.Drinks);
 
@@ -414,6 +416,13 @@ public class InnPlannerTests(ITestOutputHelper output)
         Assert.False(ownersScore.BetterThan(plan.Score));
         // The owner's chefs in the owner's kitchens with the planner's menu score no more than the plan either.
         Assert.False(Planner.Evaluate(input, owners, plan.Dishes, plan.Drinks).BetterThan(plan.Score));
+
+        // And in the simulator, the plan it chooses earns at least the owner's line-up and menu with the same guests.
+        var simulatedPlan = Planner.Plan(input);
+        var ownersSimulated = Planner.Simulate(input, owners, ownersMenu, simulatedPlan.Drinks);
+        output.WriteLine($"simulated: plan {simulatedPlan.Simulated}, owner {ownersSimulated}");
+        AssertValid(input, simulatedPlan);
+        Assert.False(ownersSimulated.BetterThan(simulatedPlan.Simulated!));
     }
 
     /// <summary>The opening (C16): every kitchen that cooks gets dishes in every free slot, as many as the counter holds.</summary>

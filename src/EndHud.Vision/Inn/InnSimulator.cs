@@ -27,6 +27,13 @@ public sealed record GiveLeftover(int Table, Dish Dish, Dish Ordered) : InnActio
 /// <summary>What the player does at one moment, given the inn as it is.</summary>
 public delegate IReadOnlyList<InnAction> InnPolicy(InnSimulator inn);
 
+/// <summary>A dish carried to a table: the order it was for, the dish ordered (another when a leftover stood in), and the kitchen that cooked it.</summary>
+public sealed record DeliveredDish(InnOrder Order, Dish Dish, Dish Ordered, int Kitchen)
+{
+    /// <summary>The dish the table ordered, not a leftover in its place.</summary>
+    public bool AsOrdered => Dish.Id == Ordered.Id;
+}
+
 /// <summary>A replayed session: every order and when it was served, and the actions the inn refused.</summary>
 /// <param name="Refused">Queueing into a full queue, or a dish with no stock left.</param>
 public sealed record InnRun(IReadOnlyList<ServedOrder> Orders, IReadOnlyList<InnAction> Refused, int CookedAheadWasted)
@@ -39,6 +46,37 @@ public sealed record InnRun(IReadOnlyList<ServedOrder> Orders, IReadOnlyList<Inn
     /// the kitchen busy").
     /// </summary>
     public double IdleKitchenSeconds { get; init; }
+
+    /// <summary>Every dish carried to a table, in the order they were, with the kitchen that cooked it.</summary>
+    public IReadOnlyList<DeliveredDish> Delivered { get; init; } = [];
+}
+
+/// <summary>
+/// How guests come and go, for a session played from its guests rather than a recorded order
+/// stream (<see cref="InnSimulator.RunGuests"/>). Measured on test_yuanyuan1 (research note, plan
+/// S1): the first guest sits 7 s in and orders 16 s in; while tables are free a guest comes every
+/// 12 s (the first seven orders came 15, 12, 12, 12, 12, 12 s apart with tables free: guests come
+/// on a clock, not as fast as tables free up); ordering takes 6–12 s, eating 10–15 s, paying 3–15 s
+/// (until the player collects), and a freed table gets the next waiting guest in 3–6 s. Each is
+/// taken at the middle of its range. Not modelled: guests giving up (how long they wait isn't
+/// known; order to eating was seen up to ~60 s), gourmands (their orders are taken as anyone's)
+/// and Full Blaze's faster guests.
+/// </summary>
+/// <param name="Tables">1 to <see cref="InnState.MaxTables"/>.</param>
+public sealed record InnGuests(int Tables)
+{
+    public const double FirstSeatedSeconds = 7;
+    public const double IntervalSeconds = 12;
+    public const double OrderingSeconds = 9;
+    public const double EatingSeconds = 12.5;
+    public const double PayingSeconds = 9;
+    public const double NextGuestSeconds = 4.5;
+
+    /// <summary>A table's turn with no wait for food: the next guest sits, orders, eats and pays.</summary>
+    public const double TableTurnSeconds = NextGuestSeconds + OrderingSeconds + EatingSeconds + PayingSeconds;
+
+    /// <summary>Guests the clock brings in a session: one at <see cref="FirstSeatedSeconds"/>, then one every <see cref="IntervalSeconds"/> until 00:00.</summary>
+    public const double Arrivals = (InnSimulator.SessionSeconds - FirstSeatedSeconds) / IntervalSeconds + 1;
 }
 
 /// <summary>
@@ -60,7 +98,15 @@ public sealed class InnSimulator
     public const double SessionSeconds = 300;
 
     private readonly List<OrderedDish> _outstanding = [];
+    private readonly List<DeliveredDish> _delivered = [];
+    // The kitchens that cooked the dishes on the counter, per dish, oldest first.
+    private readonly Dictionary<string, Queue<int>> _madeBy = [];
     private double _servingAfterClose = InnState.ServingAfterCloseSeconds;
+
+    // Kitchen-seconds with nothing queued while the timer ran, over the kitchens that can cook (a
+    // kitchen with no chef can't: it isn't idle, it isn't a kitchen). Counted in Play.
+    private double _idle;
+    private HashSet<int> _cooking = [];
     private readonly Dictionary<string, int?> _stock;
 
     /// <param name="step">Seconds per step; the policy is asked once a step.</param>
@@ -106,9 +152,7 @@ public sealed class InnSimulator
         var served = new Dictionary<InnOrder, double>();
         var refused = new List<InnAction>();
         var queue = new Queue<InnOrder>(orders.OrderBy(o => o.At));
-        double idle = 0;
-        // A kitchen with no chef can't cook: it isn't idle, it isn't a kitchen.
-        var cooking = Kitchens.Kitchens.Where(KitchenMath.Cooks).Select(k => k.Number).ToHashSet();
+        StartIdleCount();
 
         double end = SessionSeconds + servingAfterClose;
         while (Now <= end && (queue.Count > 0 || served.Count < orders.Count))
@@ -121,24 +165,120 @@ public sealed class InnSimulator
                 if (order.Dishes.Count == 0) served[order] = Now;
             }
 
-            foreach (var action in policy(this))
-                if (!(action is GiveLeftover give ? Give(give, byTable) : Apply(action))) refused.Add(action);
-
-            foreach (var kitchen in Queues)
-            {
-                if (Now < SessionSeconds && kitchen.Dishes.Count == 0 && cooking.Contains(kitchen.Kitchen)) idle += Math.Min(Step, SessionSeconds - Now);
-                foreach (var dish in kitchen.Tick(Step, Counter.Room))
-                    Counter.TryPut(dish);
-            }
-
+            Play(policy, byTable, refused);
             Now += Step;
             if (Now > end) break; // the inn has stopped serving
             Serve(byTable, served);
         }
 
         int wasted = Counter.Dishes.Count + Queues.Sum(q => q.Dishes.Count);
-        return new InnRun([.. orders.Select(o => new ServedOrder(o, served.TryGetValue(o, out double at) ? at : null))], refused, wasted) { IdleKitchenSeconds = idle };
+        return new InnRun([.. orders.Select(o => new ServedOrder(o, served.TryGetValue(o, out double at) ? at : null))], refused, wasted)
+        {
+            Delivered = [.. _delivered],
+            IdleKitchenSeconds = _idle,
+        };
     }
+
+    /// <summary>
+    /// Plays a session from its guests: the n-th guest comes at <see cref="InnGuests.FirstSeatedSeconds"/>
+    /// + n × <see cref="InnGuests.IntervalSeconds"/>, sits at the first free table (or waits for
+    /// one), orders <paramref name="orders"/>[n] after ordering time, and once every dish is served
+    /// eats, pays and leaves the table for the next. No guest sits after 00:00; those seated are
+    /// served until the inn stops serving (<see cref="InnState.ServingAfterCloseSeconds"/> later). So
+    /// a menu that keeps guests waiting seats fewer of them: the session's orders follow from the menu
+    /// and the kitchens, not from a recording.
+    /// </summary>
+    /// <param name="orders">What each guest orders, in the order they come (as many as may come).</param>
+    /// <exception cref="ArgumentException">Tables outside 1 to <see cref="InnState.MaxTables"/>.</exception>
+    public InnRun RunGuests(InnGuests guests, IReadOnlyList<IReadOnlyList<Dish>> orders, InnPolicy policy)
+    {
+        if (guests.Tables is < 1 or > InnState.MaxTables)
+            throw new ArgumentException($"{guests.Tables} tables; the inn has 1 to {InnState.MaxTables}.", nameof(guests));
+        _servingAfterClose = InnState.ServingAfterCloseSeconds;
+        StartIdleCount();
+        var byTable = new List<(InnOrder Order, List<Dish> Missing)>();
+        var served = new Dictionary<InnOrder, double>();
+        var placed = new List<InnOrder>();
+        var refused = new List<InnAction>();
+        var freeAt = new double[guests.Tables];
+        var ordering = new List<(int Table, double OrderAt, int Guest)>();
+        int next = 0;
+
+        double end = SessionSeconds + InnState.ServingAfterCloseSeconds;
+        while (Now <= end)
+        {
+            // Guests come on the clock and sit at the first table free; none sits after 00:00.
+            while (next < orders.Count && Now <= SessionSeconds && InnGuests.FirstSeatedSeconds + next * InnGuests.IntervalSeconds <= Now)
+            {
+                int table = Array.FindIndex(freeAt, at => at <= Now);
+                if (table < 0) break;
+                freeAt[table] = double.PositiveInfinity;
+                ordering.Add((table + 1, Now + InnGuests.OrderingSeconds, next++));
+            }
+            for (int i = ordering.Count - 1; i >= 0; i--)
+            {
+                var guest = ordering[i];
+                if (guest.OrderAt > Now) continue;
+                ordering.RemoveAt(i);
+                var order = new InnOrder(Now, guest.Table, orders[guest.Guest]);
+                placed.Add(order);
+                byTable.Add((order, [.. order.Dishes]));
+                _outstanding.AddRange(order.Dishes.Select(d => new OrderedDish(order.Table, d)));
+                if (order.Dishes.Count == 0) Leave(order, Now);
+            }
+
+            Play(policy, byTable, refused);
+            Now += Step;
+            if (Now > end) break;
+            int before = served.Count;
+            Serve(byTable, served);
+            if (served.Count == before) continue;
+            foreach (var (order, at) in served.Where(s => s.Value == Now && double.IsPositiveInfinity(freeAt[s.Key.Table - 1])).ToList())
+                Leave(order, at);
+        }
+
+        int wasted = Counter.Dishes.Count + Queues.Sum(q => q.Dishes.Count);
+        return new InnRun([.. placed.Select(o => new ServedOrder(o, served.TryGetValue(o, out double at) ? at : null))], refused, wasted)
+        {
+            Delivered = [.. _delivered],
+            IdleKitchenSeconds = _idle,
+        };
+
+        // A table served eats, pays, and takes the next guest.
+        void Leave(InnOrder order, double at)
+        {
+            served[order] = at;
+            freeAt[order.Table - 1] = at + InnGuests.EatingSeconds + InnGuests.PayingSeconds + InnGuests.NextGuestSeconds;
+        }
+    }
+
+    /// <summary>One step: the policy's actions, then the kitchens cook, finished dishes going to the counter.</summary>
+    private void StartIdleCount()
+    {
+        _idle = 0;
+        _cooking = Kitchens.Kitchens.Where(KitchenMath.Cooks).Select(k => k.Number).ToHashSet();
+    }
+
+    private void Play(InnPolicy policy, List<(InnOrder Order, List<Dish> Missing)> byTable, List<InnAction> refused)
+    {
+        foreach (var action in policy(this))
+            if (!(action is GiveLeftover give ? Give(give, byTable) : Apply(action))) refused.Add(action);
+
+        foreach (var kitchen in Queues)
+        {
+            // A kitchen with nothing queued while the timer runs is time the inn could have cooked.
+            if (Now < SessionSeconds && kitchen.Dishes.Count == 0 && _cooking.Contains(kitchen.Kitchen)) _idle += Math.Min(Step, SessionSeconds - Now);
+            foreach (var dish in kitchen.Tick(Step, Counter.Room))
+            {
+                if (!Counter.TryPut(dish)) continue;
+                if (!_madeBy.TryGetValue(dish.Id, out var made)) _madeBy[dish.Id] = made = new Queue<int>();
+                made.Enqueue(kitchen.Kitchen);
+            }
+        }
+    }
+
+    /// <summary>The kitchen that cooked the oldest <paramref name="dish"/> on the counter, as it's taken off.</summary>
+    private int TakenFrom(Dish dish) => _madeBy.TryGetValue(dish.Id, out var made) && made.Count > 0 ? made.Dequeue() : 0;
 
     private bool Apply(InnAction action)
     {
@@ -165,8 +305,9 @@ public sealed class InnSimulator
         int at = _outstanding.FindIndex(o => o.Table == give.Table && o.Dish.Id == give.Ordered.Id);
         if (at < 0 || !Counter.TryTake(give.Dish)) return false;
         _outstanding.RemoveAt(at);
-        var (_, missing) = byTable.First(t => t.Order.Table == give.Table && t.Missing.Any(d => d.Id == give.Ordered.Id));
+        var (order, missing) = byTable.First(t => t.Order.Table == give.Table && t.Missing.Any(d => d.Id == give.Ordered.Id));
         missing.RemoveAt(missing.FindIndex(d => d.Id == give.Ordered.Id));
+        _delivered.Add(new DeliveredDish(order, give.Dish, give.Ordered, TakenFrom(give.Dish)));
         return true;
     }
 
@@ -179,6 +320,7 @@ public sealed class InnSimulator
             for (int i = missing.Count - 1; i >= 0; i--)
             {
                 if (!Counter.TryTake(missing[i])) continue;
+                _delivered.Add(new DeliveredDish(order, missing[i], missing[i], TakenFrom(missing[i])));
                 int at = _outstanding.FindIndex(o => o.Table == order.Table && o.Dish.Id == missing[i].Id);
                 _outstanding.RemoveAt(at);
                 missing.RemoveAt(i);

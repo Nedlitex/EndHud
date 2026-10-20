@@ -30,9 +30,14 @@ public class InnSetupViewTests(ITestOutputHelper output)
         new(InnScreenKind.Setup, S(at), Setup: new InnSetup("舌上清流", Inn.Themes.FirstOrDefault(t => t.Zh == "舌上清流"), "出售10道[汤羹]类菜品",
             ["至少有1道[汤羹]类菜品"], ["Soup", InnData.Drink], kitchens));
 
-    /// <summary>The menu screen: a soup already on the menu; Rating 4's requirements and the soup rule.</summary>
+    /// <summary>
+    /// The menu screen scrolled through: every dish and drink offered (the player has them all), a
+    /// soup already on the menu; Rating 4's requirements and the soup rule. (Once the menu screen
+    /// shows cards, only those are planned.)
+    /// </summary>
     private static InnReading MenuScreen(double at) =>
-        new(InnScreenKind.Menu, S(at), Menu: new InnMenu(MenuTab.AllDishes, (1, 8), (0, 8), [new MenuCard("melon-meatball-soup", "白瓜肉丸汤", true, true, null)]),
+        new(InnScreenKind.Menu, S(at), Menu: new InnMenu(MenuTab.AllDishes, (1, 8), (0, 8),
+            [.. Inn.Dishes.Select(d => new MenuCard(d.Id, d.Zh, d.Id == "melon-meatball-soup", true, null)), .. Inn.Drinks.Select(d => new MenuCard(d.Id, d.Zh, false, true, null))]),
             Requirements: new MenuRequirements(4, 3, 6, 3, [new DishRule(1, ["Soup"])], []));
 
     private static InnSession Session(params InnReading[] readings)
@@ -253,5 +258,37 @@ public class InnSetupViewTests(ITestOutputHelper output)
         var (session, chefs, menu) = ChenInKitchen1.Value;
 
         Assert.Empty(InnSetupView.ForScreen(screen, session, chefs, menu, Inn, Text));
+    }
+
+    /// <summary>
+    /// 海陆宴 as the owner played it (live 2026-10-19): the owner's chefs placed, the owner's dishes
+    /// seen on the menu screen. The menu has a 肉食 and a 水产 dish (the rule's two halves), mostly the
+    /// dearer dishes, and says the objective "出售6道珍馐菜品" can't be reached with these chefs.
+    /// </summary>
+    [Fact]
+    public void Ocean_and_Lands_menu_meets_both_halves_and_says_when_the_choice_dish_objective_is_out_of_reach()
+    {
+        string[] owned = ["fin-mato-soup", "clay-jar-meat", "goldfloss-chiffon", "spoon-swimmer", "melon-meatball-soup", "mala-xiang-guo", "roll-of-fin-supreme",
+            "berry-fruity-toss", "eight-treasure-rice", "tonic-congee-greens", "melon-in-sauce", "fin-savory-shreds", "salted-cheese-crackers",
+            "bottled-duskberry-juice", "pre-tide-lungjing", "vintage-grapedew", "bottled-milk-a"];
+        var ocean = Inn.Themes.Single(t => t.Zh == "海陆宴");
+        var session = Session(
+            new InnReading(InnScreenKind.Setup, S(0), Setup: new InnSetup("海陆宴", ocean, "出售6道珍馐菜品", ["至少有1道带有[肉食]特性的菜品和1道带有[水产]特性的菜品"],
+                ["Meaty", "Finny"], [With(1, "Akekuri", "Snowshine"), With(2, "Gilberta", "Yvonne"), With(3, "Mi_Fu", "Avywenna")])
+            {
+                Description = "大海与陆地交汇，天地之间无数种巧妙味道就此诞生。珍馐赏钱加成提升，出售珍馐菜品可获得更高收益。", SiChoicePercent = 5,
+            }),
+            new InnReading(InnScreenKind.Menu, S(2), Menu: new InnMenu(MenuTab.AllDishes, (0, 8), (0, 8), [.. owned.Select(id => new MenuCard(id, id, false, true, null))]),
+                Requirements: new MenuRequirements(4, 3, 6, 3, [], [])));
+        var advice = InnSetupAdvice.For(Planner, session.MenuInputs().Input!);
+
+        var panel = Assert.Single(InnSetupView.ForScreen(InnScreenKind.Menu, session, null, advice, Inn, Text));
+        var lines = Lines(panel);
+
+        Assert.Contains(advice.Plan.Dishes, d => d.Dish.Traits.Contains("Meaty"));
+        Assert.Contains(advice.Plan.Dishes, d => d.Dish.Traits.Contains("Finny"));
+        Assert.All(advice.Plan.Dishes, d => Assert.Contains(d.Dish.Id, owned));
+        Assert.True(advice.Plan.Dishes.Count(d => d.Dish.Price >= 80) > advice.Plan.Dishes.Count / 2);
+        Assert.Contains(lines, l => l.StartsWith("按现在的厨师，预计只能卖出约", StringComparison.Ordinal) && l.EndsWith("达不到主题加分项的6道", StringComparison.Ordinal));
     }
 }

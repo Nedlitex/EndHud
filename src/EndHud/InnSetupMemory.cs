@@ -72,8 +72,7 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
         {
             case InnScreenKind.Setup:
                 if (reading.Fresh) _setupUnreadable = reading.Setup is null;
-                if (reading.Setup is { } setup)
-                    Setup = setup.Kitchens is null && Setup?.Kitchens is { } kitchens ? setup with { Kitchens = kitchens } : setup;
+                if (reading.Setup is { } setup) Setup = Merge(Setup, setup);
                 break;
             case InnScreenKind.ChefPicker:
                 // Read on this frame: its kitchen, or none when the title couldn't be read (never the
@@ -81,12 +80,16 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
                 if (reading.Fresh) PickerKitchen = reading.PickerKitchen;
                 break;
             case InnScreenKind.Menu:
-                foreach (var card in reading.Menu?.Cards ?? [])
+                foreach (var read in reading.Menu?.Cards ?? [])
                 {
-                    if (card.Id is null) continue;
-                    _offered[card.Id] = card;
-                    if (card.OnMenu) _menu[card.Id] = card;
-                    else _menu.Remove(card.Id);
+                    if (read.Id is null) continue;
+                    // A stock left unread this time is the stock read before (it doesn't change on this screen).
+                    var card = read is { Unlimited: false, Stock: null } && _offered.TryGetValue(read.Id, out var before)
+                        ? read with { Unlimited = before.Unlimited, Stock = before.Stock }
+                        : read;
+                    _offered[read.Id] = card;
+                    if (card.OnMenu) _menu[read.Id] = card;
+                    else _menu.Remove(read.Id);
                 }
                 if (reading.Menu?.Dishes is { } dishes) _dishCounter = dishes;
                 if (reading.Menu?.Drinks is { } drinks) _drinkCounter = drinks;
@@ -107,10 +110,65 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
         PickerKitchen = null;
     }
 
+    /// <summary>
+    /// A newer reading of the setup screen over what's remembered (owner, live 2026-10-19: the advice
+    /// "refreshes all the time, it does not need to, keep it cached until changed"). OCR misses a
+    /// different part of the same screen from frame to frame; a part a reading misses is not a change.
+    /// Of the same theme (by its data id, else its name as read), the theme's parts are kept where
+    /// the reading has nothing (the objective, the text, the rules, Si's assist) or less (fewer hot
+    /// traits found); another theme replaces them all. Kitchens: <see cref="Merge(SetupKitchen?, SetupKitchen)"/>;
+    /// a reading without kitchens (the theme list) keeps the remembered ones.
+    /// </summary>
+    internal static InnSetup Merge(InnSetup? old, InnSetup read)
+    {
+        if (old is null) return read;
+        var kitchens = read.Kitchens is null ? old.Kitchens
+            : old.Kitchens is null ? read.Kitchens
+            : [.. read.Kitchens.Select(k => Merge(old.Kitchens.FirstOrDefault(o => o.Number == k.Number), k))];
+        bool sameTheme = read.Theme is { } theme && old.Theme is { } before ? theme.Id == before.Id : read.ThemeName == old.ThemeName;
+        if (!sameTheme) return read with { Kitchens = kitchens };
+        return read with
+        {
+            ThemeName = old.Theme is not null && read.Theme is null ? old.ThemeName : read.ThemeName,
+            Theme = read.Theme ?? old.Theme,
+            Objective = read.Objective ?? old.Objective,
+            MenuRules = read.MenuRules.Count > 0 ? read.MenuRules : old.MenuRules,
+            HotTraits = read.HotTraits.Count >= old.HotTraits.Count ? read.HotTraits : old.HotTraits,
+            Kitchens = kitchens,
+            Description = read.Description ?? old.Description,
+            SiChoicePercent = read.SiChoicePercent ?? old.SiChoicePercent,
+        };
+    }
+
+    /// <summary>
+    /// A newer reading of a kitchen over what's remembered of it: its places and how many are taken
+    /// when the reading couldn't tell; a chef whose name the reading missed in a place still taken
+    /// keeps the name read before (in place order). A place seen empty (fewer taken) drops the name.
+    /// </summary>
+    internal static SetupKitchen Merge(SetupKitchen? old, SetupKitchen read)
+    {
+        if (old is null) return read;
+        int? taken = read.ChefsPlaced ?? old.ChefsPlaced;
+        var chefs = read.Chefs.ToArray();
+        var names = read.ChefNames.ToArray();
+        int named = chefs.Count(c => c is not null);
+        // The names read before that this reading lacks, for the places still taken but not named.
+        var missing = old.Chefs.Select((id, i) => (id, name: i < old.ChefNames.Count ? old.ChefNames[i] : null))
+            .Where(o => o.id is not null && !chefs.Contains(o.id)).ToList();
+        for (int i = 0; i < chefs.Length && missing.Count > 0 && named < (taken ?? int.MaxValue); i++)
+        {
+            if (chefs[i] is not null) continue;
+            (chefs[i], names[i]) = missing[0];
+            missing.RemoveAt(0);
+            named++;
+        }
+        return new SetupKitchen(read.Number, read.ChefSlots ?? old.ChefSlots, chefs, names) { ChefsPlaced = taken };
+    }
+
     /// <summary>A newer reading of the requirements, what it missed taken from the older (the numbers don't change, only their colours).</summary>
     private static MenuRequirements Merge(MenuRequirements? old, MenuRequirements read) => old is null ? read : new MenuRequirements(
         read.Rating ?? old.Rating, read.MinTypes ?? old.MinTypes, read.MinDishes ?? old.MinDishes, read.MinDrinks ?? old.MinDrinks,
-        read.DishRules.Count > 0 ? read.DishRules : old.DishRules, read.Lines);
+        read.DishRules.Count >= old.DishRules.Count ? read.DishRules : old.DishRules, read.Lines);
 
     /// <summary>
     /// The kitchens as the setup screen showed them, each with its places and the chefs placed there (kept by
@@ -170,9 +228,13 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
         int rating = Math.Clamp(r?.Rating ?? setup.Theme?.Rating ?? KitchenMath.MaxRating, 1, KitchenMath.MaxRating);
         var chefs = roster.Where(o => !data.ChefBonuses.NotChefs.Contains(o.Id)).ToList();
         int? Stock(string id) => _offered.TryGetValue(id, out var card) && !card.Unlimited ? card.Stock : null;
-        var dishes = data.Dishes.Where(d => d.Unlock.Rating is not { } needs || needs <= rating || _offered.ContainsKey(d.Id))
+        // What the player has: once the menu screen has shown dishes, those it showed (the player's own list,
+        // owner: "it never even picked any one that I have"); before, every dish the rating unlocks and those a
+        // theme's stars do. Drinks alike, by the drinks seen.
+        bool dishesSeen = data.Dishes.Any(d => _offered.ContainsKey(d.Id)), drinksSeen = data.Drinks.Any(d => _offered.ContainsKey(d.Id));
+        var dishes = data.Dishes.Where(d => dishesSeen ? _offered.ContainsKey(d.Id) : d.Unlock.Rating is not { } needs || needs <= rating)
             .Select(d => new MenuDish(d, Stock(d.Id))).ToList();
-        var drinks = data.Drinks.Where(d => d.Unlock.Rating is not { } needs || needs <= rating || _offered.ContainsKey(d.Id))
+        var drinks = data.Drinks.Where(d => drinksSeen ? _offered.ContainsKey(d.Id) : d.Unlock.Rating is not { } needs || needs <= rating)
             .Select(d => new MenuDrink(d, d.Unlimited ? null : Stock(d.Id))).ToList();
 
         // The theme's rules (a trait's or a dish type's): as the setup screen states them, and as the menu screen does.
@@ -184,14 +246,20 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
         // The counters' "N/8" give the most allowed; unread, the rating's (8 of each at Rating 4).
         int maxDishes = _dishCounter?.Allowed ?? known?.MaxDishes ?? MenuRules.MostSeen, maxDrinks = _drinkCounter?.Allowed ?? known?.MaxDrinks ?? MenuRules.MostSeen;
         var rules = new MenuRules(minDishes, Math.Max(minDishes, maxDishes), minDrinks, Math.Max(minDrinks, maxDrinks), minTypes, dishRules);
-        var input = new InnPlanInput(InnPlanner.HotTraitsOf(setup.HotTraits, setup.Theme), rating, SiQualityPercent: 0, InnState.MaxTables,
-            kitchens, chefs, dishes, drinks, rules);
+        // Si's 品质把控 as its line states it; unread, none (the cautious side: no choice-dish chance counted that may not be there).
+        var input = new InnPlanInput(InnPlanner.HotTraitsOf(setup.HotTraits, setup.Theme), rating, SiQualityPercent: setup.SiChoicePercent ?? 0,
+            InnState.MaxTables, kitchens, chefs, dishes, drinks, rules)
+        {
+            ChoiceDishTarget = InnObjective.ChoiceDishTarget(setup.Objective),
+            ChoiceTipsRaised = InnObjective.RaisesChoiceTips(setup.Description),
+        };
+        // Everything the plan depends on and nothing else, each part in a fixed order: the same setup gives the same key.
         string key = string.Join("|", purpose,
-            string.Join(",", input.HotTraits), rating,
+            string.Join(",", input.HotTraits.Order(StringComparer.Ordinal)), rating, input.SiQualityPercent, input.ChoiceDishTarget, input.ChoiceTipsRaised,
             string.Join(",", kitchens.Select(k => $"{k.Number}:{k.Places}:{string.Join("+", k.Placed.Select(c => c?.Id ?? "?"))}")),
             string.Join(",", dishes.Select(d => $"{d.Dish.Id}:{d.Stock}").Order()), string.Join(",", drinks.Select(d => $"{d.Drink.Id}:{d.Stock}").Order()),
             $"{rules.MinDishes}-{rules.MaxDishes}/{rules.MinDrinks}-{rules.MaxDrinks}/{rules.MinTypes}",
-            string.Join(",", dishRules.Select(t => $"{t.Count}:{string.Join("/", t.AnyOf)}")), string.Join(",", setupRules.NotUnderstood));
+            string.Join(",", dishRules.Select(t => $"{t.Count}:{string.Join("/", t.AnyOf)}").Order(StringComparer.Ordinal)), string.Join(",", setupRules.NotUnderstood));
         return new InnSetupInputs([], input, key, setupRules.NotUnderstood);
     }
 }

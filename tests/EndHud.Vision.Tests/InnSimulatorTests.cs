@@ -317,4 +317,46 @@ public class InnSimulatorTests(ITestOutputHelper output)
         // kitchens with a player acting every 20 s); after: 104.0.
         Assert.True(total <= 104, $"{total:F1} kitchen-seconds idle");
     }
+
+    // ---- A session played from its guests ----
+
+    private static IReadOnlyList<IReadOnlyList<Dish>> Guests(int count, string zh) => [.. Enumerable.Range(0, count).Select(_ => (IReadOnlyList<Dish>)[Dish(zh)])];
+
+    /// <summary>
+    /// Guests come on the clock (a guest every 12 s from 7 s, test_yuanyuan1): with the quickest dish
+    /// and every kitchen cooking, the session still serves about 25 orders, not as many as the
+    /// kitchens could cook. The first order comes 16 s in, as recorded.
+    /// </summary>
+    [Fact]
+    public void Guests_come_on_their_clock_however_fast_the_kitchens_cook()
+    {
+        var kitchens = Kitchens(2);
+        var menu = new[] { new MenuDish(Dish("肉包子"), null) };
+
+        var run = new InnSimulator(kitchens, menu).RunGuests(new InnGuests(InnState.MaxTables), Guests(60, "肉包子"),
+            InnSimulator.Following(new DispatchAdvisor(kitchens)));
+
+        Assert.Equal(16, run.Orders[0].Order.At, 0);
+        Assert.Equal((int)InnGuests.Arrivals, run.Orders.Count);
+        Assert.InRange(run.Served, (int)InnGuests.Arrivals - 1, (int)InnGuests.Arrivals);
+        Assert.All(run.Delivered, d => Assert.Contains(d.Kitchen, new[] { 1, 2 }));
+    }
+
+    /// <summary>
+    /// A slow menu keeps tables waiting: with one table, one kitchen and a 40 s soup, a guest sits
+    /// only when the last one has eaten and paid, so far fewer are seated than the clock brings.
+    /// </summary>
+    [Fact]
+    public void A_table_waiting_for_its_food_seats_no_one_else()
+    {
+        var kitchens = Kitchens(1);
+        var menu = new[] { new MenuDish(Dish("酸辣汤"), null) };
+
+        var run = new InnSimulator(kitchens, menu).RunGuests(new InnGuests(1), Guests(60, "酸辣汤"), InnSimulator.Following(new DispatchAdvisor(kitchens)));
+
+        // Each turn at least: ordering 9 s + eating 12.5 + paying 9 + the next guest 4.5 (the soup cooked ahead).
+        Assert.InRange(run.Orders.Count, 2, (int)(InnSimulator.SessionSeconds / InnGuests.TableTurnSeconds) + 1);
+        Assert.True(run.Orders.Count < InnGuests.Arrivals / 2);
+        Assert.All(run.Orders.Zip(run.Orders.Skip(1)), pair => Assert.True(pair.Second.Order.At - pair.First.ServedAt!.Value >= InnGuests.EatingSeconds + InnGuests.PayingSeconds));
+    }
 }
