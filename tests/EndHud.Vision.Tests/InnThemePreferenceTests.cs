@@ -1,4 +1,5 @@
 using EndHud.Vision.Inn;
+using EndHud.Vision.Operators;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -207,6 +208,71 @@ public class InnThemePreferenceTests(ITestOutputHelper output)
         output.WriteLine($"{theme}: plan for the preference {planAfter.Simulated}; the uniform plan where guests prefer {uniformPlanPlayed}");
 
         Assert.True(planAfter.Simulated!.BetterThan(uniformPlanPlayed), $"{planAfter.Simulated} vs {uniformPlanPlayed}");
+    }
+
+    // ---- The setup advice under a preference ----
+
+    /// <summary>
+    /// The soup theme's plan for the owner's case (Chen Qianyu placed in kitchen 1; every dish): five
+    /// quick dishes and one soup that guests order five times as often, so kitchen 3 holds the larger
+    /// share of all five and kitchen 1 of none.
+    /// </summary>
+    private static (InnPlanInput Input, IReadOnlyList<Kitchen> Kitchens, IReadOnlyList<MenuDish> Dishes) SoupThemeCase(bool secondChefInKitchen1 = true)
+    {
+        IReadOnlyList<Kitchen> kitchens =
+        [
+            secondChefInKitchen1 ? InnTestData.Kitchen(1, "Chen_Qianyu", "Zhuang_Fangyi") : InnTestData.Kitchen(1, "Chen_Qianyu"),
+            InnTestData.Kitchen(2, "Tangtang", "Fluorite"),
+            InnTestData.Kitchen(3, "Yvonne", "Avywenna"),
+        ];
+        IReadOnlyList<MenuDish> dishes = [.. new[] { "青菜养生粥", "界龙肉卷", "鳞香肉丝", "簇锦豆腐羹", "咸酪脆饼", "红蕊奶酪蛋糕" }.Select(zh => new MenuDish(InnTestData.Dish(zh), null))];
+        var input = new InnPlanInput(["Soup", InnData.Drink], 4, 0, InnState.MaxTables,
+            [new PlanKitchen(1, 2) { Placed = [InnTestData.Chef("Chen_Qianyu")] }, new PlanKitchen(2, 2), new PlanKitchen(3, 2)], InnTestData.Library.Operators,
+            [.. Inn.Dishes.Select(d => new MenuDish(d, null))], [.. Inn.Drinks.Select(d => new MenuDrink(d, null))],
+            new MenuRules(6, 8, 3, 8, 3, [new DishRule(1, ["Soup"])]))
+        {
+            Preferred = ["Soup", InnData.Drink],
+        };
+        return (input, kitchens, dishes);
+    }
+
+    /// <summary>Every kitchen that cooks has a dish to be told (the setup advice's "做…" under it), each dish under one kitchen.</summary>
+    [Fact]
+    public void Every_cooking_kitchen_is_the_main_kitchen_of_a_dish()
+    {
+        var (input, kitchens, dishes) = SoupThemeCase();
+
+        var main = Planner.MainKitchens(input, kitchens, dishes);
+        output.WriteLine(string.Join(" ", dishes.Select((d, i) => $"{d.Dish.Zh}:{main[i]}")));
+
+        Assert.All(main, m => Assert.NotNull(m));
+        Assert.Equal([1, 2, 3], main.Distinct().Order().Select(m => m!.Value));
+        // The soup stays with the soup chefs.
+        Assert.Equal(2, main[dishes.ToList().FindIndex(d => d.Dish.Type == DishType.Soup)]);
+    }
+
+    /// <summary>
+    /// Where the guests' clock, not the kitchens, sets the orders, a faster chef earns nothing more under
+    /// the model: chef substitutes are still listed, the one saving the most kitchen time first.
+    /// </summary>
+    [Fact]
+    public void Chef_substitutes_are_ranked_by_kitchen_time_when_the_guests_set_the_orders()
+    {
+        var (input, kitchens, dishes) = SoupThemeCase(secondChefInKitchen1: false);
+        var score = Planner.Evaluate(input, kitchens, dishes, []);
+        Assert.False(score.KitchenBound);
+        var plan = new InnPlan([.. kitchens.Select(k => new PlannedKitchen(k.Number, k.Chefs))], dishes, [], null, score, RulesMet: true, []);
+
+        var suggestions = InnSuggester.Of(Planner, input, plan);
+
+        var subs = suggestions.Kitchens.Single(k => k.Number == 1).ChefSubstitutes;
+        double Seconds(OperatorInfo chef) =>
+            Planner.KitchenSecondsPerDish(input, [InnTestData.Kitchen(1, "Chen_Qianyu") with { Chefs = [InnTestData.Chef("Chen_Qianyu"), chef] }, kitchens[1], kitchens[2]], dishes);
+        output.WriteLine(string.Join(" ", subs.Select(c => $"{c.NameZh} {Seconds(c):F3}")));
+        Assert.NotEmpty(subs);
+        Assert.True(subs.Count <= InnSuggester.MaxSubstitutes);
+        Assert.Equal(subs.Select(Seconds).Order(), subs.Select(Seconds));
+        Assert.True(Seconds(subs[0]) < Planner.KitchenSecondsPerDish(input, kitchens, dishes));
     }
 
     // ---- The owner's sessions: what the plan becomes ----

@@ -464,7 +464,10 @@ public sealed class InnPlanner(InnData inn)
     /// <summary>
     /// The kitchen (its number) that cooks the larger share of each of <paramref name="dishes"/> under
     /// the model, the kitchens' loads balanced (<see cref="Shares"/>); on an equal share, the faster
-    /// kitchen, then the lower number. Null for every dish when no kitchen cooks.
+    /// kitchen, then the lower number. A kitchen that cooks yet holds the larger share of no dish (one
+    /// dish most guests order, a theme's preferred, spread over the kitchens) takes the dish it cooks
+    /// the most of from a kitchen left with another, so every kitchen has a dish to be told. Null for
+    /// every dish when no kitchen cooks.
     /// </summary>
     public IReadOnlyList<int?> MainKitchens(InnPlanInput input, IReadOnlyList<Kitchen> kitchens, IReadOnlyList<MenuDish> dishes)
     {
@@ -473,8 +476,32 @@ public sealed class InnPlanner(InnData inn)
         var (seconds, _) = Times(input, cooking, [.. dishes.Select(d => d.Dish)]);
         var preferred = input.Preferred.ToHashSet();
         var shares = Shares(seconds, OrderShares([.. dishes.Select(d => OrderWeight(preferred, d.Dish))]));
-        return [.. Enumerable.Range(0, dishes.Count).Select(d => (int?)cooking[Enumerable.Range(0, cooking.Count)
-            .OrderByDescending(k => Math.Round(shares[k, d], 9)).ThenBy(k => seconds[k, d]).ThenBy(k => cooking[k].Number).First()].Number)];
+        int[] main = [.. Enumerable.Range(0, dishes.Count).Select(d => Enumerable.Range(0, cooking.Count)
+            .OrderByDescending(k => Math.Round(shares[k, d], 9)).ThenBy(k => seconds[k, d]).ThenBy(k => cooking[k].Number).First())];
+        for (int k = 0; k < cooking.Count; k++)
+        {
+            if (main.Contains(k)) continue;
+            int kitchen = k;
+            int taken = Enumerable.Range(0, dishes.Count)
+                .Where(d => shares[kitchen, d] > 1e-9 && main.Count(m => m == main[d]) > 1)
+                .OrderByDescending(d => Math.Round(shares[kitchen, d], 9)).ThenBy(d => seconds[kitchen, d]).DefaultIfEmpty(-1).First();
+            if (taken >= 0) main[taken] = k;
+        }
+        return [.. main.Select(k => (int?)cooking[k].Number)];
+    }
+
+    /// <summary>
+    /// Kitchen-seconds one dish of the menu's mix costs with the kitchens cooking side by side, loads
+    /// balanced (<see cref="Balance(double[,], double[])"/>, the order mix by the theme's preference):
+    /// less is a faster line-up. Infinite when no kitchen cooks.
+    /// </summary>
+    public double KitchenSecondsPerDish(InnPlanInput input, IReadOnlyList<Kitchen> kitchens, IReadOnlyList<MenuDish> dishes)
+    {
+        var cooking = kitchens.Where(Cooks).ToList();
+        if (cooking.Count == 0 || dishes.Count == 0) return double.PositiveInfinity;
+        var (seconds, _) = Times(input, cooking, [.. dishes.Select(d => d.Dish)]);
+        var preferred = input.Preferred.ToHashSet();
+        return Balance(seconds, OrderShares([.. dishes.Select(d => OrderWeight(preferred, d.Dish))]));
     }
 
     /// <summary>

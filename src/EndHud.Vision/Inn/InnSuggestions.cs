@@ -39,7 +39,9 @@ public sealed record InnSuggestions(IReadOnlyList<KitchenSuggestion> Kitchens, I
 /// exactly one kitchen.</item>
 /// <item><b>Chef substitutes:</b> what a chef adds in a kitchen is the plan's income with them in
 /// one of its places (the plan's other chefs and menu kept) less with a cook of no bonus there, the
-/// better of its places. Handed out across the kitchens best first, at most
+/// better of its places; on an equal income (the guests' clock, not the kitchens, sets the orders, so a
+/// faster kitchen earns nothing more under the model) the kitchen-seconds per dish they save
+/// (<see cref="InnPlanner.KitchenSecondsPerDish"/>: a faster kitchen serves sooner). Handed out across the kitchens best first, at most
 /// <see cref="MaxSubstitutes"/> each, a chef to one kitchen only; never a chef the plan uses. A
 /// kitchen left with none takes the best of those listed elsewhere (nothing else is left).</item>
 /// <item><b>Dish substitutes:</b> off-menu dishes by value per second cooked in that kitchen (price
@@ -77,7 +79,7 @@ public static class InnSuggester
         var planned = kitchens.SelectMany(k => k.Chefs).Select(c => c.Id)
             .Concat(input.Kitchens.SelectMany(k => k.Placed).OfType<OperatorInfo>().Select(o => o.Id)).ToHashSet();
         var cooks = input.Chefs.Where(o => !inn.ChefBonuses.NotChefs.Contains(o.Id) && !planned.Contains(o.Id)).DistinctBy(o => o.Id).ToList();
-        var chefWorth = new List<(int Kitchen, OperatorInfo Item, double Worth)>();
+        var chefWorth = new List<(int Kitchen, OperatorInfo Item, ChefWorth Worth)>();
         for (int k = 0; k < kitchens.Length; k++)
         {
             var (count, placed) = places[kitchens[k].Number];
@@ -85,8 +87,8 @@ public static class InnSuggester
             if (!KitchenMath.Cooks(kitchens[k]) || count <= placed) continue;
             foreach (var chef in cooks)
             {
-                double worth = Enumerable.Range(placed, count - placed).Max(place => Adds(planner, input, plan, kitchens, k, place, chef));
-                if (worth > InnPlanner.Tolerance) chefWorth.Add((kitchens[k].Number, chef, worth));
+                var worth = Enumerable.Range(placed, count - placed).Select(place => Adds(planner, input, plan, kitchens, k, place, chef)).Max();
+                if (worth.Income > InnPlanner.Tolerance || worth.SecondsSaved > SecondsTolerance) chefWorth.Add((kitchens[k].Number, chef, worth));
             }
         }
         var used = kitchens.Where(k => KitchenMath.Cooks(k) && places[k.Number].Count > places[k.Number].Placed).Select(k => k.Number).ToList();
@@ -135,7 +137,8 @@ public static class InnSuggester
     /// best worth first, at most <see cref="MaxSubstitutes"/> a kitchen and each item to one kitchen
     /// only. A kitchen left with none then takes its best even if listed elsewhere (nothing else is left).
     /// </summary>
-    private static Dictionary<int, List<T>> HandOut<T>(IReadOnlyList<int> kitchens, IReadOnlyList<List<(int Kitchen, T Item, double Worth)>> pools, Func<T, string> id)
+    private static Dictionary<int, List<T>> HandOut<T, TWorth>(IReadOnlyList<int> kitchens, IReadOnlyList<List<(int Kitchen, T Item, TWorth Worth)>> pools, Func<T, string> id)
+        where TWorth : IComparable<TWorth>
     {
         var lists = kitchens.ToDictionary(k => k, _ => new List<T>());
         var taken = new HashSet<string>();
@@ -154,24 +157,37 @@ public static class InnSuggester
         return lists;
     }
 
-    private static IEnumerable<(int Kitchen, T Item, double Worth)> Ranked<T>(IEnumerable<(int Kitchen, T Item, double Worth)> pool, Func<T, string> id) =>
+    private static IEnumerable<(int Kitchen, T Item, TWorth Worth)> Ranked<T, TWorth>(IEnumerable<(int Kitchen, T Item, TWorth Worth)> pool, Func<T, string> id)
+        where TWorth : IComparable<TWorth> =>
         pool.OrderByDescending(c => c.Worth).ThenBy(c => c.Kitchen).ThenBy(c => id(c.Item), StringComparer.Ordinal);
+
+    /// <summary>Kitchen-seconds per dish this close are the same speed.</summary>
+    private const double SecondsTolerance = 1e-6;
+
+    /// <summary>What a chef adds: income first; on an equal income (within a cent), the kitchen-seconds per dish saved.</summary>
+    private readonly record struct ChefWorth(double Income, double SecondsSaved) : IComparable<ChefWorth>
+    {
+        public int CompareTo(ChefWorth other) =>
+            Math.Abs(Income - other.Income) > InnPlanner.Tolerance ? Income.CompareTo(other.Income) : SecondsSaved.CompareTo(other.SecondsSaved);
+    }
 
     /// <summary>
     /// What <paramref name="chef"/> adds in <paramref name="place"/> of kitchen <paramref name="k"/>:
-    /// the plan's income with them there less with a cook of no bonus there.
+    /// the plan's income with them there less with a cook of no bonus there, and the kitchen-seconds
+    /// per dish they save.
     /// </summary>
-    private static double Adds(InnPlanner planner, InnPlanInput input, InnPlan plan, Kitchen[] kitchens, int k, int place, OperatorInfo chef)
+    private static ChefWorth Adds(InnPlanner planner, InnPlanInput input, InnPlan plan, Kitchen[] kitchens, int k, int place, OperatorInfo chef)
     {
-        double With(OperatorInfo cook)
+        (double Income, double Seconds) With(OperatorInfo cook)
         {
             var chefs = kitchens[k].Chefs.ToList();
             while (chefs.Count <= place) chefs.Add(PlainCook);
             chefs[place] = cook;
             var trial = kitchens.ToArray();
             trial[k] = kitchens[k] with { Chefs = chefs };
-            return planner.Evaluate(input, trial, plan.Dishes, plan.Drinks).Income;
+            return (planner.Evaluate(input, trial, plan.Dishes, plan.Drinks).Income, planner.KitchenSecondsPerDish(input, trial, plan.Dishes));
         }
-        return With(chef) - With(PlainCook);
+        var (withChef, plain) = (With(chef), With(PlainCook));
+        return new ChefWorth(withChef.Income - plain.Income, plain.Seconds - withChef.Seconds);
     }
 }
