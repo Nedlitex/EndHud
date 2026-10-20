@@ -411,6 +411,22 @@ public sealed class InnPlanner(InnData inn)
         drink.Traits.Count(hot.Contains) + (hot.Contains(InnData.Drink) ? 1 : 0);
 
     /// <summary>
+    /// What the theme favours: its hot items (<see cref="InnPlanInput.HotTraits"/>, 主题热门) and what its text
+    /// says guests prefer (<see cref="InnPlanInput.Preferred"/>), trait ids and dish types ("Drink" for every drink).
+    /// </summary>
+    public static HashSet<string> ThemeItems(InnPlanInput input) => [.. input.HotTraits, .. input.Preferred];
+
+    /// <summary>
+    /// How many of the theme's items (<see cref="ThemeItems"/>) <paramref name="dish"/> matches: its traits and its
+    /// type. A matching dish (one or more) always ranks above one that doesn't (owner, 2026-10-20), and one matching
+    /// two above one matching one (<see cref="ThemeMatch"/>).
+    /// </summary>
+    public static int ThemeMatches(IReadOnlyCollection<string> items, Dish dish) => HotMatches(items, dish);
+
+    /// <summary>How many of the theme's items <paramref name="drink"/> matches: its traits, and "Drink" for any drink.</summary>
+    public static int ThemeMatches(IReadOnlyCollection<string> items, InnDrink drink) => HotMatches(items, drink);
+
+    /// <summary>
     /// What the theme makes guests prefer (<see cref="InnPlanInput.Preferred"/>): what its text says
     /// (<see cref="InnObjective.GuestPreference"/>); when the text wasn't read, the 热门 chips read off the
     /// screen, else the theme's preferences in the data. A text read that names no preference (海陆宴's
