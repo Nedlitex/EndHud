@@ -500,9 +500,12 @@ own. [`KitchenMath`](src/EndHud.Vision/Inn/KitchenMath.cs) gives a dish's cook t
 A kitchen queues 3 dishes, one cooking ([`KitchenQueue`](src/EndHud.Vision/Inn/KitchenQueue.cs));
 the counter holds 8. [`DispatchAdvisor`](src/EndHud.Vision/Inn/DispatchAdvisor.cs) sends each
 ordered dish not already carried, on the counter or queued to the kitchen that has it out soonest
-(ties: the better choice chance); cooks ahead in idle kitchens (slowest dishes first, spread over the
-menu, never past the counter's room or without stock, leaving one slot free for orders); fills every
-free slot at the session's start and when Full Blaze is near; and suggests taking a dish cooked
+(ties: the better choice chance); cooks ahead (the dish cooked ahead least so far, then the slowest,
+never past the counter's room or without stock, leaving one slot free for orders); fills every free
+slot at the session's start and when Full Blaze is near. Every dish, ordered or cooked ahead, goes to
+the kitchen where it comes out first (owner, 2026-10-19): the seconds left on the dish that kitchen
+is cooking, plus the dishes waiting behind it, plus this dish's cook time there; there's no
+"idle kitchen first" rule, an idle kitchen wins only when that makes it the earliest. It also and suggests taking a dish cooked
 ahead out for an order only when that wins by more than 5 s (a cooking dish only when barely
 started, since its progress is taken as lost). A kitchen with no chef cannot cook (owner): one rule,
 `KitchenMath.Cooks`, which the planner, the advisor and the session all go by; such a kitchen gets no
@@ -598,7 +601,7 @@ corners, and other window shapes are EndHud's assumption, not checked.
 | `FireMeterReader` | fire "N/100", streak, ready (red button, 开启满堂彩) | all, at every size; hidden behind the dispatch panel |
 | `TableCardReader` | each table's state and, for an order, its dishes and drinks by picture and whether each is served (its pip green, or the blue auto-serve spinner on it) | 56/56 items and 90/90 cards at 4K, 1440p and 1080p |
 | `DispatchPanelReader` | kitchen shown, chefs, 珍馐 chance, each dish's cook time, the queue (dish, time left) | 114–115 of 115 values per size, none wrong |
-| `BubbleReader` | a gourmand's speech bubble, its sentences matched with `InnData.MatchSaid` | the one recorded bubble, both requests, at every size |
+| `BubbleReader` | a gourmand's speech bubble: each line cut at sentence ends and commas, every run of up to 6 pieces matched on its own with `InnData.MatchSaid` (each piece and request used once), so a request on the second line isn't lost to the first; the text's left edge is measured in character heights, since the bubble's size follows the camera | the one recorded bubble, both requests, at every size |
 | `SetupReader` | theme, objective, menu rules, hot traits, dish types and 饮品, kitchens with their chef places, how many hold a chef (the bar under each: red or grey) and the chefs | all at 4K; objective and rules slip at 1440p |
 | `MenuReader` | tab, cards in view and whether each is on the menu, stock ∞, the counters | tab and cards at every size; stock and counters partly |
 | `MenuRequirementsReader` | the menu screen's 菜单要求: Inn Rating ("4级客栈要求"), types, dishes and drinks at least, the theme's trait or dish-type rule | all five on both menu frames, at every size |
@@ -647,6 +650,12 @@ the title); in a session the screen is told by the timer's digits and the dispat
 while a gourmand is at a table. Without the Simplified Chinese OCR language only the timer is
 read (`ClockOnlyScreens`), so the strip can say what to install. The readers sit behind
 `IInnScreens`, which the wire-up tests replace.
+
+A session survives a missed frame (owner, 2026-10-19: the strip flashed as detection missed single
+frames while the dispatch panel opened, the HUD faded or the camera moved): a frame with no inn
+screen during a session keeps the last reading and the strip for up to 8 s
+(`PartyMonitor.SessionHold`), logged once per streak. It ends at once when the squad panel shows or
+the inn has closed and its 18 s of serving are over, else after 8 s with no inn screen.
 
 [`InnSession`](src/EndHud/InnSession.cs) (on the UI thread, memory only) keeps what the advice needs:
 before a session and into it, the setup as chosen so far ([`InnSetupMemory`](src/EndHud/InnSetupMemory.cs),
