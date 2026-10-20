@@ -549,9 +549,14 @@ The model only proposes: the best line-ups, each with menus from the dearest to 
 played in the simulator (`InnSimulator.RunGuests`: guests seated on the clock, the dispatch advice
 followed) over six sessions of the same guests, and the plan is the one that earns most there
 (`InnPlan.Simulated`). The plan carries the opening precook. A kitchen with no chef doesn't cook
-(`KitchenMath.Cooks`). About 7 s (Release) for three empty kitchens of two over the whole roster,
-under 1 s for the menu of placed chefs: run it off the UI thread; the setup advice keeps the last
-plan on screen while a new one is worked out, and works one out only when what it reads changes.
+(`KitchenMath.Cooks`). Measured (Release, InnSetupCostTests): 5–12 s for three empty kitchens of two
+over the whole roster, almost all of it the model's beam search (the simulator adds ~1.5 s); under
+1 s for the menu of placed chefs. So the setup advice shows a quicker answer first:
+`PlanQuickly` runs the same search with less effort (one narrower beam from one starting menu, each
+line-up judged by that menu alone, no polish): 0.3–0.4 s, within ~5 % of the full search's income
+under the model, every rule still met. `Plan` takes a cancellation token, checked at each beam place,
+each polish round and each simulated candidate, so a plan for inputs that have since changed stops
+within ~0.1 s.
 
 Chefs the player has already put in (`PlanKitchen.Placed`, null for a place seen taken whose chef
 wasn't named: a cook of no bonus) stay first in their kitchen, are put nowhere else and are never
@@ -646,16 +651,20 @@ seen", as it was before). Keeping a fight free of it: while the squad panel is o
 is never looked for; with neither on screen it's looked for once a second (one small OCR read of
 the title); in a session the screen is told by the timer's digits and the dispatch panel's tabs
 (pixels, no OCR); the setup and menu screens are read at once when one opens, then at most every
-2 s (of a chef picker only its title; of the theme list nothing), and the gourmand's bubble only
+0.5 s (`InnFrameReader.SetupEvery`; measured at 4K: the setup screen ~300 ms of OCR, the menu ~120 ms;
+of a chef picker only its title, ~1 ms; of the theme list nothing), and the gourmand's bubble only
 while a gourmand is at a table. Without the Simplified Chinese OCR language only the timer is
 read (`ClockOnlyScreens`), so the strip can say what to install. The readers sit behind
 `IInnScreens`, which the wire-up tests replace.
 
-A session survives a missed frame (owner, 2026-10-19: the strip flashed as detection missed single
-frames while the dispatch panel opened, the HUD faded or the camera moved): a frame with no inn
-screen during a session keeps the last reading and the strip for up to 8 s
-(`PartyMonitor.SessionHold`), logged once per streak. It ends at once when the squad panel shows or
-the inn has closed and its 18 s of serving are over, else after 8 s with no inn screen.
+Every inn screen survives a missed frame (owner, 2026-10-19: the strip flashed as detection missed
+single frames while the dispatch panel opened, the HUD faded or the camera moved; and on the setup
+screens the log showed "inn: left" then the screen found again ~1.2 s later, the advice put away
+meanwhile): a frame with no inn screen keeps the last screen (a held reading, `Fresh` false) and its
+strip or advice for up to 8 s (`PartyMonitor.SessionHold`), logged once per streak. Meanwhile the inn
+is looked for on every frame (not once a second), and the same screen found again keeps its reading
+cadence. The inn is left at once when the squad panel shows or the inn has closed and its 18 s of
+serving are over, else after 8 s with no inn screen.
 
 [`InnSession`](src/EndHud/InnSession.cs) (on the UI thread, memory only) keeps what the advice needs:
 before a session and into it, the setup as chosen so far ([`InnSetupMemory`](src/EndHud/InnSetupMemory.cs),
@@ -689,7 +698,7 @@ theme page (or exit the inn mode)"). In memory only, nothing on disk. The store'
 |---|---|
 | Create | From readings: the setup screen gives the theme (name, rules, hot types, objective) and the kitchens with their places and placed chefs (named, or a place seen taken by its red bar); a chef picker its kitchen; the menu screen each card seen (on the menu or not, its stock), the counters and the menu requirements. |
 | Read | The setup advice (`ForSetup`, `ForMenu`) and the session's kitchens, Inn Rating and menu. A part never read is a gap, never a guess. |
-| Correct | A newer clear reading of a part replaces it: the setup as a whole (its kitchens kept when the new reading has none), a card by its id, the requirements number by number. A reading that fails changes nothing, so a page without the theme never makes it unknown (the "theme unreadable" gap only when none is remembered). The one exception is the chef picker's kitchen: a picker read whose title can't be read has no kitchen, rather than the last picker's (whose advice would be another kitchen's). |
+| Correct | A newer clear reading of a part replaces it: the setup as a whole (its kitchens kept when the new reading has none, a kitchen whose title it missed kept as it was), a card by its id, the requirements number by number. A place read empty (its grey bar, a kitchen showing only its "assign operator +" button) is a fact, not a miss: its chef goes; only a place that couldn't be read keeps its chef. Another theme is another setup: its kitchens as read, no chef of the last one carried over. A reading that fails changes nothing, so a page without the theme never makes it unknown (the "theme unreadable" gap only when none is remembered). The one exception is the chef picker's kitchen: a picker read whose title can't be read has no kitchen, rather than the last picker's (whose advice would be another kitchen's). |
 | Remove | Everything at once: on the theme list (a new setup begins), or when no inn screen has shown for 30 s (`InnSession.ForgetAfter`: the inn was left, a fight, the open world), checked on every tick and on the next reading. The setup screen after a session no longer clears the menu. |
 | Protect / carry | Nothing outlives the inn visit. |
 
@@ -723,8 +732,18 @@ game shows the choice they're about, nothing on the theme list or in a session
   theme list, no kitchens; said in the screen's first spot. While a plan is worked out: `Inn.Setup.Working`.
 - [`InnSetupPlanning`](src/EndHud/InnSetupPanel.cs) runs the planner and `InnSuggester` on the thread
   pool once per change of the input's key (two of them: the chefs' and the menu's, so switching
-  pages doesn't plan again) and redraws when done; an older plan is shown meanwhile only while
-  everything it names is still available and its kitchens hold the chefs placed now.
+  pages doesn't plan again), in two stages (owner, live 2026-10-19: "the page refreshes too slowly"):
+  the quick plan (`InnSetupAdvice.Fast`, `PlanQuickly`) is shown as soon as it's ready, then the
+  simulator's plan (`InnSetupAdvice.For`) replaces it only when a panel would show something else
+  (`InnSetupAdvice.Signature`). New inputs cancel the older work, and a late result for older inputs is
+  never stored. Each stage's time is logged ("inn: setup advice in … ms (model), refined in … ms").
+  An older plan is shown meanwhile only while everything it names is still available and every chef
+  it worked around is still placed where it was: a chef added keeps it on screen (no flicker), a chef
+  taken out hides it (owner's screenshot, 2026-10-19: after clearing every place, the plan for the
+  chefs placed before called kitchens 1 and 2 set for seconds). Measured (InnSetupPlanningTests), from
+  a reading that clears every place to advice on screen: 11.4 s before (the simulator's plan only),
+  0.4 s after; with the 0.5 s reading cadence and ~0.3 s of OCR, the advice follows a click in about
+  1–1.2 s where it took 2–3 s of reading plus 7–11 s of planning.
 - **Placement** ([`InnAdviceLayout`](src/EndHud/InnAdviceLayout.cs)): each spot is a fraction of the
   window's centred 16:9 area, measured on the fixtures (kitchen cards at x 0.418–0.588, 0.594–0.764,
   0.771–0.941, blank below y ≈ 0.66 to 0.865; the picker's blank x 0.33–0.97, y 0.68–0.86; the menu
@@ -741,7 +760,10 @@ game shows the choice they're about, nothing on the theme list or in a session
   spot's fullest panel inside its spot at 1080p, 1440p and 4K; a picture beside every name),
   InnRealFrameTests (setup-chefs-placed, chef-picker, menu-dishes and menu-drinks through the real
   readers; menu-soup-theme read end to end: the soup rule comes off the frame, and the menu planned
-  for the one kitchen with a chef has a soup and meets every rule).
+  for the one kitchen with a chef has a soup and meets every rule), InnSetupPlanningTests (the quick
+  advice first, replaced only when different; older work cancelled; no plan shown for chefs taken
+  out; the before/after latency), InnSetupCostTests (what each reader and each planning stage costs,
+  numbers only), InnWireUpTests (every inn screen held through a missed frame; the 0.5 s cadence).
 
 Assumptions the advice rests on, not measured: what Full Blaze's faster kitchens do to cook times
 (not modelled: the estimate runs at normal speed and is corrected each time the panel shows a

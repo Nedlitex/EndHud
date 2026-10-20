@@ -150,7 +150,7 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
     /// A newer reading of a kitchen over what's remembered of it: its places and how many are taken
     /// when the reading couldn't tell; a chef whose name the reading missed in a place still taken
     /// keeps the name read before (in place order). A place read empty (its grey bar: fewer taken, 0
-    /// for a kitchen showing only "安排干员+") is a fact, not a miss: it drops the name. Only a place
+    /// for a kitchen showing only its "assign operator +" button) is a fact, not a miss: it drops the name. Only a place
     /// that couldn't be read (<see cref="SetupKitchen.ChefsPlaced"/> null) keeps what was read before.
     /// </summary>
     internal static SetupKitchen Merge(SetupKitchen? old, SetupKitchen read)
