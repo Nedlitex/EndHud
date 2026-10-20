@@ -124,7 +124,8 @@ internal static class InnTrace
     /// <summary>The repository's operator package, unpacked once into the same git-ignored cache the tests use.</summary>
     private static string RepositoryPackage()
     {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        foreach (var start in new[] { AppContext.BaseDirectory, Environment.CurrentDirectory })
+        for (var dir = new DirectoryInfo(start); dir is not null; dir = dir.Parent)
         {
             if (!File.Exists(Path.Combine(dir.FullName, "EndHud.sln"))) continue;
             string folder = Path.Combine(dir.FullName, ".cache", "operator-package");
@@ -132,7 +133,7 @@ internal static class InnTrace
             if (OperatorPackage.Installed(folder) != OperatorPackage.ReadInfo(package)) OperatorPackage.Install(folder, package);
             return folder;
         }
-        throw new DirectoryNotFoundException("EndHud.sln not found above the tool; pass --reference <folder>");
+        throw new DirectoryNotFoundException("EndHud.sln not found above the tool or the working directory; pass --reference <folder>");
     }
 
     /// <summary>One order as it was first seen, its items filled in as they are read.</summary>
