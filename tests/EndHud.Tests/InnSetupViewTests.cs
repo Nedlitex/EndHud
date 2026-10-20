@@ -213,7 +213,11 @@ public class InnSetupViewTests(ITestOutputHelper output)
 
         // ✓ marks exactly what's on the menu already, right before it: a recommended dish and drink put on.
         string dish = menu.Plan.Dishes[1].Dish.Id, drink = menu.Plan.Drinks[0].Drink.Id;
-        var withSome = Assert.Single(InnSetupView.Menu(session.MenuInputs(), menu, [dish, drink, "melon-meatball-soup"], Inn, Text));
+        // A dish put on that the panel neither recommends nor lists as a substitute: no ✓ anywhere. (It was a fixed
+        // soup; on this soup theme the plan now puts every soup it can on, matching dishes first.)
+        var shown = panel.Model.Lines.SelectMany(l => l.Segments).Select(s => s.PictureId).OfType<string>().ToHashSet();
+        string other = Inn.Dishes.Select(d => d.Id).First(id => !shown.Contains(id));
+        var withSome = Assert.Single(InnSetupView.Menu(session.MenuInputs(), menu, [dish, drink, other], Inn, Text));
         Lines(withSome);
         List<string?> Marked(InnLine line) =>
             [.. line.Segments.Select((s, i) => (s, i)).Where(x => x.s.Text == "✓").Select(x => line.Segments[x.i + 1].PictureId)];
