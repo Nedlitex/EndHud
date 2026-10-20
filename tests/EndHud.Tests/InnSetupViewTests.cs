@@ -30,9 +30,14 @@ public class InnSetupViewTests(ITestOutputHelper output)
         new(InnScreenKind.Setup, S(at), Setup: new InnSetup("舌上清流", Inn.Themes.FirstOrDefault(t => t.Zh == "舌上清流"), "出售10道[汤羹]类菜品",
             ["至少有1道[汤羹]类菜品"], ["Soup", InnData.Drink], kitchens));
 
-    /// <summary>The menu screen: a soup already on the menu; Rating 4's requirements and the soup rule.</summary>
+    /// <summary>
+    /// The menu screen scrolled through: every dish and drink offered (the player has them all), a
+    /// soup already on the menu; Rating 4's requirements and the soup rule. (Once the menu screen
+    /// shows cards, only those are planned.)
+    /// </summary>
     private static InnReading MenuScreen(double at) =>
-        new(InnScreenKind.Menu, S(at), Menu: new InnMenu(MenuTab.AllDishes, (1, 8), (0, 8), [new MenuCard("melon-meatball-soup", "白瓜肉丸汤", true, true, null)]),
+        new(InnScreenKind.Menu, S(at), Menu: new InnMenu(MenuTab.AllDishes, (1, 8), (0, 8),
+            [.. Inn.Dishes.Select(d => new MenuCard(d.Id, d.Zh, d.Id == "melon-meatball-soup", true, null)), .. Inn.Drinks.Select(d => new MenuCard(d.Id, d.Zh, false, true, null))]),
             Requirements: new MenuRequirements(4, 3, 6, 3, [new DishRule(1, ["Soup"])], []));
 
     private static InnSession Session(params InnReading[] readings)

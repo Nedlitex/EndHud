@@ -219,6 +219,37 @@ public class InnSetupPanelTests
         Assert.Null(planning.Showable(lower.SetupInputs()));
     }
 
+    /// <summary>
+    /// Owner, live 2026-10-19: "each kitchen's recommended cook refreshes all the time … keep it
+    /// cached until changed". A chef placed changes the kitchens; while the plan for them is worked
+    /// out, the last plan stays on screen (never "正在推荐…" again), and it's replaced when the new one is ready.
+    /// </summary>
+    [Fact]
+    public async Task A_chef_placed_keeps_the_last_plan_on_screen_until_the_new_one_is_ready()
+    {
+        var release = new TaskCompletionSource();
+        int calls = 0;
+        var planning = new InnSetupPlanning(input =>
+        {
+            if (Interlocked.Increment(ref calls) == 2) release.Task.Wait();
+            return Advice.Value;
+        });
+        var session = Ready();
+        await planning.Request(session.SetupInputs())!;
+        var first = planning.Showable(session.SetupInputs());
+        Assert.NotNull(first);
+
+        session.Update(Setup(2, new SetupKitchen(1, 2, ["Perlica", null], ["佩丽卡", null]) { ChefsPlaced = 1 },
+            new SetupKitchen(2, 2, [Placed, null], ["陈千语", null]) { ChefsPlaced = 1 }, new SetupKitchen(3, 2, [null, null], [null, null]) { ChefsPlaced = 0 }));
+        var second = planning.Request(session.SetupInputs());
+        Assert.NotNull(second);
+        Assert.Same(first, planning.Showable(session.SetupInputs())); // still worked out: the last plan shows meanwhile
+
+        release.SetResult();
+        await second;
+        Assert.NotNull(planning.Showable(session.SetupInputs()));
+    }
+
     [Fact]
     public async Task A_planner_failure_is_logged_and_shows_no_plan()
     {

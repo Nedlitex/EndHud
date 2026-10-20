@@ -70,8 +70,11 @@ internal sealed class InnSetupPlanning(Func<InnPlanInput, InnSetupAdvice> plan, 
     }
 
     /// <summary>
-    /// The plan to show for <paramref name="inputs"/>: the one worked out for them, else the last one
-    /// if every chef, dish and drink it names is still in them; null while there's none.
+    /// The plan to show for <paramref name="inputs"/>: the one worked out for them, else, while theirs
+    /// is worked out, the last one (owner, live 2026-10-19: the advice must not flicker or blank as
+    /// it's worked out again: it stays on screen until the new one replaces it), so long as every
+    /// chef, dish and drink it names is still there to be picked (a plan naming what's no longer
+    /// offered is wrong, not merely old). Null while there's none.
     /// </summary>
     public InnSetupAdvice? Showable(InnSetupInputs inputs)
     {
@@ -83,13 +86,9 @@ internal sealed class InnSetupPlanning(Func<InnPlanInput, InnSetupAdvice> plan, 
         if (key == inputs.Key) return advice;
         var plan = advice.Plan;
         bool chefs = plan.Kitchens.SelectMany(k => k.Chefs).All(c => c.Id.Length == 0 || input.Chefs.Any(o => o.Id == c.Id));
-        // Every kitchen as it is now: its places, and the chefs placed there first (a place taken by an unnamed chef holds one with no id).
-        bool kitchens = plan.Kitchens.All(k => input.Kitchens.Any(i => i.Number == k.Number && i.Places >= k.Chefs.Count
-                            && i.Placed.Count <= k.Chefs.Count && i.Placed.Select((c, n) => (c?.Id ?? "") == k.Chefs[n].Id).All(same => same)))
-                        && input.Kitchens.All(i => plan.Kitchens.Any(k => k.Number == i.Number));
         bool dishes = plan.Dishes.All(d => input.Dishes.Any(o => o.Dish.Id == d.Dish.Id));
         bool drinks = plan.Drinks.All(d => input.Drinks.Any(o => o.Drink.Id == d.Drink.Id));
-        return chefs && kitchens && dishes && drinks ? advice : null;
+        return chefs && dishes && drinks ? advice : null;
     }
 }
 
