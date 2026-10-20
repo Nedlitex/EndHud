@@ -581,8 +581,14 @@ Each menu dish goes under the kitchen that cooks the larger share of it (`InnPla
 the balance is solved through its dual (kitchen weights), and `InnPlanner.Shares` recovers the split
 from them, a dish only where its weighted cook time is least and dishes tied between kitchens shared
 by a small max-flow over the load left; the tests check the busiest kitchen's load equals the
-balance on random cases. Chef substitutes are ranked by what each adds in that kitchen (the plan's
-income with them in a place less with a no-bonus cook there, the better place); dish substitutes by
+balance on random cases (and for an order mix leaning on preferred dishes). A kitchen that cooks yet
+holds the larger share of no dish (a preferred dish most guests order, spread over the kitchens)
+takes the dish it cooks most of from a kitchen left with another, so every panel says what to cook.
+Chef substitutes are ranked by what each adds in that kitchen (the plan's income with them in a
+place less with a no-bonus cook there, the better place), then, on an equal income, by the
+kitchen-seconds per dish they save (`InnPlanner.KitchenSecondsPerDish`): when the guests' clock,
+not the kitchens, sets the orders a faster chef earns nothing more under the model, and ranking by
+income alone listed no substitute at all; dish substitutes by
 value per second cooked in that kitchen (price with the 热门 bonus over its cook time there), of
 the kitchen's own dish types first; drink substitutes by value. Substitutes are handed out across
 the kitchens best first, at most 3 a row and each to one kitchen only, never a planned chef, menu
