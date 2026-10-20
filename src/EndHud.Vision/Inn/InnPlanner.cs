@@ -284,8 +284,16 @@ public sealed class InnPlanner(InnData inn)
     /// </summary>
     public const double RaisedChoiceDishTipShare = 2 * ChoiceDishTipShare;
 
-    /// <summary>The share of a choice dish's value its tips are taken to bring, for <paramref name="input"/>.</summary>
-    public static double ChoiceTipShare(InnPlanInput input) => input.ChoiceTipsRaised ? RaisedChoiceDishTipShare : ChoiceDishTipShare;
+    /// <summary>
+    /// The share of a choice dish's value its tips are taken to bring, for <paramref name="input"/>:
+    /// nothing unless the theme asks for choice dishes, in its objective (出售N道珍馐菜品) or its text
+    /// (珍馐赏钱加成提升). Owner, 2026-10-19: "only prefer 珍馐 if it is in the bonus or requirement".
+    /// Elsewhere the choice chance only breaks ties.
+    /// </summary>
+    public static double ChoiceTipShare(InnPlanInput input) =>
+        input.ChoiceTipsRaised ? RaisedChoiceDishTipShare
+        : input.ChoiceDishTarget is not null ? ChoiceDishTipShare
+        : 0;
 
     /// <summary>
     /// The orders the guests can bring in a session, whatever the kitchens: the guests the clock

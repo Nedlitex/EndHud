@@ -227,16 +227,16 @@ public class InnPlannerTests(ITestOutputHelper output)
 
     /// <summary>
     /// The model on numbers worked out by hand: 肉包子 (12, 15 s) alone, no drinks, each dish worth
-    /// 12 × (1 + 13 % choice chance × the assumed tip share 0.5) = 12.78 (Rating 4's 8 % and Si's 5 %).
-    /// One plain kitchen cooks 300 / 15 = 20 dishes, 1.2 an order: 16.7 orders, 255.6 income. Two or
+    /// its price, 12: the theme asks for no choice dishes, so a 珍馐 earns nothing extra (owner, 2026-10-19).
+    /// One plain kitchen cooks 300 / 15 = 20 dishes, 1.2 an order: 16.7 orders, 240 income. Two or
     /// three kitchens could cook more than the guests bring: a guest every 12 s from 7 s, 25.4 orders,
     /// 389.8 whatever the kitchens. With one table the table limits it: a turn of 35 s, 8.6 orders.
     /// </summary>
     [Theory]
-    [InlineData(1, Tables, 20 * 12.78, true)]
-    [InlineData(2, Tables, (293.0 / 12 + 1) * 1.2 * 12.78, false)]
-    [InlineData(3, Tables, (293.0 / 12 + 1) * 1.2 * 12.78, false)]
-    [InlineData(1, 1, 300.0 / 35 * 1.2 * 12.78, false)]
+    [InlineData(1, Tables, 20 * 12, true)]
+    [InlineData(2, Tables, (293.0 / 12 + 1) * 1.2 * 12, false)]
+    [InlineData(3, Tables, (293.0 / 12 + 1) * 1.2 * 12, false)]
+    [InlineData(1, 1, 300.0 / 35 * 1.2 * 12, false)]
     public void The_model_on_numbers_worked_out_by_hand(int kitchens, int tables, double income, bool kitchenBound)
     {
         var input = Input(Kitchens(kitchens, 1), tables: tables);
@@ -250,7 +250,7 @@ public class InnPlannerTests(ITestOutputHelper output)
 
     /// <summary>
     /// A dish short of stock earns only what can be cooked: 肉包子 with 5 left, where one kitchen
-    /// would serve 20 (16.7 orders × 1.2), earns 5 × 12.78; the plan says it runs short.
+    /// would serve 20 (16.7 orders × 1.2), earns 5 × 12; the plan says it runs short.
     /// </summary>
     [Fact]
     public void A_dish_short_of_stock_earns_only_its_stock()
@@ -261,7 +261,7 @@ public class InnPlannerTests(ITestOutputHelper output)
         var score = Planner.Evaluate(input, [new Kitchen(1, [Plain("Plain")])], input.Dishes, []);
         var plan = Planner.Plan(input);
 
-        Assert.Equal(5 * 12.78, score.Income, 6); // each worth 12.78 with its choice-dish tips (see above)
+        Assert.Equal(5 * 12, score.Income, 6); // each worth 12 with its choice-dish tips (see above)
         var short_ = Assert.Single(plan.Reasons, r => r.Kind == PlanReasonKind.ShortOfStock);
         Assert.Equal("meat-baozi", short_.Id);
         Assert.Equal(15, short_.Value, 6);
@@ -493,5 +493,18 @@ public class InnPlannerTests(ITestOutputHelper output)
         var kitchen = Assert.Single(plan.Kitchens);
         Assert.Equal(2, kitchen.Chefs.Count);
         Assert.Equal(1, kitchen.Chefs.Count(c => Roster.Any(o => o.Id == c.Id)));
+    }
+    /// <summary>
+    /// Owner, 2026-10-19: "珍馐 is being given too much preference, only prefer 珍馐 if it is in the
+    /// bonus or requirement". A theme that names 珍馐 in neither its objective nor its text gives a
+    /// choice dish nothing extra; one that does (海陆宴's 出售6道珍馐菜品, 珍馐赏钱加成提升) still does.
+    /// </summary>
+    [Fact]
+    public void A_choice_dish_counts_only_when_the_theme_asks_for_choice_dishes()
+    {
+        var plain = new InnPlanInput([], 4, 0, 6, [], [], [], [], new MenuRules(0, 8, 0, 8, 0, []));
+        Assert.Equal(0, InnPlanner.ChoiceTipShare(plain));
+        Assert.True(InnPlanner.ChoiceTipShare(plain with { ChoiceDishTarget = 6 }) > 0);
+        Assert.True(InnPlanner.ChoiceTipShare(plain with { ChoiceTipsRaised = true }) > InnPlanner.ChoiceTipShare(plain with { ChoiceDishTarget = 6 }));
     }
 }
