@@ -32,6 +32,13 @@ public delegate IReadOnlyList<InnAction> InnPolicy(InnSimulator inn);
 public sealed record InnRun(IReadOnlyList<ServedOrder> Orders, IReadOnlyList<InnAction> Refused, int CookedAheadWasted)
 {
     public int Served => Orders.Count(o => o.ServedAt is not null);
+
+    /// <summary>
+    /// Seconds a kitchen had nothing in its queue while the timer ran (5:00 to 00:00), summed over
+    /// the kitchens: time the inn could have cooked and didn't (owner, 2026-10-19: "it does not keep
+    /// the kitchen busy").
+    /// </summary>
+    public double IdleKitchenSeconds { get; init; }
 }
 
 /// <summary>
@@ -99,6 +106,9 @@ public sealed class InnSimulator
         var served = new Dictionary<InnOrder, double>();
         var refused = new List<InnAction>();
         var queue = new Queue<InnOrder>(orders.OrderBy(o => o.At));
+        double idle = 0;
+        // A kitchen with no chef can't cook: it isn't idle, it isn't a kitchen.
+        var cooking = Kitchens.Kitchens.Where(KitchenMath.Cooks).Select(k => k.Number).ToHashSet();
 
         double end = SessionSeconds + servingAfterClose;
         while (Now <= end && (queue.Count > 0 || served.Count < orders.Count))
@@ -115,8 +125,11 @@ public sealed class InnSimulator
                 if (!(action is GiveLeftover give ? Give(give, byTable) : Apply(action))) refused.Add(action);
 
             foreach (var kitchen in Queues)
+            {
+                if (Now < SessionSeconds && kitchen.Dishes.Count == 0 && cooking.Contains(kitchen.Kitchen)) idle += Math.Min(Step, SessionSeconds - Now);
                 foreach (var dish in kitchen.Tick(Step, Counter.Room))
                     Counter.TryPut(dish);
+            }
 
             Now += Step;
             if (Now > end) break; // the inn has stopped serving
@@ -124,7 +137,7 @@ public sealed class InnSimulator
         }
 
         int wasted = Counter.Dishes.Count + Queues.Sum(q => q.Dishes.Count);
-        return new InnRun([.. orders.Select(o => new ServedOrder(o, served.TryGetValue(o, out double at) ? at : null))], refused, wasted);
+        return new InnRun([.. orders.Select(o => new ServedOrder(o, served.TryGetValue(o, out double at) ? at : null))], refused, wasted) { IdleKitchenSeconds = idle };
     }
 
     private bool Apply(InnAction action)
@@ -176,8 +189,17 @@ public sealed class InnSimulator
 
     /// <summary>The player follows <paramref name="advisor"/>: every swap, dish to send and dish to cook ahead, and every leftover the last call hands out.</summary>
     /// <param name="openingUntil">Until this many seconds in, every free slot is filled (the opening, C16): by default the first second.</param>
-    public static InnPolicy Following(DispatchAdvisor advisor, double openingUntil = 1) => inn =>
+    /// <param name="actEvery">
+    /// How often the player acts on the advice, in seconds; by default every step. A player in the
+    /// game opens the 派单 panel now and then and queues what the advice says at that moment.
+    /// </param>
+    public static InnPolicy Following(DispatchAdvisor advisor, double openingUntil = 1, double actEvery = 0)
     {
+        double? actedAt = null;
+        return inn =>
+    {
+        if (actedAt is { } last && inn.Now - last < actEvery) return [];
+        actedAt = inn.Now;
         var advice = advisor.Advise(inn.State, fillEverySlot: inn.Now < openingUntil);
         // The last call's wrong dishes; the right ones are served off the counter anyway.
         var actions = new List<InnAction>(advice.Leftovers.Where(l => !l.Matches).Select(l => new GiveLeftover(l.Table, l.Dish, l.Ordered)));
@@ -190,4 +212,5 @@ public sealed class InnSimulator
         }
         return actions;
     };
+    }
 }

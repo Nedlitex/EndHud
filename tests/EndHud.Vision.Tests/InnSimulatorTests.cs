@@ -1,10 +1,11 @@
 using EndHud.Vision.Inn;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace EndHud.Vision.Tests;
 
 /// <summary>A kitchen's queue, the counter, and a session replayed through them (<see cref="InnSimulator"/>).</summary>
-public class InnSimulatorTests
+public class InnSimulatorTests(ITestOutputHelper output)
 {
     private const int Rating = 4;
     private const int SiQuality = 5;
@@ -32,8 +33,9 @@ public class InnSimulatorTests
     /// </summary>
     private const double LongRun = 600;
 
-    internal static IReadOnlyList<InnOrder> RecordedOrderTimes(int seed = 1, int tables = 6)
+    internal static IReadOnlyList<InnOrder> RecordedOrderTimes(int seed = 1, int tables = 6, IReadOnlyList<MenuDish>? menu = null)
     {
+        menu ??= RecordedMenu;
         (double At, int Table, int Dishes)[] recorded =
         [
             (166, 4, 1), (181, 5, 1), (193, 2, 1), (205, 6, 1), (217, 1, 2), (229, 3, 1), (241, 2, 1), (266, 5, 2),
@@ -42,7 +44,7 @@ public class InnSimulatorTests
         ];
         var random = new Random(seed);
         return [.. recorded.Select(r => new InnOrder(r.At - 150, (r.Table - 1) % tables + 1,
-            [.. Enumerable.Range(0, r.Dishes).Select(_ => RecordedMenu[random.Next(RecordedMenu.Count)].Dish)]))];
+            [.. Enumerable.Range(0, r.Dishes).Select(_ => menu[random.Next(menu.Count)].Dish)]))];
     }
 
     /// <summary>
@@ -243,5 +245,66 @@ public class InnSimulatorTests
         }, servingAfterClose: LongRun);
 
         Assert.InRange(most, 1, InnCounter.Capacity);
+    }
+
+    /// <summary>The six dishes of the owner's live session (2026-10-19, theme 海陆宴), as its 派单 panel listed them, unlimited.</summary>
+    internal static IReadOnlyList<MenuDish> LiveMenu { get; } =
+        [.. new[] { "金丝小贝", "坛子肉", "麻辣香锅", "茄果鳞肉汤", "“勺里游”", "白瓜肉丸汤" }.Select(zh => new MenuDish(Dish(zh), null))];
+
+    /// <summary>
+    /// The live session's kitchens: 1 = 秋栗 + 昼雪 (Akekuri, Snowshine), 3 = 弭弗 + 艾维文娜 (Mi_Fu,
+    /// Avywenna), both read off its 派单 panel. Kitchen 2's chefs never showed in the frames: a cook
+    /// with no bonus stands in for them.
+    /// </summary>
+    internal static InnKitchens LiveKitchens() => new(InnTestData.Inn,
+        [InnTestData.Kitchen(1, "Akekuri", "Snowshine"), InnTestData.PlainKitchen(2), InnTestData.Kitchen(3, "Mi_Fu", "Avywenna")], Rating, 0);
+
+    /// <summary>The live kitchens' cook times are those its 派单 panel showed (frames at 4:48 and 4:38).</summary>
+    [Theory]
+    [InlineData(1, "金丝小贝", 35)]
+    [InlineData(1, "坛子肉", 35)]
+    [InlineData(1, "麻辣香锅", 34)]
+    [InlineData(1, "茄果鳞肉汤", 40)]
+    [InlineData(1, "“勺里游”", 34)]
+    [InlineData(1, "白瓜肉丸汤", 39)]
+    [InlineData(3, "金丝小贝", 31)]
+    [InlineData(3, "坛子肉", 28)]
+    [InlineData(3, "麻辣香锅", 28)]
+    [InlineData(3, "茄果鳞肉汤", 40)]
+    [InlineData(3, "“勺里游”", 28)]
+    [InlineData(3, "白瓜肉丸汤", 40)]
+    public void The_live_kitchens_cook_as_the_panel_showed(int kitchen, string dish, int seconds)
+    {
+        Assert.Equal(seconds, LiveKitchens().CookSeconds(kitchen, Dish(dish)));
+    }
+
+    /// <summary>
+    /// Owner, 2026-10-19: "it does not keep the kitchen busy". Over the recorded order times (dishes
+    /// drawn at random, three seeds), the seconds kitchens sit empty while the timer runs, following
+    /// the advice: the recording's kitchens and the live session's.
+    /// </summary>
+    private static readonly double[] ActEvery = [0, 10, 20];
+
+    [Fact]
+    public void Following_the_advice_keeps_the_kitchens_busy()
+    {
+        double Idle(InnKitchens kitchens, IReadOnlyList<MenuDish> menu, int seed, double actEvery, out double waited)
+        {
+            var run = new InnSimulator(kitchens, menu).Run(RecordedOrderTimes(seed, menu: menu), InnSimulator.Following(new DispatchAdvisor(kitchens), actEvery: actEvery), servingAfterClose: LongRun);
+            waited = run.Orders.Average(o => o.Waited ?? 999);
+            return run.IdleKitchenSeconds;
+        }
+        double total = 0;
+        foreach (var (name, kitchens, menu) in new[] { ("recorded", Kitchens(), RecordedMenu), ("live", LiveKitchens(), LiveMenu) })
+        {
+            foreach (double every in ActEvery)
+            foreach (int seed in new[] { 1, 2, 3 })
+            {
+                double idle = Idle(kitchens, menu, seed, every, out double waited);
+                total += idle;
+                output.WriteLine($"{name} kitchens, acting every {every} s, seed {seed}: idle {idle:F1} kitchen-seconds, average wait {waited:F1} s");
+            }
+        }
+        output.WriteLine($"total idle {total:F1} kitchen-seconds");
     }
 }
