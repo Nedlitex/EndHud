@@ -26,7 +26,21 @@ public sealed record SetupKitchen(int Number, int? ChefSlots, IReadOnlyList<stri
 /// <param name="HotTraits">热门特性: the ids of the traits, dish types and 饮品 whose names were read (<see cref="SetupReader.HotIds"/>).</param>
 /// <param name="Kitchens">The kitchens and their chefs (营业设定); null on the theme list (主题设定), which shows none.</param>
 public sealed record InnSetup(string ThemeName, InnTheme? Theme, string? Objective, IReadOnlyList<string> MenuRules,
-    IReadOnlyList<string> HotTraits, IReadOnlyList<SetupKitchen>? Kitchens);
+    IReadOnlyList<string> HotTraits, IReadOnlyList<SetupKitchen>? Kitchens)
+{
+    /// <summary>
+    /// The theme's text under its name, as read ("大海与陆地交汇…珍馐赏钱加成提升，出售珍馐菜品可获得更高收益。");
+    /// null when unread. What it says of choice dishes (珍馐) is valued by the planner (<see cref="InnObjective"/>).
+    /// </summary>
+    public string? Description { get; init; }
+
+    /// <summary>
+    /// Si's 品质把控 assist on 营业设定, as its line states it ("所有厨房的珍馐产出概率提升 5%"): the
+    /// percent every kitchen's choice-dish chance rises; null when the line wasn't read (no assist, the
+    /// theme list, or covered).
+    /// </summary>
+    public int? SiChoicePercent { get; init; }
+}
 
 /// <summary>
 /// The setup screens: the theme list (//主题设定, the chosen theme's details on the right) and
@@ -41,14 +55,16 @@ public sealed partial class SetupReader(InnText text, InnData data, IReadOnlyLis
     // At 4K, on the centred 16:9 area: the theme's details on each screen, and 营业设定's kitchens.
     private static readonly PixelRect DetailsOnSetup = new(220, 280, 1260, 980), DetailsOnThemeList = new(1590, 280, 2040, 920);
     private static readonly PixelRect KitchenArea = new(1600, 560, 2020, 540);
+    // At 4K on 营业设定: Si's assist line under its name ("品质把控 Ⅱ" / "所有厨房的珍馐产出概率提升 5%").
+    private static readonly PixelRect AssistArea = new(2900, 330, 720, 170);
     // A kitchen's two chef places, from its title's left edge, and the rows of their bars:
     // a beige strip over a bar, dark red when a chef is there, grey when not.
     private static readonly double[] SlotOffsets = [180, 430];
     private const double StripY = 979, BarY = 988;
     private const int KitchenWidth = 680;
 
-    private sealed record Details(string ThemeName, InnTheme? Theme, string? Objective, IReadOnlyList<string> MenuRules, IReadOnlyList<string> HotTraits,
-        int Headings, PixelRect? TraitsRow)
+    private sealed record Details(string ThemeName, InnTheme? Theme, string? Description, string? Objective, IReadOnlyList<string> MenuRules,
+        IReadOnlyList<string> HotTraits, int Headings, PixelRect? TraitsRow)
     {
         /// <summary>How much of the screen's fixed parts this reading found.</summary>
         public int Score => Headings + HotTraits.Count + (Theme is null ? 0 : 1) + (Objective is null ? 0 : 1);
@@ -81,7 +97,26 @@ public sealed partial class SetupReader(InnText text, InnData data, IReadOnlyLis
             await foreach (string attempt in text.ReadAttemptsAsync(frame, chips, ChipInk, layout.Scale))
                 if (HotIds(attempt, data) is var ids && ids.Count > traits.Count) traits = ids;
         }
-        return new InnSetup(best.ThemeName, best.Theme, best.Objective, best.MenuRules, traits, kitchens);
+        return new InnSetup(best.ThemeName, best.Theme, best.Objective, best.MenuRules, traits, kitchens)
+        {
+            Description = best.Description,
+            SiChoicePercent = kitchens is null ? null : await ReadAssistAsync(frame, layout),
+        };
+    }
+
+    /// <summary>Si's 品质把控 assist: the percent its line states; null when no reading finds the line.</summary>
+    private async Task<int?> ReadAssistAsync(Frame frame, InnLayout layout)
+    {
+        await foreach (string attempt in text.ReadAttemptsAsync(frame, layout.Centered(AssistArea), Ink, layout.Scale))
+            if (AssistPercent(attempt) is { } percent) return percent;
+        return null;
+    }
+
+    /// <summary>"所有厨房的珍馐产出概率提升 5%" → 5; null for any other line.</summary>
+    internal static int? AssistPercent(string line)
+    {
+        var match = AssistText().Match(line.Replace(" ", ""));
+        return match.Success && int.Parse(match.Groups[1].Value) is var percent and > 0 and <= 100 ? percent : null;
     }
 
     /// <summary>A trait chip's letters: neutral grey on its lighter grey.</summary>
@@ -113,8 +148,11 @@ public sealed partial class SetupReader(InnText text, InnData data, IReadOnlyLis
 
         var objectiveLines = Section(objective, Next(objective));
         int headings = new[] { objective, rules, hot }.Count(i => i >= 0);
-        return new Details(themeName, theme, objectiveLines.Count > 0 ? string.Concat(objectiveLines) : null, Section(rules, Next(rules)), traits, headings,
-            traitsRow);
+        // The theme's text: the lines under its name, above the first heading.
+        int nameAt = lines.IndexOf(name), firstHeading = new[] { objective, rules, hot }.Where(i => i > nameAt).DefaultIfEmpty(-1).Min();
+        string description = firstHeading > nameAt ? string.Concat(lines.Skip(nameAt + 1).Take(firstHeading - nameAt - 1).Select(l => l.Text)) : "";
+        return new Details(themeName, theme, description.Length > 0 ? description : null, objectiveLines.Count > 0 ? string.Concat(objectiveLines) : null,
+            Section(rules, Next(rules)), traits, headings, traitsRow);
     }
 
     /// <summary>The traits named in a row of chips ("素食 滋补"), in the order they stand.</summary>
@@ -240,6 +278,10 @@ public sealed partial class SetupReader(InnText text, InnData data, IReadOnlyLis
         Math.Max(r, Math.Max(g, b)) <= 120 || (r >= 200 && g >= 70 && g <= 170 && b <= 90);
 
     private static string Letters(string s) => new([.. s.Where(char.IsLetter)]);
+
+    /// <summary>Si's quality assist: …珍馐产出概率提升 N% (珍馐 itself is often misread).</summary>
+    [GeneratedRegex(@"概率提升(\d+)%")]
+    private static partial Regex AssistText();
 
     /// <summary>The hot row's label: 热门 then 类型 or 特性.</summary>
     [GeneratedRegex("热门.*(类型|特性)")]
