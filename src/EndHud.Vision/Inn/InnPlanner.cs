@@ -199,6 +199,53 @@ public static partial class InnObjective
     private static partial Regex PreferenceBrackets();
 }
 
+/// <summary>
+/// How a menu matches the theme (<see cref="InnPlanner.ThemeItems"/>: 主题热门 and the text's guest preference).
+/// Owner, 2026-10-20: "the point is matching dishes will reward a lot more at the end, so always prefer the
+/// matching ones". So, the menu's rules being met, a menu that matches better is better whatever it earns
+/// otherwise: more matching dishes; then more matches over them (a dish matching two items before one matching
+/// one); then, as many matching, fewer dishes that don't match (a non-matching dish only where the rules need
+/// one: each takes orders from the matching ones). Then the drinks: fewer that don't match (matching drinks take
+/// the places the rules ask for first), then more drinks matching two items. How many drinks, when every one
+/// matches (舌上清流's 饮品 makes every drink match), stays the income's to decide, as before. Only then the
+/// objective and the income.
+/// </summary>
+/// <param name="Dishes">Dishes matching at least one item.</param>
+/// <param name="DishMatches">Matches summed over the dishes.</param>
+/// <param name="OtherDishes">Dishes matching nothing.</param>
+public readonly record struct ThemeMatch(int Dishes, int DishMatches, int OtherDishes, int Drinks, int DrinkMatches, int OtherDrinks) : IComparable<ThemeMatch>
+{
+    /// <summary>The match of a menu whose dishes and drinks match <paramref name="dishMatches"/> and <paramref name="drinkMatches"/> items each.</summary>
+    public static ThemeMatch Of(IEnumerable<int> dishMatches, IEnumerable<int> drinkMatches)
+    {
+        int dishes = 0, dishSum = 0, otherDishes = 0, drinks = 0, drinkSum = 0, otherDrinks = 0;
+        foreach (int m in dishMatches)
+        {
+            if (m > 0) (dishes, dishSum) = (dishes + 1, dishSum + m);
+            else otherDishes++;
+        }
+        foreach (int m in drinkMatches)
+        {
+            if (m > 0) (drinks, drinkSum) = (drinks + 1, drinkSum + m);
+            else otherDrinks++;
+        }
+        return new ThemeMatch(dishes, dishSum, otherDishes, drinks, drinkSum, otherDrinks);
+    }
+
+    /// <summary>Positive when this matches the theme better (see the type's summary).</summary>
+    public int CompareTo(ThemeMatch other)
+    {
+        if (Dishes != other.Dishes) return Dishes.CompareTo(other.Dishes);
+        if (DishMatches != other.DishMatches) return DishMatches.CompareTo(other.DishMatches);
+        // Fewer others only counts where something matches: with nothing to match, the menu's size is the income's to decide.
+        if (Dishes > 0 && OtherDishes != other.OtherDishes) return other.OtherDishes.CompareTo(OtherDishes);
+        if ((Drinks > 0 || other.Drinks > 0) && OtherDrinks != other.OtherDrinks) return other.OtherDrinks.CompareTo(OtherDrinks);
+        // Drinks matching two items or more: the matches beyond one each.
+        int extra = DrinkMatches - Drinks, otherExtra = other.DrinkMatches - other.Drinks;
+        return extra.CompareTo(otherExtra);
+    }
+}
+
 /// <summary>How a plan scores under the planner's model.</summary>
 /// <param name="Income">Expected income per 5-minute session: prices with the 热门 bonus, and the tips a choice dish (珍馐) is taken to bring (<see cref="InnPlanner.ChoiceDishTipShare"/>).</param>
 /// <param name="Orders">Orders served in the session.</param>
@@ -211,9 +258,13 @@ public sealed record InnPlanScore(double Income, double Orders, bool KitchenBoun
     /// <summary>The expected choice dishes reach the theme's objective (<see cref="InnPlanInput.ChoiceDishTarget"/>); true when there is none.</summary>
     public bool MeetsTarget { get; init; } = true;
 
-    /// <summary>Better: reaching the objective, then more income, then (within a cent) more choice dishes.</summary>
+    /// <summary>How the menu matches the theme: ranks first (<see cref="ThemeMatch"/>).</summary>
+    public ThemeMatch Match { get; init; }
+
+    /// <summary>Better: matching the theme better, then reaching the objective, then more income, then (within a cent) more choice dishes.</summary>
     public bool BetterThan(InnPlanScore other) =>
-        MeetsTarget != other.MeetsTarget ? MeetsTarget
+        Match.CompareTo(other.Match) is var match && match != 0 ? match > 0
+        : MeetsTarget != other.MeetsTarget ? MeetsTarget
         : Income > other.Income + InnPlanner.Tolerance || (Math.Abs(Income - other.Income) <= InnPlanner.Tolerance && ChoiceDishes > other.ChoiceDishes + 1e-9);
 }
 
@@ -273,9 +324,13 @@ public sealed record InnPlan(IReadOnlyList<PlannedKitchen> Kitchens, IReadOnlyLi
 /// <param name="MeetsTarget">The choice dishes reach the theme's objective (<see cref="InnPlanInput.ChoiceDishTarget"/>); true when there is none.</param>
 public sealed record InnSimulatedScore(double Income, double Orders, double ChoiceDishes, bool MeetsTarget)
 {
-    /// <summary>Better: reaching the objective, then more income, then (within a cent) more choice dishes.</summary>
+    /// <summary>How the menu played matches the theme: ranks first (<see cref="ThemeMatch"/>).</summary>
+    public ThemeMatch Match { get; init; }
+
+    /// <summary>Better: matching the theme better, then reaching the objective, then more income, then (within a cent) more choice dishes.</summary>
     public bool BetterThan(InnSimulatedScore other) =>
-        MeetsTarget != other.MeetsTarget ? MeetsTarget
+        Match.CompareTo(other.Match) is var match && match != 0 ? match > 0
+        : MeetsTarget != other.MeetsTarget ? MeetsTarget
         : Income > other.Income + InnPlanner.Tolerance || (Math.Abs(Income - other.Income) <= InnPlanner.Tolerance && ChoiceDishes > other.ChoiceDishes + 1e-9);
 }
 
@@ -474,7 +529,15 @@ public sealed class InnPlanner(InnData inn)
         var preferred = input.Preferred.ToHashSet();
         var times = Times(input, kitchens, dishes.Select(d => d.Dish).ToList());
         return Score(input, times, [.. dishes.Select(d => Value(hot, d.Dish))], [.. dishes.Select(d => d.Stock)], [.. dishes.Select(d => OrderWeight(preferred, d.Dish))],
-            [.. drinks.Select(d => Value(hot, d.Drink))], [.. drinks.Select(d => d.Stock)], [.. drinks.Select(d => OrderWeight(preferred, d.Drink))]);
+            [.. drinks.Select(d => Value(hot, d.Drink))], [.. drinks.Select(d => d.Stock)], [.. drinks.Select(d => OrderWeight(preferred, d.Drink))])
+            with { Match = MatchOf(input, dishes, drinks) };
+    }
+
+    /// <summary>How <paramref name="dishes"/> and <paramref name="drinks"/> match the theme (<see cref="ThemeMatch"/>).</summary>
+    public static ThemeMatch MatchOf(InnPlanInput input, IReadOnlyList<MenuDish> dishes, IReadOnlyList<MenuDrink> drinks)
+    {
+        var items = ThemeItems(input);
+        return ThemeMatch.Of(dishes.Select(d => ThemeMatches(items, d.Dish)), drinks.Select(d => ThemeMatches(items, d.Drink)));
     }
 
     /// <summary>
@@ -669,7 +732,8 @@ public sealed class InnPlanner(InnData inn)
     {
         var cooking = kitchens.Where(Cooks).ToList();
         bool noTarget = input.ChoiceDishTarget is null;
-        if (cooking.Count == 0 || dishes.Count == 0) return new InnSimulatedScore(0, 0, 0, noTarget);
+        var match = MatchOf(input, dishes, drinks);
+        if (cooking.Count == 0 || dishes.Count == 0) return new InnSimulatedScore(0, 0, 0, noTarget) { Match = match };
         var hot = input.HotTraits.ToHashSet();
         var preferred = input.Preferred.ToHashSet();
         double[] dishMix = OrderShares([.. dishes.Select(d => OrderWeight(preferred, d.Dish))]);
@@ -706,7 +770,7 @@ public sealed class InnPlanner(InnData inn)
             }
         }
         int n = Draws.Length;
-        return new InnSimulatedScore(income / n, orders / n, choice / n, noTarget || choice / n >= input.ChoiceDishTarget!.Value - 1e-9);
+        return new InnSimulatedScore(income / n, orders / n, choice / n, noTarget || choice / n >= input.ChoiceDishTarget!.Value - 1e-9) { Match = match };
 
         // The item whose share of [0, 1) holds u (equal shares: the u × count-th, as guests picking uniformly).
         static T Pick<T>(IReadOnlyList<T> items, double[] shares, double u)
@@ -1063,6 +1127,9 @@ public sealed class InnPlanner(InnData inn)
         /// <summary>How often guests pick each dish and drink (<see cref="OrderWeight(IReadOnlyCollection{string}, Dish)"/>).</summary>
         private readonly double[] _dishWeights, _drinkWeights;
 
+        /// <summary>How many of the theme's items each dish and drink matches (<see cref="ThemeMatches(IReadOnlyCollection{string}, Dish)"/>).</summary>
+        private readonly int[] _dishMatches, _drinkMatches;
+
         /// <summary>Chefs with the same bonuses, as one profile: its bonuses and its operators (in the input's order). Never a placed chef.</summary>
         private readonly List<(string Bonuses, List<OperatorInfo> Operators)> _profiles;
 
@@ -1095,6 +1162,9 @@ public sealed class InnPlanner(InnData inn)
             var preferred = input.Preferred.ToHashSet();
             _dishWeights = [.. Dishes.Select(d => OrderWeight(preferred, d.Dish))];
             _drinkWeights = [.. Drinks.Select(d => OrderWeight(preferred, d.Drink))];
+            var items = ThemeItems(input);
+            _dishMatches = [.. Dishes.Select(d => ThemeMatches(items, d.Dish))];
+            _drinkMatches = [.. Drinks.Select(d => ThemeMatches(items, d.Drink))];
             var inn = planner.Inn;
             // Chefs already placed stay where they are (a place taken by an unnamed chef holds a plain cook) and are put nowhere else.
             _placed = [.. input.Kitchens.Select(k => k.Placed.Select(o => o ?? PlainCook).ToArray())];
@@ -1141,14 +1211,15 @@ public sealed class InnPlanner(InnData inn)
                 }
             }
             return InnPlanner.Score(_input, (seconds, choice), [.. menu.Select(i => _dishValues[i])], [.. menu.Select(i => Dishes[i].Stock)], [.. menu.Select(i => _dishWeights[i])],
-                [.. drinks.Select(i => _drinkValues[i])], [.. drinks.Select(i => Drinks[i].Stock)], [.. drinks.Select(i => _drinkWeights[i])]);
+                [.. drinks.Select(i => _drinkValues[i])], [.. drinks.Select(i => Drinks[i].Stock)], [.. drinks.Select(i => _drinkWeights[i])])
+                with { Match = ThemeMatch.Of(menu.Select(i => _dishMatches[i]), drinks.Select(i => _drinkMatches[i])) };
         }
 
         // ---- Drinks ----
 
-        /// <summary>Drinks dearest first (unlimited stock first on a tie).</summary>
+        /// <summary>Drinks matching the theme most first (<see cref="ThemeMatch"/>), then dearest first (unlimited stock first on a tie).</summary>
         private IEnumerable<int> DrinksByValue() =>
-            Enumerable.Range(0, Drinks.Count).OrderByDescending(i => _drinkValues[i]).ThenBy(i => Drinks[i].Stock is null ? 0 : 1).ThenBy(i => i);
+            Enumerable.Range(0, Drinks.Count).OrderByDescending(i => _drinkMatches[i]).ThenByDescending(i => _drinkValues[i]).ThenBy(i => Drinks[i].Stock is null ? 0 : 1).ThenBy(i => i);
 
         /// <summary>
         /// The drinks for a dish menu: the dearest few, as many as pay best (guests pick among them, so
@@ -1376,7 +1447,8 @@ public sealed class InnPlanner(InnData inn)
 
         /// <summary>
         /// First the dishes that bring the menu closest to its rules, then the rest, each time the one
-        /// <paramref name="better"/> prefers, up to <paramref name="size"/>.
+        /// matching the theme most (<see cref="ThemeMatch"/>), then the one <paramref name="better"/> prefers,
+        /// up to <paramref name="size"/>.
         /// </summary>
         private List<int> BuildWith(int size, Func<List<int>, int, int, bool> better)
         {
@@ -1390,7 +1462,8 @@ public sealed class InnPlanner(InnData inn)
                     menu.Add(i);
                     int shortfall = Shortfall(menu);
                     menu.RemoveAt(menu.Count - 1);
-                    if (pick < 0 || shortfall < pickShortfall || (shortfall == pickShortfall && better(menu, i, pick)))
+                    if (pick < 0 || shortfall < pickShortfall
+                        || (shortfall == pickShortfall && (_dishMatches[i] > _dishMatches[pick] || (_dishMatches[i] == _dishMatches[pick] && better(menu, i, pick)))))
                         (pick, pickShortfall) = (i, shortfall);
                 }
                 if (pick < 0) break;

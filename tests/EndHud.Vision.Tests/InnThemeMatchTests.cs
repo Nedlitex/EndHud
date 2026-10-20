@@ -127,6 +127,21 @@ public class InnThemeMatchTests(ITestOutputHelper output)
         Assert.Equal(3, plan.Drinks.Count);
     }
 
+    /// <summary>
+    /// When every drink matches (舌上清流: 饮品 is hot), matching changes nothing about the drinks: the plan's
+    /// drinks are those of the same session with 饮品 not hot (a constructed comparison).
+    /// </summary>
+    [Fact]
+    public void When_every_drink_matches_the_drinks_are_chosen_as_before()
+    {
+        var withDrink = Planner.PlanByModel(InnThemePreferenceTests.Session(["Soup", InnData.Drink], SoupRule, ["Soup"]));
+        var without = Planner.PlanByModel(InnThemePreferenceTests.Session(["Soup"], SoupRule, ["Soup"]));
+        output.WriteLine($"饮品 hot: {string.Join(" ", withDrink.Drinks.Select(d => d.Drink.Zh))}; not: {string.Join(" ", without.Drinks.Select(d => d.Drink.Zh))}");
+
+        Assert.Equal(without.Drinks.Select(d => d.Drink.Id), withDrink.Drinks.Select(d => d.Drink.Id));
+        Assert.True(withDrink.Drinks.Count < InnThemePreferenceTests.OwnersDrinks.Length);
+    }
+
     /// <summary>The quick plan (the setup advice's first answer) and the model's plan put matching dishes first too.</summary>
     [Fact]
     public void The_quick_plan_and_the_models_plan_put_matching_dishes_first()

@@ -44,10 +44,13 @@ public sealed record InnSuggestions(IReadOnlyList<KitchenSuggestion> Kitchens, I
 /// (<see cref="InnPlanner.KitchenSecondsPerDish"/>: a faster kitchen serves sooner). Handed out across the kitchens best first, at most
 /// <see cref="MaxSubstitutes"/> each, a chef to one kitchen only; never a chef the plan uses. A
 /// kitchen left with none takes the best of those listed elsewhere (nothing else is left).</item>
-/// <item><b>Dish substitutes:</b> off-menu dishes by value per second cooked in that kitchen (price
-/// with the 热门 bonus over its cook time there), handed out like the chefs; of the dish types that
-/// kitchen cooks first (a dish put in for one of them keeps the menu's types), then any.</item>
-/// <item><b>Drink substitutes:</b> the best off-menu drinks by value.</item>
+/// <item><b>Dish substitutes:</b> dishes matching the theme first (<see cref="ThemeMatch"/>: owner,
+/// 2026-10-20, matching dishes always rank above the others, so a matching dish's stand-in is another
+/// matching dish), the most matches first; then off-menu dishes by value per second cooked in that
+/// kitchen (price with the 热门 bonus over its cook time there), handed out like the chefs; within
+/// each, of the dish types that kitchen cooks first (a dish put in for one of them keeps the menu's
+/// types), then any.</item>
+/// <item><b>Drink substitutes:</b> the best off-menu drinks, matching the theme first, then by value.</item>
 /// </list>
 /// Nothing with no worth (adding nothing, or no value) is suggested.
 /// </summary>
@@ -64,6 +67,7 @@ public static class InnSuggester
     {
         var inn = planner.Inn;
         var hot = input.HotTraits.ToHashSet();
+        var themeItems = InnPlanner.ThemeItems(input);
         var kitchens = plan.Kitchens.OrderBy(k => k.Number).Select(k => new Kitchen(k.Number, k.Chefs)).ToArray();
         // Chefs already placed are each planned kitchen's first chefs, kept: suggestions are for the places left.
         var places = kitchens.ToDictionary(k => k.Number, k => input.Kitchens.FirstOrDefault(p => p.Number == k.Number) is { } p
@@ -94,11 +98,10 @@ public static class InnSuggester
         var used = kitchens.Where(k => KitchenMath.Cooks(k) && places[k.Number].Count > places[k.Number].Placed).Select(k => k.Number).ToList();
         var chefSubs = HandOut(used, [chefWorth], c => c.Id);
 
-        // Off-menu dishes by value per second in each kitchen, its own dish types first.
+        // Off-menu dishes, matching the theme first, then by value per second in each kitchen; its own dish types first within each.
         var onMenu = plan.Dishes.Select(d => d.Dish.Id).ToHashSet();
         var offMenu = input.Dishes.Where(d => d.Stock is not <= 0 && !onMenu.Contains(d.Dish.Id)).DistinctBy(d => d.Dish.Id).ToList();
-        var sameType = new List<(int Kitchen, MenuDish Item, double Worth)>();
-        var anyType = new List<(int Kitchen, MenuDish Item, double Worth)>();
+        var pools = Enumerable.Range(0, 4).Select(_ => new List<(int Kitchen, MenuDish Item, DishWorth Worth)>()).ToArray();
         foreach (var kitchen in kitchens.Where(k => KitchenMath.Cooks(k) && dishesOf[k.Number].Count > 0))
         {
             var types = dishesOf[kitchen.Number].Select(d => d.Dish.Type).ToHashSet();
@@ -106,15 +109,17 @@ public static class InnSuggester
             {
                 double perSecond = InnPlanner.Value(hot, dish.Dish) / KitchenMath.CookSeconds(inn, kitchen, dish.Dish, input.Rating);
                 if (perSecond <= 0) continue;
-                (types.Contains(dish.Dish.Type) ? sameType : anyType).Add((kitchen.Number, dish, perSecond));
+                int matches = InnPlanner.ThemeMatches(themeItems, dish.Dish);
+                // 0: matching, of the kitchen's types; 1: matching, any type; 2 and 3: the others alike.
+                pools[(matches > 0 ? 0 : 2) + (types.Contains(dish.Dish.Type) ? 0 : 1)].Add((kitchen.Number, dish, new DishWorth(matches, perSecond)));
             }
         }
-        var dishSubs = HandOut([.. kitchens.Where(k => dishesOf[k.Number].Count > 0).Select(k => k.Number)], [sameType, anyType], d => d.Dish.Id);
+        var dishSubs = HandOut([.. kitchens.Where(k => dishesOf[k.Number].Count > 0).Select(k => k.Number)], pools, d => d.Dish.Id);
 
         var onList = plan.Drinks.Select(d => d.Drink.Id).ToHashSet();
         var drinkSubs = input.Drinks.Where(d => d.Stock is not <= 0 && !onList.Contains(d.Drink.Id)).DistinctBy(d => d.Drink.Id)
             .Select(d => (Drink: d, Value: InnPlanner.Value(hot, d.Drink))).Where(d => d.Value > 0)
-            .OrderByDescending(d => d.Value).ThenBy(d => d.Drink.Drink.Id, StringComparer.Ordinal)
+            .OrderByDescending(d => InnPlanner.ThemeMatches(themeItems, d.Drink.Drink)).ThenByDescending(d => d.Value).ThenBy(d => d.Drink.Drink.Id, StringComparer.Ordinal)
             .Take(MaxSubstitutes).Select(d => d.Drink).ToList();
 
         var suggestions = kitchens.Select(k =>
@@ -163,6 +168,12 @@ public static class InnSuggester
 
     /// <summary>Kitchen-seconds per dish this close are the same speed.</summary>
     private const double SecondsTolerance = 1e-6;
+
+    /// <summary>What an off-menu dish is worth in a kitchen: the theme's items it matches first, then its value per second cooked there.</summary>
+    private readonly record struct DishWorth(int Matches, double PerSecond) : IComparable<DishWorth>
+    {
+        public int CompareTo(DishWorth other) => Matches != other.Matches ? Matches.CompareTo(other.Matches) : PerSecond.CompareTo(other.PerSecond);
+    }
 
     /// <summary>What a chef adds: income first; on an equal income (within a cent), the kitchen-seconds per dish saved.</summary>
     private readonly record struct ChefWorth(double Income, double SecondsSaved) : IComparable<ChefWorth>
