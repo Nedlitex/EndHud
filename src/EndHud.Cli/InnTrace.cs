@@ -66,7 +66,9 @@ internal static class InnTrace
                     {
                         var ids = panel.Dishes.Select(d => d.DishId).OfType<string>().ToList();
                         panelDishes.UnionWith(ids);
-                        panelCell = $"k{panel.Kitchen}:" + string.Join("+", ids);
+                        // The queue: the dish cooking first, then those waiting ("-" an empty place, "?" one not told apart).
+                        string queue = string.Join("+", panel.Queue.Select(q => !q.Filled ? "-" : q.DishId ?? "?"));
+                        panelCell = $"k{panel.Kitchen}:" + string.Join("+", ids) + $" queue:{queue}";
                     }
                     break;
                 }
@@ -136,22 +138,50 @@ internal static class InnTrace
         throw new DirectoryNotFoundException("EndHud.sln not found above the tool or the working directory; pass --reference <folder>");
     }
 
-    /// <summary>One order as it was first seen, its items filled in as they are read.</summary>
-    internal sealed record SeenOrder(double At, TimeSpan? Timer, int Table, string?[] Items);
+    /// <summary>One order: when it was first seen, and its items by a vote over every frame that showed it.</summary>
+    internal sealed class SeenOrder(double at, TimeSpan? timer, int table)
+    {
+        private readonly List<string?[]> _readings = [];
+
+        public double At { get; } = at;
+        public TimeSpan? Timer { get; } = timer;
+        public int Table { get; } = table;
+
+        public void Add(string?[] items) => _readings.Add(items);
+
+        /// <summary>
+        /// The items: as many as most readings show (a picture fading in or out is read short), each
+        /// the id read most often in its place; null where no reading named it.
+        /// </summary>
+        public IReadOnlyList<string?> Items
+        {
+            get
+            {
+                if (_readings.Count == 0) return [];
+                int length = _readings.GroupBy(r => r.Length).OrderByDescending(g => g.Count()).ThenByDescending(g => g.Key).First().Key;
+                var whole = _readings.Where(r => r.Length == length).ToList();
+                return [.. Enumerable.Range(0, length).Select(i => whole.Select(r => r[i]).OfType<string>()
+                    .GroupBy(id => id).OrderByDescending(g => g.Count()).Select(g => g.Key).FirstOrDefault())];
+            }
+        }
+    }
 
     /// <summary>
-    /// Turns the table cards over time into orders, each once: a table's order starts when its card
-    /// shows an order after anything else (empty, ordering, eating, paying), or shows other items
-    /// than the order it held. An unreadable card (null) changes nothing; an item read only on a
-    /// later frame is filled in then.
+    /// Turns the table cards over time into orders, each once. A table's guest is seen choosing
+    /// (点餐中) for 6–12 s before an order shows, so a new order is counted only on a table seen
+    /// choosing (on <see cref="ChoosingFrames"/> frames in a row) since its last order: a card
+    /// misread for a frame (another state, an item lost) never makes a second order. An unreadable
+    /// card (null) changes nothing. Gourmands order by category, not by dish: counted apart.
     /// </summary>
     internal sealed class OrderTracker
     {
-        private readonly SeenOrder?[] _current = new SeenOrder?[TableCardReader.Tables];
-        private readonly bool[] _gourmand = new bool[TableCardReader.Tables];
+        /// <summary>Frames in a row a table must be read choosing before its next order counts.</summary>
+        public const int ChoosingFrames = 2;
 
-        /// <summary>How soon after an order's first sight more pictures may still appear on its card.</summary>
-        private const double GrowSeconds = 3;
+        private readonly SeenOrder?[] _current = new SeenOrder?[TableCardReader.Tables];
+        private readonly int[] _choosing = new int[TableCardReader.Tables];
+        private readonly bool[] _ready = new bool[TableCardReader.Tables];
+        private readonly bool[] _gourmandReady = new bool[TableCardReader.Tables];
 
         public List<SeenOrder> Orders { get; } = [];
 
@@ -162,38 +192,33 @@ internal static class InnTrace
             for (int i = 0; i < cards.Count && i < _current.Length; i++)
             {
                 if (cards[i] is not { } card) continue;
-                if (card.State == TableState.GourmandOrder)
+                bool choosing = card.State is TableState.Ordering or TableState.GourmandOrdering;
+                _choosing[i] = choosing ? _choosing[i] + 1 : 0;
+                if (_choosing[i] >= ChoosingFrames)
                 {
-                    if (!_gourmand[i]) GourmandOrders++;
-                    _gourmand[i] = true;
-                    _current[i] = null;
-                    continue;
+                    if (card.State == TableState.Ordering) _ready[i] = true;
+                    else _gourmandReady[i] = true;
                 }
-                _gourmand[i] = false;
-                if (card.State != TableState.Order)
+                switch (card.State)
                 {
-                    _current[i] = null;
-                    continue;
+                    case TableState.GourmandOrder when _gourmandReady[i]:
+                        GourmandOrders++;
+                        _gourmandReady[i] = false;
+                        break;
+                    case TableState.Order:
+                        var items = card.Items.Select(item => item.Id).ToArray();
+                        if (_ready[i])
+                        {
+                            _current[i] = new SeenOrder(at, timer, i + 1);
+                            Orders.Add(_current[i]!);
+                            _ready[i] = false;
+                        }
+                        _current[i]?.Add(items);
+                        break;
+                    case TableState.Eating or TableState.Paying or TableState.Empty:
+                        _current[i] = null;
+                        break;
                 }
-                var items = card.Items.Select(item => item.Id).ToArray();
-                if (_current[i] is { } held && held.Items.Length == items.Length
-                    && held.Items.Zip(items).All(p => p.First is null || p.Second is null || p.First == p.Second))
-                {
-                    for (int j = 0; j < items.Length; j++) held.Items[j] ??= items[j];
-                    continue;
-                }
-                // A second picture fading in a moment after the first: the same order, now whole.
-                if (_current[i] is { } partial && partial.Items.Length < items.Length && at - partial.At <= GrowSeconds
-                    && partial.Items.Zip(items).All(p => p.First is null || p.Second is null || p.First == p.Second))
-                {
-                    var whole = partial with { Items = [.. items.Select((id, j) => id ?? (j < partial.Items.Length ? partial.Items[j] : null))] };
-                    Orders[Orders.IndexOf(partial)] = whole;
-                    _current[i] = whole;
-                    continue;
-                }
-                var order = new SeenOrder(at, timer, i + 1, items);
-                Orders.Add(order);
-                _current[i] = order;
             }
         }
     }
