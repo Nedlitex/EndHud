@@ -59,7 +59,9 @@ public sealed partial record DishRule(int Count, IReadOnlyList<string> AnyOf)
     /// </summary>
     public static DishRulesRead ParseAll(IReadOnlyList<string> lines, InnData data)
     {
-        string text = string.Concat(lines.Select(l => l.Replace(" ", "")));
+        // One line can state two rules joined by 和 (海陆宴: "至少有1道带有[肉食]特性的菜品和1道带有[水产]
+        // 特性的菜品"): the second is a rule of its own, as if it started "至少有".
+        string text = SecondRule().Replace(string.Concat(lines.Select(l => l.Replace(" ", ""))), "至少有");
         var rules = new List<DishRule>();
         var notUnderstood = new List<string>();
         foreach (string part in RuleStart().Split(text).Where(p => p.Length > 0))
@@ -78,6 +80,10 @@ public sealed partial record DishRule(int Count, IReadOnlyList<string> AnyOf)
 
     [GeneratedRegex(@"(?=至少)")]
     private static partial Regex RuleStart();
+
+    /// <summary>"…的菜品和1道带有…": the 和 starting a second rule on the same line.</summary>
+    [GeneratedRegex(@"(?<=菜品)和(?=\d+道)")]
+    private static partial Regex SecondRule();
 
     [GeneratedRegex(@"\[([^\]]+)\]")]
     private static partial Regex Brackets();

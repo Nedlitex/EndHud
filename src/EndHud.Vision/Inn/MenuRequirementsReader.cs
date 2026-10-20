@@ -55,8 +55,11 @@ public sealed partial class MenuRequirementsReader(InnText text, InnData data)
                 dishes = int.Parse(c.Groups[1].Value);
                 if (c.Groups[2].Success) drinks = int.Parse(c.Groups[2].Value);
             }
-            if (DishRule.Parse(line, data) is { } rule && !rules.Any(k => k.Count == rule.Count && k.AnyOf.SequenceEqual(rule.AnyOf))) rules.Add(rule);
         }
+        // The theme's rules, read over the lines joined: a rule wraps ("…和1道带有[水" / "产]特性的菜品", 海陆宴),
+        // and one line can hold two rules joined by 和 (DishRule.ParseAll).
+        foreach (var rule in DishRule.ParseAll([.. lines.Select(Normalise)], data).Rules)
+            if (!rules.Any(k => k.Count == rule.Count && k.AnyOf.SequenceEqual(rule.AnyOf))) rules.Add(rule);
         return new MenuRequirements(rating >= 1 && rating <= KitchenMath.MaxRating ? rating : null, types, dishes, drinks, rules, lines);
     }
 
