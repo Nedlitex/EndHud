@@ -316,9 +316,13 @@ public sealed class InnPlanner(InnData inn)
 
     /// <summary>
     /// How many times as often a guest picks a dish the theme says guests prefer (<see cref="InnPlanInput.Preferred"/>)
-    /// as one it doesn't. MEASUREMENT PENDING (trace-inn).
+    /// as one it doesn't. Measured with trace-inn on test_yuanyuan2 (养身心, "客人更倾向带有[素食]、[滋补]特性的菜品"):
+    /// 3 of the 4 dishes ordered were among the 3 preferred dishes of the 8 on the menu, whose most likely weight
+    /// is 5 (likelihood interval 0.6 to over 100: four dishes can't pin it; re-measure on a longer session of a
+    /// theme with a preference). The 热门 chips alone change nothing: on the two 海陆宴 sessions, whose text
+    /// names no preference, the hot dishes were ordered 1.2 times as often as the others (0.6 to 2.3, 38 dishes).
     /// </summary>
-    public const double PreferenceWeight = 3;
+    public const double PreferenceWeight = 5;
 
     /// <summary>
     /// What a choice dish (珍馐) is taken to bring in tips, as a share of its value. The game shows
