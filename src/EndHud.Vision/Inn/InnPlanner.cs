@@ -185,6 +185,9 @@ public static partial class InnObjective
         return list;
     }
 
+    /// <summary>Whether a theme's text has its sentence on what guests prefer ("客人更倾向…"), however much of it was read.</summary>
+    public static bool StatesPreference(string? description) => description?.Replace(" ", "").Contains("更倾向", StringComparison.Ordinal) == true;
+
     [GeneratedRegex(@"出售(\d+)道.{0,3}?珍馐")]
     private static partial Regex ChoiceDishText();
 

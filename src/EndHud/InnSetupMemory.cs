@@ -141,7 +141,9 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
             MenuRules = read.MenuRules.Count > 0 ? read.MenuRules : old.MenuRules,
             HotTraits = read.HotTraits.Count >= old.HotTraits.Count ? read.HotTraits : old.HotTraits,
             Kitchens = kitchens,
-            Description = read.Description ?? old.Description,
+            // The theme's text doesn't change: a reading that lost its last sentence (what guests prefer) is a miss, not news.
+            Description = read.Description is null || (!InnObjective.StatesPreference(read.Description) && InnObjective.StatesPreference(old.Description))
+                ? old.Description : read.Description,
             SiChoicePercent = read.SiChoicePercent ?? old.SiChoicePercent,
         };
     }

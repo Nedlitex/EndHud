@@ -354,5 +354,35 @@ public class InnSetupMemoryTests
         Assert.True(input.ChoiceTipsRaised);
         Assert.Equal(5, input.SiQualityPercent);
         Assert.Equal(["1:Meaty", "1:Finny"], input.Rules.DishRules.Select(r => $"{r.Count}:{string.Join("/", r.AnyOf)}"));
+        // Its text names no dishes guests prefer: they pick uniformly, the hot chips only add to the price.
+        Assert.Empty(input.Preferred);
+    }
+
+    /// <summary>
+    /// 养身心's text says what guests prefer ("客人更倾向带有[素食]、[滋补]特性的菜品"): that reaches the
+    /// planner, and a later reading missing that sentence keeps it.
+    /// </summary>
+    [Fact]
+    public void The_theme_texts_guest_preference_reaches_the_planner()
+    {
+        var session = NewSession();
+        var wholesome = Inn.Themes.Single(t => t.Zh == "养身心");
+        var setup = Setup(0).Setup! with { ThemeName = "养身心", Theme = wholesome, HotTraits = ["Veggy", "Rich"], Description = null };
+        session.Update(new InnReading(InnScreenKind.Setup, S(0), Setup: setup));
+        var unread = session.SetupInputs();
+
+        session.Update(new InnReading(InnScreenKind.Setup, S(1), Setup: setup with
+        {
+            Description = "几道山珍素食，轻灵之气轻抚身心。灶火升温更快，可更快开启“满堂彩\"。客人更倾向带有[素食]、[滋补]特性的菜品。",
+        }));
+        var read = session.SetupInputs();
+
+        // Before the text is read, the hot chips stand in for it.
+        Assert.Equal(["Veggy", "Rich"], unread.Input!.Preferred);
+        Assert.Equal(["Veggy", "Rich"], read.Input!.Preferred);
+
+        // A later reading that lost the text's last sentence doesn't take the preference away.
+        session.Update(new InnReading(InnScreenKind.Setup, S(2), Setup: setup with { Description = "几道山珍素食，轻灵之气轻抚身心。" }));
+        Assert.Equal(["Veggy", "Rich"], session.SetupInputs().Input!.Preferred);
     }
 }

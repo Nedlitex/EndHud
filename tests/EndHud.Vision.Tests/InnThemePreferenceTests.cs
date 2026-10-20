@@ -241,13 +241,16 @@ public class InnThemePreferenceTests(ITestOutputHelper output)
         output.WriteLine($"  simulated {plan.Simulated}; model {plan.Score}");
     }
 
+    /// <summary>
+    /// The owner's three themes, planned as if guests picked uniformly and with the theme's preference
+    /// (the report's before and after). Both plans meet the rules; 海陆宴, whose text names no
+    /// preference, is planned exactly as before.
+    /// </summary>
     [Theory]
-    [InlineData("养身心", false)]
-    [InlineData("海陆宴", false)]
-    [InlineData("舌上清流", false)]
-    [InlineData("养身心", true)]
-    [InlineData("舌上清流", true)]
-    public void Plans_before_and_after_the_preference(string theme, bool everyDish)
+    [InlineData("养身心")]
+    [InlineData("海陆宴")]
+    [InlineData("舌上清流")]
+    public void Plans_before_and_after_the_preference(string theme)
     {
         var (hot, rule, text) = theme switch
         {
@@ -257,11 +260,6 @@ public class InnThemePreferenceTests(ITestOutputHelper output)
         };
         var before = Session(hot, rule, []);
         var after = Session(hot, rule, InnPlanner.PreferenceOf(text, hot, null, Inn));
-        if (everyDish)
-        {
-            before = before with { Dishes = [.. Inn.Dishes.Select(d => new MenuDish(d, null))] };
-            after = after with { Dishes = before.Dishes };
-        }
         var planBefore = Planner.Plan(before);
         var planAfter = Planner.Plan(after);
         Show($"{theme} before (uniform)", before, planBefore);
@@ -269,5 +267,12 @@ public class InnThemePreferenceTests(ITestOutputHelper output)
         // The plan made without the preference, played where guests do prefer: what it really earns.
         var kitchensBefore = planBefore.Kitchens.Select(k => new Kitchen(k.Number, k.Chefs)).ToList();
         output.WriteLine($"  the uniform plan, played with the preference: {Planner.Simulate(after, kitchensBefore, planBefore.Dishes, planBefore.Drinks)}");
+
+        Assert.True(planBefore.RulesMet && planAfter.RulesMet);
+        if (after.Preferred.Count == 0)
+        {
+            Assert.Equal(planBefore.Dishes.Select(d => d.Dish.Id), planAfter.Dishes.Select(d => d.Dish.Id));
+            Assert.Equal(planBefore.Simulated, planAfter.Simulated);
+        }
     }
 }
