@@ -263,6 +263,79 @@ public class InnSetupMemoryTests
         Assert.Equal(["Meaty", "Finny"], session.SetupInputs().Input!.HotTraits);
     }
 
+    // ---- The owner's screenshot, 2026-10-19: three empty kitchens, two of them advised "set" ----
+
+    /// <summary>The setup screen for 养身心 with these kitchens.</summary>
+    private static InnReading Wholesome(double at, params SetupKitchen[] kitchens) =>
+        new(InnScreenKind.Setup, S(at), Setup: new InnSetup("养身心", Inn.Themes.Single(t => t.Zh == "养身心"), "开启2次满堂彩",
+            ["至少有2道带有[素食]或[滋补]特性的菜品"], ["Veggy", "Rich"], kitchens));
+
+    private static SetupKitchen EmptyKitchen(int number) => new(number, 2, [null, null], [null, null]) { ChefsPlaced = 0 };
+
+    private static readonly SetupKitchen[] Staffed =
+    [
+        new SetupKitchen(1, 2, ["Perlica", "Avywenna"], ["佩丽卡", "艾维文娜"]) { ChefsPlaced = 2 },
+        new SetupKitchen(2, 2, [Chen, "Ardelia"], ["陈千语", "艾尔黛拉"]) { ChefsPlaced = 2 },
+        EmptyKitchen(3),
+    ];
+
+    /// <summary>
+    /// The player clears every place (清空当前人员和菜单设定): each place read empty (its grey bar) is a
+    /// fact, not a miss. The remembered chefs go, and every kitchen is advised chefs for both places.
+    /// </summary>
+    [Fact]
+    public void Places_read_empty_after_chefs_were_placed_hold_no_chef_and_every_place_is_advised()
+    {
+        var session = NewSession();
+        session.Update(Wholesome(0, Staffed));
+        Assert.Equal("1:2[Perlica,Avywenna] 2:2[Chen_Qianyu,Ardelia] 3:2[]", Kitchens(session.SetupInputs()));
+
+        session.Update(Wholesome(2, EmptyKitchen(1), EmptyKitchen(2), EmptyKitchen(3)));
+
+        var inputs = session.SetupInputs();
+        Assert.Equal("1:2[] 2:2[] 3:2[]", Kitchens(inputs));
+        var advice = InnSetupAdvice.Fast(new InnPlanner(Inn), inputs.Input!);
+        var panels = InnSetupView.Setup(inputs, advice, Inn, Text);
+        Assert.Equal(3, panels.Count);
+        Assert.All(panels, p =>
+        {
+            var lines = p.Model.Lines.Select(l => l.Text).ToList();
+            Assert.DoesNotContain(Text("Inn.Setup.Full"), lines);
+            Assert.Contains(lines, l => l.StartsWith(Text("Inn.Setup.Recommend"), StringComparison.Ordinal));
+        });
+        Assert.All(advice.Suggestions.Kitchens, k => Assert.Equal(2, k.Chefs.Count));
+    }
+
+    /// <summary>Another theme read clearly is another setup: no chef of the last one is carried over, even into places this reading couldn't tell.</summary>
+    [Fact]
+    public void Another_theme_read_clearly_keeps_no_chef_of_the_last_one()
+    {
+        var session = NewSession();
+        session.Update(Wholesome(0, Staffed));
+
+        session.Update(Setup(2,
+            new SetupKitchen(1, null, [null, null], [null, null]), // places not told: a miss, but of another setup
+            new SetupKitchen(2, null, [null, null], [null, null]),
+            EmptyKitchen(3)));
+
+        Assert.Equal(["Soup", InnData.Drink], session.SetupInputs().Input!.HotTraits);
+        Assert.DoesNotContain(session.SetupInputs().Input!.Kitchens, k => k.Placed.Count > 0);
+    }
+
+    /// <summary>Of the same theme, a place that couldn't be read keeps its chef, and a kitchen whose title was missed keeps what was read of it.</summary>
+    [Fact]
+    public void An_unreadable_place_or_a_kitchen_missed_keeps_what_was_read_before()
+    {
+        var session = NewSession();
+        session.Update(Wholesome(0, Staffed));
+        string key = session.SetupInputs().Key;
+
+        session.Update(Wholesome(2, new SetupKitchen(1, null, [null, null], [null, null]), EmptyKitchen(3))); // kitchen 1 unreadable, kitchen 2 missed
+
+        Assert.Equal("1:2[Perlica,Avywenna] 2:2[Chen_Qianyu,Ardelia] 3:2[]", Kitchens(session.SetupInputs()));
+        Assert.Equal(key, session.SetupInputs().Key);
+    }
+
     /// <summary>海陆宴's choice-dish objective, its text and Si's assist reach the planner.</summary>
     [Fact]
     public void Ocean_and_Lands_choice_dish_objective_text_and_Sis_assist_reach_the_planner()

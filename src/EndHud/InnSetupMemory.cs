@@ -116,16 +116,22 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
     /// different part of the same screen from frame to frame; a part a reading misses is not a change.
     /// Of the same theme (by its data id, else its name as read), the theme's parts are kept where
     /// the reading has nothing (the objective, the text, the rules, Si's assist) or less (fewer hot
-    /// traits found); another theme replaces them all. Kitchens: <see cref="Merge(SetupKitchen?, SetupKitchen)"/>;
-    /// a reading without kitchens (the theme list) keeps the remembered ones.
+    /// traits found); another theme replaces them all. Kitchens: <see cref="Merge(SetupKitchen?, SetupKitchen)"/>,
+    /// and a kitchen whose title the reading missed is kept as it was; a reading without kitchens (the theme
+    /// list) keeps the remembered ones. Another theme (as above: by its data id, else its name) is
+    /// another setup: its kitchens are as read, nothing of the last setup's chefs carried over
+    /// (owner, 2026-10-19: chefs of an earlier setup advised as "set" on empty kitchens).
     /// </summary>
     internal static InnSetup Merge(InnSetup? old, InnSetup read)
     {
         if (old is null) return read;
-        var kitchens = read.Kitchens is null ? old.Kitchens
-            : old.Kitchens is null ? read.Kitchens
-            : [.. read.Kitchens.Select(k => Merge(old.Kitchens.FirstOrDefault(o => o.Number == k.Number), k))];
         bool sameTheme = read.Theme is { } theme && old.Theme is { } before ? theme.Id == before.Id : read.ThemeName == old.ThemeName;
+        bool anotherTheme = !sameTheme;
+        var kitchens = read.Kitchens is null ? (anotherTheme ? null : old.Kitchens)
+            : old.Kitchens is null || anotherTheme ? read.Kitchens
+            : [.. read.Kitchens.Select(k => Merge(old.Kitchens.FirstOrDefault(o => o.Number == k.Number), k))
+                .Concat(old.Kitchens.Where(o => read.Kitchens.All(k => k.Number != o.Number)))
+                .OrderBy(k => k.Number)];
         if (!sameTheme) return read with { Kitchens = kitchens };
         return read with
         {
@@ -143,7 +149,9 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
     /// <summary>
     /// A newer reading of a kitchen over what's remembered of it: its places and how many are taken
     /// when the reading couldn't tell; a chef whose name the reading missed in a place still taken
-    /// keeps the name read before (in place order). A place seen empty (fewer taken) drops the name.
+    /// keeps the name read before (in place order). A place read empty (its grey bar: fewer taken, 0
+    /// for a kitchen showing only "安排干员+") is a fact, not a miss: it drops the name. Only a place
+    /// that couldn't be read (<see cref="SetupKitchen.ChefsPlaced"/> null) keeps what was read before.
     /// </summary>
     internal static SetupKitchen Merge(SetupKitchen? old, SetupKitchen read)
     {
