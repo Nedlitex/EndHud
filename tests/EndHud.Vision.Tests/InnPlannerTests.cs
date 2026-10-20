@@ -507,4 +507,32 @@ public class InnPlannerTests(ITestOutputHelper output)
         Assert.True(InnPlanner.ChoiceTipShare(plain with { ChoiceDishTarget = 6 }) > 0);
         Assert.True(InnPlanner.ChoiceTipShare(plain with { ChoiceTipsRaised = true }) > InnPlanner.ChoiceTipShare(plain with { ChoiceDishTarget = 6 }));
     }
+
+    /// <summary>
+    /// The quick search (the setup advice's first answer, refined by <see cref="InnPlanner.Plan"/>): a valid plan
+    /// that keeps the chefs placed, earning close to the full search under the model.
+    /// </summary>
+    [Fact]
+    public void The_quick_plan_is_valid_keeps_the_placed_chefs_and_earns_close_to_the_full_search()
+    {
+        var input = Input([new PlanKitchen(1, 2) { Placed = [Op("Chen_Qianyu")] }, new PlanKitchen(2, 2), new PlanKitchen(3, 2)],
+            rules: Rating4(VeggyOrRich), hot: ["Veggy", "Rich"]);
+
+        var quick = Planner.PlanQuickly(input);
+        var full = Planner.PlanByModel(input);
+        output.WriteLine($"quick {quick.Score.Income:F0}, full {full.Score.Income:F0}");
+
+        AssertValid(input, quick);
+        Assert.Equal("Chen_Qianyu", quick.Kitchens.Single(k => k.Number == 1).Chefs[0].Id);
+        Assert.Equal(6, quick.Kitchens.Sum(k => k.Chefs.Count));
+        Assert.True(quick.Score.Income >= 0.9 * full.Score.Income, $"quick {quick.Score.Income:F0} vs full {full.Score.Income:F0}");
+    }
+
+    [Fact]
+    public void A_cancelled_plan_stops()
+    {
+        using var cancel = new CancellationTokenSource();
+        cancel.Cancel();
+        Assert.ThrowsAny<OperationCanceledException>(() => Planner.Plan(Input(Kitchens(3, 2)), cancel.Token));
+    }
 }

@@ -18,12 +18,12 @@ internal sealed record InnSetupAdvice(InnPlan Plan, InnSuggestions Suggestions)
     }
 
     /// <summary>
-    /// The plan by the planner's model alone (<see cref="InnPlanner.PlanByModel"/>, no simulation) and its
+    /// The plan of the model's quick search (<see cref="InnPlanner.PlanQuickly"/>, no simulation) and its
     /// suggestions: what's shown first, while <see cref="For"/> refines it.
     /// </summary>
     public static InnSetupAdvice Fast(InnPlanner planner, InnPlanInput input)
     {
-        var plan = planner.PlanByModel(input);
+        var plan = planner.PlanQuickly(input);
         return new InnSetupAdvice(plan, InnSuggester.Of(planner, input, plan));
     }
 

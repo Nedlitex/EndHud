@@ -84,12 +84,15 @@ public class InnSetupCostTests(ITestOutputHelper output)
             var byModel = planner.PlanByModel(input);
             long modelMs = watch.ElapsedMilliseconds;
             watch.Restart();
+            var quick = planner.PlanQuickly(input);
+            long quickMs = watch.ElapsedMilliseconds;
+            watch.Restart();
             var simulated = planner.Plan(input);
             long planMs = watch.ElapsedMilliseconds;
             watch.Restart();
             InnSuggester.Of(planner, input, byModel);
             long suggestMs = watch.ElapsedMilliseconds;
-            output.WriteLine($"{name}: model plan {modelMs} ms, simulated plan {planMs} ms, suggestions {suggestMs} ms");
+            output.WriteLine($"{name}: quick model plan {quickMs} ms (income {quick.Score.Income:F0}), full model plan {modelMs} ms (income {byModel.Score.Income:F0}), simulated plan {planMs} ms, suggestions {suggestMs} ms");
             output.WriteLine($"{name}: fast (model + suggestions) {fastMs} ms, refined (simulator + suggestions) {refinedMs} ms, same advice: {fast.Signature == refined.Signature}");
         }
     }

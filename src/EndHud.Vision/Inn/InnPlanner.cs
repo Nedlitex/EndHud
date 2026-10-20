@@ -317,6 +317,19 @@ public sealed class InnPlanner(InnData inn)
     private const int MaxRounds = 4;
 
     /// <summary>
+    /// How hard the model's search works. <see cref="Full"/>: every round and start, the beam's line-ups
+    /// judged with Dinkelbach's steps, the plan polished (seconds over the whole roster). <see cref="Quick"/>:
+    /// one narrower beam from one starting menu, each line-up judged by that menu alone, the best few given a
+    /// menu, no polish (measured 0.3–0.4 s where the full search takes 4–11 s over the whole roster; within
+    /// ~5 % of its income under the model): the setup advice's first answer, refined after (<see cref="Plan"/>).
+    /// </summary>
+    private sealed record Effort(int DinkelbachSteps, int Rounds, bool DearestStart, int LineUpsTried, bool Polish, int BeamWidth)
+    {
+        public static readonly Effort Full = new(InnPlanner.DinkelbachSteps, MaxRounds, DearestStart: true, InnPlanner.LineUpsTried, Polish: true, InnPlanner.BeamWidth);
+        public static readonly Effort Quick = new(DinkelbachSteps: 0, Rounds: 1, DearestStart: false, LineUpsTried: 3, Polish: false, BeamWidth: 8);
+    }
+
+    /// <summary>
     /// A cook with no bonus: a kitchen at base speed (a place the beam hasn't filled yet, or one taken
     /// by a chef whose name couldn't be read, <see cref="PlanKitchen.Placed"/>). Its id is empty.
     /// </summary>
@@ -392,7 +405,7 @@ public sealed class InnPlanner(InnData inn)
     /// <exception cref="OperationCanceledException"><paramref name="cancel"/> was cancelled.</exception>
     public InnPlan Plan(InnPlanInput input, CancellationToken cancel = default)
     {
-        var (search, best, lineUps) = SearchByModel(input);
+        var (search, best, lineUps) = SearchByModel(input, Effort.Full, cancel);
         (Kitchen[] Kitchens, int[] Menu, int[] Drinks, InnSimulatedScore Simulated)? chosen = null;
         foreach (var (kitchens, menu, drinks) in search.Candidates(best, lineUps))
         {
@@ -416,15 +429,28 @@ public sealed class InnPlanner(InnData inn)
     /// <exception cref="ArgumentException">As <see cref="Plan"/>.</exception>
     public InnPlan PlanByModel(InnPlanInput input)
     {
-        var (search, best, _) = SearchByModel(input);
+        var (search, best, _) = SearchByModel(input, Effort.Full, CancellationToken.None);
         return Finish(input, search, best.Kitchens, best.Menu, best.Drinks, best.Score);
     }
 
-    private (Search Search, (Kitchen[] Kitchens, int[] Menu, int[] Drinks, InnPlanScore Score) Best, IReadOnlyList<Kitchen[]> LineUps) SearchByModel(InnPlanInput input)
+    /// <summary>
+    /// A plan by the model from a shorter search (one beam, no polish; a fraction of a second where
+    /// <see cref="PlanByModel"/> takes seconds over the whole roster): the setup advice shows it while
+    /// <see cref="Plan"/> works out the better one. Its chefs and menu meet the same rules; it may earn less.
+    /// </summary>
+    /// <exception cref="ArgumentException">As <see cref="Plan"/>.</exception>
+    public InnPlan PlanQuickly(InnPlanInput input)
+    {
+        var (search, best, _) = SearchByModel(input, Effort.Quick, CancellationToken.None);
+        return Finish(input, search, best.Kitchens, best.Menu, best.Drinks, best.Score);
+    }
+
+    private (Search Search, (Kitchen[] Kitchens, int[] Menu, int[] Drinks, InnPlanScore Score) Best, IReadOnlyList<Kitchen[]> LineUps) SearchByModel(InnPlanInput input,
+        Effort effort, CancellationToken cancel)
     {
         Validate(input);
         var hot = input.HotTraits.ToHashSet();
-        var search = new Search(this, input, hot);
+        var search = new Search(this, input, hot, effort.DinkelbachSteps, effort.BeamWidth, cancel);
 
         // Start from a menu for kitchens at base speed, then alternate chefs and menu.
         var (menu, drinks) = search.BestMenu(search.Materialize(search.PlainLineUp()), search.InitialDrinks());
@@ -433,13 +459,14 @@ public sealed class InnPlanner(InnData inn)
         // The first round also starts from the dearest menu: with guests on a clock a menu of dear dishes
         // and one of quick dishes can both be good, and chefs suited to one are judged poorly by the other.
         var starts = new List<(int[] Menu, int[] Drinks)> { (menu, drinks) };
-        if (search.DearestMenu(drinks) is { } dearest) starts.Add((dearest, drinks));
-        for (int round = 0; round < MaxRounds; round++)
+        if (effort.DearestStart && search.DearestMenu(drinks) is { } dearest) starts.Add((dearest, drinks));
+        for (int round = 0; round < effort.Rounds; round++)
         {
             bool improved = false;
-            var beam = round == 0 ? starts.SelectMany(s => search.Beam(s.Menu, s.Drinks).Take(LineUpsTried)) : search.Beam(menu, drinks).Take(LineUpsTried);
+            var beam = round == 0 ? starts.SelectMany(s => search.Beam(s.Menu, s.Drinks).Take(effort.LineUpsTried)) : search.Beam(menu, drinks).Take(effort.LineUpsTried);
             foreach (var lineUp in beam)
             {
+                cancel.ThrowIfCancellationRequested();
                 var kitchens = search.Materialize(lineUp, int.MaxValue);
                 var (m, d) = search.BestMenu(kitchens, drinks, menu);
                 var score = search.Score(kitchens, m, d);
@@ -454,7 +481,7 @@ public sealed class InnPlanner(InnData inn)
             if (!improved) break;
         }
 
-        var final = search.FillEmptyPlaces(search.Polish(best!.Value));
+        var final = search.FillEmptyPlaces(effort.Polish ? search.Polish(best!.Value) : best!.Value);
         // The runners-up: the best other line-ups the search judged, each once.
         var lineUps = tried.OrderByDescending(t => t.Score, Comparer<InnPlanScore>.Create((a, b) => a.BetterThan(b) ? 1 : b.BetterThan(a) ? -1 : 0))
             .Select(t => t.Kitchens).Prepend(final.Kitchens).DistinctBy(Search.KitchensKey).Take(LineUpsSimulated).ToList();
@@ -885,9 +912,21 @@ public sealed class InnPlanner(InnData inn)
         /// <summary>Places of kitchen <paramref name="k"/> (the input's order) the plan may fill.</summary>
         private int Free(int k) => _input.Kitchens[k].Places - _placed[k].Length;
 
-        public Search(InnPlanner planner, InnPlanInput input, HashSet<string> hot)
+        /// <summary>Steps of Dinkelbach's method in <see cref="QuickScore"/> (none: a line-up is judged by the beam's menu alone).</summary>
+        private readonly int _dinkelbachSteps;
+
+        /// <summary>Line-ups the beam keeps at each chef place.</summary>
+        private readonly int _beamWidth;
+
+        /// <summary>Stops the search between chef places and polish rounds.</summary>
+        private readonly CancellationToken _cancel;
+
+        public Search(InnPlanner planner, InnPlanInput input, HashSet<string> hot, int dinkelbachSteps, int beamWidth, CancellationToken cancel)
         {
+            _cancel = cancel;
             _planner = planner;
+            _dinkelbachSteps = dinkelbachSteps;
+            _beamWidth = beamWidth;
             _input = input;
             Dishes = [.. input.Dishes.Where(d => d.Stock is not <= 0).DistinctBy(d => d.Dish.Id)];
             Drinks = [.. input.Drinks.Where(d => d.Stock is not <= 0).DistinctBy(d => d.Drink.Id)];
@@ -1114,7 +1153,7 @@ public sealed class InnPlanner(InnData inn)
             if (Weights(kitchens, drinks) is not var (worth, together) || menu.Length == 0) return best;
             // Each step's best menu gives the next step's r, until it settles.
             IReadOnlyList<int> current = menu;
-            for (int step = 0; step < DinkelbachSteps; step++)
+            for (int step = 0; step < _dinkelbachSteps; step++)
             {
                 double r = current.Sum(d => worth[d]) / current.Sum(d => together[d]);
                 IReadOnlyList<int>? next = null;
@@ -1270,7 +1309,7 @@ public sealed class InnPlanner(InnData inn)
 
         /// <summary>
         /// The line-ups, best first: chef places filled one at a time (kitchen by kitchen), each with
-        /// any profile that has chefs left or left empty, keeping the <see cref="BeamWidth"/> best
+        /// any profile that has chefs left or left empty, keeping the beam's width (<see cref="BeamWidth"/> in the full search) best
         /// at each place as judged with <paramref name="menu"/> and <paramref name="drinks"/>.
         /// </summary>
         public IReadOnlyList<LineUp> Beam(int[] menu, int[] drinks)
@@ -1279,6 +1318,7 @@ public sealed class InnPlanner(InnData inn)
             var beam = new List<LineUp> { Empty() };
             for (int place = 0; place < places.Count; place++)
             {
+                _cancel.ThrowIfCancellationRequested();
                 int kitchen = places[place];
                 bool lastOfKitchen = place + 1 == places.Count || places[place + 1] != kitchen;
                 var next = new Dictionary<string, (LineUp LineUp, InnPlanScore Score, int Chefs)>();
@@ -1303,7 +1343,7 @@ public sealed class InnPlanner(InnData inn)
                     }
                 }
                 beam = [.. next.Values.OrderByDescending(x => x, Comparer<(LineUp LineUp, InnPlanScore Score, int Chefs)>.Create(Compare))
-                    .Take(BeamWidth).Select(x => x.LineUp)];
+                    .Take(_beamWidth).Select(x => x.LineUp)];
             }
             return beam;
 
@@ -1373,6 +1413,7 @@ public sealed class InnPlanner(InnData inn)
         {
             for (int round = 0; round < MaxPolishRounds; round++)
             {
+                _cancel.ThrowIfCancellationRequested();
                 var neighbours = Neighbours(plan.Kitchens)
                     .Select(k => (Kitchens: k, Quick: Better(QuickScore(k, plan.Menu, plan.Drinks), OneDishChanged(k, plan.Menu, plan.Drinks))))
                     .OrderByDescending(x => x.Quick, Comparer<InnPlanScore>.Create((a, b) => a.BetterThan(b) ? 1 : b.BetterThan(a) ? -1 : 0))
