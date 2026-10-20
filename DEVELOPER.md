@@ -532,16 +532,23 @@ counter does to a kitchen).
 
 [`InnPlanner`](src/EndHud.Vision/Inn/InnPlanner.cs) picks the chefs for each kitchen and the menu's
 dishes and drinks to earn the most in a 5-minute session under every menu rule on screen, from the
-chefs and dishes the player has (Si and the Endministrator never placed). The model is the
-measured one: the kitchens are the limit, an order is 1.2 dishes and 0.75 drinks, guests pick
-uniformly from the menu. Each dish is shared among the kitchens so they finish together (solved
-exactly for up to three), orders served are what the kitchens cook in 300 s capped by what the
-tables bring, and a dish is worth its price × (1 + 10 % per matched 热门 trait); the 珍馐 chance
-only breaks ties. Chefs are placed by a beam search over bonus profiles, the menu greedily then by
-add/remove/swap; tests compare it with brute force on small cases. The plan carries the opening
-precook. A kitchen with no chef doesn't cook (`KitchenMath.Cooks`); assumptions are constants
-(`MinGuestCycleSeconds`). About 2 s for three kitchens of two over the whole roster and dish list:
-run it off the UI thread.
+chefs and dishes the player has (Si and the Endministrator never placed; once the menu screen has
+shown cards, only the dishes and drinks it showed). Guests come on a clock, not as fast as the
+kitchens cook: test_yuanyuan1's first orders came 12 s apart with tables free, about 25 guests a
+session (`InnGuests`). An order is 1.2 dishes and 0.75 drinks, guests pick uniformly from the menu,
+and a dish is worth its price × (1 + 10 % per matched 热门 trait), plus the tips a 珍馐 dish is
+taken to bring (an unmeasured share, doubled when the theme's text says 珍馐 tips are raised:
+`ChoiceDishTipShare`). A theme's "出售N道珍馐菜品" is a target that ranks first. The model
+(each dish shared among the kitchens so they finish together, orders capped by the guests' clock
+and the tables) drives a beam search over bonus profiles and a greedy-then-swap menu search, also
+started from the dearest menu; tests compare it with brute force on small cases (`PlanByModel`).
+The model only proposes: the best line-ups, each with menus from the dearest to the quickest, are
+played in the simulator (`InnSimulator.RunGuests`: guests seated on the clock, the dispatch advice
+followed) over six sessions of the same guests, and the plan is the one that earns most there
+(`InnPlan.Simulated`). The plan carries the opening precook. A kitchen with no chef doesn't cook
+(`KitchenMath.Cooks`). About 7 s (Release) for three empty kitchens of two over the whole roster,
+under 1 s for the menu of placed chefs: run it off the UI thread; the setup advice keeps the last
+plan on screen while a new one is worked out, and works one out only when what it reads changes.
 
 Chefs the player has already put in (`PlanKitchen.Placed`, null for a place seen taken whose chef
 wasn't named: a cook of no bonus) stay first in their kitchen, are put nowhere else and are never
