@@ -208,6 +208,9 @@ internal static class InnSetupView
         lines.AddRange(Rows(text("Inn.Setup.Dishes"), advice.Plan.Dishes.Select(d => Marked(Dish(d.Dish))), dishSubstitutes.Select(d => One(Dish(d.Dish))), text));
         lines.AddRange(Rows(text("Inn.Setup.Drinks"), advice.Plan.Drinks.Select(d => Marked(Drink(d.Drink))), suggestions.DrinkSubstitutes.Select(d => One(Drink(d.Drink))), text));
         if (!advice.Plan.RulesMet) lines.Add(InnLine.Of(InnLineStyle.Note, new InnSegment(text("Inn.Setup.RulesUnmet"))));
+        // The theme's "sell N choice dishes" out of reach with these chefs: said, so the player isn't surprised.
+        if (inputs.Input.ChoiceDishTarget is { } target && advice.Plan.Reasons.FirstOrDefault(r => r.Kind == PlanReasonKind.ChoiceTargetUnreached) is { } unreached)
+            lines.Add(InnLine.Of(InnLineStyle.Note, new InnSegment(string.Format(text("Inn.Setup.ChoiceTargetUnreached"), Math.Round(unreached.Value), target))));
         return [new InnAdvicePanel(InnAdviceSpot.Menu, new InnStripModel(lines))];
     }
 

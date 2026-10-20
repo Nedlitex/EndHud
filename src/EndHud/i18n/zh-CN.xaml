@@ -361,6 +361,7 @@
     <sys:String x:Key="Inn.Setup.Working">正在推荐…</sys:String>
     <sys:String x:Key="Inn.Setup.RuleNotUnderstood">看不懂菜单要求：{0}（推荐没有算上它）</sys:String>
     <sys:String x:Key="Inn.Setup.RulesUnmet">现有的菜凑不齐全部菜单要求，上面已尽量接近</sys:String>
+    <sys:String x:Key="Inn.Setup.ChoiceTargetUnreached">按现在的厨师，预计只能卖出约{0}道珍馐，达不到主题加分项的{1}道</sys:String>
     <sys:String x:Key="Inn.Setup.Gap.ThemeUnreadable">看不清主题（画面被遮挡）</sys:String>
     <sys:String x:Key="Inn.Setup.Gap.NoSetup">还没看到主题：打开「营业设定」</sys:String>
     <sys:String x:Key="Inn.Setup.Gap.NoKitchens">还没看到厨房：回到「营业设定」看一眼厨房</sys:String>

@@ -194,6 +194,12 @@ public enum PlanReasonKind
 
     /// <summary>A dish or drink whose stock runs out before the session ends (<see cref="PlanReason.Value"/> = orders short).</summary>
     ShortOfStock,
+
+    /// <summary>
+    /// The theme's choice-dish objective (<see cref="InnPlanInput.ChoiceDishTarget"/>) isn't expected to be
+    /// reached by any plan tried (<see cref="PlanReason.Value"/> = the choice dishes expected).
+    /// </summary>
+    ChoiceTargetUnreached,
 }
 
 /// <summary>Why the plan is what it is, as data (the panel words it).</summary>
@@ -384,7 +390,11 @@ public sealed class InnPlanner(InnData inn)
             if (chosen is null || simulated.BetterThan(chosen.Value.Simulated)) chosen = (kitchens, menu, drinks, simulated);
         }
         var (k, m, d, s) = chosen!.Value;
-        return Finish(input, search, k, m, d, search.Score(k, m, d)) with { Simulated = s };
+        var plan = Finish(input, search, k, m, d, search.Score(k, m, d)) with { Simulated = s };
+        // Whether the objective is reached is the simulator's word, like the rest of the choice.
+        var reasons = plan.Reasons.Where(r => r.Kind != PlanReasonKind.ChoiceTargetUnreached).ToList();
+        if (!s.MeetsTarget) reasons.Add(new PlanReason(PlanReasonKind.ChoiceTargetUnreached, Value: s.ChoiceDishes));
+        return plan with { Reasons = reasons };
     }
 
     /// <summary>
@@ -821,6 +831,7 @@ public sealed class InnPlanner(InnData inn)
         foreach (var kitchen in kitchens.Where(k => !Cooks(k))) reasons.Add(new PlanReason(PlanReasonKind.KitchenUnstaffed, Kitchen: kitchen.Number));
         if (!score.KitchenBound && score.Orders > 0) reasons.Add(new PlanReason(PlanReasonKind.GuestBound, Value: score.Orders));
         if (!rulesMet) reasons.AddRange(search.UnmetRules().Select(r => new PlanReason(PlanReasonKind.RuleUnmet, Rule: r)));
+        if (!score.MeetsTarget) reasons.Add(new PlanReason(PlanReasonKind.ChoiceTargetUnreached, Value: score.ChoiceDishes));
 
         var cooking = kitchens.Where(Cooks).ToList();
         double eachDish = dishes.Count == 0 ? 0 : score.Orders * DishesPerOrder / dishes.Count;
