@@ -134,11 +134,13 @@ internal sealed class ClockOnlyScreens : IInnScreens
 /// <item>While the squad panel is on screen (a fight, the open world) the inn isn't looked for:
 /// the inn's screens don't show the squad panel.</item>
 /// <item>Otherwise it's looked for once every <see cref="LookEvery"/> (one small OCR read of the
-/// screen's title), and on every frame once it's been found.</item>
+/// screen's title), and on every frame once it's been found, and still on every frame for
+/// <see cref="PartyMonitor.SessionHold"/> after it was last seen (a frame missed is not leaving).</item>
 /// <item>In a session the screen is told by the timer's digits and the dispatch panel's tabs
 /// (pixels, no OCR) rather than the titles; a frame with neither is looked at in full again.</item>
 /// <item>The setup and menu screens change only when the player clicks or scrolls: read at once when
-/// one opens, then at most every <see cref="SetupEvery"/>. Of a chef picker only its title is read
+/// one opens (another than the last seen, a missed frame between not counting), then at most every
+/// <see cref="SetupEvery"/>. Of a chef picker only its title is read
 /// (which kitchen); the theme list is only told apart (it shows no advice). The gourmand's bubble only
 /// while a gourmand is at a table.</item>
 /// </list>
@@ -148,10 +150,17 @@ internal sealed class InnFrameReader(IInnScreens screens)
     /// <summary>Out of the inn, with no squad panel on screen, how often to look for the inn.</summary>
     public static readonly TimeSpan LookEvery = TimeSpan.FromSeconds(1);
 
-    /// <summary>How often the setup and menu screens are read again while they stay open.</summary>
-    public static readonly TimeSpan SetupEvery = TimeSpan.FromSeconds(2);
+    /// <summary>
+    /// How often the setup and menu screens are read again while they stay open, so the advice follows
+    /// a click within about this long (owner, live 2026-10-19: "the page refreshes too slowly", at 2 s).
+    /// Measured at 4K (InnSetupCostTests): the setup screen ~300 ms of OCR, the menu ~120 ms, a picker's
+    /// title ~1 ms, all on the capture loop's worker, never the UI thread.
+    /// </summary>
+    public static readonly TimeSpan SetupEvery = TimeSpan.FromSeconds(0.5);
 
     private InnScreenKind? _last;
+    private InnScreenKind? _lastSeen; // the last inn screen found, kept through missed frames
+    private TimeSpan? _seenAt;
     private TimeSpan? _lookedAt;
     private TimeSpan? _setupReadAt;
 
@@ -164,7 +173,8 @@ internal sealed class InnFrameReader(IInnScreens screens)
     /// </summary>
     public async Task<InnReading?> ReadAsync(Frame frame, TimeSpan now, bool squadPanelSeen)
     {
-        if (_last is null)
+        bool held = !squadPanelSeen && _seenAt is { } seen && now - seen < PartyMonitor.SessionHold;
+        if (_last is null && !held)
         {
             if (squadPanelSeen || (_lookedAt is { } at && now - at < LookEvery)) return null;
             _lookedAt = now;
@@ -189,14 +199,16 @@ internal sealed class InnFrameReader(IInnScreens screens)
                 if (kind == InnScreenKind.DispatchPanel) panel = await screens.ReadPanelAsync(frame);
             }
         }
-        // A screen just opened is read at once, not after the last screen's wait.
-        if (kind != _last) _setupReadAt = null;
         _last = kind;
         if (kind is not { } screen)
         {
             _lookedAt = now;
             return null;
         }
+        // A screen just opened is read at once, not after the last screen's wait; the same screen
+        // after a missed frame keeps its wait.
+        if (kind != _lastSeen) _setupReadAt = null;
+        (_lastSeen, _seenAt) = (screen, now);
 
         switch (screen)
         {

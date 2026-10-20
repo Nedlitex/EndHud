@@ -128,11 +128,56 @@ public class InnWireUpTests
         await monitor.TryInnAsync(AnyFrame, S(0), false);
         screens.Kind = null;
 
-        Assert.False(await monitor.TryInnAsync(AnyFrame, S(0.25), false));
-        Assert.False(await monitor.TryInnAsync(AnyFrame, S(0.5), true));
+        Assert.False(await monitor.TryInnAsync(AnyFrame, S(0.25), false)); // held: maybe a missed frame
+        Assert.False(await monitor.TryInnAsync(AnyFrame, S(0.5), true)); // the squad panel: left
 
-        Assert.Equal(2, raised.Count);
-        Assert.Null(raised[1]);
+        Assert.Null(raised[^1]);
+        Assert.Single(raised, r => r is null);
+    }
+
+    /// <summary>
+    /// Owner, live 2026-10-19: "the page refreshes too slowly". The log showed "inn: left" then the
+    /// setup screens found again ~1.2 s later: one frame whose title wasn't read counted as leaving, the
+    /// advice was put away, and the inn was looked for only once a second after. Every inn screen is
+    /// held through missed frames like the session (<see cref="PartyMonitor.SessionHold"/>), looked for
+    /// on every frame meanwhile, and its reading cadence carries on.
+    /// </summary>
+    [Theory]
+    [InlineData(InnScreenKind.Setup)]
+    [InlineData(InnScreenKind.ChefPicker)]
+    [InlineData(InnScreenKind.Menu)]
+    [InlineData(InnScreenKind.ThemeList)]
+    public async Task A_frame_missed_on_a_setup_screen_keeps_the_inn_and_its_advice(InnScreenKind screen)
+    {
+        var (monitor, screens, raised) = Monitor();
+        screens.Kind = screen;
+        Assert.True(await monitor.TryInnAsync(AnyFrame, S(0), false));
+        int reads = screens.SetupReads + screens.PickerReads;
+
+        screens.Kind = null;
+        Assert.False(await monitor.TryInnAsync(AnyFrame, S(0.1), false));
+        screens.Kind = screen;
+        Assert.True(await monitor.TryInnAsync(AnyFrame, S(0.2), false)); // found again on the next frame, not a second later
+
+        Assert.DoesNotContain(null, raised);
+        Assert.Equal([screen, screen, screen], raised.Select(r => r!.Screen));
+        Assert.False(raised[1]!.Fresh); // the held frame carries nothing new
+        Assert.Equal(reads, screens.SetupReads + screens.PickerReads); // the same screen: not read again before its time
+    }
+
+    [Fact]
+    public async Task A_setup_screen_missed_for_eight_seconds_is_left()
+    {
+        var (monitor, screens, raised) = Monitor();
+        screens.Kind = InnScreenKind.Menu;
+        await monitor.TryInnAsync(AnyFrame, S(0), false);
+        screens.Kind = null;
+
+        for (double t = 1; t < 9; t += 1) await monitor.TryInnAsync(AnyFrame, S(t), false);
+        Assert.DoesNotContain(null, raised);
+        await monitor.TryInnAsync(AnyFrame, S(9), false);
+
+        Assert.Null(raised[^1]);
     }
 
     /// <summary>
@@ -257,19 +302,19 @@ public class InnWireUpTests
     }
 
     [Fact]
-    public async Task The_setup_screen_is_read_at_most_every_two_seconds()
+    public async Task The_setup_screen_is_read_again_every_half_second()
     {
         var (monitor, screens, _) = Monitor();
         screens.Kind = InnScreenKind.Setup;
 
-        foreach (double t in new[] { 0, 0.25, 0.5, 1.9, 2.0, 2.5 }) Assert.True(await monitor.TryInnAsync(AnyFrame, S(t), false));
+        foreach (double t in new[] { 0, 0.25, 0.5, 0.75, 0.9, 1.0 }) Assert.True(await monitor.TryInnAsync(AnyFrame, S(t), false));
 
-        Assert.Equal(2, screens.SetupReads);
+        Assert.Equal(3, screens.SetupReads); // at 0, 0.5 and 1 s
     }
 
     /// <summary>
     /// Of the chef picker only its title is read, for its kitchen (the advice there is that kitchen's;
-    /// owner, 2026-10-19: never require reading the picker's grid), at once when it opens, then every two seconds.
+    /// owner, 2026-10-19: never require reading the picker's grid), at once when it opens, then every half second.
     /// </summary>
     [Fact]
     public async Task Of_the_chef_picker_only_its_kitchen_is_read_at_once_when_it_opens()
