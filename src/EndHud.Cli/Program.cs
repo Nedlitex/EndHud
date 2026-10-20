@@ -11,6 +11,10 @@ using EndHud.Vision.Operators;
 //   endhud-cli trace-video <recording.mp4> [--every <seconds>] [--from <seconds>] [--to <seconds>]
 //       One CSV row per sampled frame: skill points and, per slot, combo, ultimate and battle skill
 //       button, for studying when abilities are used.
+//   endhud-cli trace-inn <recording.mp4> [--every <seconds>] [--from <seconds>] [--to <seconds>] [--end-margin <seconds>] [--reference <folder>]
+//       Text only (never an image): per sampled frame the inn screen, the timer and each table card
+//       (state and item ids); then every order once and how often each dish and drink was ordered,
+//       the menu and the theme as the screens state them. --end-margin leaves out the recording's last seconds.
 //   endhud-cli identify <screenshot.png> --library <library-dir> [--debug-dir <dir>]
 //       Match each squad portrait against the library and print the top candidates.
 //   endhud-cli build-portrait-references <squads.json> <out.json>
@@ -30,6 +34,9 @@ return args.FirstOrDefault() switch
     "identify" when args.Length >= 2 && Option("--library") is { } lib => await IdentifyAsync(args[1], lib, Option("--debug-dir")),
     "analyze-video" when args.Length >= 2 => await AnalyzeVideoAsync(args[1], double.Parse(Option("--every") ?? "1"), double.Parse(Option("--from") ?? "0"), Option("--to") is { } to ? double.Parse(to) : null),
     "trace-video" when args.Length >= 2 => await TraceVideoAsync(args[1], double.Parse(Option("--every") ?? "0.25"), double.Parse(Option("--from") ?? "0"), Option("--to") is { } to ? double.Parse(to) : null),
+    "trace-inn" when args.Length >= 2 => await EndHud.Cli.InnTrace.RunAsync(args[1], double.Parse(Option("--every") ?? "0.5", System.Globalization.CultureInfo.InvariantCulture),
+        double.Parse(Option("--from") ?? "0", System.Globalization.CultureInfo.InvariantCulture), Option("--to") is { } innTo ? double.Parse(innTo, System.Globalization.CultureInfo.InvariantCulture) : null,
+        double.Parse(Option("--end-margin") ?? "0", System.Globalization.CultureInfo.InvariantCulture), Option("--reference")),
     "capture" when args.Length >= 3 => await CaptureAsync(args[1], args[2]),
     "build-portrait-references" when args.Length >= 3 => await BuildReferencesAsync(args[1], args[2]),
     "build-operator-package" when args.Length >= 2 && Option("--inn") is { } inn => await BuildPackageAsync(args[1], inn),
@@ -51,6 +58,7 @@ static int Usage()
           endhud-cli fetch-operators <library-dir>
           endhud-cli identify <screenshot.png> --library <library-dir> [--debug-dir <dir>]
           endhud-cli analyze-video <recording.mp4> [--every <seconds>] [--from <seconds>] [--to <seconds>]
+          endhud-cli trace-inn <recording.mp4> [--every <seconds>] [--from <seconds>] [--to <seconds>] [--end-margin <seconds>] [--reference <folder>]
           endhud-cli learn <screenshot.png> --library <library-dir> --slots <id1>,<id2>,<id3>,<id4>
           endhud-cli capture <window-title-part> <out.png>
           endhud-cli build-portrait-references <squads.json> <out.json>
