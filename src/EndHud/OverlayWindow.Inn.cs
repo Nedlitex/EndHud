@@ -103,8 +103,9 @@ public partial class OverlayWindow
             _innPictures.Clear();
             _innSession = new InnSession(data, library.Operators);
             var planner = new InnPlanner(data);
-            _innChefPlanning = new InnSetupPlanning(input => InnSetupAdvice.For(planner, input));
-            _innMenuPlanning = new InnSetupPlanning(input => InnSetupAdvice.For(planner, input));
+            // The model's advice first (sub-second), the simulator's after (seconds) where it differs.
+            _innChefPlanning = new InnSetupPlanning(input => InnSetupAdvice.Fast(planner, input), (input, cancel) => InnSetupAdvice.For(planner, input, cancel));
+            _innMenuPlanning = new InnSetupPlanning(input => InnSetupAdvice.Fast(planner, input), (input, cancel) => InnSetupAdvice.For(planner, input, cancel));
         }
         return _innSession;
     }

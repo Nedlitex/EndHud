@@ -51,14 +51,14 @@ public class InnSetupViewTests(ITestOutputHelper output)
     private static readonly Lazy<(InnSession Session, InnSetupAdvice Chefs, InnSetupAdvice Menu)> ChenInKitchen1 = new(() =>
     {
         var session = Session(Soup(0, With(1, Chen), Empty(2), Empty(3)), MenuScreen(2));
-        return (session, InnSetupAdvice.For(Planner, session.SetupInputs().Input!), InnSetupAdvice.For(Planner, session.MenuInputs().Input!));
+        return (session, InnSetupAdvice.For(Planner, session.SetupInputs().Input!, CancellationToken.None), InnSetupAdvice.For(Planner, session.MenuInputs().Input!, CancellationToken.None));
     });
 
     /// <summary>Kitchen 1 full (Perlica, Avywenna), Chen Qianyu in kitchen 2, kitchen 3 empty: the owner's recorded line-up, under the soup theme.</summary>
     private static readonly Lazy<(InnSession Session, InnSetupAdvice Chefs)> Kitchen1Full = new(() =>
     {
         var session = Session(Soup(0, With(1, "Perlica", "Avywenna"), With(2, Chen), Empty(3)));
-        return (session, InnSetupAdvice.For(Planner, session.SetupInputs().Input!));
+        return (session, InnSetupAdvice.For(Planner, session.SetupInputs().Input!, CancellationToken.None));
     });
 
     private IReadOnlyList<string> Lines(InnAdvicePanel panel)
@@ -227,7 +227,7 @@ public class InnSetupViewTests(ITestOutputHelper output)
     {
         var session = Session(Soup(0, Empty(1), Empty(2)), MenuScreen(2));
         var inputs = session.MenuInputs();
-        var advice = InnSetupAdvice.For(Planner, inputs.Input!);
+        var advice = InnSetupAdvice.For(Planner, inputs.Input!, CancellationToken.None);
 
         var panel = Assert.Single(InnSetupView.Menu(inputs, advice, session.OnMenu, Inn, Text));
 
@@ -280,7 +280,7 @@ public class InnSetupViewTests(ITestOutputHelper output)
             }),
             new InnReading(InnScreenKind.Menu, S(2), Menu: new InnMenu(MenuTab.AllDishes, (0, 8), (0, 8), [.. owned.Select(id => new MenuCard(id, id, false, true, null))]),
                 Requirements: new MenuRequirements(4, 3, 6, 3, [], [])));
-        var advice = InnSetupAdvice.For(Planner, session.MenuInputs().Input!);
+        var advice = InnSetupAdvice.For(Planner, session.MenuInputs().Input!, CancellationToken.None);
 
         var panel = Assert.Single(InnSetupView.ForScreen(InnScreenKind.Menu, session, null, advice, Inn, Text));
         var lines = Lines(panel);

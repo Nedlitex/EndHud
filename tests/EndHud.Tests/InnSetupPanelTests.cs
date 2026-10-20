@@ -41,7 +41,7 @@ public class InnSetupPanelTests
     private static readonly InnPlanner Planner = new(Inn);
 
     /// <summary>The plan for the setup screen alone, worked out once (two seconds over the whole roster).</summary>
-    private static readonly Lazy<InnSetupAdvice> Advice = new(() => InnSetupAdvice.For(Planner, Ready().SetupInputs().Input!));
+    private static readonly Lazy<InnSetupAdvice> Advice = new(() => InnSetupAdvice.For(Planner, Ready().SetupInputs().Input!, CancellationToken.None));
 
     private static IReadOnlyList<string> Lines(IReadOnlyList<InnAdvicePanel> panels) => [.. Assert.Single(panels).Model.Lines.Select(l => l.Text)];
 
@@ -254,7 +254,7 @@ public class InnSetupPanelTests
     public async Task A_planner_failure_is_logged_and_shows_no_plan()
     {
         var logged = new List<string>();
-        var planning = new InnSetupPlanning(_ => throw new ArgumentException("bad input"), logged.Add);
+        var planning = new InnSetupPlanning(_ => throw new ArgumentException("bad input"), log: logged.Add);
         var inputs = Ready().SetupInputs();
         await planning.Request(inputs)!;
 

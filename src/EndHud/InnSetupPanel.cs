@@ -6,29 +6,76 @@ namespace EndHud;
 /// <summary>What the setup advice shows: the plan, per kitchen, with substitutes for a player who lacks some of what it names.</summary>
 internal sealed record InnSetupAdvice(InnPlan Plan, InnSuggestions Suggestions)
 {
-    /// <summary>The plan for <paramref name="input"/> and its suggestions (about two seconds over the whole roster: off the UI thread).</summary>
-    public static InnSetupAdvice For(InnPlanner planner, InnPlanInput input)
+    /// <summary>
+    /// The plan the simulator chooses for <paramref name="input"/> (<see cref="InnPlanner.Plan"/>) and its
+    /// suggestions: seconds over the whole roster, off the UI thread; stopped by <paramref name="cancel"/>.
+    /// </summary>
+    public static InnSetupAdvice For(InnPlanner planner, InnPlanInput input, CancellationToken cancel)
     {
-        var plan = planner.Plan(input);
+        var plan = planner.Plan(input, cancel);
+        cancel.ThrowIfCancellationRequested();
         return new InnSetupAdvice(plan, InnSuggester.Of(planner, input, plan));
+    }
+
+    /// <summary>
+    /// The plan by the planner's model alone (<see cref="InnPlanner.PlanByModel"/>, no simulation) and its
+    /// suggestions: what's shown first, while <see cref="For"/> refines it.
+    /// </summary>
+    public static InnSetupAdvice Fast(InnPlanner planner, InnPlanInput input)
+    {
+        var plan = planner.PlanByModel(input);
+        return new InnSetupAdvice(plan, InnSuggester.Of(planner, input, plan));
+    }
+
+    /// <summary>
+    /// Everything of this advice a panel shows (<see cref="InnSetupView"/>): per kitchen its chefs, substitutes,
+    /// dishes and types, whether full or unused; the menu's dishes and drinks and their substitutes; whether the
+    /// rules are met; the choice dishes short of the objective. Two advices with one signature look the same.
+    /// </summary>
+    public string Signature
+    {
+        get
+        {
+            static string Ids(IEnumerable<string> ids) => string.Join(",", ids);
+            var kitchens = Suggestions.Kitchens.OrderBy(k => k.Number).Select(k =>
+                $"{k.Number}:{Ids(k.Chefs.Select(c => c.Id))}/{Ids(k.ChefSubstitutes.Select(c => c.Id))}/{Ids(k.Dishes.Select(d => d.Dish.Id))}"
+                + $"/{Ids(k.DishSubstitutes.Select(d => d.Dish.Id))}/{Ids(k.Types.Select(t => t.ToString()))}/{k.Placed}/{k.Full}");
+            var unreached = Plan.Reasons.FirstOrDefault(r => r.Kind == PlanReasonKind.ChoiceTargetUnreached);
+            return string.Join("|", Ids(kitchens), Ids(Plan.Kitchens.OrderBy(k => k.Number).Select(k => $"{k.Number}:{Ids(k.Chefs.Select(c => c.Id))}")),
+                Ids(Plan.Dishes.Select(d => d.Dish.Id)), Ids(Plan.Drinks.Select(d => d.Drink.Id)), Ids(Suggestions.DrinkSubstitutes.Select(d => d.Drink.Id)),
+                Plan.RulesMet, unreached is null ? "-" : Math.Round(unreached.Value).ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
     }
 }
 
 /// <summary>
-/// Works out a plan and its suggestions for the setup advice off the UI thread (about two seconds), once per
-/// change of its inputs (<see cref="InnSetupInputs.Key"/>): the setup screens are read every two
-/// seconds, and the same inputs are never planned twice. A plan for older inputs is kept until the
-/// new one is ready, and is shown meanwhile only while everything it names is still available
-/// (<see cref="Showable"/>).
+/// Works out the setup advice off the UI thread, once per change of its inputs (<see cref="InnSetupInputs.Key"/>),
+/// in two stages so the advice follows the screen (owner, live 2026-10-19: "the page refreshes too slowly"):
+/// <list type="number">
+/// <item><b>Fast:</b> the planner's model alone (<see cref="InnSetupAdvice.Fast"/>, well under a second), shown as soon as it's ready.</item>
+/// <item><b>Refined:</b> the simulator's choice (<see cref="InnSetupAdvice.For"/>, seconds), which replaces the
+/// fast advice only when a panel would show something different (<see cref="InnSetupAdvice.Signature"/>).</item>
+/// </list>
+/// New inputs cancel the work for the older ones: only the latest inputs' advice is ever stored. A plan for
+/// older inputs is kept until the new one is ready, and is shown meanwhile only while it still fits the
+/// screen (<see cref="Showable"/>).
 /// </summary>
-internal sealed class InnSetupPlanning(Func<InnPlanInput, InnSetupAdvice> plan, Action<string>? log = null)
+/// <param name="fast">The first, quick advice for an input.</param>
+/// <param name="refine">The better advice for an input, stopped by its token; null for one stage only.</param>
+/// <param name="log">Where a failure is said (throttled to the log by default).</param>
+/// <param name="note">Where each stage's time is said (the log by default).</param>
+internal sealed class InnSetupPlanning(Func<InnPlanInput, InnSetupAdvice> fast, Func<InnPlanInput, CancellationToken, InnSetupAdvice>? refine = null,
+    Action<string>? log = null, Action<string>? note = null)
 {
     private readonly object _lock = new();
     private readonly Action<string> _log = log ?? (m => DiagnosticLog.Throttled("inn-setup-plan", TimeSpan.FromSeconds(30), m, "ERROR"));
+    private readonly Action<string> _note = note ?? DiagnosticLog.Info;
     private string? _requested;
+    private CancellationTokenSource? _working;
     private InnSetupAdvice? _plan;
+    private InnPlanInput? _planInput;
     private string? _planKey;
-    private int _started;
+    private int _started, _replaced;
 
     /// <summary>Plans started so far (tests).</summary>
     public int Started
@@ -36,59 +83,106 @@ internal sealed class InnSetupPlanning(Func<InnPlanInput, InnSetupAdvice> plan, 
         get { lock (_lock) return _started; }
     }
 
+    /// <summary>Times a refined plan replaced the fast one because it differed (tests).</summary>
+    public int Replaced
+    {
+        get { lock (_lock) return _replaced; }
+    }
+
     /// <summary>
-    /// Starts working out the plan for <paramref name="inputs"/> on the thread pool, unless they have
-    /// none (a gap) or are those already planned or being planned. <paramref name="done"/> runs on
-    /// the worker when the plan is ready (or failed, logged). Returns the work, or null when none started.
+    /// Starts working out the advice for <paramref name="inputs"/> on the thread pool, unless they have
+    /// none (a gap) or are those already planned or being planned; the work for older inputs is
+    /// cancelled. <paramref name="done"/> runs on the worker each time the advice to show changes (the
+    /// fast advice; the refined one when it differs) or the work failed (logged). Returns the work
+    /// (both stages), or null when none started.
     /// </summary>
     public Task? Request(InnSetupInputs inputs, Action? done = null)
     {
         if (inputs.Input is not { } input) return null;
+        CancellationToken cancel;
         lock (_lock)
         {
             if (inputs.Key == _requested) return null;
             _requested = inputs.Key;
             _started++;
+            // Not disposed: the cancelled work may still be checking its token; it holds nothing to free.
+            _working?.Cancel();
+            _working = new CancellationTokenSource();
+            cancel = _working.Token;
         }
         return Task.Run(() =>
         {
+            var watch = System.Diagnostics.Stopwatch.StartNew();
             try
             {
-                var result = plan(input);
-                lock (_lock)
+                var first = fast(input);
+                long fastMs = watch.ElapsedMilliseconds;
+                if (!Store(inputs.Key, input, first, cancel, onlyIfDifferent: false)) return;
+                done?.Invoke();
+                if (refine is null)
                 {
-                    _plan = result;
-                    _planKey = inputs.Key;
+                    _note($"inn: setup advice in {fastMs} ms");
+                    return;
                 }
+                var refined = refine(input, cancel);
+                bool replaced = Store(inputs.Key, input, refined, cancel, onlyIfDifferent: true);
+                _note($"inn: setup advice in {fastMs} ms (model), refined in {watch.ElapsedMilliseconds} ms (simulator, {(replaced ? "different: shown" : "the same")})");
+                if (replaced) done?.Invoke();
+            }
+            catch (OperationCanceledException) when (cancel.IsCancellationRequested)
+            {
+                // Newer inputs were asked for: their own work shows its advice.
             }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
                 _log($"inn: working out the setup plan failed: {ex}");
+                done?.Invoke();
             }
-            done?.Invoke();
         });
+    }
+
+    /// <summary>
+    /// Keeps <paramref name="advice"/> as the plan to show, unless newer inputs were asked for since, or
+    /// (<paramref name="onlyIfDifferent"/>, the refined advice) it looks the same as the one shown.
+    /// </summary>
+    private bool Store(string key, InnPlanInput input, InnSetupAdvice advice, CancellationToken cancel, bool onlyIfDifferent)
+    {
+        lock (_lock)
+        {
+            if (cancel.IsCancellationRequested) return false;
+            if (onlyIfDifferent && _planKey == key && _plan?.Signature == advice.Signature) return false;
+            if (onlyIfDifferent) _replaced++;
+            (_plan, _planInput, _planKey) = (advice, input, key);
+            return true;
+        }
     }
 
     /// <summary>
     /// The plan to show for <paramref name="inputs"/>: the one worked out for them, else, while theirs
     /// is worked out, the last one (owner, live 2026-10-19: the advice must not flicker or blank as
-    /// it's worked out again: it stays on screen until the new one replaces it), so long as every
-    /// chef, dish and drink it names is still there to be picked (a plan naming what's no longer
+    /// it's worked out again: it stays on screen until the new one replaces it), so long as it still
+    /// fits: every chef it worked around is still placed where it was (a plan for chefs since removed
+    /// calls an empty kitchen set: the owner's three empty kitchens, two of them "set", 2026-10-19), and
+    /// every chef, dish and drink it names is still there to be picked (a plan naming what's no longer
     /// offered is wrong, not merely old). Null while there's none.
     /// </summary>
     public InnSetupAdvice? Showable(InnSetupInputs inputs)
     {
         if (inputs.Input is not { } input) return null;
         InnSetupAdvice? advice;
+        InnPlanInput? before;
         string? key;
-        lock (_lock) (advice, key) = (_plan, _planKey);
-        if (advice is null) return null;
+        lock (_lock) (advice, before, key) = (_plan, _planInput, _planKey);
+        if (advice is null || before is null) return null;
         if (key == inputs.Key) return advice;
+        bool stillPlaced = before.Kitchens.All(old => input.Kitchens.FirstOrDefault(k => k.Number == old.Number) is { } now
+            && old.Placed.Count <= now.Placed.Count
+            && old.Placed.OfType<OperatorInfo>().All(c => now.Placed.Any(p => p?.Id == c.Id)));
         var plan = advice.Plan;
         bool chefs = plan.Kitchens.SelectMany(k => k.Chefs).All(c => c.Id.Length == 0 || input.Chefs.Any(o => o.Id == c.Id));
         bool dishes = plan.Dishes.All(d => input.Dishes.Any(o => o.Dish.Id == d.Dish.Id));
         bool drinks = plan.Drinks.All(d => input.Drinks.Any(o => o.Drink.Id == d.Drink.Id));
-        return chefs && dishes && drinks ? advice : null;
+        return stillPlaced && chefs && dishes && drinks ? advice : null;
     }
 }
 

@@ -97,7 +97,7 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
         var inputs = session.SetupInputs();
         Assert.Empty(inputs.Gaps);
         Assert.Equal("1:Perlica+Avywenna 2:Chen_Qianyu 3:", string.Join(" ", inputs.Input!.Kitchens.Select(k => $"{k.Number}:{string.Join("+", k.Placed.Select(c => c?.Id))}")));
-        var chefs = InnSetupAdvice.For(planner, inputs.Input);
+        var chefs = InnSetupAdvice.For(planner, inputs.Input, CancellationToken.None);
         var columns = InnSetupView.ForScreen(InnScreenKind.Setup, session, chefs, null, Inn, Text);
         Print(columns);
         Assert.Equal([InnAdviceSpot.Kitchen1, InnAdviceSpot.Kitchen2, InnAdviceSpot.Kitchen3], columns.Select(p => p.Spot));
@@ -118,7 +118,7 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
         Assert.Empty(menuInputs.Gaps);
         Assert.False(menuInputs.ChefsPlanned);
         Assert.Equal((6, 3, 3), (menuInputs.Input!.Rules.MinDishes, menuInputs.Input.Rules.MinDrinks, menuInputs.Input.Rules.MinTypes));
-        var menu = InnSetupAdvice.For(planner, menuInputs.Input);
+        var menu = InnSetupAdvice.For(planner, menuInputs.Input, CancellationToken.None);
         Assert.Equal("1:Perlica+Avywenna 2:Chen_Qianyu", string.Join(" ", menu.Plan.Kitchens.Select(k => $"{k.Number}:{string.Join("+", k.Chefs.Select(c => c.Id))}")));
         Assert.True(menu.Plan.RulesMet);
         Assert.True(planner.MeetsRules(menuInputs.Input.Rules, menu.Plan.Dishes, menu.Plan.Drinks));
@@ -160,7 +160,7 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
         Assert.Equal("1:1:Chen_Qianyu", string.Join(" ", inputs.Input.Kitchens.Select(k => $"{k.Number}:{k.Places}:{string.Join("+", k.Placed.Select(c => c?.Id))}")));
 
         var planner = new InnPlanner(Inn);
-        var advice = InnSetupAdvice.For(planner, inputs.Input);
+        var advice = InnSetupAdvice.For(planner, inputs.Input, CancellationToken.None);
         Assert.True(advice.Plan.RulesMet);
         Assert.True(planner.MeetsRules(rules, advice.Plan.Dishes, advice.Plan.Drinks));
         Assert.Contains(advice.Plan.Dishes, d => d.Dish.Type == DishType.Soup);

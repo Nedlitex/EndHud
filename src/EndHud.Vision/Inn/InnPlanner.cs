@@ -387,13 +387,16 @@ public sealed class InnPlanner(InnData inn)
     /// (<see cref="PlanKitchen.Placed"/>) stay where they are and are put nowhere else; each planned
     /// kitchen lists them first, then the chefs the plan adds in its empty places.
     /// </summary>
+    /// <param name="cancel">Stops the work between candidates (the inputs changed: the setup advice wants another plan).</param>
     /// <exception cref="ArgumentException">No kitchens or more than three, two with one number, places outside 1–2, more chefs placed than places, a chef placed twice, or an unknown Inn Rating.</exception>
-    public InnPlan Plan(InnPlanInput input)
+    /// <exception cref="OperationCanceledException"><paramref name="cancel"/> was cancelled.</exception>
+    public InnPlan Plan(InnPlanInput input, CancellationToken cancel = default)
     {
         var (search, best, lineUps) = SearchByModel(input);
         (Kitchen[] Kitchens, int[] Menu, int[] Drinks, InnSimulatedScore Simulated)? chosen = null;
         foreach (var (kitchens, menu, drinks) in search.Candidates(best, lineUps))
         {
+            cancel.ThrowIfCancellationRequested();
             var simulated = Simulate(input, kitchens, [.. menu.Select(i => search.Dishes[i])], [.. drinks.Select(i => search.Drinks[i])]);
             if (chosen is null || simulated.BetterThan(chosen.Value.Simulated)) chosen = (kitchens, menu, drinks, simulated);
         }
