@@ -138,6 +138,13 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
                 return;
         }
 
+        if (!reading.Fresh)
+        {
+            // A frame the session's screen was missed on, held by the reading loop
+            // (PartyMonitor.SessionHold): it says nothing new, only that time went on.
+            if (Active) Advance(reading.At);
+            return;
+        }
         if (!Active || (reading.Clock is { } clock && _clock is { } before && clock.Left - before.Left > NewSessionJump))
             StartSession(reading.At);
         Advance(reading.At);
@@ -309,9 +316,12 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
 
     private static IEnumerable<OrderItem> Unserved(TableCard card) => card.Items.Where(i => !i.Served);
 
-    /// <summary>Tables seen recently enough to go by, oldest order first.</summary>
+    /// <summary>
+    /// Tables seen recently enough to go by, oldest order first. Counted against the last session
+    /// frame read, not the clock: frames the session was missed on (held) say nothing about a card.
+    /// </summary>
     private IEnumerable<TableMemory> LiveTables(TimeSpan now) =>
-        _tables.OfType<TableMemory>().Where(t => now - t.SeenAt <= TableKeptFor).OrderBy(t => t.OrderSince).ThenBy(t => t.Card.Table);
+        _tables.OfType<TableMemory>().Where(t => _lastSessionFrame - t.SeenAt <= TableKeptFor).OrderBy(t => t.OrderSince).ThenBy(t => t.Card.Table);
 
     private void TakeBubble(GourmandBubble bubble)
     {
@@ -430,7 +440,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         var unreadable = new List<int>();
         foreach (var table in _tables.OfType<TableMemory>())
         {
-            bool stale = now - table.SeenAt > TableKeptFor;
+            bool stale = _lastSessionFrame - table.SeenAt > TableKeptFor;
             bool unknownItem = table.Card.State == TableState.Order && table.Card.Items.Any(i => i.Id is null);
             if (unknownItem || (stale && table.Card.State == TableState.Order)) unreadable.Add(table.Card.Table);
         }

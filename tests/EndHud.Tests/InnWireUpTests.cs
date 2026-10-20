@@ -29,8 +29,10 @@ public class InnWireUpTests
             return Task.FromResult(Kind);
         }
 
+        public SessionClock Clock { get; set; } = new(S(240), false);
+
         public SessionClock? ReadClock(Frame frame) =>
-            Kind is InnScreenKind.Session or InnScreenKind.DispatchPanel ? new SessionClock(S(240), false) : null;
+            Kind is InnScreenKind.Session or InnScreenKind.DispatchPanel ? Clock : null;
 
         public Task<IReadOnlyList<TableCard?>> ReadTablesAsync(Frame frame) => Task.FromResult(Tables);
 
@@ -122,7 +124,7 @@ public class InnWireUpTests
     public async Task Leaving_the_inn_is_said_once_so_its_advice_can_be_put_away()
     {
         var (monitor, screens, raised) = Monitor();
-        screens.Kind = InnScreenKind.Session;
+        screens.Kind = InnScreenKind.Setup;
         await monitor.TryInnAsync(AnyFrame, S(0), false);
         screens.Kind = null;
 
@@ -131,6 +133,81 @@ public class InnWireUpTests
 
         Assert.Equal(2, raised.Count);
         Assert.Null(raised[1]);
+    }
+
+    /// <summary>
+    /// Owner, 2026-10-19: "when session starts, the hint panel flashes all the time". The timer can't
+    /// be read on a frame here and there (the dispatch panel opening, the HUD fading, the camera
+    /// moving); such a frame is not leaving the inn: the session is kept, the strip stays.
+    /// </summary>
+    [Fact]
+    public async Task A_frame_missed_in_a_session_keeps_the_session_and_the_strip()
+    {
+        var (monitor, screens, raised) = Monitor();
+        screens.Kind = InnScreenKind.Session;
+        await monitor.TryInnAsync(AnyFrame, S(0), false);
+
+        // Missed frames for 3 s, then the session again.
+        screens.Kind = null;
+        foreach (double t in new[] { 0.25, 0.5, 1.25, 2.25, 3.0 }) await monitor.TryInnAsync(AnyFrame, S(t), false);
+        screens.Kind = InnScreenKind.DispatchPanel;
+        screens.Panel = new DispatchPanel(1, 3, [null, null], [null, null], null, [], []);
+        await monitor.TryInnAsync(AnyFrame, S(3.25), false);
+
+        Assert.DoesNotContain(null, raised);
+        Assert.All(raised, r => Assert.True(r!.InSession));
+        // A held frame carries nothing new: no tables, no panel, no clock.
+        var held = raised.Where(r => !r!.Fresh).ToList();
+        Assert.Equal(5, held.Count);
+        Assert.All(held, r => Assert.True(r!.TableCards.Count == 0 && r.Panel is null && r.Clock is null));
+        Assert.Equal(InnScreenKind.DispatchPanel, raised[^1]!.Screen);
+    }
+
+    [Fact]
+    public async Task No_inn_screen_for_eight_seconds_leaves_the_session()
+    {
+        var (monitor, screens, raised) = Monitor();
+        screens.Kind = InnScreenKind.Session;
+        await monitor.TryInnAsync(AnyFrame, S(0), false);
+        screens.Kind = null;
+
+        for (double t = 1; t < 9; t += 1) await monitor.TryInnAsync(AnyFrame, S(t), false);
+        Assert.DoesNotContain(null, raised);
+        await monitor.TryInnAsync(AnyFrame, S(9), false);
+
+        Assert.Null(raised[^1]);
+        Assert.Equal(1, raised.Count(r => r is null));
+    }
+
+    [Fact]
+    public async Task The_squad_panel_seen_while_a_session_is_held_leaves_at_once()
+    {
+        var (monitor, screens, raised) = Monitor();
+        screens.Kind = InnScreenKind.Session;
+        await monitor.TryInnAsync(AnyFrame, S(0), false);
+        screens.Kind = null;
+
+        // The held frame isn't the inn as far as the reading loop goes: the squad panel is read.
+        Assert.False(await monitor.TryInnAsync(AnyFrame, S(0.25), false));
+        Assert.False(await monitor.TryInnAsync(AnyFrame, S(0.5), squadPanelSeen: true));
+
+        Assert.NotNull(raised[1]);
+        Assert.Null(raised[^1]);
+    }
+
+    [Fact]
+    public async Task After_closing_and_the_last_serving_time_a_missed_frame_is_the_end()
+    {
+        var (monitor, screens, raised) = Monitor();
+        screens.Kind = InnScreenKind.Session;
+        screens.Clock = new SessionClock(TimeSpan.Zero, true);
+        await monitor.TryInnAsync(AnyFrame, S(0), false);
+        await monitor.TryInnAsync(AnyFrame, S(InnState.ServingAfterCloseSeconds + 1), false);
+        screens.Kind = null; // the results screen
+
+        await monitor.TryInnAsync(AnyFrame, S(InnState.ServingAfterCloseSeconds + 1.25), false);
+
+        Assert.Null(raised[^1]);
     }
 
     [Fact]

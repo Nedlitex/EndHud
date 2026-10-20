@@ -261,6 +261,25 @@ public class InnSessionTests
         Assert.Equal([3], stale.UnreadableTables);
     }
 
+    /// <summary>
+    /// Frames the session's screen was missed on (held by the reading loop, owner 2026-10-19: the
+    /// strip flashed) keep the session and the last reading: the orders stay in the advice, no
+    /// card turns unreadable for frames that read nothing.
+    /// </summary>
+    [Fact]
+    public void Held_frames_keep_the_session_and_the_last_reading()
+    {
+        var session = Prepared(1, 2);
+        session.Update(Session(10, tables: Tables(Order(3, A))));
+
+        foreach (double t in new[] { 11, 13, 15, 17 }) session.Update(new InnReading(InnScreenKind.Session, S(t), Fresh: false));
+        var held = session.Advice(S(17))!;
+
+        Assert.True(session.Active);
+        Assert.Contains(Queued(held), q => q.Table == 3 && q.Dish.Id == A);
+        Assert.Empty(held.UnreadableTables);
+    }
+
     [Fact]
     public void Fewer_tables_and_one_kitchen_work_the_same()
     {

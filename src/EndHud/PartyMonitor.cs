@@ -164,7 +164,9 @@ internal sealed class PartyMonitor : IDisposable
     /// <summary>
     /// One frame's inn reading (see <see cref="InnFrameReader"/>): true when the frame is the inn and
     /// <see cref="InnUpdated"/> has been raised with it, so the squad panel isn't read; false when
-    /// it isn't (or the inn isn't read), and then the squad panel is read as always.
+    /// it isn't (or the inn isn't read), and then the squad panel is read as always. A session is
+    /// kept through frames that miss its screen (<see cref="SessionHold"/>): those raise a held
+    /// reading and return false, so the squad panel, if it shows, ends the session at once.
     /// </summary>
     /// <param name="now">A clock that keeps running.</param>
     /// <param name="squadPanelSeen">The last squad reading saw the panel: the inn isn't looked for.</param>
@@ -184,9 +186,13 @@ internal sealed class PartyMonitor : IDisposable
         {
             if (_inInn)
             {
-                _inInn = false;
-                DiagnosticLog.Info("inn: left");
-                InnUpdated?.Invoke(null);
+                if (HoldSession(now, squadPanelSeen) is { } held)
+                {
+                    // Not seen as the inn, so the squad panel is read too: seeing it ends the hold at once.
+                    InnUpdated?.Invoke(held);
+                    return false;
+                }
+                LeaveInn(now);
             }
             return false;
         }
@@ -195,9 +201,68 @@ internal sealed class PartyMonitor : IDisposable
             _inInn = true;
             DiagnosticLog.Info($"inn: {reading.Screen} at {frame.Width}x{frame.Height}");
         }
+        EndMissStreak(now);
+        if (reading.InSession)
+        {
+            _lastSessionScreen = reading.Screen;
+            if (reading.Clock is { Closed: true }) _innClosedAt ??= now;
+            else if (reading.Clock is not null) _innClosedAt = null;
+        }
+        else _lastSessionScreen = null;
         KeepRecent(frame, DescribeInn(reading));
         InnUpdated?.Invoke(reading);
         return true;
+    }
+
+    /// <summary>
+    /// A session is kept through frames that show no inn screen for this long. The timer can't be
+    /// read on a frame here and there (the dispatch panel sliding in or out, the HUD fading, the
+    /// camera moving, a gourmand's bubble over it): owner, 2026-10-19, the strip "flashes all the
+    /// time" when each such frame counted as leaving. A real exit (the results screen, a fight) is
+    /// told at once by the squad panel, or after this long.
+    /// </summary>
+    internal static readonly TimeSpan SessionHold = TimeSpan.FromSeconds(8);
+
+    private InnScreenKind? _lastSessionScreen; // the last inn reading's screen, when it was the session's
+    private TimeSpan? _innClosedAt; // when the session's timer first read 00:00
+    private TimeSpan? _missedSince; // the first frame of the current streak without an inn screen
+    private int _missed;
+
+    /// <summary>
+    /// A frame with no inn screen while a session was showing: the session held (a reading that
+    /// carries nothing new, <see cref="InnReading.Fresh"/> false), or null when it ended: the squad
+    /// panel is on screen, no inn screen for <see cref="SessionHold"/>, or the inn closed and its last
+    /// serving time (<see cref="InnState.ServingAfterCloseSeconds"/>) is over.
+    /// </summary>
+    private InnReading? HoldSession(TimeSpan now, bool squadPanelSeen)
+    {
+        if (_lastSessionScreen is not { } screen || squadPanelSeen) return null;
+        if (_innClosedAt is { } closed && (now - closed).TotalSeconds >= InnState.ServingAfterCloseSeconds) return null;
+        _missedSince ??= now;
+        if (now - _missedSince.Value >= SessionHold) return null;
+        _missed++;
+        return new InnReading(screen, now, Fresh: false);
+    }
+
+    /// <summary>An inn screen again after missed frames: the streak said in one line.</summary>
+    private void EndMissStreak(TimeSpan now)
+    {
+        if (_missedSince is not { } since) return;
+        DiagnosticLog.Info($"inn: {_missed} frame(s) without an inn screen over {(now - since).TotalSeconds:F1} s; the session was kept");
+        _missedSince = null;
+        _missed = 0;
+    }
+
+    private void LeaveInn(TimeSpan now)
+    {
+        string why = _missedSince is { } since ? $" (no inn screen for {(now - since).TotalSeconds:F1} s)" : "";
+        _inInn = false;
+        _lastSessionScreen = null;
+        _innClosedAt = null;
+        _missedSince = null;
+        _missed = 0;
+        DiagnosticLog.Info("inn: left" + why);
+        InnUpdated?.Invoke(null);
     }
 
     /// <summary>What an inn reading saw, in a line, for the diagnostic export's pictures.</summary>
