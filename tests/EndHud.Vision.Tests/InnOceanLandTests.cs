@@ -49,6 +49,7 @@ public class InnOceanLandTests(ITestOutputHelper output)
         Assert.True(InnObjective.RaisesChoiceTips("大海与陆地交汇，天地之间无数种巧妙味道就此诞生。珍馐赏钱加成提升，出售珍馐菜品可获得更高收益。"));
         Assert.False(InnObjective.RaisesChoiceTips("大海与陆地交汇，天地之间无数种巧妙味道就此诞生。"));
         Assert.Equal(5, SetupReader.AssistPercent("所有厨房的珍馐产出概率提升 5%"));
+        Assert.Equal(5, SetupReader.AssistPercent("品质把控自0所有厨房的珍馐产出概率提升5％")); // as OCR gives it: the full-width ％
         Assert.Null(SetupReader.AssistPercent("品质把控 II"));
     }
 

@@ -52,6 +52,24 @@ public class InnSetupReaderTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// Si's 品质把控 II line, "所有厨房的珍馐产出概率提升 5%", and the theme's text under its name
+    /// ("几道山珍素食…灶火升温更快…"), which the planner reads for what it says of choice dishes.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Screens))]
+    public async Task Sis_assist_and_the_theme_text_are_read(string screenName)
+    {
+        var screen = SimulatedScreen.Named(screenName);
+        var setup = await Read("setup-chefs-placed", screen);
+        output.WriteLine($"{screen.Width}x{screen.Height}: Si {setup.SiChoicePercent}, text \"{setup.Description}\"");
+
+        Assert.Equal(5, setup.SiChoicePercent);
+        Assert.NotNull(setup.Description);
+        Assert.Contains("灶火升温更快", setup.Description);
+        Assert.False(InnObjective.RaisesChoiceTips(setup.Description));
+    }
+
     [Theory]
     [MemberData(nameof(Screens))]
     public async Task The_theme_list_shows_the_chosen_theme_and_no_kitchens(string screenName)

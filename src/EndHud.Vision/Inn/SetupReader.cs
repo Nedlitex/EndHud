@@ -279,8 +279,8 @@ public sealed partial class SetupReader(InnText text, InnData data, IReadOnlyLis
 
     private static string Letters(string s) => new([.. s.Where(char.IsLetter)]);
 
-    /// <summary>Si's quality assist: …珍馐产出概率提升 N% (珍馐 itself is often misread).</summary>
-    [GeneratedRegex(@"概率提升(\d+)%")]
+    /// <summary>Si's quality assist: …珍馐产出概率提升 N% (珍馐 itself is often misread; OCR gives the full-width ％).</summary>
+    [GeneratedRegex(@"概率提升(\d+)[%％]")]
     private static partial Regex AssistText();
 
     /// <summary>The hot row's label: 热门 then 类型 or 特性.</summary>
