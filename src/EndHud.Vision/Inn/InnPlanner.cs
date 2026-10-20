@@ -200,14 +200,14 @@ public static partial class InnObjective
 }
 
 /// <summary>
-/// How a menu matches the theme (<see cref="InnPlanner.ThemeItems"/>: 主题热门 and the text's guest preference).
+/// How a menu matches the theme (<see cref="InnPlanner.ThemeItems"/>: its hot items and its text's guest preference).
 /// Owner, 2026-10-20: "the point is matching dishes will reward a lot more at the end, so always prefer the
 /// matching ones". So, the menu's rules being met, a menu that matches better is better whatever it earns
 /// otherwise: more matching dishes; then more matches over them (a dish matching two items before one matching
 /// one); then, as many matching, fewer dishes that don't match (a non-matching dish only where the rules need
 /// one: each takes orders from the matching ones). Then the drinks: fewer that don't match (matching drinks take
 /// the places the rules ask for first), then more drinks matching two items. How many drinks, when every one
-/// matches (舌上清流's 饮品 makes every drink match), stays the income's to decide, as before. Only then the
+/// matches (a theme with drinks among its hot items), stays the income's to decide, as before. Only then the
 /// objective and the income.
 /// </summary>
 /// <param name="Dishes">Dishes matching at least one item.</param>
@@ -336,7 +336,10 @@ public sealed record InnSimulatedScore(double Income, double Orders, double Choi
 
 /// <summary>
 /// The pre-session planner (plan S4): which chefs to put in which kitchen and which dishes and
-/// drinks to put on the menu, to earn the most in a session under every menu rule.
+/// drinks to put on the menu. Every menu rule first; then the dishes matching the theme, as many as
+/// the menu holds, the best-matching first, a non-matching dish only where the rules need one
+/// (<see cref="ThemeMatch"/>; owner, 2026-10-20: matching dishes reward a lot more at the end); then
+/// the most money in a session. Guests never leave (<see cref="InnGuests.PatienceSeconds"/>).
 /// <para>
 /// The model (from the measurements of test_yuanyuan1, plan S1): the kitchens, not the guests,
 /// are the bottleneck. Guests pick from the menu uniformly, but for the dishes the theme's text says
@@ -379,6 +382,9 @@ public sealed class InnPlanner(InnData inn)
     /// is 5 (likelihood interval 0.6 to over 100: four dishes can't pin it; re-measure on a longer session of a
     /// theme with a preference). The 热门 chips alone change nothing: on the two 海陆宴 sessions, whose text
     /// names no preference, the hot dishes were ordered 1.2 times as often as the others (0.6 to 2.3, 38 dishes).
+    /// It shapes the order mix (the kitchens' balance, the income, the simulator's draws, and so the chefs) but
+    /// not which dishes go on: a matching dish goes on the menu before any other whatever this weight
+    /// (<see cref="ThemeMatch"/>, owner 2026-10-20), so its weak measurement can't trade matching dishes away.
     /// </summary>
     public const double PreferenceWeight = 5;
 
@@ -466,7 +472,7 @@ public sealed class InnPlanner(InnData inn)
         drink.Traits.Count(hot.Contains) + (hot.Contains(InnData.Drink) ? 1 : 0);
 
     /// <summary>
-    /// What the theme favours: its hot items (<see cref="InnPlanInput.HotTraits"/>, 主题热门) and what its text
+    /// What the theme favours: its hot items (<see cref="InnPlanInput.HotTraits"/>) and what its text
     /// says guests prefer (<see cref="InnPlanInput.Preferred"/>), trait ids and dish types ("Drink" for every drink).
     /// </summary>
     public static HashSet<string> ThemeItems(InnPlanInput input) => [.. input.HotTraits, .. input.Preferred];
@@ -1269,8 +1275,8 @@ public sealed class InnPlanner(InnData inn)
         }
 
         /// <summary>
-        /// The best menu for these kitchens: built greedily (first what the rules need, then what pays
-        /// most) up to each size the rules allow, each improved by adding, removing and swapping a
+        /// The best menu for these kitchens: built greedily (first what the rules need, then what matches
+        /// the theme, then what pays most) up to each size the rules allow, each improved by adding, removing and swapping a
         /// dish while that pays; then the drinks for it, and the dishes again for those drinks.
         /// </summary>
         /// <param name="seed">A menu to improve as well (the plan's so far), so a change of one dish from it is never missed.</param>

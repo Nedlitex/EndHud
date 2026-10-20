@@ -58,8 +58,8 @@ public sealed record InnRun(IReadOnlyList<ServedOrder> Orders, IReadOnlyList<Inn
 /// 12 s (the first seven orders came 15, 12, 12, 12, 12, 12 s apart with tables free: guests come
 /// on a clock, not as fast as tables free up); ordering takes 6–12 s, eating 10–15 s, paying 3–15 s
 /// (until the player collects), and a freed table gets the next waiting guest in 3–6 s. Each is
-/// taken at the middle of its range. Not modelled: guests giving up (how long they wait isn't
-/// known; order to eating was seen up to ~60 s), gourmands (their orders are taken as anyone's)
+/// taken at the middle of its range. Guests never leave, however long they wait
+/// (<see cref="PatienceSeconds"/>). Not modelled: gourmands (their orders are taken as anyone's)
 /// and Full Blaze's faster guests.
 /// </summary>
 /// <param name="Tables">1 to <see cref="InnState.MaxTables"/>.</param>
@@ -71,6 +71,13 @@ public sealed record InnGuests(int Tables)
     public const double EatingSeconds = 12.5;
     public const double PayingSeconds = 9;
     public const double NextGuestSeconds = 4.5;
+
+    /// <summary>
+    /// How long a seated guest waits for their dishes before giving up: forever. Owner, 2026-10-20, asked
+    /// whether guests leave when they wait too long: "no". So a slow menu costs only the guests it keeps
+    /// from being seated (a table stays taken until its order is served), never an order walked out on.
+    /// </summary>
+    public const double PatienceSeconds = double.PositiveInfinity;
 
     /// <summary>A table's turn with no wait for food: the next guest sits, orders, eats and pays.</summary>
     public const double TableTurnSeconds = NextGuestSeconds + OrderingSeconds + EatingSeconds + PayingSeconds;
@@ -182,8 +189,9 @@ public sealed class InnSimulator
     /// <summary>
     /// Plays a session from its guests: the n-th guest comes at <see cref="InnGuests.FirstSeatedSeconds"/>
     /// + n × <see cref="InnGuests.IntervalSeconds"/>, sits at the first free table (or waits for
-    /// one), orders <paramref name="orders"/>[n] after ordering time, and once every dish is served
-    /// eats, pays and leaves the table for the next. No guest sits after 00:00; those seated are
+    /// one), orders <paramref name="orders"/>[n] after ordering time, waits however long it takes
+    /// (<see cref="InnGuests.PatienceSeconds"/>), and once every dish is served eats, pays and leaves
+    /// the table for the next. No guest sits after 00:00; those seated are
     /// served until the inn stops serving (<see cref="InnState.ServingAfterCloseSeconds"/> later). So
     /// a menu that keeps guests waiting seats fewer of them: the session's orders follow from the menu
     /// and the kitchens, not from a recording.
