@@ -33,8 +33,8 @@ public class InnPlannerTests(ITestOutputHelper output)
 
     private static InnPlanInput Input(IReadOnlyList<PlanKitchen> kitchens, IReadOnlyList<OperatorInfo>? chefs = null,
         IReadOnlyList<MenuDish>? dishes = null, IReadOnlyList<MenuDrink>? drinks = null, MenuRules? rules = null,
-        IReadOnlyList<string>? hot = null, int tables = Tables) =>
-        new(hot ?? [], Rating, SiQuality, tables, kitchens, chefs ?? Roster, dishes ?? AllDishes, drinks ?? AllDrinks, rules ?? Rating4());
+        IReadOnlyList<string>? hot = null, int tables = Tables, IReadOnlyList<string>? preferred = null) =>
+        new(hot ?? [], Rating, SiQuality, tables, kitchens, chefs ?? Roster, dishes ?? AllDishes, drinks ?? AllDrinks, rules ?? Rating4()) { Preferred = preferred ?? [] };
 
     private static IReadOnlyList<PlanKitchen> Kitchens(int count, int places) => [.. Enumerable.Range(1, count).Select(n => new PlanKitchen(n, places))];
 
@@ -502,7 +502,7 @@ public class InnPlannerTests(ITestOutputHelper output)
     [Fact]
     public void A_choice_dish_counts_only_when_the_theme_asks_for_choice_dishes()
     {
-        var plain = new InnPlanInput([], 4, 0, 6, [], [], [], [], new MenuRules(0, 8, 0, 8, 0, []));
+        var plain = new InnPlanInput([], 4, 0, 6, [], [], [], [], new MenuRules(0, 8, 0, 8, 0, [])) { Preferred = [] };
         Assert.Equal(0, InnPlanner.ChoiceTipShare(plain));
         Assert.True(InnPlanner.ChoiceTipShare(plain with { ChoiceDishTarget = 6 }) > 0);
         Assert.True(InnPlanner.ChoiceTipShare(plain with { ChoiceTipsRaised = true }) > InnPlanner.ChoiceTipShare(plain with { ChoiceDishTarget = 6 }));

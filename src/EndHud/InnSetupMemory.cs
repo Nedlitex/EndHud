@@ -260,10 +260,11 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
         {
             ChoiceDishTarget = InnObjective.ChoiceDishTarget(setup.Objective),
             ChoiceTipsRaised = InnObjective.RaisesChoiceTips(setup.Description),
+            Preferred = InnPlanner.PreferenceOf(setup.Description, setup.HotTraits, setup.Theme, data),
         };
         // Everything the plan depends on and nothing else, each part in a fixed order: the same setup gives the same key.
         string key = string.Join("|", purpose,
-            string.Join(",", input.HotTraits.Order(StringComparer.Ordinal)), rating, input.SiQualityPercent, input.ChoiceDishTarget, input.ChoiceTipsRaised,
+            string.Join(",", input.HotTraits.Order(StringComparer.Ordinal)), string.Join(",", input.Preferred.Order(StringComparer.Ordinal)), rating, input.SiQualityPercent, input.ChoiceDishTarget, input.ChoiceTipsRaised,
             string.Join(",", kitchens.Select(k => $"{k.Number}:{k.Places}:{string.Join("+", k.Placed.Select(c => c?.Id ?? "?"))}")),
             string.Join(",", dishes.Select(d => $"{d.Dish.Id}:{d.Stock}").Order()), string.Join(",", drinks.Select(d => $"{d.Drink.Id}:{d.Stock}").Order()),
             $"{rules.MinDishes}-{rules.MaxDishes}/{rules.MinDrinks}-{rules.MaxDrinks}/{rules.MinTypes}",

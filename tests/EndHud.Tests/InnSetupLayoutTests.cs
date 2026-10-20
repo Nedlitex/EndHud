@@ -74,7 +74,7 @@ public class InnSetupLayoutTests(Xunit.Abstractions.ITestOutputHelper output)
         var plan = new InnPlan([.. kitchens.Select(k => new PlannedKitchen(k.Number, k.Chefs))], menu, drinks.Take(MenuRules.MostSeen).ToList(), null,
             InnPlanScore.Zero, RulesMet: false, []);
         var inputs = new InnSetupInputs([], new InnPlanInput([], 4, 0, 6, [new PlanKitchen(1, 2), new PlanKitchen(2, 2), new PlanKitchen(3, 2)], [], [], [],
-            new MenuRules(6, 8, 3, 8, 3, [])), "k", ["至少有2道带有[某种没见过的]特性的菜品"]) { ChefsPlanned = true };
+            new MenuRules(6, 8, 3, 8, 3, [])) { Preferred = [] }, "k", ["至少有2道带有[某种没见过的]特性的菜品"]) { ChefsPlanned = true };
         return (inputs, new InnSetupAdvice(plan, suggestions), [.. menu.Select(d => d.Dish.Id), .. drinks.Select(d => d.Drink.Id)]);
     }
 

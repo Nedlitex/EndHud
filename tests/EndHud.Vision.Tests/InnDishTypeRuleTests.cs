@@ -111,7 +111,7 @@ public class InnDishTypeRuleTests
         var input = new InnPlanInput(SetupReader.HotIds("汤羹 饮品", Inn), 4, 0, 6,
             [new PlanKitchen(1, 2), new PlanKitchen(2, 2), new PlanKitchen(3, 2)], InnTestData.Library.Operators,
             [.. Inn.Dishes.Select(d => new MenuDish(d, null))], [.. Inn.Drinks.Select(d => new MenuDrink(d, null))],
-            new MenuRules(6, 8, 3, 8, 3, [rule]));
+            new MenuRules(6, 8, 3, 8, 3, [rule])) { Preferred = [] };
 
         var plan = Planner.Plan(input);
 

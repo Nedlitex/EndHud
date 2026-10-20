@@ -20,7 +20,7 @@ public class InnSuggestionsTests(ITestOutputHelper output)
     private static InnPlanInput Input(IReadOnlyList<string> hot, IReadOnlyList<DishRule> rules, int kitchens = 3, int places = 2) =>
         new(hot, 4, 0, InnState.MaxTables, [.. Enumerable.Range(1, kitchens).Select(n => new PlanKitchen(n, places))], InnTestData.Library.Operators,
             [.. Inn.Dishes.Select(d => new MenuDish(d, null))], [.. Inn.Drinks.Select(d => new MenuDrink(d, null))],
-            new MenuRules(6, 8, 3, 8, 3, rules));
+            new MenuRules(6, 8, 3, 8, 3, rules)) { Preferred = [] };
 
     private static readonly Lazy<(InnPlanInput Input, InnPlan Plan, InnSuggestions Suggestions)> Truly = new(() =>
     {
@@ -190,7 +190,7 @@ public class InnSuggestionsTests(ITestOutputHelper output)
     {
         var cook = InnTestData.Library.Operators.First(o => Inn.ChefBonusesOf(o).Count > 0);
         var input = new InnPlanInput([], 4, 0, InnState.MaxTables, [new PlanKitchen(1, 1), new PlanKitchen(2, 1)], [cook],
-            [.. Inn.Dishes.Select(d => new MenuDish(d, null))], [.. Inn.Drinks.Select(d => new MenuDrink(d, null))], new MenuRules(6, 8, 3, 8, 3, []));
+            [.. Inn.Dishes.Select(d => new MenuDish(d, null))], [.. Inn.Drinks.Select(d => new MenuDrink(d, null))], new MenuRules(6, 8, 3, 8, 3, [])) { Preferred = [] };
         var plan = Planner.Plan(input);
 
         var suggestions = InnSuggester.Of(Planner, input, plan);
@@ -208,7 +208,7 @@ public class InnSuggestionsTests(ITestOutputHelper output)
     {
         var plain = new OperatorInfo("Plain", "Plain", "Plain", "");
         var input = new InnPlanInput([], 4, 0, InnState.MaxTables, [new PlanKitchen(1, 1)], [plain, new OperatorInfo("Other", "Other", "Other", "")],
-            [new MenuDish(InnTestData.Dish("肉包子"), null)], [], new MenuRules(1, 1, 0, 8, 1, []));
+            [new MenuDish(InnTestData.Dish("肉包子"), null)], [], new MenuRules(1, 1, 0, 8, 1, [])) { Preferred = [] };
         var plan = Planner.Plan(input);
 
         var suggestions = InnSuggester.Of(Planner, input, plan);

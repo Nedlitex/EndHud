@@ -85,6 +85,8 @@ public class InnOceanLandTests(ITestOutputHelper output)
     {
         ChoiceDishTarget = 6,
         ChoiceTipsRaised = true,
+        // 海陆宴's text names no dishes guests prefer.
+        Preferred = [],
     };
 
     private static readonly Lazy<InnPlan> OwnersPlan = new(() => new InnPlanner(Inn).Plan(OwnersInput()));

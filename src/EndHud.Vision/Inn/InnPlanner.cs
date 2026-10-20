@@ -134,6 +134,16 @@ public sealed record InnPlanInput(IReadOnlyList<string> HotTraits, int Rating, i
 
     /// <summary>The theme says choice dishes earn more tips (海陆宴: "珍馐赏钱加成提升"), <see cref="InnObjective.RaisesChoiceTips"/>.</summary>
     public bool ChoiceTipsRaised { get; init; }
+
+    /// <summary>
+    /// What the theme makes guests order more often (its text: "客人更倾向带有[素食]、[滋补]特性的菜品",
+    /// <see cref="InnObjective.GuestPreference"/>): trait ids and dish types. A dish with any of them is
+    /// ordered <see cref="InnPlanner.PreferenceWeight"/> times as often as another; a drink with one of
+    /// the traits likewise among the drinks. Empty: the theme states no preference, guests pick
+    /// uniformly. Required: whether guests lean towards some dishes changes the whole plan, so every
+    /// caller says it (<see cref="InnPlanner.PreferenceOf"/>).
+    /// </summary>
+    public required IReadOnlyList<string> Preferred { get; init; }
 }
 
 /// <summary>What a theme's objective and text ask of choice dishes (珍馐), as the setup screen states them.</summary>
@@ -150,8 +160,40 @@ public static partial class InnObjective
     /// <summary>Whether a theme's text says choice dishes earn more ("珍馐赏钱加成提升").</summary>
     public static bool RaisesChoiceTips(string? description) => description is not null && description.Replace(" ", "").Contains("珍馐赏钱加成提升", StringComparison.Ordinal);
 
+    /// <summary>
+    /// What a theme's text says guests prefer, as trait ids and dish types (<see cref="InnPlanInput.Preferred"/>),
+    /// in the order named; null when the text names no preference. Both wordings seen in the game:
+    /// "客人更倾向带有[素食]、[滋补]特性的菜品" (养身心, traits in brackets) and "客人更倾向汤羹类菜品"
+    /// (舌上清流, a dish type, its icon perhaps in brackets). The sentence may be cut short by the
+    /// reading ("…[滋补]特性的"); a name the data doesn't know makes the whole preference unread (never guessed).
+    /// </summary>
+    public static IReadOnlyList<string>? GuestPreference(string? description, InnData data)
+    {
+        if (description is null) return null;
+        var match = PreferenceText().Match(description.Replace(" ", ""));
+        if (!match.Success) return null;
+        string named = match.Groups[1].Value;
+        var bracketed = PreferenceBrackets().Matches(named).Select(m => m.Groups[1].Value).ToList();
+        IEnumerable<(int At, string Id)> Found(IEnumerable<(string Zh, string Id)> names) =>
+            names.Select(n => (At: named.IndexOf(n.Zh, StringComparison.Ordinal), n.Id)).Where(f => f.At >= 0);
+        var ids = match.Groups[2].Value == "特性"
+            ? Found(data.Traits.Where(t => t.Zh is not null).Select(t => (t.Zh!, t.Id)))
+            : Found(data.DishTypes.Select(t => (t.Zh, t.Id.ToString())));
+        var list = ids.OrderBy(f => f.At).Select(f => f.Id).Distinct().ToList();
+        // Every bracket must name something known: "[素食]、[某某]" with one unknown is not a preference read whole.
+        if (list.Count == 0 || bracketed.Count > list.Count) return null;
+        return list;
+    }
+
     [GeneratedRegex(@"出售(\d+)道.{0,3}?珍馐")]
     private static partial Regex ChoiceDishText();
+
+    /// <summary>"客人更倾向" then what (带有 … for traits), up to 特性 or 类.</summary>
+    [GeneratedRegex(@"更倾向(?:于)?(?:带有)?(.{1,24}?)(特性|类)")]
+    private static partial Regex PreferenceText();
+
+    [GeneratedRegex(@"\[([^\]]+)\]")]
+    private static partial Regex PreferenceBrackets();
 }
 
 /// <summary>How a plan scores under the planner's model.</summary>
@@ -239,7 +281,9 @@ public sealed record InnSimulatedScore(double Income, double Orders, double Choi
 /// drinks to put on the menu, to earn the most in a session under every menu rule.
 /// <para>
 /// The model (from the measurements of test_yuanyuan1, plan S1): the kitchens, not the guests,
-/// are the bottleneck. Guests pick uniformly from the menu (owner); an order is 1 dish + 1 drink
+/// are the bottleneck. Guests pick from the menu uniformly, but for the dishes the theme's text says
+/// they prefer (<see cref="InnPlanInput.Preferred"/>), picked <see cref="PreferenceWeight"/> times as
+/// often (measured, trace-inn); an order is 1 dish + 1 drink
 /// 75 %, 2 dishes 20 %, 1 dish 5 %, so 1.2 dishes and 0.75 drinks. Each dish is cooked in the
 /// kitchens side by side, each share where it costs least, so that the kitchens finish together
 /// (a small linear program, <see cref="Balance"/>); the orders served are what the kitchens cook
@@ -269,6 +313,12 @@ public sealed class InnPlanner(InnData inn)
 
     /// <summary>A dish or drink is worth 10 % more per matched 热门 trait (the theme screen: 热门特性 +10 % each).</summary>
     public const double HotTraitBonus = 0.10;
+
+    /// <summary>
+    /// How many times as often a guest picks a dish the theme says guests prefer (<see cref="InnPlanInput.Preferred"/>)
+    /// as one it doesn't. MEASUREMENT PENDING (trace-inn).
+    /// </summary>
+    public const double PreferenceWeight = 3;
 
     /// <summary>
     /// What a choice dish (珍馐) is taken to bring in tips, as a share of its value. The game shows
@@ -353,6 +403,34 @@ public sealed class InnPlanner(InnData inn)
     public static int HotMatches(IReadOnlyCollection<string> hot, InnDrink drink) =>
         drink.Traits.Count(hot.Contains) + (hot.Contains(InnData.Drink) ? 1 : 0);
 
+    /// <summary>
+    /// What the theme makes guests prefer (<see cref="InnPlanInput.Preferred"/>): what its text says
+    /// (<see cref="InnObjective.GuestPreference"/>); when the text wasn't read, the 热门 chips read off the
+    /// screen, else the theme's preferences in the data. A text read that names no preference (海陆宴's
+    /// speaks of choice dishes only) gives none: guests pick uniformly.
+    /// </summary>
+    public static IReadOnlyList<string> PreferenceOf(string? description, IReadOnlyList<string> hotRead, InnTheme? theme, InnData data) =>
+        description is null ? HotTraitsOf(hotRead, theme) : InnObjective.GuestPreference(description, data) ?? [];
+
+    /// <summary>Whether guests prefer <paramref name="dish"/>: it has one of the <paramref name="preferred"/> traits, or is of one of the types.</summary>
+    public static bool Prefers(IReadOnlyCollection<string> preferred, Dish dish) =>
+        dish.Traits.Any(preferred.Contains) || preferred.Contains(dish.Type.ToString());
+
+    /// <summary>Whether guests prefer <paramref name="drink"/> among the drinks: it has one of the <paramref name="preferred"/> traits.</summary>
+    public static bool Prefers(IReadOnlyCollection<string> preferred, InnDrink drink) => drink.Traits.Any(preferred.Contains);
+
+    /// <summary>How often a guest picks <paramref name="dish"/> relative to a dish nobody prefers: <see cref="PreferenceWeight"/> or 1.</summary>
+    public static double OrderWeight(IReadOnlyCollection<string> preferred, Dish dish) => Prefers(preferred, dish) ? PreferenceWeight : 1;
+
+    public static double OrderWeight(IReadOnlyCollection<string> preferred, InnDrink drink) => Prefers(preferred, drink) ? PreferenceWeight : 1;
+
+    /// <summary>Each weight's share of their sum: the share of the orders each dish (or drink) gets.</summary>
+    internal static double[] OrderShares(IReadOnlyList<double> weights)
+    {
+        double sum = weights.Sum();
+        return [.. weights.Select(w => sum > 0 ? w / sum : 0)];
+    }
+
     public static double Value(IReadOnlyCollection<string> hot, Dish dish) => dish.Price * (1 + HotTraitBonus * HotMatches(hot, dish));
 
     public static double Value(IReadOnlyCollection<string> hot, InnDrink drink) => drink.Price * (1 + HotTraitBonus * HotMatches(hot, drink));
@@ -370,9 +448,10 @@ public sealed class InnPlanner(InnData inn)
     public InnPlanScore Evaluate(InnPlanInput input, IReadOnlyList<Kitchen> kitchens, IReadOnlyList<MenuDish> dishes, IReadOnlyList<MenuDrink> drinks)
     {
         var hot = input.HotTraits.ToHashSet();
+        var preferred = input.Preferred.ToHashSet();
         var times = Times(input, kitchens, dishes.Select(d => d.Dish).ToList());
-        return Score(input, times, [.. dishes.Select(d => Value(hot, d.Dish))], [.. dishes.Select(d => d.Stock)],
-            [.. drinks.Select(d => Value(hot, d.Drink))], [.. drinks.Select(d => d.Stock)]);
+        return Score(input, times, [.. dishes.Select(d => Value(hot, d.Dish))], [.. dishes.Select(d => d.Stock)], [.. dishes.Select(d => OrderWeight(preferred, d.Dish))],
+            [.. drinks.Select(d => Value(hot, d.Drink))], [.. drinks.Select(d => d.Stock)], [.. drinks.Select(d => OrderWeight(preferred, d.Drink))]);
     }
 
     /// <summary>
@@ -385,7 +464,8 @@ public sealed class InnPlanner(InnData inn)
         var cooking = kitchens.Where(Cooks).ToList();
         if (cooking.Count == 0) return [.. dishes.Select(_ => (int?)null)];
         var (seconds, _) = Times(input, cooking, [.. dishes.Select(d => d.Dish)]);
-        var shares = Shares(seconds);
+        var preferred = input.Preferred.ToHashSet();
+        var shares = Shares(seconds, OrderShares([.. dishes.Select(d => OrderWeight(preferred, d.Dish))]));
         return [.. Enumerable.Range(0, dishes.Count).Select(d => (int?)cooking[Enumerable.Range(0, cooking.Count)
             .OrderByDescending(k => Math.Round(shares[k, d], 9)).ThenBy(k => seconds[k, d]).ThenBy(k => cooking[k].Number).First()].Number)];
     }
@@ -518,9 +598,9 @@ public sealed class InnPlanner(InnData inn)
 
     /// <summary>
     /// The random draws of each simulated session: per guest, what kind of order (1 dish + 1 drink
-    /// 75 %, 2 dishes 20 %, 1 dish 5 %, test_yuanyuan1) and which dish and drink (guests pick
-    /// uniformly, owner), as numbers in [0, 1) a menu turns into its own dishes. Fixed, so every plan
-    /// meets the same guests.
+    /// 75 %, 2 dishes 20 %, 1 dish 5 %, test_yuanyuan1) and which dish and drink (by each one's share
+    /// of the orders, <see cref="OrderWeight(IReadOnlyCollection{string}, Dish)"/>), as numbers in [0, 1)
+    /// a menu turns into its own dishes. Fixed, so every plan meets the same guests.
     /// </summary>
     private static readonly double[][][] Draws = [.. Enumerable.Range(0, SimulatedSessions).Select(s =>
     {
@@ -541,6 +621,9 @@ public sealed class InnPlanner(InnData inn)
         bool noTarget = input.ChoiceDishTarget is null;
         if (cooking.Count == 0 || dishes.Count == 0) return new InnSimulatedScore(0, 0, 0, noTarget);
         var hot = input.HotTraits.ToHashSet();
+        var preferred = input.Preferred.ToHashSet();
+        double[] dishMix = OrderShares([.. dishes.Select(d => OrderWeight(preferred, d.Dish))]);
+        double[] drinkMix = OrderShares([.. drinks.Select(d => OrderWeight(preferred, d.Drink))]);
         double tipShare = ChoiceTipShare(input);
         var inn = new InnKitchens(Inn, cooking, input.Rating, input.SiQualityPercent);
         var guests = new InnGuests(Math.Clamp(input.Tables, 1, InnState.MaxTables));
@@ -548,12 +631,12 @@ public sealed class InnPlanner(InnData inn)
         foreach (var draws in Draws)
         {
             var wanted = draws.Select(u => (IReadOnlyList<Dish>)(u[0] < 0.95
-                ? u[0] < 0.75 ? [Pick(dishes, u[1]).Dish] : [Pick(dishes, u[1]).Dish, Pick(dishes, u[2]).Dish]
-                : [Pick(dishes, u[1]).Dish])).ToList();
+                ? u[0] < 0.75 ? [Pick(dishes, dishMix, u[1]).Dish] : [Pick(dishes, dishMix, u[1]).Dish, Pick(dishes, dishMix, u[2]).Dish]
+                : [Pick(dishes, dishMix, u[1]).Dish])).ToList();
             // A drink with the 75 % of orders that bring one, when the menu has drinks.
             var drinkOf = new Dictionary<IReadOnlyList<Dish>, MenuDrink>(ReferenceEqualityComparer.Instance);
             for (int g = 0; g < wanted.Count; g++)
-                if (draws[g][0] < 0.75 && drinks.Count > 0) drinkOf[wanted[g]] = Pick(drinks, draws[g][3]);
+                if (draws[g][0] < 0.75 && drinks.Count > 0) drinkOf[wanted[g]] = Pick(drinks, drinkMix, draws[g][3]);
 
             var run = new InnSimulator(inn, dishes).RunGuests(guests, wanted, InnSimulator.Following(new DispatchAdvisor(inn)));
             var servedOrders = run.Orders.Where(o => o.ServedAt is not null).Select(o => o.Order).ToHashSet();
@@ -575,7 +658,14 @@ public sealed class InnPlanner(InnData inn)
         int n = Draws.Length;
         return new InnSimulatedScore(income / n, orders / n, choice / n, noTarget || choice / n >= input.ChoiceDishTarget!.Value - 1e-9);
 
-        static T Pick<T>(IReadOnlyList<T> items, double u) => items[Math.Min(items.Count - 1, (int)(u * items.Count))];
+        // The item whose share of [0, 1) holds u (equal shares: the u × count-th, as guests picking uniformly).
+        static T Pick<T>(IReadOnlyList<T> items, double[] shares, double u)
+        {
+            double edge = 0;
+            for (int i = 0; i < items.Count - 1; i++)
+                if (u < (edge += shares[i])) return items[i];
+            return items[^1];
+        }
     }
 
     private static void Validate(InnPlanInput input)
@@ -615,25 +705,27 @@ public sealed class InnPlanner(InnData inn)
     }
 
     /// <summary>The model's score from the cook times, the values and the stock of each dish and drink.</summary>
+    /// <param name="dishWeights">How often each dish is picked (<see cref="OrderWeight(IReadOnlyCollection{string}, Dish)"/>); drinks alike.</param>
     private static InnPlanScore Score(InnPlanInput input, (double[,] Seconds, double[,] Choice) times,
-        double[] dishValues, int?[] dishStock, double[] drinkValues, int?[] drinkStock)
+        double[] dishValues, int?[] dishStock, double[] dishWeights, double[] drinkValues, int?[] drinkStock, double[] drinkWeights)
     {
         var (seconds, choice) = times;
         int kitchens = seconds.GetLength(0), dishes = seconds.GetLength(1);
         // Nothing served: no objective reached either.
         if (kitchens == 0 || dishes == 0 || input.Tables <= 0) return InnPlanScore.Zero with { MeetsTarget = input.ChoiceDishTarget is null };
 
-        double perDish = Balance(seconds);
+        var mix = OrderShares(dishWeights);
+        double perDish = Balance(seconds, mix);
         double kitchenOrders = SessionSeconds / (DishesPerOrder * perDish);
         double guestOrders = GuestOrders(input.Tables);
         double orders = Math.Min(kitchenOrders, guestOrders);
 
-        // Guests pick uniformly: each dish gets an equal share of the dishes ordered, each drink of the drinks.
-        double eachDish = orders * DishesPerOrder / dishes;
+        // Each dish gets its share of the dishes ordered (equal ones unless the theme makes guests prefer some), each drink of the drinks.
+        double dishesOrdered = orders * DishesPerOrder;
         double income = 0, choiceDishes = 0, tipShare = ChoiceTipShare(input);
         for (int d = 0; d < dishes; d++)
         {
-            double served = Math.Min(eachDish, dishStock[d] ?? double.MaxValue);
+            double served = Math.Min(dishesOrdered * mix[d], dishStock[d] ?? double.MaxValue);
             // The choice chance where the dish cooks fastest (the better chance on a tie).
             int fastest = 0;
             for (int k = 1; k < kitchens; k++)
@@ -643,8 +735,8 @@ public sealed class InnPlanner(InnData inn)
         }
         if (drinkValues.Length > 0)
         {
-            double eachDrink = orders * DrinksPerOrder / drinkValues.Length;
-            for (int d = 0; d < drinkValues.Length; d++) income += Math.Min(eachDrink, drinkStock[d] ?? double.MaxValue) * drinkValues[d];
+            var drinkMix = OrderShares(drinkWeights);
+            for (int d = 0; d < drinkValues.Length; d++) income += Math.Min(orders * DrinksPerOrder * drinkMix[d], drinkStock[d] ?? double.MaxValue) * drinkValues[d];
         }
         return new InnPlanScore(income, orders, kitchenOrders <= guestOrders, choiceDishes)
         {
@@ -661,10 +753,20 @@ public sealed class InnPlanner(InnData inn)
     /// planes λ_i t_id = λ_j t_jd and λ_k = 0; with at most three kitchens there are few, and every
     /// one is tried.
     /// </summary>
-    internal static double Balance(double[,] seconds) => BalanceWeights(seconds).PerDish;
+    internal static double Balance(double[,] seconds) => BalanceWeights(seconds, Uniform(seconds.GetLength(1))).PerDish;
+
+    /// <summary>
+    /// <see cref="Balance"/> when the dishes aren't ordered alike: dish d is <paramref name="mix"/>[d]
+    /// of the dishes ordered (the shares sum to 1; <see cref="OrderShares"/>). The same dual, Σ_d mix_d
+    /// min_k λ_k t_kd: the planes where the least kitchen changes don't depend on the shares.
+    /// </summary>
+    internal static double Balance(double[,] seconds, double[] mix) => BalanceWeights(seconds, mix).PerDish;
+
+    /// <summary>Each of <paramref name="count"/> dishes an equal share.</summary>
+    private static double[] Uniform(int count) => [.. Enumerable.Repeat(count == 0 ? 0 : 1.0 / count, count)];
 
     /// <summary><see cref="Balance"/>, with the kitchen weights λ that reach it.</summary>
-    private static (double PerDish, double[] Weights) BalanceWeights(double[,] seconds)
+    private static (double PerDish, double[] Weights) BalanceWeights(double[,] seconds, double[] mix)
     {
         int kitchens = seconds.GetLength(0), dishes = seconds.GetLength(1);
         double F(ReadOnlySpan<double> lambda)
@@ -674,9 +776,9 @@ public sealed class InnPlanner(InnData inn)
             {
                 double least = double.MaxValue;
                 for (int k = 0; k < kitchens; k++) least = Math.Min(least, lambda[k] * seconds[k, d]);
-                sum += least;
+                sum += mix[d] * least;
             }
-            return sum / dishes;
+            return sum;
         }
         if (kitchens == 1) return (F([1.0]), [1.0]);
 
@@ -745,12 +847,15 @@ public sealed class InnPlanner(InnData inn)
     /// load is left, a flow in units of weighted time (a tied dish costs the same weighted time in
     /// each kitchen it's tied in, so the units carry over).
     /// </summary>
-    internal static double[,] Shares(double[,] seconds)
+    internal static double[,] Shares(double[,] seconds) => Shares(seconds, Uniform(seconds.GetLength(1)));
+
+    /// <summary><see cref="Shares(double[,])"/> for dishes ordered in the shares <paramref name="mix"/> (summing to 1).</summary>
+    internal static double[,] Shares(double[,] seconds, double[] mix)
     {
         int kitchens = seconds.GetLength(0), dishes = seconds.GetLength(1);
         var shares = new double[kitchens, dishes];
         if (kitchens == 0 || dishes == 0) return shares;
-        var (perDish, weights) = BalanceWeights(seconds);
+        var (perDish, weights) = BalanceWeights(seconds, mix);
         if (kitchens == 1 || weights.Any(w => w <= 1e-12))
         {
             // One kitchen, or a degenerate balance: each dish where it cooks fastest.
@@ -768,9 +873,9 @@ public sealed class InnPlanner(InnData inn)
             if (where.Length == 1)
             {
                 shares[where[0], d] = 1;
-                load[where[0]] += seconds[where[0], d];
+                load[where[0]] += mix[d] * seconds[where[0], d];
             }
-            else tied.Add((d, least, where));
+            else tied.Add((d, mix[d] * least, where));
         }
         if (tied.Count == 0) return shares;
 
@@ -782,14 +887,13 @@ public sealed class InnPlanner(InnData inn)
             capacity[source, 1 + i] = tied[i].Work;
             foreach (int k in tied[i].Kitchens) capacity[1 + i, 1 + n + k] = double.MaxValue;
         }
-        double total = perDish * dishes;
-        for (int k = 0; k < kitchens; k++) capacity[1 + n + k, sink] = Math.Max(0, weights[k] * (total - load[k]));
+        for (int k = 0; k < kitchens; k++) capacity[1 + n + k, sink] = Math.Max(0, weights[k] * (perDish - load[k]));
         var flow = MaxFlow(capacity, source, sink);
         for (int i = 0; i < n; i++)
         {
             int d = tied[i].Dish;
             double sent = tied[i].Kitchens.Sum(k => flow[1 + i, 1 + n + k]);
-            if (sent <= 1e-12) shares[tied[i].Kitchens.MinBy(k => seconds[k, d]), d] = 1;
+            if (sent <= 1e-12 || mix[d] <= 0) shares[tied[i].Kitchens.MinBy(k => seconds[k, d]), d] = 1;
             else foreach (int k in tied[i].Kitchens) shares[k, d] = flow[1 + i, 1 + n + k] / sent;
         }
         return shares;
@@ -872,9 +976,12 @@ public sealed class InnPlanner(InnData inn)
         if (!score.MeetsTarget) reasons.Add(new PlanReason(PlanReasonKind.ChoiceTargetUnreached, Value: score.ChoiceDishes));
 
         var cooking = kitchens.Where(Cooks).ToList();
-        double eachDish = dishes.Count == 0 ? 0 : score.Orders * DishesPerOrder / dishes.Count;
-        foreach (var menu in dishes)
+        var preferred = input.Preferred.ToHashSet();
+        var dishMix = OrderShares([.. dishes.Select(d => OrderWeight(preferred, d.Dish))]);
+        var drinkMix = OrderShares([.. drinks.Select(d => OrderWeight(preferred, d.Drink))]);
+        foreach (var (menu, share) in dishes.Zip(dishMix))
         {
+            double ordered = score.Orders * DishesPerOrder * share;
             var dish = menu.Dish;
             if (cooking.Count > 0)
             {
@@ -885,11 +992,11 @@ public sealed class InnPlanner(InnData inn)
             if (HotMatches(hot, dish) is var matches and > 0) reasons.Add(new PlanReason(PlanReasonKind.HotTraits, dish.Id, Value: matches));
             for (int r = 0; r < input.Rules.DishRules.Count; r++)
                 if (input.Rules.DishRules[r].Matches(dish)) reasons.Add(new PlanReason(PlanReasonKind.MeetsRule, dish.Id, Rule: r));
-            if (menu.Stock is { } stock && stock < eachDish) reasons.Add(new PlanReason(PlanReasonKind.ShortOfStock, dish.Id, Value: eachDish - stock));
+            if (menu.Stock is { } stock && stock < ordered) reasons.Add(new PlanReason(PlanReasonKind.ShortOfStock, dish.Id, Value: ordered - stock));
         }
-        double eachDrink = drinks.Count == 0 ? 0 : score.Orders * DrinksPerOrder / drinks.Count;
-        foreach (var drink in drinks)
+        foreach (var (drink, share) in drinks.Zip(drinkMix))
         {
+            double eachDrink = score.Orders * DrinksPerOrder * share;
             if (HotMatches(hot, drink.Drink) is var matches and > 0) reasons.Add(new PlanReason(PlanReasonKind.HotTraits, drink.Drink.Id, Value: matches));
             if (drink.Stock is { } stock && stock < eachDrink) reasons.Add(new PlanReason(PlanReasonKind.ShortOfStock, drink.Drink.Id, Value: eachDrink - stock));
         }
@@ -902,6 +1009,9 @@ public sealed class InnPlanner(InnData inn)
         private readonly InnPlanner _planner;
         private readonly InnPlanInput _input;
         private readonly double[] _dishValues, _drinkValues;
+
+        /// <summary>How often guests pick each dish and drink (<see cref="OrderWeight(IReadOnlyCollection{string}, Dish)"/>).</summary>
+        private readonly double[] _dishWeights, _drinkWeights;
 
         /// <summary>Chefs with the same bonuses, as one profile: its bonuses and its operators (in the input's order). Never a placed chef.</summary>
         private readonly List<(string Bonuses, List<OperatorInfo> Operators)> _profiles;
@@ -932,6 +1042,9 @@ public sealed class InnPlanner(InnData inn)
             Drinks = [.. input.Drinks.Where(d => d.Stock is not <= 0).DistinctBy(d => d.Drink.Id)];
             _dishValues = [.. Dishes.Select(d => Value(hot, d.Dish))];
             _drinkValues = [.. Drinks.Select(d => Value(hot, d.Drink))];
+            var preferred = input.Preferred.ToHashSet();
+            _dishWeights = [.. Dishes.Select(d => OrderWeight(preferred, d.Dish))];
+            _drinkWeights = [.. Drinks.Select(d => OrderWeight(preferred, d.Drink))];
             var inn = planner.Inn;
             // Chefs already placed stay where they are (a place taken by an unnamed chef holds a plain cook) and are put nowhere else.
             _placed = [.. input.Kitchens.Select(k => k.Placed.Select(o => o ?? PlainCook).ToArray())];
@@ -977,8 +1090,8 @@ public sealed class InnPlanner(InnData inn)
                     choice[i, d] = allChoice[i, menu[d]];
                 }
             }
-            return InnPlanner.Score(_input, (seconds, choice), [.. menu.Select(i => _dishValues[i])], [.. menu.Select(i => Dishes[i].Stock)],
-                [.. drinks.Select(i => _drinkValues[i])], [.. drinks.Select(i => Drinks[i].Stock)]);
+            return InnPlanner.Score(_input, (seconds, choice), [.. menu.Select(i => _dishValues[i])], [.. menu.Select(i => Dishes[i].Stock)], [.. menu.Select(i => _dishWeights[i])],
+                [.. drinks.Select(i => _drinkValues[i])], [.. drinks.Select(i => Drinks[i].Stock)], [.. drinks.Select(i => _drinkWeights[i])]);
         }
 
         // ---- Drinks ----
@@ -988,7 +1101,7 @@ public sealed class InnPlanner(InnData inn)
             Enumerable.Range(0, Drinks.Count).OrderByDescending(i => _drinkValues[i]).ThenBy(i => Drinks[i].Stock is null ? 0 : 1).ThenBy(i => i);
 
         /// <summary>
-        /// The drinks for a dish menu: the dearest few, as many as pay best (guests pick uniformly, so
+        /// The drinks for a dish menu: the dearest few, as many as pay best (guests pick among them, so
         /// a cheaper drink lowers the average; a drink short of stock spreads the orders); at least
         /// one when there is one, since orders bring drinks.
         /// </summary>
@@ -1127,16 +1240,19 @@ public sealed class InnPlanner(InnData inn)
             var (seconds, _) = TimesOf(kitchens);
             int cooking = seconds.GetLength(0);
             if (cooking == 0) return null;
-            double drinkShare = drinks.Length == 0 ? 0 : DrinksPerOrder * drinks.Average(i => _drinkValues[i]) / DishesPerOrder;
+            double drinkShare = drinks.Length == 0 ? 0 : DrinksPerOrder * drinks.Sum(i => _drinkWeights[i] * _drinkValues[i]) / drinks.Sum(i => _drinkWeights[i]) / DishesPerOrder;
             var together = Enumerable.Range(0, Dishes.Count).Select(d => 1 / Enumerable.Range(0, cooking).Sum(k => 1 / seconds[k, d])).ToArray();
             var worth = Enumerable.Range(0, Dishes.Count).Select(d => _dishValues[d] + drinkShare).ToArray();
             return (worth, together);
         }
 
-        /// <summary>Greedy menus of every allowed size by worth − r × time.</summary>
+        /// <summary>
+        /// Greedy menus of every allowed size by (worth − r × time) × how often the dish is picked: a dish
+        /// guests prefer weighs that much more in the menu's income and its kitchens' time alike.
+        /// </summary>
         private IEnumerable<List<int>> BuildAtRatio(double[] worth, double[] together, double r)
         {
-            var weight = Enumerable.Range(0, Dishes.Count).Select(d => worth[d] - r * together[d]).ToArray();
+            var weight = Enumerable.Range(0, Dishes.Count).Select(d => _dishWeights[d] * (worth[d] - r * together[d])).ToArray();
             for (int size = Math.Max(1, Rules.MinDishes); size <= Math.Min(Rules.MaxDishes, Dishes.Count); size++) yield return BuildBy(size, weight);
         }
 
@@ -1155,7 +1271,7 @@ public sealed class InnPlanner(InnData inn)
             IReadOnlyList<int> current = menu;
             for (int step = 0; step < _dinkelbachSteps; step++)
             {
-                double r = current.Sum(d => worth[d]) / current.Sum(d => together[d]);
+                double r = current.Sum(d => _dishWeights[d] * worth[d]) / current.Sum(d => _dishWeights[d] * together[d]);
                 IReadOnlyList<int>? next = null;
                 foreach (var candidate in BuildAtRatio(worth, together, r))
                 {
