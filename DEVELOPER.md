@@ -534,11 +534,22 @@ counter does to a kitchen).
 ### Planning a session
 
 [`InnPlanner`](src/EndHud.Vision/Inn/InnPlanner.cs) picks the chefs for each kitchen and the menu's
-dishes and drinks to earn the most in a 5-minute session under every menu rule on screen, from the
-chefs and dishes the player has (Si and the Endministrator never placed; once the menu screen has
-shown cards, only the dishes and drinks it showed). Guests come on a clock, not as fast as the
+dishes and drinks for a 5-minute session, from the chefs and dishes the player has (Si and the
+Endministrator never placed; once the menu screen has shown cards, only the dishes and drinks it
+showed). The order of what counts: every menu rule on screen first; then the theme's matching dishes;
+then the money. A dish matches when one of its traits or its dish type is among the theme's hot items
+or in its text's guest preference (`InnPlanner.ThemeItems`); the owner (2026-10-20): "matching dishes
+will reward a lot more at the end, so always prefer the matching ones". So a menu carries every
+matching dish it can hold (a dish matching two items before one matching one), and a non-matching dish
+only where the rules need one (at least 6 dishes, 3 types); drinks likewise (non-matching drinks only
+for the minimum; when every drink matches, as with drinks hot, the drinks are chosen by income as
+before). This is `ThemeMatch`, compared before the objective and the income in both the model's and
+the simulator's scores (`InnPlanScore.Match`, `InnSimulatedScore.Match`), so every step of the search,
+the quick plan included, keeps to it. With the menu settled, the chefs are whoever cooks those dishes
+best. Guests come on a clock, not as fast as the
 kitchens cook: test_yuanyuan1's first orders came 12 s apart with tables free, about 25 guests a
-session (`InnGuests`). An order is 1.2 dishes and 0.75 drinks. Guests pick uniformly from the menu
+session (`InnGuests`). Guests never leave, however long they wait (owner, 2026-10-20): the simulator's
+guests wait for every dish. An order is 1.2 dishes and 0.75 drinks. Guests pick uniformly from the menu
 except for what the theme's text says they prefer ("客人更倾向带有[素食]、[滋补]特性的菜品", 养身心;
 "客人更倾向汤羹类菜品", 舌上清流: `InnObjective.GuestPreference`, into `InnPlanInput.Preferred`): a dish
 with a preferred trait or of a preferred type is picked `PreferenceWeight` (5) times as often, in the
@@ -549,12 +560,11 @@ session). The 热门 chips alone don't shift orders (two 海陆宴 sessions, who
 preference: hot dishes 1.2× as often, 0.6–2.3, 38 dishes), so the preference is the text's; only
 before the text is read do the chips (else the theme's data) stand in (`InnPlanner.PreferenceOf`), and a
 later reading that lost the text's last sentence keeps the remembered text (`InnSetupMemory.Merge`).
-A preference changes the plan mostly through the chefs (the preferred dishes are most of the
-orders, so chefs speeding their types and flavours win) and which preferred dishes go on: a slow
-preferred dish ordered five times as often can swamp the kitchens, so the plan may carry fewer of
-them, with quick fillers. A dish is worth its price × (1 + 10 % per matched 热门 trait), plus the tips a 珍馐 dish is
+The preference weight sets the order mix (and so the chefs: the preferred dishes are most of the
+orders, so chefs speeding their types and flavours win) but no longer which dishes go on: matching
+dishes go on whatever they cost the kitchens. A dish is worth its price × (1 + 10 % per matched 热门 trait), plus the tips a 珍馐 dish is
 taken to bring (an unmeasured share, doubled when the theme's text says 珍馐 tips are raised:
-`ChoiceDishTipShare`). A theme's "出售N道珍馐菜品" is a target that ranks first. The model
+`ChoiceDishTipShare`). A theme's "出售N道珍馐菜品" is a target that ranks next after the theme match, before the income. The model
 (each dish shared among the kitchens so they finish together, orders capped by the guests' clock
 and the tables) drives a beam search over bonus profiles and a greedy-then-swap menu search, also
 started from the dearest menu; tests compare it with brute force on small cases (`PlanByModel`).
@@ -588,9 +598,10 @@ Chef substitutes are ranked by what each adds in that kitchen (the plan's income
 place less with a no-bonus cook there, the better place), then, on an equal income, by the
 kitchen-seconds per dish they save (`InnPlanner.KitchenSecondsPerDish`): when the guests' clock,
 not the kitchens, sets the orders a faster chef earns nothing more under the model, and ranking by
-income alone listed no substitute at all; dish substitutes by
-value per second cooked in that kitchen (price with the 热门 bonus over its cook time there), of
-the kitchen's own dish types first; drink substitutes by value. Substitutes are handed out across
+income alone listed no substitute at all; dish substitutes matching the theme first (the most
+matches first: a matching dish's stand-in is another matching dish), then by value per second cooked
+in that kitchen (price with the 热门 bonus over its cook time there), of the kitchen's own dish types
+first within each; drink substitutes matching first, then by value. Substitutes are handed out across
 the kitchens best first, at most 3 a row and each to one kitchen only, never a planned chef, menu
 dish or drink; a kitchen left with none takes the best listed elsewhere. A kitchen with no planned
 chef is unused and gets nothing. A kitchen's chefs to recommend are only those for its empty places
