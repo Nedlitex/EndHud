@@ -281,9 +281,12 @@ public class InnSimulatorTests(ITestOutputHelper output)
     /// <summary>
     /// Owner, 2026-10-19: "it does not keep the kitchen busy". Over the recorded order times (dishes
     /// drawn at random, three seeds), the seconds kitchens sit empty while the timer runs, following
-    /// the advice: the recording's kitchens and the live session's.
+    /// the advice: the recording's kitchens and the live session's, with a player acting at once, every
+    /// 10 s and every 20 s. Average waits are printed beside, for the report: the rule that decides
+    /// where a dish goes is the owner's (out first), not tuned to them.
     /// </summary>
     private static readonly double[] ActEvery = [0, 10, 20];
+    private const int Seeds = 20;
 
     [Fact]
     public void Following_the_advice_keeps_the_kitchens_busy()
@@ -298,13 +301,20 @@ public class InnSimulatorTests(ITestOutputHelper output)
         foreach (var (name, kitchens, menu) in new[] { ("recorded", Kitchens(), RecordedMenu), ("live", LiveKitchens(), LiveMenu) })
         {
             foreach (double every in ActEvery)
-            foreach (int seed in new[] { 1, 2, 3 })
             {
-                double idle = Idle(kitchens, menu, seed, every, out double waited);
+                double idle = 0, waited = 0;
+                for (int seed = 1; seed <= Seeds; seed++)
+                {
+                    idle += Idle(kitchens, menu, seed, every, out double wait);
+                    waited += wait;
+                }
                 total += idle;
-                output.WriteLine($"{name} kitchens, acting every {every} s, seed {seed}: idle {idle:F1} kitchen-seconds, average wait {waited:F1} s");
+                output.WriteLine($"{name} kitchens, acting every {every} s, {Seeds} seeds: idle {idle:F1} kitchen-seconds in all, average wait {waited / Seeds:F2} s");
             }
         }
         output.WriteLine($"total idle {total:F1} kitchen-seconds");
+        // Before dishes cooked ahead went where they're out first: 193.0 (all of it the recorded
+        // kitchens with a player acting every 20 s); after: 104.0.
+        Assert.True(total <= 104, $"{total:F1} kitchen-seconds idle");
     }
 }

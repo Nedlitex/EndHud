@@ -296,7 +296,8 @@ public class DispatchAdvisorTests
 
     /// <summary>
     /// C16: at the session's start every free slot of every kitchen gets a dish, no more in all than
-    /// the counter holds, different dishes first, slowest first, each where it cooks fastest.
+    /// the counter holds, different dishes first, slowest first, each where it is out first (owner,
+    /// 2026-10-19: counting what is already queued there, not where it cooks fastest in an empty kitchen).
     /// </summary>
     [Theory]
     [InlineData(1, 3)]
@@ -314,14 +315,71 @@ public class DispatchAdvisorTests
         Assert.Equal(Math.Min(expected, InnSimulatorTests.RecordedMenu.Count), ahead.Select(a => a.Advice.Dish.Id).Distinct().Count());
         if (kitchens == 3)
         {
-            // Slowest first, each in the free kitchen that cooks it fastest (ties: out sooner, then the
-            // better 珍馐 chance): kitchen 1 takes the 40 s soup, 莓果甜汤 (37 s there) and 果味沙拉
-            // (30 s); 白瓜肉丸汤 is fastest in 2 (37 s); with 1 full, 坛子肉 (35 s in 2 or 3) goes
-            // where it's out sooner, and so on.
-            Assert.Equal(["茄果鳞肉汤", "莓果甜汤", "果味沙拉"], advice.For(1).Queue.Select(q => q.Dish.Zh));
-            Assert.Equal(["白瓜肉丸汤", "“勺里游”"], advice.For(2).Queue.Select(q => q.Dish.Zh));
-            Assert.Equal(["坛子肉", "肉包子", "缘缘菜饭"], advice.For(3).Queue.Select(q => q.Dish.Zh));
+            // Slowest first, each in the kitchen where it is out first (ties: the better 珍馐 chance,
+            // then the lower number): the 40 s soup in 1 (40 s everywhere), 莓果甜汤 in 2 (40 s; 1 would
+            // have it out at 77), 白瓜肉丸汤 in 3 (40 s); then 果味沙拉 (30 s in 1: out at 70), 坛子肉 in 2
+            // (75, over 1's 97), “勺里游” in 3 (75, over 2's 107), and the 15 s dishes where they're out at 85 and 90.
+            Assert.Equal(["茄果鳞肉汤", "果味沙拉", "肉包子"], advice.For(1).Queue.Select(q => q.Dish.Zh));
+            Assert.Equal(["莓果甜汤", "坛子肉", "缘缘菜饭"], advice.For(2).Queue.Select(q => q.Dish.Zh));
+            Assert.Equal(["白瓜肉丸汤", "“勺里游”"], advice.For(3).Queue.Select(q => q.Dish.Zh));
+            Assert.Equal([85.0, 90, 75], advice.Kitchens.Select(k => k.Queue[^1].ReadyIn));
         }
+    }
+
+    /// <summary>
+    /// Owner, 2026-10-19: a dish goes to the kitchen where it is finished first, counting what that
+    /// kitchen is cooking from its progress (the seconds it has left), the dishes waiting behind it in
+    /// full, and this dish's cook time there; an idle kitchen wins only when that makes it the
+    /// earliest. Kitchen 1 (菜肴 +20 %: 坛子肉 27 s) is cooking a 40 s 白瓜肉丸汤; kitchen 2, a plain cook,
+    /// is idle (坛子肉 35 s). With 5 s left, kitchen 1 has it out at 32 s; with 10 s left, at 37 s, and
+    /// kitchen 2 wins. The same for an order and for a dish cooked ahead.
+    /// </summary>
+    [Theory]
+    [InlineData(5, 1, 32)]
+    [InlineData(10, 2, 35)]
+    public void A_dish_goes_where_it_is_finished_first_counting_the_progress_of_the_dish_cooking(double soupLeft, int kitchen, double readyIn)
+    {
+        var advisor = new DispatchAdvisor(new InnKitchens(InnTestData.Inn, [InnTestData.Kitchen(1, "Perlica", "Avywenna"), InnTestData.PlainKitchen(2)], 4, 5));
+        var menu = new[] { new MenuDish(Dish("坛子肉"), null) };
+
+        var ordered = advisor.Advise(State([Queue(1, ("白瓜肉丸汤", soupLeft)), Queue(2)], [Order(1, "坛子肉")], menu: menu));
+        // Room on the counter for one dish cooked ahead: 6 on it, the soup cooking ahead.
+        var ahead = advisor.Advise(State([Queue(1, ("白瓜肉丸汤", soupLeft)), Queue(2)], counter: [.. Enumerable.Repeat("坛子肉", 6)], menu: menu));
+
+        var sent = Assert.Single(Sent(ordered));
+        Assert.Equal((kitchen, readyIn), (sent.Kitchen, sent.Advice.ReadyIn));
+        var cooked = Assert.Single(All(ahead));
+        Assert.Equal((kitchen, readyIn), (cooked.Kitchen, cooked.Advice.ReadyIn));
+    }
+
+    /// <summary>
+    /// The live session at 4:48 (owner, 2026-10-19, "suggest cooking in a working kitchen while other
+    /// kitchens are idle"): the opening, kitchen 1 (秋栗 + 昼雪, slow for every dish on this menu) cooking
+    /// 白瓜肉丸汤 with 35 s left, kitchens 2 and 3 empty. The strip put three dishes ahead in kitchens 2 and
+    /// 3 each, stacked (kitchen 3's third out at 84 s), and one in kitchen 1, whose second would have been
+    /// out at 70 s: each dish had gone where it cooks fastest in an empty kitchen, not where it is out first.
+    /// No dish may be advised where it comes out later than it would in a kitchen left with a free slot.
+    /// </summary>
+    [Fact]
+    public void The_opening_puts_each_dish_where_it_is_out_first_not_where_it_cooks_fastest()
+    {
+        var kitchens = InnSimulatorTests.LiveKitchens();
+        var advisor = new DispatchAdvisor(kitchens);
+
+        var advice = advisor.Advise(State([Queue(1, ("白瓜肉丸汤", 35)), Queue(2), Queue(3)], menu: InnSimulatorTests.LiveMenu, servingLeft: 288 + 18), fillEverySlot: true);
+
+        var queued = new Dictionary<int, double> { [1] = 35, [2] = 0, [3] = 0 };
+        var count = new Dictionary<int, int> { [1] = 1, [2] = 0, [3] = 0 };
+        foreach (var (kitchen, a) in All(advice))
+        {
+            queued[kitchen] = Math.Max(queued[kitchen], a.ReadyIn);
+            count[kitchen]++;
+        }
+        Assert.Equal(InnCounter.Capacity, count.Values.Sum());
+        foreach (var (kitchen, a) in All(advice))
+        foreach (int other in count.Keys.Where(k => k != kitchen && count[k] < KitchenQueue.Slots))
+            Assert.True(a.ReadyIn <= queued[other] + kitchens.CookSeconds(other, a.Dish),
+                $"{a.Dish.Zh} in kitchen {kitchen} out at {a.ReadyIn} s; kitchen {other}, left with a free slot, would have it out at {queued[other] + kitchens.CookSeconds(other, a.Dish)} s");
     }
 
     /// <summary>Full Blaze's "get ready" fills the free slots of kitchens that also got orders.</summary>

@@ -83,14 +83,16 @@ public sealed record DispatchAdvice(IReadOnlyList<KitchenAdvice> Kitchens, IRead
 /// ahead for an order (plan S5). The player sends every dish by hand; this only says which.
 /// <list type="bullet">
 /// <item><b>Dispatch:</b> each dish a table is still waiting for, not already on the counter, carried
-/// or queued, goes to the kitchen that has it out soonest (what's queued there + its cook time
-/// there), among kitchens with a free slot; on a tie, the one with the better choice-dish chance.</item>
-/// <item><b>Cook ahead:</b> a kitchen with nothing ordered for it gets the menu dishes that save
-/// the most waiting: guests pick at random, so a dish's worth is its chance of being ordered next
-/// times its cook time there, and dishes not yet cooked ahead come before a second of one that
-/// is (spread over the menu). Never one with no stock, never more than the counter has room for.
-/// Normally a kitchen is filled to all but one slot, so a new order never waits behind three dishes;
-/// at the session's start and when Full Blaze is near, every free slot is filled.</item>
+/// or queued, goes to the kitchen that has it out soonest (owner, 2026-10-19: what it is cooking
+/// counted from its progress, the seconds it has left, + the dishes waiting behind it + this dish's
+/// cook time there; an idle kitchen wins only when that makes it the earliest), among kitchens with
+/// a free slot; on a tie, the one with the better choice-dish chance.</item>
+/// <item><b>Cook ahead:</b> the menu dishes that save the most waiting: guests pick at random, so
+/// dishes not yet cooked ahead come before a second of one that is (spread over the menu), then the
+/// slowest. Each goes, like an order, to the kitchen where it is out first. Never one with no stock,
+/// never more than the counter has room for. Normally only kitchens nothing was ordered for, filled
+/// to all but one slot, so a new order never waits behind three dishes; at the session's start and
+/// when Full Blaze is near, every free slot of every kitchen.</item>
 /// <item><b>Replace:</b> a dish cooked ahead (one no order claims) is suggested for removal only
 /// when queueing the order in its place has it out sooner than any kitchen could otherwise, by more
 /// than <see cref="ReplaceMarginSeconds"/>. A dish cooking is lost when taken out, so one is only
@@ -162,8 +164,7 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
                 waiting.Add(order);
         }
 
-        if (fillEverySlot) plan.CookAheadEverywhere();
-        else plan.CookAheadInIdleKitchens();
+        plan.CookAhead(everySlot: fillEverySlot);
 
         return new DispatchAdvice(
             [.. Cooking.Select(k => new KitchenAdvice(k.Number, plan.QueueFor(k.Number), plan.ReplacesFor(k.Number)))],
@@ -409,67 +410,52 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
             return (spares, InnCounter.Capacity - _counterUsed - queuedSpare);
         }
 
-        /// <summary>The menu dish worth cooking ahead in <paramref name="kitchen"/>, or null for none.</summary>
-        private Dish? WorthCookingAhead(int kitchen, Dictionary<string, int> spares)
-        {
-            int menuSize = _state.Menu.Count;
-            if (menuSize == 0) return null;
-            double orderedNext = 1.0 / menuSize; // guests pick dishes at random (owner)
-            return _state.Menu
-                .Where(m => InStock(m.Dish) && AheadInTime(kitchen, m.Dish))
-                .OrderBy(m => spares.GetValueOrDefault(m.Dish.Id))
-                .ThenByDescending(m => orderedNext * Cook(kitchen, m.Dish))
-                .ThenBy(m => m.Dish.Id, StringComparer.Ordinal)
-                .Select(m => m.Dish)
-                .FirstOrDefault();
-        }
-
-        /// <summary>Kitchens nothing was ordered for get dishes cooked ahead, up to all but one slot.</summary>
-        public void CookAheadInIdleKitchens()
-        {
-            var (spares, room) = Spares();
-            foreach (int kitchen in _queues.Keys.Order())
-            {
-                if (_advice[kitchen].Any(a => !a.CookAhead) || _replaces[kitchen].Count > 0) continue;
-                while (room > 0 && _queues[kitchen].Count < KitchenQueue.Slots - 1 && WorthCookingAhead(kitchen, spares) is { } dish)
-                {
-                    Queue(kitchen, dish, null);
-                    spares[dish.Id] = spares.GetValueOrDefault(dish.Id) + 1;
-                    room--;
-                }
-            }
-        }
-
         /// <summary>
-        /// Every free slot of every kitchen, as many as the counter has room for: the dish worth
-        /// most next (spread over the menu, slowest first), each in the free kitchen that cooks it fastest.
+        /// Dishes cooked ahead, as many as the counter has room for, into the kitchens open to them:
+        /// with <paramref name="everySlot"/> every free slot of every kitchen; otherwise kitchens nothing
+        /// was ordered for this time, up to all but one slot (a new order never waits behind three).
+        /// The dish: the one cooked ahead least so far (spread over the menu: guests pick at random),
+        /// then the slowest, which saves the most waiting. Its kitchen: where it is out first
+        /// (<see cref="FirstOut"/>), as for an order (owner, 2026-10-19), not where it cooks fastest
+        /// in an empty kitchen nor the lowest-numbered one: a busy kitchen is never stacked while
+        /// another would have the dish out sooner.
         /// </summary>
-        public void CookAheadEverywhere()
+        public void CookAhead(bool everySlot)
         {
             var (spares, room) = Spares();
             while (room > 0)
             {
-                var free = _queues.Keys.Where(HasFreeSlot).Order().ToList();
-                if (free.Count == 0) break;
-                // The dish: fewest already cooked ahead, then slowest where it cooks fastest; only one
-                // some free kitchen would have out in time.
-                var dish = _state.Menu
-                    .Where(m => InStock(m.Dish) && free.Any(k => AheadInTime(k, m.Dish)))
-                    .Select(m => m.Dish)
-                    .OrderBy(d => spares.GetValueOrDefault(d.Id))
-                    .ThenByDescending(d => free.Min(k => Cook(k, d)))
-                    .ThenBy(d => d.Id, StringComparer.Ordinal)
+                var open = _queues.Keys.Where(k => everySlot ? HasFreeSlot(k) : OpenToCookAhead(k)).ToList();
+                var pick = _state.Menu
+                    .Where(m => InStock(m.Dish))
+                    .Select(m => (m.Dish, Kitchen: FirstOut(open, m.Dish)))
+                    .Where(p => p.Kitchen is not null)
+                    .OrderBy(p => spares.GetValueOrDefault(p.Dish.Id))
+                    .ThenByDescending(p => Cook(p.Kitchen!.Value, p.Dish))
+                    .ThenBy(p => p.Dish.Id, StringComparer.Ordinal)
                     .FirstOrDefault();
-                if (dish is null) break;
-                int kitchen = free
-                    .Where(k => AheadInTime(k, dish))
-                    .OrderBy(k => Cook(k, dish)).ThenBy(k => Left(k) + Cook(k, dish)).ThenByDescending(k => Choice(k, dish)).ThenBy(k => k)
-                    .First();
-                Queue(kitchen, dish, null);
-                spares[dish.Id] = spares.GetValueOrDefault(dish.Id) + 1;
+                if (pick.Kitchen is not { } kitchen) break;
+                Queue(kitchen, pick.Dish, null);
+                spares[pick.Dish.Id] = spares.GetValueOrDefault(pick.Dish.Id) + 1;
                 room--;
             }
         }
+
+        /// <summary>A kitchen nothing was ordered for this time (nor swapped), with more than one slot free.</summary>
+        private bool OpenToCookAhead(int kitchen) =>
+            !_advice[kitchen].Any(a => !a.CookAhead) && _replaces[kitchen].Count == 0 && _queues[kitchen].Count < KitchenQueue.Slots - 1;
+
+        /// <summary>
+        /// Of <paramref name="kitchens"/>, the one that would have <paramref name="dish"/> out first if
+        /// queued now (what it's cooking, from its progress, + the dishes waiting + this one's cook
+        /// time there), among those that would have it out in time; ties to the better choice chance,
+        /// then the lower number. Null when none would.
+        /// </summary>
+        private int? FirstOut(IEnumerable<int> kitchens, Dish dish) =>
+            kitchens.Where(k => AheadInTime(k, dish))
+                .OrderBy(k => Left(k) + Cook(k, dish)).ThenByDescending(k => Choice(k, dish)).ThenBy(k => k)
+                .Select(k => (int?)k)
+                .FirstOrDefault();
 
         public IReadOnlyList<QueueAdvice> QueueFor(int kitchen) => _advice[kitchen];
 
