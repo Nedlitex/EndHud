@@ -409,10 +409,15 @@ public sealed class InnPlanner(InnData inn)
         var (menu, drinks) = search.BestMenu(search.Materialize(search.PlainLineUp()), search.InitialDrinks());
         (Kitchen[] Kitchens, int[] Menu, int[] Drinks, InnPlanScore Score)? best = null;
         var tried = new List<(Kitchen[] Kitchens, InnPlanScore Score)>();
+        // The first round also starts from the dearest menu: with guests on a clock a menu of dear dishes
+        // and one of quick dishes can both be good, and chefs suited to one are judged poorly by the other.
+        var starts = new List<(int[] Menu, int[] Drinks)> { (menu, drinks) };
+        if (search.DearestMenu(drinks) is { } dearest) starts.Add((dearest, drinks));
         for (int round = 0; round < MaxRounds; round++)
         {
             bool improved = false;
-            foreach (var lineUp in search.Beam(menu, drinks).Take(LineUpsTried))
+            var beam = round == 0 ? starts.SelectMany(s => search.Beam(s.Menu, s.Drinks).Take(LineUpsTried)) : search.Beam(menu, drinks).Take(LineUpsTried);
+            foreach (var lineUp in beam)
             {
                 var kitchens = search.Materialize(lineUp, int.MaxValue);
                 var (m, d) = search.BestMenu(kitchens, drinks, menu);
@@ -1015,6 +1020,20 @@ public sealed class InnPlanner(InnData inn)
                     yield return (kitchens, menu, BestDrinks(kitchens, menu));
                 }
             }
+        }
+
+        /// <summary>
+        /// The best, for kitchens at base speed, of the menus of the dearest dishes (the rules met
+        /// first) at each size allowed; null when none meets the rules or no kitchen cooks.
+        /// </summary>
+        public int[]? DearestMenu(int[] drinks)
+        {
+            var kitchens = Materialize(PlainLineUp());
+            if (Weights(kitchens, drinks) is not var (worth, together)) return null;
+            var score = Scorer(kitchens, drinks);
+            return BuildAtRatio(worth, together, 0).Where(Valid).Select(m => m.Order().ToArray())
+                .OrderByDescending(m => score(m), Comparer<InnPlanScore>.Create((a, b) => a.BetterThan(b) ? 1 : b.BetterThan(a) ? -1 : 0))
+                .FirstOrDefault();
         }
 
         /// <summary>Scores of menus already worked out, by line-up, drinks and dishes.</summary>
