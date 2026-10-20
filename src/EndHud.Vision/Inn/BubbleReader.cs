@@ -1,29 +1,70 @@
 namespace EndHud.Vision.Inn;
 
 /// <summary>What a gourmand's speech bubble says.</summary>
-/// <param name="Text">The bubble's lines joined (a sentence wraps onto the next line).</param>
-/// <param name="Sentences">The text cut at its sentence ends (！。): a gourmand with two requests says one sentence each.</param>
-public sealed record GourmandBubble(string Text, IReadOnlyList<string> Sentences)
+/// <param name="Text">The bubble's lines joined, for the log and the "not recognised" line.</param>
+/// <param name="Lines">The bubble's lines as read, top to bottom. A request wraps onto the next line,
+/// and a gourmand with two requests starts the second on a line of its own.</param>
+public sealed record GourmandBubble(string Text, IReadOnlyList<string> Lines)
 {
-    /// <summary>For each sentence, the request it is (the best of <see cref="InnData.MatchSaid"/>); sentences matching none are left out.</summary>
-    public IReadOnlyList<GourmandRequestMatch> Requests(InnData data) =>
-        [.. Sentences.Select(s => data.MatchSaid(s).FirstOrDefault()).OfType<GourmandRequestMatch>().DistinctBy(m => m.Request)];
+    // Where a bubble's text is cut into pieces: its sentence ends and commas.
+    private static readonly char[] Breaks = ['！', '!', '。', '？', '?', '，', ',', '、', '…'];
+
+    /// <summary>The most consecutive pieces one request is looked for in (the longest request has four, and wraps).</summary>
+    private const int MostPiecesPerRequest = 6;
+
+    /// <summary>
+    /// The requests the bubble makes, in the order it says them. The lines are cut at their
+    /// sentence ends and commas into pieces; every run of consecutive pieces is matched on its own
+    /// (<see cref="InnData.MatchSaid"/>), so a request wrapped onto the next line is found whole and
+    /// two requests are never read as one sentence (owner, 2026-10-19: the bubble 「来点汤，要酸口，
+    /// 促消 / 化。/ 上好的肉！做点菜！」 was joined into "…促消化上好的肉" and only the soup was
+    /// found). Runs are taken by how much of the bubble they account for (score × length), each
+    /// request once, never two runs sharing a piece.
+    /// </summary>
+    public IReadOnlyList<GourmandRequestMatch> Requests(InnData data)
+    {
+        var pieces = Lines.SelectMany(l => l.Split(Breaks, StringSplitOptions.RemoveEmptyEntries))
+            .Where(p => p.Any(char.IsLetter)).ToList();
+        var found = new List<(int First, int Last, GourmandRequestMatch Match, double Weight)>();
+        for (int first = 0; first < pieces.Count; first++)
+        for (int last = first; last < Math.Min(pieces.Count, first + MostPiecesPerRequest); last++)
+        {
+            string said = string.Concat(pieces.Skip(first).Take(last - first + 1));
+            if (data.MatchSaid(said).FirstOrDefault() is { } match)
+                found.Add((first, last, match, match.Score * GourmandRequestMatch.Pieces(said).Count));
+        }
+        var taken = new List<(int First, int Last, GourmandRequestMatch Match, double Weight)>();
+        foreach (var run in found.OrderByDescending(f => f.Weight).ThenBy(f => f.First))
+        {
+            if (taken.Any(t => t.Match.Request == run.Match.Request || (run.First <= t.Last && t.First <= run.Last))) continue;
+            taken.Add(run);
+        }
+        return [.. taken.OrderBy(t => t.First).Select(t => t.Match)];
+    }
 }
 
 /// <summary>
 /// A gourmand's (老饕) speech bubble: a large cream bubble with dark text, its key words in orange,
-/// wrapping onto several lines. Found as the largest patch of the bubble's cream below the table
-/// cards (the yellow cards and the small icon bubbles over the tables are far smaller), then read
-/// by OCR line by line. Measured on one recorded bubble (Fixtures/inn/session-gourmand-order).
+/// wrapping onto several lines, a category icon before each request. Found as the largest patch of
+/// the bubble's cream below the table cards (the yellow cards and the small icon bubbles over the
+/// tables are far smaller), then read by OCR line by line. The bubble hangs over the table in the
+/// scene, so its size follows the camera (characters 55 to 75 px tall at 4K in the recordings):
+/// where the text starts, right of the icons, is measured in characters, from a first read.
+/// Measured on two recorded bubbles (Fixtures/inn/session-gourmand-order, session-gourmand-two-lines).
 /// </summary>
 public sealed class BubbleReader(InnText text)
 {
     // At 4K: the grid the cream is looked for on, and the least a bubble measures.
     private const int Step = 8, Top = 300;
     private const int MinWidth = 500, MinHeight = 150, MinCells = 1200;
-    // The text inside the bubble's edge (its left edge carries the requests' category icons).
-    private const int InsetLeft = 155, Inset = 16;
-    private static readonly char[] SentenceEnds = ['！', '!', '。', '？', '?'];
+    // The text inside the bubble's edge, at 4K, for the first read (icons included).
+    private const int Inset = 16;
+    // Where the text starts, in character heights from the bubble's left edge: the icons end
+    // 2.0–2.15 characters in, the text starts 2.6–2.7 in (both recorded bubbles).
+    private const double TextStartsAt = 2.35;
+    // A line read shorter than this share of the characters' height is a mark, not text (the
+    // icons' edges, the bubble's rim).
+    private const double LeastLineHeight = 0.6;
 
     /// <summary>The bubble on screen, or null when there's none (or nothing could be read in it).</summary>
     public async Task<GourmandBubble?> ReadAsync(Frame frame)
@@ -31,14 +72,23 @@ public sealed class BubbleReader(InnText text)
         var layout = new InnLayout(frame);
         if (FindBubble(frame, layout) is not { } bubble) return null;
         double s = layout.Scale;
-        var region = new PixelRect(bubble.X + (int)(InsetLeft * s), bubble.Y + (int)(Inset * s),
-            bubble.Width - (int)((InsetLeft + Inset) * s), bubble.Height - (int)(2 * Inset * s));
-        var lines = await text.ReadLinesAsync(frame, region, Ink, s);
-        string joined = string.Concat(lines).Replace(" ", "");
+        int inset = (int)(Inset * s);
+        var whole = new PixelRect(bubble.X + inset, bubble.Y + inset, bubble.Width - 2 * inset, bubble.Height - 2 * inset);
+        var first = await text.ReadPlacedWordsAsync(frame, whole, Ink, s);
+        var letters = first.Where(w => w.Text.Any(char.IsLetter)).Select(w => w.Place.Height).Order().ToList();
+        if (letters.Count < 3) return null;
+        // The characters' height: the median of the words read (the icons' marks are few and small).
+        int glyph = letters[letters.Count / 2];
+        int left = bubble.X + (int)(TextStartsAt * glyph);
+        var region = new PixelRect(left, whole.Y, whole.Right - left, whole.Height);
+        var lines = (await text.ReadPlacedLinesAsync(frame, region, Ink, s))
+            .Where(l => l.Place.Height >= LeastLineHeight * glyph)
+            .Select(l => l.Text.Replace(" ", ""))
+            .Where(l => l.Length > 0)
+            .ToList();
+        string joined = string.Concat(lines);
         if (joined.Count(char.IsLetter) < 3) return null;
-        var sentences = joined.Split(SentenceEnds, StringSplitOptions.RemoveEmptyEntries)
-            .Where(x => x.Count(char.IsLetter) >= 3).ToList();
-        return new GourmandBubble(joined, sentences.Count > 0 ? sentences : [joined]);
+        return new GourmandBubble(joined, lines);
     }
 
     /// <summary>The bubble's text: dark brown, or the orange of its key words.</summary>

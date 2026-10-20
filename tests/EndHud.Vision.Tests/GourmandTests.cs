@@ -106,6 +106,37 @@ public class GourmandTests
         Assert.Equal("非<金石稻>", match.Request.When);
     }
 
+    /// <summary>
+    /// A bubble's lines, as the live session read them (owner, 2026-10-19): each request is found
+    /// on its own lines, however the OCR cut them. The first bubble is gourmand 5's two requests
+    /// (「来点汤，要酸口，促消化。」「上好的肉！做点菜！」), the second gourmand 2's
+    /// (「锅气十足的菜，啊，千万不要辣。」「酸酸甜甜，果汁之类的有没有？」), with their first
+    /// characters cut and 千 read as 干.
+    /// </summary>
+    [Theory]
+    [InlineData(new[] { "来点汤，要酸口，促消", "化。", "上好的肉！做点菜！" }, "汤羹&[酸]", "菜肴&<优质肉块>")]
+    [InlineData(new[] { "点汤，要酸口，促消", "匕", "好的肉！做点菜！" }, "汤羹&[酸]", "菜肴&<优质肉块>")]
+    [InlineData(new[] { "十足的菜，啊，干万", "甜甜，果汁之类的有7" }, "菜肴&非[辣]", "[果香]")]
+    [InlineData(new[] { "随便上占别是滋补药膳", "种就行！", "点喝的清清口，别是奶", "的就行。" }, "非[滋补]", "非[奶香]")]
+    public void Each_request_of_a_bubble_is_found_on_its_own_lines(string[] lines, string first, string second)
+    {
+        var bubble = new GourmandBubble(string.Concat(lines), lines);
+
+        Assert.Equal([first, second], bubble.Requests(Inn).Select(m => m.Request.When));
+    }
+
+    /// <summary>
+    /// The text the live session logged for that bubble, its lines run together and "化。上" lost:
+    /// cut at its commas too, both requests are still found (only the soup was before).
+    /// </summary>
+    [Fact]
+    public void Even_run_together_as_logged_live_both_requests_are_found()
+    {
+        const string logged = "点汤，要酸口，促消匕好的肉！做点菜！";
+
+        Assert.Equal(["汤羹&[酸]", "菜肴&<优质肉块>"], new GourmandBubble(logged, [logged]).Requests(Inn).Select(m => m.Request.When));
+    }
+
     /// <summary>The inn's other talk, read off the same recording, is no gourmand's request.</summary>
     [Theory]
     [InlineData("不用谢，菜已经帮你上齐了。")]

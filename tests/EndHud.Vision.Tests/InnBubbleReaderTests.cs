@@ -31,8 +31,26 @@ public class InnBubbleReaderTests(ITestOutputHelper output)
         var bubble = await new BubbleReader(InnScreenTests.Text).ReadAsync(screen == SimulatedScreen.Uhd ? frame : screen.Render(frame));
 
         Assert.NotNull(bubble);
-        output.WriteLine($"{screen.Width}x{screen.Height}: \"{bubble.Text}\" → {string.Join(" | ", bubble.Sentences)}");
+        output.WriteLine($"{screen.Width}x{screen.Height}: \"{bubble.Text}\" → {string.Join(" | ", bubble.Lines)}");
         Assert.Equal(["随便上点，别是滋补药膳那种就行！", "来点喝的清清口，别是奶味的就行。"], bubble.Requests(Inn).Select(m => m.Request.Text));
+    }
+
+    /// <summary>
+    /// Owner, 2026-10-19 ("the gourmet asked for 2 dishes, it only hinted one"): the bubble at table 4
+    /// reads 「来点汤，要酸口，促消 / 化。/ 上好的肉！做点菜！」, a category icon before each request.
+    /// Live it was read as one line, "点汤，要酸口，促消匕好的肉！做点菜！", and only the soup was found.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Screens))]
+    public async Task Both_requests_of_a_bubble_on_three_lines_are_read(string screenName)
+    {
+        var screen = SimulatedScreen.Named(screenName);
+        var frame = await InnScreenTests.Load("session-gourmand-two-lines");
+        var bubble = await new BubbleReader(InnScreenTests.Text).ReadAsync(screen == SimulatedScreen.Uhd ? frame : screen.Render(frame));
+
+        Assert.NotNull(bubble);
+        output.WriteLine($"{screen.Width}x{screen.Height}: \"{bubble.Text}\" → {string.Join(" | ", bubble.Lines)}");
+        Assert.Equal(["来点汤，要酸口，促消化。", "上好的肉！做点菜！"], bubble.Requests(Inn).Select(m => m.Request.Text));
     }
 
     [Theory]
