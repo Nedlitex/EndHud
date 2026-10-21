@@ -106,11 +106,13 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
     {
         var (monitor, raised) = await Monitor();
         var session = NewSession();
+        var display = new InnDisplay(); // the cards for the marks, as the overlay keeps them
         double at = 0;
         async Task Show(string fixture)
         {
             Assert.True(await monitor.TryInnAsync(await Load(Path.Combine("inn", fixture + ".jpg")), S(at), squadPanelSeen: false), fixture);
             session.Update(raised[^1]!);
+            display.Show(null, raised[^1], S(at));
             at += 3;
         }
         var planner = new InnPlanner(Inn);
@@ -141,6 +143,10 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
         var picker = Assert.Single(InnSetupView.ForScreen(InnScreenKind.ChefPicker, session, chefs, null, Inn, Text));
         Print([picker]);
         Assert.Equal("厨房一 · 推荐", picker.Model.Lines[0].Text);
+        // The picker's twelve cards in view come through the wire-up (named once the avatars are described); kitchen 1
+        // is full, so no chef is recommended there and no card is marked.
+        Assert.Equal(12, display.PickerCards.Count);
+        Assert.Empty(display.SetupMarks(chefs, null, session.PickerKitchen, Text));
 
         await Show("menu-dishes");
         await Show("menu-drinks");
@@ -156,6 +162,14 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
         var panel = Assert.Single(InnSetupView.ForScreen(InnScreenKind.Menu, session, null, menu, Inn, Text));
         Print([panel]);
         Assert.Equal("推荐菜单（按现在的厨师）", panel.Model.Lines[0].Text);
+
+        // The drinks tab in view (the last frame shown): each recommended drink's card is marked, on its card.
+        var marks = display.SetupMarks(null, menu, null, Text);
+        var recommendedInView = display.MenuCards.Where(c => menu.Plan.Drinks.Any(d => d.Drink.Id == c.Id)).ToList();
+        output.WriteLine($"marked: {string.Join(" ", recommendedInView.Select(c => c.Id))}");
+        Assert.NotEmpty(recommendedInView);
+        Assert.Equal(recommendedInView.Select(c => c.Area!.Value), marks.Select(m => m.Area));
+        Assert.All(marks, m => Assert.Equal("推荐", m.Label));
     }
 
     /// <summary>
