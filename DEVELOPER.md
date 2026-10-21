@@ -642,6 +642,7 @@ corners, and other window shapes are EndHud's assumption, not checked.
 | Reader | Reads | On the frames |
 |---|---|---|
 | `InnScreen.DetectAsync` | the setup screen, the theme list (its own kind: it starts a new setup), chef picker, menu, session, dispatch panel (titles by OCR, the timer by its digits) | all 20 frames, at every size (the session's first frame, fading in, at 4K only) |
+| `InnScreen.ReadPickerKitchenAsync` | which kitchen a chef picker is for, off its title (kitchen one = 1) | chef-picker, at every size |
 | `InnScreen.ReadClock` | time left, closed at 00:00 | every session frame |
 | `FireMeterReader` | fire "N/100", streak, ready (red button, 开启满堂彩) | all, at every size; hidden behind the dispatch panel |
 | `TableCardReader` | each table's state and, for an order, its dishes and drinks by picture and whether each is served (its pip green, or the blue auto-serve spinner on it) | 56/56 items and 90/90 cards at 4K, 1440p and 1080p |
@@ -679,8 +680,8 @@ How the hard parts work:
   the dining room); the first dish card's light face must show too (a menu always has a dish).
 - **A theme's rule that wraps** loses its last character now and then (the last character of "dishes", the tea-break theme's
   dessert half, 2026-10-21): a rule is read without it (`DishRule`).
-- The chef picker is only told apart (by its title); nothing on it is read (the recommendation there went,
-  2026-10-21, and with it the picker's grid reader and the menu cards' places).
+- Of the chef picker only its title is read, for the kitchen it's for; its grid isn't (the "recommended" card marks
+  went on 2026-10-21, and with them the picker's grid reader and the menu cards' places; the text panels stay).
 
 Not built yet: the drink bar and the results screen (no frame recorded), a one-item order's
 picture place (no frame of one), Si's assists on 营业设定 (the planner takes 品质把控 as 0; it only
@@ -696,7 +697,7 @@ is never looked for; with neither on screen it's looked for once a second (one s
 the title); in a session the screen is told by the timer's digits and the dispatch panel's tabs
 (pixels, no OCR); the setup and menu screens are read at once when one opens, then at most every
 0.5 s (`InnFrameReader.SetupEvery`; measured at 4K: the setup screen ~300 ms of OCR, the menu ~120 ms;
-of a chef picker and the theme list nothing), and the gourmand's bubble only
+of a chef picker its title, ~1 ms; of the theme list nothing), and the gourmand's bubble only
 while a gourmand is at a table. Without the Simplified Chinese OCR language only the timer is
 read (`ClockOnlyScreens`); the first inn screen seen then puts what to install in a tray balloon and the
 log, once per run (`OverlayWindow.InnProblemFound`), never in a panel over the game (owner, live
@@ -946,21 +947,23 @@ theme page (or exit the inn mode)"). In memory only, nothing on disk. The store'
 
 | | |
 |---|---|
-| Create | From readings: the setup screen gives the theme (name, rules, hot types, objective) and the kitchens with their places and placed chefs (named, or a place seen taken by its red bar); the menu screen each card seen (on the menu or not, its stock), the counters and the menu requirements. |
-| Read | The setup advice (`ForSetup`) and the session's kitchens, Inn Rating and menu. A part never read is a gap, never a guess. |
-| Correct | A newer clear reading of a part replaces it: the setup as a whole (its kitchens kept when the new reading has none, a kitchen whose title it missed kept as it was), a card by its id, the requirements number by number. A place read empty (its grey bar, a kitchen showing only its "assign operator +" button) is a fact, not a miss: its chef goes; only a place that couldn't be read keeps its chef. Another theme is another setup: its kitchens as read, no chef of the last one carried over. A reading that fails changes nothing, so a page without the theme never makes it unknown (the "theme unreadable" gap only when none is remembered). |
+| Create | From readings: the setup screen gives the theme (name, rules, hot types, objective) and the kitchens with their places and placed chefs (named, or a place seen taken by its red bar); a chef picker its kitchen; the menu screen each card seen (on the menu or not, its stock), the counters and the menu requirements. |
+| Read | The setup advice (`ForSetup`, `ForMenu`) and the session's kitchens, Inn Rating and menu. A part never read is a gap, never a guess. |
+| Correct | A newer clear reading of a part replaces it: the setup as a whole (its kitchens kept when the new reading has none, a kitchen whose title it missed kept as it was), a card by its id, the requirements number by number. A place read empty (its grey bar, a kitchen showing only its "assign operator +" button) is a fact, not a miss: its chef goes; only a place that couldn't be read keeps its chef. Another theme is another setup: its kitchens as read, no chef of the last one carried over. A reading that fails changes nothing, so a page without the theme never makes it unknown (the "theme unreadable" gap only when none is remembered). The one exception is the chef picker's kitchen: a picker read whose title can't be read has no kitchen, rather than the last picker's (whose advice would be another kitchen's). |
 | Remove | Everything at once: on the theme list (a new setup begins), or after 30 s spent reading screens that aren't the inn (`InnSession.ForgetAfter`, in `ReadingClock` time: a fight, the open world; never time the game was in the background), checked on every tick and on the next reading. The setup screen after a session no longer clears the menu. |
 | Protect / carry | Nothing outlives the inn visit. |
 
-**The setup advice** (owner, live test 2026-10-19: "the cook for each kitchen shows under each kitchen, not as a
-single panel"). A small panel under each kitchen's card on the setup screen, nothing on the theme list, the chef
-picker, the menu screen or in a session ([`InnSetupView.ForScreen`](src/EndHud/InnSetupPanel.cs)); the words are in
-i18n/zh-CN.xaml (`Inn.Setup.*`) and the README shows them for the owner's case. The chef picker's and the menu screen's
-recommendations (their panels and the "recommended" card marks) were deleted on 2026-10-21 (owner: "the recommendation
-in the choose cook or dish menu refreshes too slowly and it is often out of sync, just delete that for now"); what
-the menu screen shows still refines the plan below.
+**The setup advice** (owner, live test 2026-10-19: "recommendation for cook only shows when picking cook, and the
+cook for each kitchen shows under each kitchen, not as a single panel. and then in the choose menu window, shows the
+recommended menu based on current state"). Small panels where the game shows the choice they're about: under each
+kitchen's card on the setup screen, in a chef picker, on the menu screen; nothing on the theme list or in a session
+([`InnSetupView.ForScreen`](src/EndHud/InnSetupPanel.cs)); the words are in i18n/zh-CN.xaml (`Inn.Setup.*`) and the
+README shows them for the owner's case. No mark on the setup screens' cards: the "recommended" card marks went on
+2026-10-21 (owner, live: "the recommendation in the choose cook or dish menu refreshes too slowly and it is often out of
+sync, just delete that for now"; then, debug_yuanyuan1: "I ask you to delete the recommend box on the character, not
+delete the recommend pannel"), the text panels stay.
 
-- **Chefs** (the setup screen's kitchen columns) come from one plan of
+- **Chefs** (the setup screen's kitchen columns and a chef picker) come from one plan of
   `SetupInputs()`: the theme's hot types and rules, every kitchen with its places and the chefs
   already placed (kept; only the empty places are planned), the built-in roster (everyone who can
   cook and is in the game: Si and the Endministrator can't cook, and an operator the wiki lists before release
@@ -975,11 +978,23 @@ the menu screen shows still refines the plan below.
   then a recommended row (`Inn.Setup.Recommend`) with the chefs for its empty places and a
   substitutes row (`Inn.Setup.Substitutes`, at most three); a full kitchen only says it's set
   (`Inn.Setup.Full`), a kitchen the plan leaves empty that it needs no chef (`Inn.Setup.KitchenUnused`).
+  The chefs still to place are the plan's chefs for that kitchen less those placed, by who they are, not by place
+  (`InnSuggester`): a player who puts the plan's second chef in first is told only the first.
+  A chef picker shows the same under a heading naming its kitchen (`Inn.Setup.PickerTitle`); its
+  kitchen is read off its title, and with an unread title it shows nothing.
+- **The menu** (the menu screen) comes from a second plan, of `MenuInputs()`: only the kitchens with a
+  chef placed, each exactly as it is (its places = its chefs), so the menu fits the chefs actually
+  there. With no chef placed anywhere it plans the chefs too and its title says so
+  (`Inn.Setup.MenuTitleChefsPicked` instead of `Inn.Setup.MenuTitle`). A tick (`Inn.Setup.OnMenu`)
+  marks a dish or drink already on the menu; the dishes and drinks rows each have a substitutes row.
+  The menu screen's stock, Inn Rating and requirements refine both plans. Every rule holds, or the panel says the
+  dishes on offer can't meet them all (`Inn.Setup.RulesUnmet`); a rule not understood is said above it (and logged).
 - **Gaps** (`InnSetupGap`): the theme unreadable with none remembered, no setup screen seen since the
   theme list, no kitchens: no panel at all (owner, live 2026-10-20: the not-seen-yet lines are wrong half of the
   time and disturbing). While a plan is worked out: `Inn.Setup.Working`.
 - [`InnSetupPlanning`](src/EndHud/InnSetupPanel.cs) runs the planner and `InnSuggester` on the thread
-  pool once per change of the input's key, in two stages (owner, live 2026-10-19: "the page refreshes too slowly"):
+  pool once per change of the input's key (two of them: the chefs' and the menu's, so switching
+  pages doesn't plan again), in two stages (owner, live 2026-10-19: "the page refreshes too slowly"):
   the quick plan (`InnSetupAdvice.Fast`, `PlanQuickly`) is shown as soon as it's ready, then the
   simulator's plan (`InnSetupAdvice.For`) replaces it only when a panel would show something else
   (`InnSetupAdvice.Signature`). New inputs cancel the older work, and a late result for older inputs is
@@ -1002,22 +1017,30 @@ the menu screen shows still refines the plan below.
   (`InnSetupPlanning.ScrollSettle`). Which cards are on the menu never was in the key: the player following the
   advice only moves the ticks. Measured (InnSetupStabilityTests, a scripted scroll then pick of 19 readings):
   the advice on screen changed 16 times before, 3 after.
+  A plan kept for newer inputs keeps its chefs, dishes and drinks, but its suggestions are worked out again for
+  them, on the worker (`IInnPlanJudge.Restate`): what each kitchen's panel says follows what's placed (owner, live
+  2026-10-21, debug_yuanyuan1: kitchen 1, filled before the plan, said it was set, while kitchens 2 and 3, filled with
+  exactly the chefs recommended, went on recommending them, since the kept advice still described the kitchens as
+  they were when it was planned). `IInnPlanJudge.Fits` still judges by the inputs the plan was worked out for.
 - **Placement** ([`InnAdviceLayout`](src/EndHud/InnAdviceLayout.cs)): each spot is a fraction of the
   window's centred 16:9 area, measured on the fixtures (kitchen cards at x 0.418–0.588, 0.594–0.764,
-  0.771–0.941, blank below y ≈ 0.66 to 0.865). The panels follow the game's layout, so they aren't
+  0.771–0.941, blank below y ≈ 0.66 to 0.865; the picker's blank x 0.33–0.97, y 0.68–0.86; the menu
+  screen's left column x 0.06–0.38, y 0.60–0.835). The panels follow the game's layout, so they aren't
   dragged and have no place in config (the old panel's `InnSetupX`/`InnSetupBottomY` are gone; a
-  config still holding them loads). The lines wrap at the spot's width. The
+  config still holding them loads). The lines wrap at the spot's width; the menu's panel is drawn
+  compact (`InnStripLook.Compact`: 13 px text, 20 px pictures at 1080p) so a full menu fits. The
   strip's size and opacity apply; above 100% a panel can grow past its spot's bottom. The frames are
   made in code and never hit-tested (they don't take the game's clicks). Text only.
 - Tests: InnSetupMemoryTests (kept across setup, picker, menu and session; a failed reading changes
   nothing; forgotten on the theme list and after 30 s of other screens, never after an alt-tab; the dishes the player
   has: the rating's and those seen),
   InnSetupStabilityTests (a plan on screen kept until clearly beaten or no longer fitting; the scripted
-  picking), InnCallTests (the session's calls held through jittery readings; a new order and a queued dish
+  picking; the owner's debug_yuanyuan1 sequence: kitchens filled as advised all say they're set, a half-filled
+  one names only the chef missing), InnCallTests (the session's calls held through jittery readings; a new order and a queued dish
   change them at once), ReadingClockTests, InnResumeLatencyTests (desktop), InnSetupViewTests (each spot's words on real
-  plans: half-placed, full and empty kitchens, placed chefs suggested nowhere, the plan meeting every rule, nothing on
-  the theme list, the chef picker, the menu screen or in a session), InnSetupRulesTests (a rule cut where it wraps is
-  read), InnSetupLayoutTests (each
+  plans: half-placed, full and empty kitchens, placed chefs suggested nowhere, the picker, the menu meeting every
+  rule, the tick, nothing on the theme list or in a session), InnSetupRulesTests (a rule cut where it wraps is
+  read; a rule not understood said with the menu), InnSetupLayoutTests (each
   spot's fullest panel inside its spot at 1080p, 1440p and 4K; a picture beside every name),
   InnRealFrameTests (setup-chefs-placed, chef-picker, menu-dishes and menu-drinks through the real
   readers; menu-soup-theme read end to end: the soup rule comes off the frame and the plan has a soup and meets
