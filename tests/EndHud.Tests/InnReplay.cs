@@ -309,13 +309,8 @@ internal sealed class InnReplay
         if (call.Kind is InnCallKind.Queue or InnCallKind.Swap && !step.Open.Contains((call.Dish!.Id, call.Table!.Value))
             && (OnCounter(step, call.Dish.Id) || ServedWithin(i, call.Table.Value, call.Dish.Id) || DoneWithin(i, call.Table.Value))) return true;
         if (call.Kind == InnCallKind.CookAhead && !step.CooksAhead) return true;
-        // A dish served to any table, within the grace: its order's call is done, and a call moves only when another kitchen
-        // is clearly sooner, which that kitchen's call going can make it (as for the player's queueing, below).
-        if (ServedWithin(i, table: null, dish: null)) return true;
-        // The player queued a dish, within the grace: in this kitchen (it filled up), or in another (a call moves only when
-        // another kitchen is clearly sooner, which the player's queueing elsewhere can make it).
-        var since = step.At - InnCallHold.GraceSeconds - TimeSpan.FromSeconds(0.5);
-        if (QueuedWithin(i, since, kitchen: null)) return true;
+        // Nothing done elsewhere excuses a call going (owner, 2026-10-21: "the recommendation should stay steady"): a dish
+        // served to another table or queued in another kitchen leaves this call as possible as it was, so its going is a jump.
         // Another dish the player queued in this very kitchen: the advice suggests swapping it out for the order while it
         // has barely started (DispatchAdvisor.BarelyStartedSeconds), and once it has cooked longer the order goes where it
         // is out first; so the call may go that long after.
