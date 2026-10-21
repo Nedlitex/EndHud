@@ -696,6 +696,24 @@ is looked for on every frame (not once a second), and the same screen found agai
 cadence. The inn is left at once when the squad panel shows or the inn has closed and its 18 s of
 serving are over, else after 8 s with no inn screen.
 
+**Alt-tab** (owner, live 2026-10-20: the overlay's reading is off whenever another window is in front, and the
+owner alt-tabs every 5–30 s). Time the game spends in the background is never time spent away from the inn:
+[`ReadingClock`](src/EndHud/ReadingClock.cs) (`PartyMonitor.Reading`) runs only between frames read (a stall
+counts at most 5 s) and stands still while the reading is off. `InnSession`'s 30 s forget and 15 s session end
+are measured in it, so the kitchens set before a 27 s alt-tab are still known on the menu screen (the bug: "还没看到
+厨房" right after setting every kitchen); 30 s of other screens read (a fight, the open world) still forgets. The
+first frame back reports the time skipped, and the inn's holds pick up as if none had passed
+(`InnFrameReader.Resume`, the missed-frame streak): a first frame that misses the inn screen is held and the
+screen found on the next frame, not a second later. The window capture is kept through the pause and let go only
+when the window is gone, minimised, another window or its client area changed size; `SetTarget` wakes the loop
+at once when the reading turns back on, and the kept capture must deliver a new picture within 0.5 s
+(`PartyMonitor.ResumeWait`; frames during the pause were dropped, so the last copied one may be stale) or it is
+built again. "reading on/off" is logged once per change; "capture started" only when a capture is really built.
+Measured over a stand-in window with the real loop and readers (InnResumeLatencyTests, 1080p menu screen, 5
+resumes): "reading on" to the first fresh menu reading, median 623–791 ms (max 1244 ms, 6 captures built) before,
+415 ms (max 444 ms, 1 capture) after. The overlay shows the remembered advice the moment it's back in front; this
+is the time to a new reading of the screen.
+
 [`InnSession`](src/EndHud/InnSession.cs) (on the UI thread, memory only) keeps what the advice needs:
 before a session and into it, the setup as chosen so far ([`InnSetupMemory`](src/EndHud/InnSetupMemory.cs),
 below); during it, each kitchen's chefs and queue (read off the dispatch
@@ -710,15 +728,37 @@ named its chefs; one whose chefs were never seen is advised at base speed. A ses
 15 s without a session frame, on a setup, menu or theme list screen, or when the timer jumps up. `Advice(now)`
 runs `DispatchAdvisor` (every slot filled before the first order and from Full Blaze's "get
 ready"), `FullBlazeAdvisor` and `GourmandAdvisor`; an order with a picture not told apart is left
-out and its table named as unreadable, and a missing kitchen or menu is said, never guessed.
-[`InnStripView`](src/EndHud/InnStripView.cs) puts that in words (zh-CN only) and
-[`InnStrip`](src/EndHud/InnStrip.cs) draws it: the Full Blaze line ("开启满堂彩（R）" when full,
-"满堂彩快满了：先把厨房排满" from 80), at the last call (per table, possibly before 00:00) a line per leftover ("收尾：把剩下的[图]X 端给桌3",
-"（不对也有钱）" after a wrong dish), one line per kitchen, a picture beside every dish and
-drink, wrapping between dishes at 470 units so the busiest strip fits right of the dispatch panel
-at 1080p, 1440p and 4K (InnStripLayoutTests). [`OverlayWindow.Inn`](src/EndHud/OverlayWindow.Inn.cs)
-shows it only on session frames, and a sample while the menu is open out of the inn. Settings:
-`InnHelperEnabled` (on), `InnStripX/Y`, `InnStripScale`, `InnStripOpacity`.
+out (logged once per table and session, not shown), and a missing kitchen or menu is said, never guessed.
+
+The dispatch advice is worked out afresh on every frame, so on its own it flips with every queue time read a
+second off (owner, live 2026-10-20: the suggestions "keep changing during the session").
+[`InnCallHold`](src/EndHud/InnCalls.cs) turns it into `InnAdvice.Calls`, held steady: one call per kitchen (the
+next dish for an order, a dish to cook ahead, or a swap) stays until it is done (its dish went into that
+kitchen's queue: a queued + cooked-out count per kitchen and dish, put right by every dispatch-panel reading so
+the estimate's drift isn't taken for queueing; or its order no longer waits for a kitchen), no longer valid (the
+kitchen full, the advice no longer cooking that dish ahead anywhere, the swap and its order gone) or clearly
+beaten (an order where a cook-ahead was; the held order out at least 5 s sooner elsewhere,
+`InnCallHold.ClearlyEarlierSeconds`). Ties keep the current call; one order is called in one kitchen; a kitchen
+with no call takes an order still uncalled elsewhere when it has it out no more than 5 s later, so a new order
+shows at once. Full Blaze and the last call come straight from the advice. Measured (InnCallTests, 10 s of
+jittery readings): the first suggestion per kitchen changed 19 times before, the calls 0 times.
+
+The calls are banners (owner, live 2026-10-20: "remove all hints from the current panel, use the combo instead.
+the current panel has the requirements of the gourmands"): [`InnCallView`](src/EndHud/InnCallView.cs) words them
+(zh-CN, `Inn.Call.*`: "厨房二：茄果鳞肉汤" with "桌3 点的", "厨房二 预做：雪绵豆沙", "厨房一 换：雪绵豆沙 → 茄果鳞肉汤",
+"收尾：肉包子 → 桌3", "开启满堂彩（R）", "满堂彩快满了：先把厨房排满") and
+[`OverlayWindow.InnCalls`](src/EndHud/OverlayWindow.InnCalls.cs) shows each as a [`ComboBanner`](src/EndHud/ComboBanner.cs)
+(the combo-ready hint's look, slide-in, gold edge flare, slide-out) with the dish's picture in the icon slot, up
+while the call stands. Stacked Full Blaze, the kitchens by number, the last calls by table; at most 7
+(`InnCallView.MostBanners`), so the fullest stack fits from its default place at 1080p, 1440p and 4K. The
+[`InnStripView`](src/EndHud/InnStripView.cs) panel ([`InnStrip`](src/EndHud/InnStrip.cs) draws it) holds only
+the gourmand cards, and is put away without one; it still says why there's no advice at all (kitchens or menu not
+seen, the OCR language missing), since then no banner can show. A picture beside every dish and drink, wrapping
+between dishes at 470 units (InnStripLayoutTests). [`OverlayWindow.Inn`](src/EndHud/OverlayWindow.Inn.cs) shows
+both only on session frames, and samples while the menu is open out of the inn (then both are dragged). Settings:
+`InnHelperEnabled` (on), `InnCallsEnabled` (on; "派单提示横幅" in the card), `InnCallX/Y` (default: the combo hint's
+place, which isn't shown in the inn), `InnStripX/Y`, `InnStripScale` and `InnStripOpacity` (both for the panel and
+the banners).
 
 **What's remembered of the setup** ([`InnSetupMemory`](src/EndHud/InnSetupMemory.cs); owner, live
 test 2026-10-19: "remember which theme, cook, menu etc currently picked, UNTIL go back to pick
@@ -729,7 +769,7 @@ theme page (or exit the inn mode)"). In memory only, nothing on disk. The store'
 | Create | From readings: the setup screen gives the theme (name, rules, hot types, objective) and the kitchens with their places and placed chefs (named, or a place seen taken by its red bar); a chef picker its kitchen; the menu screen each card seen (on the menu or not, its stock), the counters and the menu requirements. |
 | Read | The setup advice (`ForSetup`, `ForMenu`) and the session's kitchens, Inn Rating and menu. A part never read is a gap, never a guess. |
 | Correct | A newer clear reading of a part replaces it: the setup as a whole (its kitchens kept when the new reading has none, a kitchen whose title it missed kept as it was), a card by its id, the requirements number by number. A place read empty (its grey bar, a kitchen showing only its "assign operator +" button) is a fact, not a miss: its chef goes; only a place that couldn't be read keeps its chef. Another theme is another setup: its kitchens as read, no chef of the last one carried over. A reading that fails changes nothing, so a page without the theme never makes it unknown (the "theme unreadable" gap only when none is remembered). The one exception is the chef picker's kitchen: a picker read whose title can't be read has no kitchen, rather than the last picker's (whose advice would be another kitchen's). |
-| Remove | Everything at once: on the theme list (a new setup begins), or when no inn screen has shown for 30 s (`InnSession.ForgetAfter`: the inn was left, a fight, the open world), checked on every tick and on the next reading. The setup screen after a session no longer clears the menu. |
+| Remove | Everything at once: on the theme list (a new setup begins), or after 30 s spent reading screens that aren't the inn (`InnSession.ForgetAfter`, in `ReadingClock` time: a fight, the open world; never time the game was in the background), checked on every tick and on the next reading. The setup screen after a session no longer clears the menu. |
 | Protect / carry | Nothing outlives the inn visit. |
 
 **The setup advice** (owner, live test 2026-10-19: "recommendation for cook only shows when picking
@@ -774,6 +814,17 @@ game shows the choice they're about, nothing on the theme list or in a session
   a reading that clears every place to advice on screen: 11.4 s before (the simulator's plan only),
   0.4 s after; with the 0.5 s reading cadence and ~0.3 s of OCR, the advice follows a click in about
   1–1.2 s where it took 2–3 s of reading plus 7–11 s of planning.
+  A plan on screen stays (owner, live 2026-10-20: "the recommended recipe keeps changing, it is very hard to
+  follow"): [`InnPlanJudge`](src/EndHud/InnSetupPanel.cs) keeps it while it fits the inputs (the chefs it
+  worked around still placed, chefs placed since being ones it named, everything it names offered, the rules
+  still met) and lets a newer plan, quick or refined, replace it only when clearly better: a better theme match,
+  the objective it misses reached, or at least 5 % more income (`InnPlanJudge.ClearlyMoreIncome`; in the
+  simulator when the newer plan is the simulator's). With nothing fitting on screen, a refined plan ready within
+  1 s is shown directly (`InnSetupPlanning.RefinedWithin`). While the menu screen keeps showing cards not seen
+  before (scrolling), a fitting plan isn't worked out again until no new card has shown for 1.5 s
+  (`InnSetupPlanning.ScrollSettle`). Which cards are on the menu never was in the key: the player following the
+  advice only moves the ticks. Measured (InnSetupStabilityTests, a scripted scroll then pick of 19 readings):
+  the advice on screen changed 16 times before, 3 after.
 - **Placement** ([`InnAdviceLayout`](src/EndHud/InnAdviceLayout.cs)): each spot is a fraction of the
   window's centred 16:9 area, measured on the fixtures (kitchen cards at x 0.418–0.588, 0.594–0.764,
   0.771–0.941, blank below y ≈ 0.66 to 0.865; the picker's blank x 0.33–0.97, y 0.68–0.86; the menu
@@ -784,7 +835,10 @@ game shows the choice they're about, nothing on the theme list or in a session
   strip's size and opacity apply; above 100% a panel can grow past its spot's bottom. The frames are
   made in code and never hit-tested (they don't take the game's clicks). Text only.
 - Tests: InnSetupMemoryTests (kept across setup, picker, menu and session; a failed reading changes
-  nothing; forgotten on the theme list and after 30 s), InnSetupViewTests (each spot's words on real
+  nothing; forgotten on the theme list and after 30 s of other screens, never after an alt-tab),
+  InnSetupStabilityTests (a plan on screen kept until clearly beaten or no longer fitting; the scripted
+  picking), InnCallTests (the session's calls held through jittery readings; a new order and a queued dish
+  change them at once), ReadingClockTests, InnResumeLatencyTests (desktop), InnSetupViewTests (each spot's words on real
   plans: half-placed, full and empty kitchens, placed chefs suggested nowhere, the picker, the menu
   meeting every rule, the tick, nothing on the theme list or in a session), InnSetupLayoutTests (each
   spot's fullest panel inside its spot at 1080p, 1440p and 4K; a picture beside every name),
