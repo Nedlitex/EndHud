@@ -218,6 +218,17 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         string.Join(",", _spares.Keys.Union(_outForOrders.Keys).Select(id => (id, n: _spares.GetValueOrDefault(id) + _outForOrders.GetValueOrDefault(id)))
             .Where(c => c.n > 0).Select(c => $"{c.id}x{c.n}"));
 
+    /// <summary>
+    /// Seconds until a dish would be out in a kitchen if queued now, as the calls count it (what's in its queue + the dish's
+    /// cook time there); null when that kitchen has no free slot or doesn't cook (the replay's trace).
+    /// </summary>
+    internal double? ReadyIn(int kitchen, string dishId)
+    {
+        if (Kitchens() is not { } kitchens || !kitchens.Kitchens.Any(k => k.Number == kitchen) || DishOf(dishId) is not { } dish) return null;
+        var queue = _kitchens.TryGetValue(kitchen, out var seen) ? seen.Queue : new KitchenQueue(kitchen);
+        return queue.HasFreeSlot ? queue.SecondsUntilEmpty + kitchens.CookSeconds(kitchen, dish) : null;
+    }
+
     /// <summary>A session is on (its frames seen within <see cref="EndAfter"/>).</summary>
     public bool Active { get; private set; }
 

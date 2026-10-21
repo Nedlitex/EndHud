@@ -159,10 +159,17 @@ internal sealed class InnReplay
     /// <param name="CooksAhead">The advice cooks something ahead somewhere (no: the counter full, no stock, the end).</param>
     /// <param name="State">The queues, open orders, counter and advice, in words (the trace's state lines).</param>
     /// <param name="Sendable">The orders the advice sends to a kitchen now (not waiting for room nor out of stock).</param>
+    /// <param name="FreeFor">
+    /// Of <paramref name="Sendable"/>, those a kitchen not showing another order could take now: it has a free slot and has
+    /// the dish out no more than <see cref="InnCallHold.ClearlyEarlierSeconds"/> after the kitchen the advice sends it to
+    /// (the hold's rule for a kitchen with no order to show).
+    /// </param>
     internal sealed record CallStep(TimeSpan At, IReadOnlyDictionary<int, InnCall> Kitchens, IReadOnlySet<(string Dish, int Table)> Open, string Queues,
         bool CooksAhead, string Why, string State = "")
     {
         public IReadOnlySet<(string Dish, int Table)> Sendable { get; init; } = new HashSet<(string, int)>();
+
+        public IReadOnlySet<(string Dish, int Table)> FreeFor { get; init; } = new HashSet<(string, int)>();
     }
 
     /// <summary>A call that flashed (gone and back) or jumped (switched dish or kitchen with nothing done to cause it).</summary>
@@ -201,7 +208,15 @@ internal sealed class InnReplay
             if (was is not null) Changes.Add(new InnViewChange(at, "call", "-", was, state));
             if (now is not null) Changes.Add(new InnViewChange(at, "call", "+", now, state));
         }
-        Steps.Add(new CallStep(at, kitchens, open, queues, ahead, why, state[(state.LastIndexOf('[') + 1)..^1]) { Sendable = sendable });
+        var freeFor = new HashSet<(string, int)>();
+        foreach (var q in advice?.Dispatch?.Kitchens.SelectMany(k => k.Queue) ?? [])
+        {
+            if (q.Table is not { } table) continue;
+            if (advice!.Dispatch!.Kitchens.Any(k => kitchens.GetValueOrDefault(k.Kitchen) is not { Kind: InnCallKind.Queue or InnCallKind.Swap }
+                                                    && _session.ReadyIn(k.Kitchen, q.Dish.Id) is { } readyIn && readyIn <= q.ReadyIn + InnCallHold.ClearlyEarlierSeconds))
+                freeFor.Add((q.Dish.Id, table));
+        }
+        Steps.Add(new CallStep(at, kitchens, open, queues, ahead, why, state[(state.LastIndexOf('[') + 1)..^1]) { Sendable = sendable, FreeFor = freeFor });
     }
 
     /// <summary>This moment's advice per kitchen, before the hold: "1:dish@table(ready in),… 2:…".</summary>
@@ -218,7 +233,8 @@ internal sealed class InnReplay
     /// order (or dish cooked ahead) switching kitchen, when the call that went was still possible and nothing was done to
     /// it: not queued, its order not served or gone, its kitchen not full, its kitchen's queue not added to by the player,
     /// and (for a dish cooked ahead) cooking ahead not stopped altogether. A dish cooked ahead giving way to an order that
-    /// no other kitchen was showing is the order's banner coming up, not a jump.</item>
+    /// no other kitchen was showing, or one that left its kitchen for something done, is the order's banner coming up, not
+    /// a jump.</item>
     /// </list>
     /// </summary>
     public (List<Unsteady> Flashes, List<Unsteady> Jumps) Steadiness()
@@ -253,7 +269,8 @@ internal sealed class InnReplay
                 }
                 // The kitchen's last call went a moment ago (or now) though still possible, and another took its place.
                 var last = gone.LastOrDefault(g => g.Kitchen == k);
-                bool orderComingUp = last.Call?.Kind == InnCallKind.CookAhead && now.Kind is InnCallKind.Queue or InnCallKind.Swap && !ShownElsewhere(now, k, i, window);
+                bool orderComingUp = last.Call?.Kind == InnCallKind.CookAhead && now.Kind is InnCallKind.Queue or InnCallKind.Swap
+                                     && (!ShownElsewhere(now, k, i, window) || gone.Any(g => g.Kitchen != k && g.Justified && g.Call.Dish?.Id == now.Dish?.Id && g.Call.Table == now.Table));
                 if (last.Call is not null && !last.Justified && last.Call.Key != now.Key && !orderComingUp)
                     jumps.Add(new Unsteady(step.At, k, $"{last.Call.Key} -> {now.Key}", step.Why));
                 // A dish to cook ahead an order coming up displaced went for that order: it may show in another kitchen.
@@ -286,17 +303,31 @@ internal sealed class InnReplay
         if (step.Why.Contains($"{call.Key} dropped: the kitchen", StringComparison.Ordinal)) return true;
         // The advice stopped altogether (the inn closing: the last call).
         if (step.Open.Count == 0 && !step.CooksAhead && call.Kind is InnCallKind.Queue or InnCallKind.Swap) return true;
-        // Its order: its dish out on the counter now, or served (a table's card read with that dish newly served). An order
-        // merely read away (a card misread as the HUD fades) is not something done.
+        // Its order: its dish out on the counter now, or served (a table's card read with that dish newly served), or the
+        // order gone (its table read eating or paying). An order merely read away (a card misread as the HUD fades: every
+        // card reads empty) is not something done.
         if (call.Kind is InnCallKind.Queue or InnCallKind.Swap && !step.Open.Contains((call.Dish!.Id, call.Table!.Value))
-            && (OnCounter(step, call.Dish.Id) || ServedWithin(i, call.Table.Value, call.Dish.Id))) return true;
+            && (OnCounter(step, call.Dish.Id) || ServedWithin(i, call.Table.Value, call.Dish.Id) || DoneWithin(i, call.Table.Value))) return true;
         if (call.Kind == InnCallKind.CookAhead && !step.CooksAhead) return true;
+        // A dish served to any table, within the grace: its order's call is done, and a call moves only when another kitchen
+        // is clearly sooner, which that kitchen's call going can make it (as for the player's queueing, below).
+        if (ServedWithin(i, table: null, dish: null)) return true;
         // The player queued a dish, within the grace: in this kitchen (it filled up), or in another (a call moves only when
         // another kitchen is clearly sooner, which the player's queueing elsewhere can make it).
         var since = step.At - InnCallHold.GraceSeconds - TimeSpan.FromSeconds(0.5);
+        if (QueuedWithin(i, since, kitchen: null)) return true;
+        // Another dish the player queued in this very kitchen: the advice suggests swapping it out for the order while it
+        // has barely started (DispatchAdvisor.BarelyStartedSeconds), and once it has cooked longer the order goes where it
+        // is out first; so the call may go that long after.
+        return QueuedWithin(i, step.At - TimeSpan.FromSeconds(DispatchAdvisor.BarelyStartedSeconds) - InnCallHold.GraceSeconds - TimeSpan.FromSeconds(0.5), kitchen);
+    }
+
+    /// <summary>A queue (<paramref name="kitchen"/>'s, or any) added to between <paramref name="since"/> and step <paramref name="i"/>.</summary>
+    private bool QueuedWithin(int i, TimeSpan since, int? kitchen)
+    {
         for (int j = i; j > 0 && Steps[j].At >= since; j--)
         {
-            foreach (int k in Enumerable.Range(1, KitchenMath.MaxKitchens))
+            foreach (int k in kitchen is { } only ? [only] : Enumerable.Range(1, KitchenMath.MaxKitchens))
             {
                 var before = QueueOf(Steps[j - 1].Queues, k);
                 var after = QueueOf(Steps[j].Queues, k);
@@ -315,15 +346,31 @@ internal sealed class InnReplay
         return step.State[at..(end < 0 ? step.State.Length : end)].Contains($"{dish}x", StringComparison.Ordinal);
     }
 
-    /// <summary>A reading within the grace before step <paramref name="i"/> read <paramref name="table"/>'s <paramref name="dish"/> newly served.</summary>
-    private bool ServedWithin(int i, int table, string dish)
+    /// <summary>
+    /// A reading within the grace before step <paramref name="i"/> read <paramref name="table"/>'s <paramref name="dish"/>
+    /// newly served (null: any table, any dish).
+    /// </summary>
+    private bool ServedWithin(int i, int? table, string? dish)
     {
         var since = Steps[i].At - InnCallHold.GraceSeconds - TimeSpan.FromSeconds(0.5);
         for (int j = i; j >= 0 && Steps[j].At >= since; j--)
         {
-            var match = System.Text.RegularExpressions.Regex.Match(Steps[j].Why, $@"table {table} (\S+) -> (\S+)");
-            if (match.Success && match.Groups[2].Value.Split('+').Contains(dish + "*") && !match.Groups[1].Value.Split('+').Contains(dish + "*")) return true;
+            foreach (System.Text.RegularExpressions.Match match in System.Text.RegularExpressions.Regex.Matches(Steps[j].Why, $@"table {(table is { } t ? t.ToString(CultureInfo.InvariantCulture) : @"\d")} (\S+?),? -> (\S+?)[,;]?(?=\s|$)"))
+            {
+                var before = match.Groups[1].Value.Split('+');
+                var served = match.Groups[2].Value.Split('+').Where(x => x.EndsWith('*') && !before.Contains(x));
+                if (dish is null ? served.Any() : served.Contains(dish + "*")) return true;
+            }
         }
+        return false;
+    }
+
+    /// <summary>A reading within the grace before step <paramref name="i"/> read <paramref name="table"/> eating or paying: its order is over.</summary>
+    private bool DoneWithin(int i, int table)
+    {
+        var since = Steps[i].At - InnCallHold.GraceSeconds - TimeSpan.FromSeconds(0.5);
+        for (int j = i; j >= 0 && Steps[j].At >= since; j--)
+            if (System.Text.RegularExpressions.Regex.IsMatch(Steps[j].Why, $@"table {table} \S+ -> (Eating|Paying|GourmandEating)\b")) return true;
         return false;
     }
 
@@ -333,8 +380,10 @@ internal sealed class InnReplay
 
     /// <summary>
     /// A new order a kitchen can take (first among the orders the advice sends to a kitchen), and how long until a kitchen's
-    /// call showed it (null: never, covered or served before); <paramref name="KitchenFree"/>: some kitchen's call then
-    /// wasn't another order's (only then can it show at once: one call a kitchen).
+    /// call showed it (null: never, covered or served before); <paramref name="KitchenFree"/>: some kitchen not showing
+    /// another order could take it then (<see cref="CallStep.FreeFor"/>; only then can it show at once: one call a kitchen,
+    /// and an order shows in another kitchen than the advice's only when that kitchen has it out no more than
+    /// <see cref="InnCallHold.ClearlyEarlierSeconds"/> later).
     /// </summary>
     internal sealed record NewOrder(TimeSpan At, string Dish, int Table, double? ShownAfter, bool KitchenFree);
 
@@ -349,7 +398,7 @@ internal sealed class InnReplay
             var step = Steps[i];
             foreach (var order in step.Sendable.Where(o => !before.Contains(o)))
             {
-                bool free = Enumerable.Range(1, kitchens).Any(k => step.Kitchens.GetValueOrDefault(k) is not { Kind: InnCallKind.Queue or InnCallKind.Swap });
+                bool free = step.FreeFor.Contains(order);
                 double? shown = null;
                 for (int j = i; j < Steps.Count && Steps[j].Open.Contains(order); j++)
                 {

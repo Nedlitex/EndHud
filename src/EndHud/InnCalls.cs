@@ -213,10 +213,13 @@ internal sealed class InnCallHold
             _held[advice.Kitchen] = new Held(candidate, candidate.Dish is { } dish ? view.Queued(advice.Kitchen, dish.Id) : 0);
         }
 
-        // An order the advice sends to a kitchen whose call stands for something else: a kitchen with no call (or one
-        // only kept a moment) takes it, if it has it out no more than ClearlyEarlierSeconds later (the advice swapping two
-        // kitchens' orders is no reason to move the one shown, and the new order is called at once all the same).
-        foreach (var free in dispatch.Kitchens.Where(k => (!_held.TryGetValue(k.Kitchen, out var h) || h.InvalidSince is not null) && view.HasRoom(k.Kitchen))
+        // An order the advice sends to a kitchen whose call stands for something else: a kitchen with no call, one only
+        // kept a moment, or one showing a dish to cook ahead (an order comes first) takes it, if it has it out no more than
+        // ClearlyEarlierSeconds later (the advice swapping two kitchens' orders is no reason to move the one shown, and the
+        // new order is called at once all the same: on test_yuanyuan4 at 230.7 s a second order of a dish went behind the
+        // first in kitchen 1 and waited 5 s for a call while kitchen 2, showing a dish to cook ahead, had it out as soon).
+        foreach (var free in dispatch.Kitchens
+                     .Where(k => (!_held.TryGetValue(k.Kitchen, out var h) || h.InvalidSince is not null || h.Call.Kind == InnCallKind.CookAhead) && view.HasRoom(k.Kitchen))
                      .OrderBy(k => k.Kitchen))
         {
             var order = dispatch.Kitchens.Where(k => k.Kitchen != free.Kitchen).SelectMany(k => k.Queue)
@@ -226,7 +229,13 @@ internal sealed class InnCallHold
             if (order is null) continue;
             var call = new InnCall(InnCallKind.Queue, free.Kitchen, order.Dish, order.Table);
             Claim(call);
-            if (_held.TryGetValue(free.Kitchen, out var kept)) _changes.Add($"{kept.Call.Key} replaced by {call.Key}, an order (it no longer stood)");
+            if (_held.TryGetValue(free.Kitchen, out var kept))
+            {
+                // Only a call that stands claimed something to give back.
+                if (kept.InvalidSince is null) Release(kept.Call);
+                _changes.Add(kept.InvalidSince is null ? $"{kept.Call.Key} replaced by {call.Key}, an order before a dish to cook ahead"
+                    : $"{kept.Call.Key} replaced by {call.Key}, an order (it no longer stood)");
+            }
             _held[free.Kitchen] = new Held(call, view.Queued(free.Kitchen, order.Dish.Id));
         }
 

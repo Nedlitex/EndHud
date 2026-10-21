@@ -172,7 +172,7 @@ public class InnSessionTests
         Assert.True(advice.Opening);
         Assert.All(advice.Dispatch!.Kitchens, k => Assert.NotEmpty(k.Queue));
         Assert.All(Queued(advice), q => Assert.True(q.CookAhead));
-        Assert.InRange(Queued(advice).Count(), 3, InnCounter.Capacity);
+        Assert.Equal(3 * KitchenQueue.Slots, Queued(advice).Count()); // every slot: no counter cap (owner, 2026-10-21)
     }
 
     [Fact]
@@ -395,21 +395,25 @@ public class InnSessionTests
 
     /// <summary>
     /// The dispatch panel putting the estimate right moves dishes on and off the counter too: a dish the estimate still had
-    /// cooking that the panel no longer shows came out (it's on the counter, for the next order of it); a dish the estimate
-    /// had cooked out that the panel still shows isn't on the counter. Before, only the kitchen's count changed, and an
-    /// order was sent to a kitchen for a dish already out (test_yuanyuan3, 176.4 s) or taken as covered by one still cooking.
+    /// cooking that the panel no longer shows came out (it's on the counter, for the order it was cooking for); a dish the
+    /// estimate had cooked out that the panel still shows isn't on the counter. Before, only the kitchen's count changed, and
+    /// an order was sent to a kitchen for a dish already out (test_yuanyuan3, 176.4 s) or taken as covered by one still cooking.
     /// </summary>
     [Fact]
     public void The_panel_putting_a_queue_right_moves_dishes_on_and_off_the_counter()
     {
-        // Out early: the estimate has A cooking 28 s more, the panel shows the queue empty. Table 3 then orders A: it's on the counter.
+        // Out early: table 3 ordered A, the estimate has it cooking 28 s more, the panel shows the queue empty: it's on the
+        // counter, out for table 3, which isn't sent to a kitchen again.
         var early = Prepared(1, 2);
+        early.Update(Session(9.4, tables: Tables(Order(3, A))));
+        early.Update(Session(9.7, tables: Tables(Order(3, A))));
         early.Update(Session(10, panel: Panel(1, 2, Menu.Take(5).ToList(), (A, 30))));
         early.Update(Session(10.3, panel: Panel(1, 2, Menu.Take(5).ToList(), (A, 30))));
         early.Update(Session(12, panel: Panel(1, 2, Menu.Take(5).ToList())));
         early.Update(Session(12.1, panel: Panel(1, 2, Menu.Take(5).ToList()))); // gone: taken once a second reading agrees
         early.Update(Session(12.3, tables: Tables(Order(3, A))));
         early.Update(Session(12.6, tables: Tables(Order(3, A))));
+        Assert.Equal($"{A}x1", early.CounterSignature());
         Assert.DoesNotContain(Queued(early.Advice(S(12.6))!), q => q.Table == 3);
 
         // Still cooking: the estimate cooked A out (its time read 2 s), the panel shows it 20 s from done. Table 3's A is

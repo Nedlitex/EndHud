@@ -109,12 +109,17 @@ public class InnReplayTests(ITestOutputHelper output)
         // The banners as drawn: none back within a second, a kitchen's banner never moving in the stack.
         Assert.Equal(0, banners.HiddenUnderASecond);
         Assert.True(banners.UpUnderHalfASecond <= 5, $"{banners.UpUnderHalfASecond} banners up under half a second");
-        Assert.True(replay.PerMinute()["banner"] <= 15, $"{replay.PerMinute()["banner"]:F1} banner changes a minute");
+        // Since 2026-10-21 (no counter gate) about three times as many orders are called (a dish cooked ahead covers none)
+        // and the kitchens nothing was ordered for always cook ahead: y3 11.4 -> 22.9 changes a minute, y4 6.4 -> 15.4, every
+        // banner up once and down once (none back within a second, above). This bound only catches churn on that scale.
+        Assert.True(replay.PerMinute()["banner"] <= 25, $"{replay.PerMinute()["banner"]:F1} banner changes a minute");
         Assert.DoesNotContain(replay.Changes, c => c.Display == "move" && !c.What.StartsWith("LastCall", StringComparison.Ordinal) && !c.What.StartsWith("Blaze", StringComparison.Ordinal));
         // The marks go the moment a frame shows the panel closed for sure (owner, live 2026-10-21: a mark left over the dining
-        // room); on test_yuanyuan3 that is up to 11 times for under a second, each a frame reading the Full Blaze meter the
-        // open panel covers (closing and opening it again, or its slide) between frames reading it open.
-        Assert.True(marks.HiddenUnderASecond <= 11, $"{marks.HiddenUnderASecond} marks hidden under a second");
+        // room); on test_yuanyuan3 that is up to 14 marks for under a second, each a frame reading the Full Blaze meter the
+        // open panel covers (closing and opening it again, or its slide) between frames reading it open, or a tab switch.
+        // 11 before 2026-10-21: the same moments, with more kitchens showing a call (so more marks) since orders and cooking
+        // ahead no longer wait on the counter.
+        Assert.True(marks.HiddenUnderASecond <= 14, $"{marks.HiddenUnderASecond} marks hidden under a second");
         Assert.Equal((0, 0), (gourmands.HiddenUnderASecond, gourmands.UpUnderHalfASecond));
     }
 
