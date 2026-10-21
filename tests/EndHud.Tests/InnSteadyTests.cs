@@ -293,8 +293,33 @@ public class InnSteadyTests
         // Kitchen 1 no longer open to cooking ahead; the advice keeps kitchen 2's.
         var onlyTwo = Advice(Kitchen(1), Kitchen(2, new QueueAdvice(Dish(A), null, 40)));
         hold.Update(onlyTwo, null, View(), S(1));
-        var after = hold.Update(onlyTwo, null, View(), S(1) + InnCallHold.GraceSeconds);
+        var after = hold.Update(onlyTwo, null, View(), S(1) + InnCallHold.CookAheadGraceSeconds);
         Assert.Equal([(2, A)], after.Select(c => (c.Kitchen!.Value, c.Dish!.Id)));
+    }
+
+    /// <summary>
+    /// A dish to cook ahead the advice stops cooking ahead in its kitchen for a few seconds (the counter's room forecast
+    /// short: test_yuanyuan4, 3.3 s from 189.3 s) stays on screen and is there still when it's advised again; gone for
+    /// <see cref="InnCallHold.CookAheadGraceSeconds"/>, it's taken down. An order needing its kitchen takes its place at once.
+    /// </summary>
+    [Fact]
+    public void A_dish_to_cook_ahead_out_of_the_advice_for_a_few_seconds_stays()
+    {
+        var hold = new InnCallHold();
+        var ahead = Advice(Kitchen(1, new QueueAdvice(Dish(A), null, 40)));
+        var shown = Assert.Single(hold.Update(ahead, null, View(), S(0)));
+
+        foreach (double t in new[] { 1.0, 2, 3, 4.3 }) Assert.Equal([shown], hold.Update(Advice(Kitchen(1)), null, View(), S(t)));
+        Assert.Equal([shown], hold.Update(ahead, null, View(), S(4.6)));
+
+        hold.Update(Advice(Kitchen(1)), null, View(), S(5));
+        Assert.Equal([shown], hold.Update(Advice(Kitchen(1)), null, View(), S(9)));
+        Assert.Empty(hold.Update(Advice(Kitchen(1)), null, View(), S(5) + InnCallHold.CookAheadGraceSeconds));
+
+        var again = new InnCallHold();
+        again.Update(ahead, null, View(), S(0));
+        var order = again.Update(Advice(Kitchen(1, new QueueAdvice(Dish(E), 3, 15))), null, View(), S(0.3));
+        Assert.Equal((InnCallKind.Queue, 3), (Assert.Single(order).Kind, order[0].Table));
     }
 
     /// <summary>

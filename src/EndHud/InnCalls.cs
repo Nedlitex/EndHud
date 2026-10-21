@@ -65,7 +65,7 @@ internal sealed record InnKitchenView(Func<int, string, int> Queued, Func<int, b
 /// </list>
 /// Anything else keeps the call on screen: ties and near-equal choices keep the current one. One order is
 /// called in one kitchen only. Full Blaze and the last call are the advice's own (it doesn't flicker).
-/// <para>A call no longer valid stays up for <see cref="GraceSeconds"/> first, and stays on if it's valid again by then
+/// <para>A call no longer valid stays up for <see cref="GraceSeconds"/> (a dish to cook ahead: <see cref="CookAheadGraceSeconds"/>) first, and stays on if it's valid again by then
 /// (owner, live 2026-10-20: "it is still flashing ... should just stay, not flash all the time"): a reading that drops
 /// an order for a moment (a card misread as the HUD fades, the panel's queue read a frame short) would otherwise take
 /// the banner down and put it up again a frame later, sliding out and in. Done is done at once.</para>
@@ -77,6 +77,20 @@ internal sealed class InnCallHold
 
     /// <summary>A call no longer valid is taken down only once it has stayed so this long.</summary>
     public static readonly TimeSpan GraceSeconds = TimeSpan.FromSeconds(1.5);
+
+    /// <summary>
+    /// A dish to cook ahead the advice no longer cooks ahead in its kitchen (the counter's room forecast short, as dishes
+    /// are served and cooked out it comes back) stays this long first: on test_yuanyuan4 kitchen 3's dish lost the counter's
+    /// last places for 3.3 s (189.3 s) and the kitchen then got another dish; on test_yuanyuan3 for 5.6 s (271.0 s), back
+    /// 0.6 s after it was taken down. Nothing is urgent about a dish to cook ahead; its kitchen full still takes it down
+    /// after <see cref="GraceSeconds"/>, and an order takes its place at once.
+    /// </summary>
+    public static readonly TimeSpan CookAheadGraceSeconds = TimeSpan.FromSeconds(10);
+
+    private const string NoLongerAdvised = "no longer advised";
+
+    private static TimeSpan GraceFor(InnCall call, string why) =>
+        call.Kind == InnCallKind.CookAhead && why == NoLongerAdvised ? CookAheadGraceSeconds : GraceSeconds;
 
     private readonly Dictionary<int, Held> _held = [];
     private readonly List<string> _changes = [];
@@ -155,7 +169,7 @@ internal sealed class InnCallHold
                 continue;
             }
             string? why = !cooking.TryGetValue(number, out var advice) ? "the kitchen no longer cooks"
-                : !Valid(held.Call, advice, wanted, view) ? (view.HasRoom(number) ? "no longer advised" : "the kitchen is full")
+                : !Valid(held.Call, advice, wanted, view) ? (view.HasRoom(number) ? NoLongerAdvised : "the kitchen is full")
                 : !Claim(held.Call) ? "its order is called elsewhere"
                 : null;
             if (why is null)
@@ -164,7 +178,7 @@ internal sealed class InnCallHold
                 continue;
             }
             var since = held.InvalidSince ?? now;
-            if (now - since < GraceSeconds)
+            if (now - since < GraceFor(held.Call, why))
             {
                 // Kept a moment: what dropped it may be a reading that comes right back.
                 if (held.InvalidSince is null) _changes.Add($"{held.Call.Key} kept a moment: {why}");

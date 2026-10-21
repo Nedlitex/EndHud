@@ -237,6 +237,8 @@ internal sealed class InnReplay
                 bool orderComingUp = last.Call?.Kind == InnCallKind.CookAhead && now.Kind is InnCallKind.Queue or InnCallKind.Swap && !ShownElsewhere(now, k, i, window);
                 if (last.Call is not null && !last.Justified && last.Call.Key != now.Key && !orderComingUp)
                     jumps.Add(new Unsteady(step.At, k, $"{last.Call.Key} -> {now.Key}", step.Why));
+                // A dish to cook ahead an order coming up displaced went for that order: it may show in another kitchen.
+                if (orderComingUp) gone[gone.FindLastIndex(g => g.Kitchen == k)] = last with { Justified = true };
                 // The same order, or dish cooked ahead, moving here from another kitchen.
                 foreach (var g in gone.Where(g => g.Kitchen != k && !g.Justified && g.Call.Kind == now.Kind && g.Call.Dish?.Id == now.Dish?.Id && g.Call.Table == now.Table))
                     jumps.Add(new Unsteady(step.At, k, $"{g.Call.Key} moved to kitchen {k}", step.Why));
