@@ -84,6 +84,13 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// </summary>
     public static readonly TimeSpan GourmandGoneAfter = TimeSpan.FromSeconds(3);
 
+    /// <summary>
+    /// Fresh session frames in a row that must agree before the dispatch panel counts as opened or closed (owner, live
+    /// 2026-10-20: "it is still flashing"): its tabs misread on one frame, or a frame found again after a miss read
+    /// without the panel, would put the banners up over it and take them down a frame later.
+    /// </summary>
+    public const int PanelFramesToChange = 2;
+
     /// <summary>The timer going up by more than this means a new session started.</summary>
     private static readonly TimeSpan NewSessionJump = TimeSpan.FromSeconds(10);
 
@@ -115,7 +122,8 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     private readonly FullBlazeTracker _blaze = new();
     private int? _fire;
     private bool _ordersSeen;
-    private DispatchPanel? _panelOpen; // the dispatch panel on the last session frame read, when open
+    private DispatchPanel? _panelOpen; // the dispatch panel as shown: open since PanelFramesToChange frames read it, until as many don't
+    private int _panelDisagree; // fresh session frames in a row read the other way than _panelOpen
 
     private sealed class KitchenMemory(int number)
     {
@@ -123,6 +131,9 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         public bool ChefsSeen;
         public KitchenQueue Queue = new(number);
         public readonly Dictionary<string, int> PanelCookSeconds = [];
+
+        /// <summary>The dispatch panel's card each dish was read on for this kitchen (the menu doesn't change in a session).</summary>
+        public readonly Dictionary<string, int> Cards = [];
 
         /// <summary>Dishes cooked out of this queue since the session began, by id (the estimate, put right by each panel reading).</summary>
         public readonly Dictionary<string, int> Out = [];
@@ -196,8 +207,8 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         _lastSessionRead = read;
         if (reading.Clock is not null) _clock = reading.Clock;
         if (reading.Clock is { Closed: true } && _closedAt is null) _closedAt = reading.At;
-        _panelOpen = reading.Panel;
         if (reading.Panel is { } panel) TakePanel(panel);
+        TakePanelOpen(reading.Panel);
         if (reading.TableCards.Count > 0) TakeTables(reading.TableCards, reading.At);
         if (reading.Fire is { } fire) _fire = fire.Ready ? FullBlazeAdvisor.Full : fire.Fire ?? _fire;
         _blaze.Update(reading.At, reading.Fire?.Ready, inSession: true);
@@ -256,6 +267,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         _fire = null;
         _ordersSeen = false;
         _panelOpen = null;
+        _panelDisagree = 0;
         _calls.Clear();
         _unreadableLogged.Clear();
         _gapsLogged.Clear();
@@ -288,6 +300,31 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         }
     }
 
+    /// <summary>
+    /// The dispatch panel shown as open or closed (<see cref="PanelFramesToChange"/>): while open, the latest reading of
+    /// it, or the last one when a frame missed it.
+    /// </summary>
+    private void TakePanelOpen(DispatchPanel? panel)
+    {
+        bool agrees = (panel is null) == (_panelOpen is null);
+        _panelDisagree = agrees ? 0 : _panelDisagree + 1;
+        if (agrees || _panelDisagree >= PanelFramesToChange)
+        {
+            _panelOpen = panel;
+            _panelDisagree = 0;
+        }
+    }
+
+    /// <summary>The panel as shown, each dish's card as read on it before when this reading missed it (<see cref="KitchenMemory.Cards"/>).</summary>
+    private DispatchPanel? PanelShown()
+    {
+        if (_panelOpen is not { } panel || !_kitchens.TryGetValue(panel.Kitchen, out var kitchen)) return _panelOpen;
+        var read = panel.Dishes.Where(d => d.DishId is not null).Select(d => d.DishId!).ToHashSet();
+        var known = kitchen.Cards.Where(c => !read.Contains(c.Key) && panel.Dishes.All(d => d.Card != c.Value) && DishOf(c.Key) is not null)
+            .Select(c => new KitchenDish(c.Key, DishOf(c.Key)!.Zh, null) { Card = c.Value }).ToList();
+        return known.Count == 0 ? panel : panel with { Dishes = [.. panel.Dishes.Where(d => d.DishId is not null || known.All(k => k.Card != d.Card)), .. known] };
+    }
+
     private void TakePanel(DispatchPanel panel)
     {
         _panelKitchens = Math.Max(_panelKitchens, panel.Kitchens);
@@ -302,6 +339,12 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             if (dish.DishId is null) continue;
             _dishesSeen.Add(dish.DishId);
             if (dish.CookSeconds is { } s) kitchen.PanelCookSeconds[dish.DishId] = s;
+            if (dish.Card is >= 0 and < DispatchPanelReader.Cards)
+            {
+                // A card read as another dish now: the old one's place is forgotten.
+                foreach (var other in kitchen.Cards.Where(c => c.Value == dish.Card && c.Key != dish.DishId).Select(c => c.Key).ToList()) kitchen.Cards.Remove(other);
+                kitchen.Cards[dish.DishId] = dish.Card;
+            }
         }
         // The queue as shown, if every dish in it is known; otherwise the estimate stays.
         var filled = panel.Queue.Where(q => q.Filled).ToList();
@@ -587,8 +630,8 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             (k, dish) => Kitchen(k).Queue.SecondsUntilEmpty + kitchens.CookSeconds(k, dish));
         return new InnAdvice(dispatch, null, blaze, _blaze.Running, notes, unreadable, exact, !_ordersSeen)
         {
-            Calls = _calls.Update(dispatch, blaze, view),
-            Panel = _panelOpen,
+            Calls = _calls.Update(dispatch, blaze, view, now),
+            Panel = PanelShown(),
         };
     }
 }

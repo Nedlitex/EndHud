@@ -64,11 +64,18 @@ internal sealed record InnKitchenView(Func<int, string, int> Queued, Func<int, b
 /// </list>
 /// Anything else keeps the call on screen: ties and near-equal choices keep the current one. One order is
 /// called in one kitchen only. Full Blaze and the last call are the advice's own (it doesn't flicker).
+/// <para>A call no longer valid stays up for <see cref="GraceSeconds"/> first, and stays on if it's valid again by then
+/// (owner, live 2026-10-20: "it is still flashing ... should just stay, not flash all the time"): a reading that drops
+/// an order for a moment (a card misread as the HUD fades, the panel's queue read a frame short) would otherwise take
+/// the banner down and put it up again a frame later, sliding out and in. Done is done at once.</para>
 /// </summary>
 internal sealed class InnCallHold
 {
     /// <summary>An order moves to another kitchen only when it comes out there at least this much sooner.</summary>
     public const double ClearlyEarlierSeconds = 5;
+
+    /// <summary>A call no longer valid is taken down only once it has stayed so this long.</summary>
+    public static readonly TimeSpan GraceSeconds = TimeSpan.FromSeconds(1.5);
 
     private readonly Dictionary<int, Held> _held = [];
     private readonly List<string> _changes = [];
@@ -77,7 +84,8 @@ internal sealed class InnCallHold
     public IReadOnlyList<string> Changes => _changes;
 
     /// <param name="Queued">The kitchen's <see cref="InnKitchenView.Queued"/> for the call's dish when it was first shown.</param>
-    private sealed record Held(InnCall Call, int Queued);
+    /// <param name="InvalidSince">When it was first found no longer valid (and has been since); null while it stands.</param>
+    private sealed record Held(InnCall Call, int Queued, TimeSpan? InvalidSince = null);
 
     /// <summary>Forgets every call (the session ended).</summary>
     public void Clear()
@@ -86,8 +94,8 @@ internal sealed class InnCallHold
         _changes.Clear();
     }
 
-    /// <summary>The calls to show now, given this moment's advice.</summary>
-    public IReadOnlyList<InnCall> Update(DispatchAdvice dispatch, FullBlazeAdvice? blaze, InnKitchenView view)
+    /// <summary>The calls to show now, <paramref name="now"/> (the readings' clock), given this moment's advice.</summary>
+    public IReadOnlyList<InnCall> Update(DispatchAdvice dispatch, FullBlazeAdvice? blaze, InnKitchenView view, TimeSpan now)
     {
         // Every order the advice still sends to a kitchen, and every dish it cooks ahead, counted (a table may want
         // two of a dish; a dish may be cooked ahead twice). A call shown claims one, so one is never called twice.
@@ -117,12 +125,29 @@ internal sealed class InnCallHold
         var cooking = dispatch.Kitchens.ToDictionary(k => k.Kitchen);
         foreach (var (number, held) in _held.OrderBy(h => h.Key).ToList())
         {
+            if (Done(held, view))
+            {
+                _held.Remove(number);
+                _changes.Add($"{held.Call.Key} dropped: done (queued)");
+                continue;
+            }
             string? why = !cooking.TryGetValue(number, out var advice) ? "the kitchen no longer cooks"
-                : Done(held, view) ? "done (queued)"
                 : !Valid(held.Call, advice, wanted, view) ? (view.HasRoom(number) ? "no longer advised" : "the kitchen is full")
                 : !Claim(held.Call) ? "its order is called elsewhere"
                 : null;
-            if (why is null) continue;
+            if (why is null)
+            {
+                if (held.InvalidSince is not null) _held[number] = held with { InvalidSince = null };
+                continue;
+            }
+            var since = held.InvalidSince ?? now;
+            if (now - since < GraceSeconds)
+            {
+                // Kept a moment: what dropped it may be a reading that comes right back.
+                if (held.InvalidSince is null) _changes.Add($"{held.Call.Key} kept a moment: {why}");
+                _held[number] = held with { InvalidSince = since };
+                continue;
+            }
             _held.Remove(number);
             _changes.Add($"{held.Call.Key} dropped: {why}");
         }
@@ -132,6 +157,8 @@ internal sealed class InnCallHold
             var candidate = Candidate(advice, wanted);
             if (_held.TryGetValue(advice.Kitchen, out var held))
             {
+                // A call kept a moment stays as it is: the reading that dropped it may come right back.
+                if (held.InvalidSince is not null) continue;
                 if (candidate is null || candidate.Key == held.Call.Key || !Beats(candidate, held.Call, dispatch, view)) continue;
                 Release(held.Call);
                 _changes.Add($"{held.Call.Key} beaten by {candidate.Key}");
