@@ -93,6 +93,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     private readonly Dictionary<int, GourmandMemory> _gourmands = [];
     private readonly HashSet<string> _unreadLogged = [];
     private readonly HashSet<int> _unreadableLogged = []; // tables whose unreadable order was logged this session
+    private readonly HashSet<InnGap> _gapsLogged = []; // what the advice waited for, logged once per session (never shown)
     private readonly InnCallHold _calls = new();
     private readonly FullBlazeTracker _blaze = new();
     private int? _fire;
@@ -236,6 +237,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         _panelOpen = null;
         _calls.Clear();
         _unreadableLogged.Clear();
+        _gapsLogged.Clear();
     }
 
     private KitchenMemory Kitchen(int number)
@@ -492,6 +494,8 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         var kitchens = Kitchens();
         var menu = MenuDishes();
         InnGap? gap = kitchens is null ? InnGap.NoKitchens : menu.Count == 0 ? InnGap.NoMenu : null;
+        if (gap is { } missing && _gapsLogged.Add(missing))
+            _log($"inn: no advice yet, {(missing == InnGap.NoKitchens ? "no kitchen" : "no dish of the menu")} seen (not shown to the player)");
         if (gap is not null)
             return new InnAdvice(null, gap, null, _blaze.Running, [.. gourmandTables.Select(t => new InnGourmandNote(t, null, _gourmands[t].Unread, false)).Where(n => n.UnreadText is not null)],
                 unreadable, exact, !_ordersSeen);

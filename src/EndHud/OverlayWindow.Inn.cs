@@ -33,6 +33,14 @@ public partial class OverlayWindow
     private double _innWindowScale = 1;
     private bool _loadingInnSettings = true;
     private readonly Dictionary<string, BitmapSource?> _innPictures = [];
+    private bool _innProblemSaid;
+
+    /// <summary>
+    /// The inn was seen while it can only be partly read (<see cref="PartyMonitor.InnProblem"/>: the Simplified Chinese
+    /// OCR language missing), once per run, with the sentence saying what to install. The tray shows it; no panel
+    /// over the game says it (owner, live 2026-10-20: lines over the game about what can't be seen are "disturbing").
+    /// </summary>
+    public event Action<string>? InnProblemFound;
 
     /// <summary>The inn helper's setting, for the tray.</summary>
     public bool InnHelperEnabled => _config.InnHelperEnabled;
@@ -89,6 +97,12 @@ public partial class OverlayWindow
             RenderInn();
             return;
         }
+        if (_party.InnProblem is { } problem && !_innProblemSaid)
+        {
+            _innProblemSaid = true;
+            DiagnosticLog.Warn($"inn: on an inn screen, but it can only be partly read ({problem}); the tray says what to install");
+            InnProblemFound?.Invoke(Loc.Get(problem));
+        }
         if (Session() is { } session) session.Update(reading);
         _innOnScreen = reading.InSession;
         _innSetupScreen = reading.OnSetupScreens ? reading.Screen : null;
@@ -130,9 +144,9 @@ public partial class OverlayWindow
         {
             if (_innOnScreen && AdviceNow() is { } advice)
             {
-                // The panel: the gourmands only (and why there's no advice at all, when there's none); empty, it's put away.
-                model = InnStripView.Build(advice, Loc.Get, _party.InnProblem) is { Lines.Count: > 0 } built ? built : null;
-                calls = _party.InnProblem is null ? advice.Calls : [];
+                // The panel: the gourmands only; empty, it's put away.
+                model = InnStripView.Build(advice, Loc.Get) is { Lines.Count: > 0 } built ? built : null;
+                calls = advice.Calls;
             }
             else if (_menuOpen && !_innOnScreen)
                 // Something to drag, size and see through while the menu is open, out of the inn.
@@ -170,7 +184,7 @@ public partial class OverlayWindow
                 chefPlanning.Request(inputs, InnClock.Now, () => Dispatcher.BeginInvoke(RenderInnSetup));
                 chefs = chefPlanning.Showable(inputs);
             }
-            panels = InnSetupView.ForScreen(screen, session, chefs, menu, inn, Loc.Get, _party.InnProblem);
+            panels = InnSetupView.ForScreen(screen, session, chefs, menu, inn, Loc.Get);
         }
         // Drawn again when a panel's words change, or the window's size or the player's size does (the lines' width follows them).
         string key = $"{HintCanvas.ActualWidth:F0}x{HintCanvas.ActualHeight:F0}@{InnScale():F3}\n"

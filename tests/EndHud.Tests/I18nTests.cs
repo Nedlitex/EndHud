@@ -69,6 +69,19 @@ public partial class I18nTests
         Assert.Empty(failed);
     }
 
+    /// <summary>
+    /// Owner, live 2026-10-20: "do not display '还没看到厨房/菜单…', half of the time it is wrong and it is disturbing", and
+    /// the "厨房都排满了…" and "没有库存了，做不了…" lines: "do not display these either". No string says any of it.
+    /// </summary>
+    [Fact]
+    public void No_string_says_what_has_not_been_seen_a_full_kitchen_or_no_stock()
+    {
+        string xaml = File.ReadAllText(Path.Combine(AppFolder(), "i18n", "zh-CN.xaml"));
+
+        string[] banned = ["还没看到", "还不知道", "看不清", "都排满", "没有库存", "做不了"];
+        Assert.Equal([], xaml.Split('\n').Where(l => banned.Any(l.Contains)).Select(l => l.Trim()).ToArray());
+    }
+
     [GeneratedRegex(@"x:Key=""([^""]+)""")]
     private static partial Regex KeyDefinition();
 

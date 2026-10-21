@@ -105,6 +105,8 @@ internal sealed class TrayIcon : IDisposable
             if (automatic && result.Added.Count + result.Updated.Count > 0)
                 OnUi(() => Notify(PublishedText(result), _overlay.OpenRotationEditor));
         };
+        // What to install for the inn helper: said here and in the log, never over the game.
+        _overlay.InnProblemFound += text => OnUi(() => Notify(text, null));
         _overlay.NewOperatorsFound += added => OnUi(() =>
             Notify(Loc.Format("Operators.NewFound", string.Join("、", added.Select(o => o.NameZh))), null));
 

@@ -132,24 +132,13 @@ public class InnSetupViewTests(ITestOutputHelper output)
         Assert.All(panels, p => Assert.Equal(["正在推荐…"], Lines(p)));
     }
 
+    /// <summary>Owner, live 2026-10-20: no "还没看到…" lines ("half of the time it is wrong and it is disturbing"): nothing read yet, no panel.</summary>
     [Fact]
-    public void Nothing_read_yet_says_what_is_missing_under_the_first_kitchen()
+    public void Nothing_read_yet_shows_no_panel()
     {
-        var panels = InnSetupView.ForScreen(InnScreenKind.Setup, NewSession(), null, null, Inn, Text);
-
-        var panel = Assert.Single(panels);
-        Assert.Equal(InnAdviceSpot.Kitchen1, panel.Spot);
-        Assert.Equal(["还没看到主题：打开「营业设定」"], Lines(panel));
-    }
-
-    [Fact]
-    public void Without_text_recognition_only_what_to_install()
-    {
-        var (session, chefs, menu) = ChenInKitchen1.Value;
-
-        var panels = InnSetupView.ForScreen(InnScreenKind.Menu, session, chefs, menu, Inn, Text, "Inn.Problem.NoTextRecognition");
-
-        Assert.Equal([Text("Inn.Problem.NoTextRecognition")], Lines(Assert.Single(panels)));
+        Assert.Empty(InnSetupView.ForScreen(InnScreenKind.Setup, NewSession(), null, null, Inn, Text));
+        Assert.Empty(InnSetupView.ForScreen(InnScreenKind.ChefPicker, NewSession(), null, null, Inn, Text));
+        Assert.Empty(InnSetupView.ForScreen(InnScreenKind.Menu, NewSession(), null, null, Inn, Text));
     }
 
     // ---- The chef picker: that kitchen's advice ----
@@ -171,13 +160,11 @@ public class InnSetupViewTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void A_chef_picker_whose_kitchen_was_not_read_says_so()
+    public void A_chef_picker_whose_kitchen_was_not_read_shows_nothing()
     {
         var (session, chefs, _) = ChenInKitchen1.Value;
 
-        var panel = Assert.Single(InnSetupView.Picker(null, session.SetupInputs(), chefs, Inn, Text));
-
-        Assert.Equal(["看不清是哪个厨房的干员选择"], Lines(panel));
+        Assert.Empty(InnSetupView.Picker(null, session.SetupInputs(), chefs, Inn, Text));
     }
 
     // ---- The menu screen: the menu for the chefs placed ----

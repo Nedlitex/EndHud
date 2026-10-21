@@ -58,9 +58,9 @@ internal sealed record InnStripModel(IReadOnlyList<InnLine> Lines)
 /// current panel, use the combo instead. the current panel has the requirements of the gourmands"). A card per
 /// gourmand: what they asked for in plain words and what on the menu meets it, with where it is. Every other call
 /// (the next dish per kitchen, a swap, the last call, Full Blaze) is a banner (<see cref="InnCallView"/>). With no
-/// gourmand the panel is empty and put away; it says only why the helper can't advise at all, when it can't (the
-/// kitchens or the menu not seen yet, the text recognition missing), since then no banner shows either.
-/// Every string from i18n/zh-CN.xaml.
+/// gourmand the panel is empty and put away. What the helper hasn't seen yet (the kitchens, the menu, the drinks) is
+/// never said (owner, live 2026-10-20: "do not display '还没看到厨房/菜单…', half of the time it is wrong and it is
+/// disturbing"); it's in the diagnostic log. Every string from i18n/zh-CN.xaml.
 /// </summary>
 internal static class InnStripView
 {
@@ -68,18 +68,12 @@ internal static class InnStripView
     public const int OptionsShown = 3;
 
     /// <param name="text">The i18n lookup (<see cref="Loc.Get"/>; the tests pass zh-CN.xaml's strings).</param>
-    /// <param name="problemKey">Why the inn can only be partly read (<see cref="PartyMonitor.InnProblem"/>), or null.</param>
-    public static InnStripModel Build(InnAdvice advice, Func<string, string> text, string? problemKey = null)
+    public static InnStripModel Build(InnAdvice advice, Func<string, string> text)
     {
         string T(string key) => text(key);
         string F(string key, params object[] args) => string.Format(text(key), args);
 
-        // Nothing but the timer can be read: what to install is the only useful line.
-        if (problemKey is not null) return new InnStripModel([InnLine.Of(InnLineStyle.Note, new InnSegment(T(problemKey)))]);
-
         var lines = new List<InnLine>();
-        if (advice.Gap is { } gap)
-            lines.Add(InnLine.Of(InnLineStyle.Note, new InnSegment(T(gap == InnGap.NoKitchens ? "Inn.Gap.NoKitchens" : "Inn.Gap.NoMenu"))));
         foreach (var note in advice.Gourmands.OrderBy(g => g.Table)) lines.AddRange(GourmandLines(note, advice.ExactKitchens, T, F));
         return new InnStripModel(lines);
     }
@@ -107,8 +101,8 @@ internal static class InnStripView
             yield return InnLine.Of(InnLineStyle.Normal, new InnSegment(F("Inn.Gourmand.Wants", [request.Description])));
             if (request.Options.Count == 0)
             {
-                bool forDrink = request.Options.Count == 0 && note.DrinksUnknown;
-                yield return InnLine.Of(InnLineStyle.Note, new InnSegment(T(forDrink ? "Inn.Gourmand.NoDrinksSeen" : "Inn.Gourmand.NoneOnMenu")));
+                // No drink of the menu seen yet: nothing to offer, and "none on the menu" would be wrong; nothing is said.
+                if (!note.DrinksUnknown) yield return InnLine.Of(InnLineStyle.Note, new InnSegment(T("Inn.Gourmand.NoneOnMenu")));
                 continue;
             }
             var segments = new List<InnSegment> { new InnSegment(T("Inn.Gourmand.Options")).Kept() };

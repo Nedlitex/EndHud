@@ -16,7 +16,7 @@ public class InnStripViewTests
     private const string Juice = "bottled-duskberry-juice", Tea = "pre-tide-lungjing", Milk = "bottled-milk-a";
     private static readonly string[] Menu = [A, B, C, D, E, Juice, Tea, Milk];
 
-    private static InnStripModel Strip(InnAdvice advice, string? problem = null) => InnStripView.Build(advice, Text, problem);
+    private static InnStripModel Strip(InnAdvice advice) => InnStripView.Build(advice, Text);
 
     private static IReadOnlyList<InnBannerModel> Banners(InnAdvice advice) => InnCallView.Of(advice.Calls, Text);
 
@@ -306,23 +306,18 @@ public class InnStripViewTests
         Assert.Equal(Queue(1, A), banner.Title);
     }
 
+    /// <summary>
+    /// Owner, live 2026-10-20: "do not display '还没看到厨房/菜单…', half of the time it is wrong and it is disturbing".
+    /// What hasn't been seen yet is never said in the panel (it's logged): with no gourmand, the panel is empty and put away.
+    /// </summary>
     [Theory]
-    [InlineData(true, "Inn.Gap.NoKitchens")]
-    [InlineData(false, "Inn.Gap.NoMenu")]
-    public void What_is_missing_is_said_in_the_panel_since_no_banner_can_show(bool noKitchens, string key)
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Nothing_is_said_about_what_has_not_been_seen_yet(bool noKitchens)
     {
         var strip = Strip(new InnAdvice(null, noKitchens ? InnGap.NoKitchens : InnGap.NoMenu, null, false, [], [], new HashSet<int>(), true));
 
-        Assert.Equal(Text(key), Assert.Single(strip.Lines).Text);
-    }
-
-    [Fact]
-    public void Without_text_recognition_the_panel_says_what_to_install()
-    {
-        var strip = Strip(new InnAdvice(null, InnGap.NoKitchens, null, false, [], [], new HashSet<int>(), true), "Inn.Problem.NoTextRecognition");
-
-        // Only that: "open the dispatch panel" would not help, nothing on it can be read.
-        Assert.Equal(Text("Inn.Problem.NoTextRecognition"), Assert.Single(strip.Lines).Text);
+        Assert.Empty(strip.Lines);
     }
 
     // ---- The gourmand card ----
@@ -401,15 +396,16 @@ public class InnStripViewTests
         Assert.Equal(Text("Inn.Gourmand.NoneOnMenu"), lines[2].Text);
     }
 
+    /// <summary>A drink request before any drink of the menu has been seen: nothing to offer yet, and nothing said about it (not "none on the menu", which would be wrong).</summary>
     [Fact]
-    public void A_drink_request_before_any_drink_of_the_menu_has_been_seen_says_that_instead_of_none()
+    public void A_drink_request_before_any_drink_of_the_menu_has_been_seen_says_nothing_about_it()
     {
         var request = new GourmandRequest("said", "x");
         var note = new InnGourmandNote(1, new GourmandAdvice([new GourmandRequestAdvice(request, "plain", [])], null), null, DrinksUnknown: true);
 
         var lines = Strip(Advice(Kitchens(), gourmands: [note])).Lines;
 
-        Assert.Equal(Text("Inn.Gourmand.NoDrinksSeen"), lines[^1].Text);
+        Assert.Equal(Format("Inn.Gourmand.Wants", "plain"), lines[^1].Text);
     }
 
     [Fact]

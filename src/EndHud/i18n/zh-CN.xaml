@@ -326,8 +326,6 @@
     <sys:String x:Key="Inn.Call.Sample">派单提示示例</sys:String>
     <sys:String x:Key="Inn.Call.SampleCaption">营业时，该排什么菜会这样提示</sys:String>
     <sys:String x:Key="Inn.Call.Drag">按住拖动，调整派单提示位置</sys:String>
-    <sys:String x:Key="Inn.Gap.NoKitchens">还没看到厨房：打开「派单」看一眼，就能按厨房给出建议</sys:String>
-    <sys:String x:Key="Inn.Gap.NoMenu">还没看到菜单：打开「派单」看一眼，就能知道菜单上有哪些菜</sys:String>
     <sys:String x:Key="Inn.Problem.NoTextRecognition">缘缘庄助手需要 Windows 的简体中文文字识别：设置 → 时间和语言 → 语言和区域 → 添加“中文(简体，中国)”，然后重启 EndHud</sys:String>
     <sys:String x:Key="Inn.Gourmand.Title">老饕（桌{0}）</sys:String>
     <sys:String x:Key="Inn.Gourmand.Wants">要求：{0}</sys:String>
@@ -336,7 +334,6 @@
     <sys:String x:Key="Inn.Gourmand.Unknown">没认出这位老饕的要求</sys:String>
     <sys:String x:Key="Inn.Gourmand.Read">看到的字：{0}</sys:String>
     <sys:String x:Key="Inn.Gourmand.NoneOnMenu">菜单里没有符合的</sys:String>
-    <sys:String x:Key="Inn.Gourmand.NoDrinksSeen">还不知道菜单上有哪些饮品：等有客人点过饮品后再推荐</sys:String>
     <sys:String x:Key="Inn.Where.Wrap">（{0}）</sys:String>
     <sys:String x:Key="Inn.Where.Carried">手上有</sys:String>
     <sys:String x:Key="Inn.Where.Counter">出餐台有</sys:String>
@@ -354,7 +351,6 @@
     <sys:String x:Key="Inn.Setup.Full">已排好</sys:String>
     <sys:String x:Key="Inn.Setup.KitchenUnused">不用排干员</sys:String>
     <sys:String x:Key="Inn.Setup.PickerTitle">{0} · 推荐</sys:String>
-    <sys:String x:Key="Inn.Setup.PickerUnknown">看不清是哪个厨房的干员选择</sys:String>
     <sys:String x:Key="Inn.Setup.MenuTitle">推荐菜单（按现在的厨师）</sys:String>
     <sys:String x:Key="Inn.Setup.MenuTitleChefsPicked">推荐菜单（还没排厨师，按推荐的厨师算）</sys:String>
     <sys:String x:Key="Inn.Setup.Dishes">菜品：</sys:String>
@@ -364,9 +360,6 @@
     <sys:String x:Key="Inn.Setup.RuleNotUnderstood">看不懂菜单要求：{0}（推荐没有算上它）</sys:String>
     <sys:String x:Key="Inn.Setup.RulesUnmet">现有的菜凑不齐全部菜单要求，上面已尽量接近</sys:String>
     <sys:String x:Key="Inn.Setup.ChoiceTargetUnreached">按现在的厨师，预计只能卖出约{0}道珍馐，达不到主题加分项的{1}道</sys:String>
-    <sys:String x:Key="Inn.Setup.Gap.ThemeUnreadable">看不清主题（画面被遮挡）</sys:String>
-    <sys:String x:Key="Inn.Setup.Gap.NoSetup">还没看到主题：打开「营业设定」</sys:String>
-    <sys:String x:Key="Inn.Setup.Gap.NoKitchens">还没看到厨房：回到「营业设定」看一眼厨房</sys:String>
     <sys:String x:Key="Menu.Inn">缘缘庄助手</sys:String>
     <sys:String x:Key="Menu.Inn.Hint">营业前：在营业设定里，每个厨房下方推荐该厨房的干员（已排的保留）；安排干员时显示这个厨房的推荐；设定菜单时，按现在排好的厨师推荐菜单和饮品。没有的换「可换」里的。营业时，每个厨房下一道该排的菜、提醒开启满堂彩、收尾该端给哪桌，都用和连携技提示一样的横幅显示，排好了就收起；旁边的面板只解读老饕的要求。只给建议，不会替你操作。菜单打开时显示示例，可直接拖动调整位置。大小和不透明度在下方调整。</sys:String>
     <sys:String x:Key="Menu.Inn.ResetPosition">恢复默认位置</sys:String>

@@ -139,18 +139,6 @@ public class InnStripLayoutTests
     }
 
     [Fact]
-    public void The_sentence_saying_what_to_install_wraps_within_the_strip()
-    {
-        var model = InnStripView.Build(new InnAdvice(null, InnGap.NoKitchens, null, false, [], [], new HashSet<int>(), true), Text, "Inn.Problem.NoTextRecognition");
-
-        var size = Measure(model, PackagePicture);
-
-        Assert.True(size.Width <= InnStrip.LineWidth + 40, $"{size.Width:F0} units wide");
-        var oneLine = Measure(InnStripView.Build(new InnAdvice(null, InnGap.NoKitchens, null, false, [], [], new HashSet<int>(), true), Text), PackagePicture);
-        Assert.True(size.Height > oneLine.Height, $"{size.Height:F0} units tall against {oneLine.Height:F0} for one line: not wrapped");
-    }
-
-    [Fact]
     public void A_long_gourmand_line_wraps_between_dishes_not_off_the_panel()
     {
         var size = Measure(Busiest(), PackagePicture);

@@ -157,14 +157,15 @@ public class InnSetupPanelTests
     }
 
     [Fact]
-    public void An_unreadable_theme_with_none_remembered_says_so_and_nothing_else()
+    public void An_unreadable_theme_with_none_remembered_shows_nothing()
     {
         var session = NewSession();
         session.Update(new InnReading(InnScreenKind.Setup, S(6), Setup: null)); // read, and nothing could be read
 
         var inputs = session.SetupInputs();
         Assert.Null(inputs.Input);
-        Assert.Equal(["看不清主题（画面被遮挡）"], Lines(InnSetupView.Setup(inputs, Advice.Value, Inn, Text)));
+        Assert.Equal([InnSetupGap.ThemeUnreadable], inputs.Gaps);
+        Assert.Empty(InnSetupView.Setup(inputs, Advice.Value, Inn, Text));
     }
 
     [Fact]

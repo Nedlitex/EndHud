@@ -375,20 +375,14 @@ internal sealed record InnAdvicePanel(InnAdviceSpot Spot, InnStripModel Model);
 /// plan would pick, and it says so): a dishes row, a tick before those already on the menu, and
 /// a drinks row, each with a short substitutes row under it.</item>
 /// </list>
-/// Nothing anywhere else: not on the theme list, not in a session. What's missing (the theme, the
-/// kitchens) is said instead of a guess, in the first spot of the screen.
+/// Nothing anywhere else: not on the theme list, not in a session. What hasn't been read (the theme, the kitchens,
+/// a picker's kitchen) shows no panel at all, never a guess and never a "not seen yet" line (owner, live 2026-10-20:
+/// "half of the time it is wrong and it is disturbing").
 /// </summary>
 internal static class InnSetupView
 {
     /// <summary>Prefix of an operator's picture id: their avatar, not a dish's picture.</summary>
     public const string OperatorPicture = "op:";
-
-    private static readonly Dictionary<InnSetupGap, string> GapKeys = new()
-    {
-        [InnSetupGap.ThemeUnreadable] = "Inn.Setup.Gap.ThemeUnreadable",
-        [InnSetupGap.NoSetup] = "Inn.Setup.Gap.NoSetup",
-        [InnSetupGap.NoKitchens] = "Inn.Setup.Gap.NoKitchens",
-    };
 
     /// <summary>
     /// The panels for <paramref name="screen"/>: per kitchen on the setup screen, one in a chef picker, one on
@@ -397,31 +391,19 @@ internal static class InnSetupView
     /// <param name="chefs">The plan for <see cref="InnSession.SetupInputs"/> (<see cref="InnSetupPlanning.Showable"/>); null while it's worked out.</param>
     /// <param name="menu">The plan for <see cref="InnSession.MenuInputs"/>; null while it's worked out.</param>
     /// <param name="text">The i18n lookup (<see cref="Loc.Get"/>; the tests pass zh-CN.xaml's strings).</param>
-    /// <param name="problemKey">Why the inn can only be partly read (<see cref="PartyMonitor.InnProblem"/>), or null.</param>
     public static IReadOnlyList<InnAdvicePanel> ForScreen(InnScreenKind? screen, InnSession session, InnSetupAdvice? chefs, InnSetupAdvice? menu,
-        InnData data, Func<string, string> text, string? problemKey = null)
+        InnData data, Func<string, string> text) => screen switch
     {
-        var first = screen switch
-        {
-            InnScreenKind.Setup => InnAdviceSpot.Kitchen1,
-            InnScreenKind.ChefPicker => InnAdviceSpot.Picker,
-            InnScreenKind.Menu => InnAdviceSpot.Menu,
-            _ => (InnAdviceSpot?)null,
-        };
-        if (first is not { } spot) return [];
-        if (problemKey is not null) return [new InnAdvicePanel(spot, Note(text(problemKey)))];
-        return screen switch
-        {
-            InnScreenKind.Setup => Setup(session.SetupInputs(), chefs, data, text),
-            InnScreenKind.ChefPicker => Picker(session.PickerKitchen, session.SetupInputs(), chefs, data, text),
-            _ => Menu(session.MenuInputs(), menu, session.OnMenu, data, text),
-        };
-    }
+        InnScreenKind.Setup => Setup(session.SetupInputs(), chefs, data, text),
+        InnScreenKind.ChefPicker => Picker(session.PickerKitchen, session.SetupInputs(), chefs, data, text),
+        InnScreenKind.Menu => Menu(session.MenuInputs(), menu, session.OnMenu, data, text),
+        _ => [],
+    };
 
     /// <summary>The setup screen: a panel under each kitchen's card.</summary>
     public static IReadOnlyList<InnAdvicePanel> Setup(InnSetupInputs inputs, InnSetupAdvice? advice, InnData data, Func<string, string> text)
     {
-        if (inputs.Input is not { } input) return [Gaps(InnAdviceSpot.Kitchen1, inputs, text)];
+        if (inputs.Input is not { } input) return [];
         return [.. input.Kitchens.OrderBy(k => k.Number).Select(k => new InnAdvicePanel((InnAdviceSpot)k.Number,
             new InnStripModel(advice?.Suggestions.Kitchens.FirstOrDefault(s => s.Number == k.Number) is { } kitchen
                 ? KitchenLines(kitchen, data, text)
@@ -432,10 +414,7 @@ internal static class InnSetupView
     /// <param name="kitchen">The kitchen the picker is for (<see cref="InnSession.PickerKitchen"/>); null when its title wasn't read.</param>
     public static IReadOnlyList<InnAdvicePanel> Picker(int? kitchen, InnSetupInputs inputs, InnSetupAdvice? advice, InnData data, Func<string, string> text)
     {
-        if (inputs.Input is null) return [Gaps(InnAdviceSpot.Picker, inputs, text)];
-        if (kitchen is not { } number) return [new InnAdvicePanel(InnAdviceSpot.Picker, Note(text("Inn.Setup.PickerUnknown")))];
-        if (!inputs.Input.Kitchens.Any(k => k.Number == number))
-            return [new InnAdvicePanel(InnAdviceSpot.Picker, Note(text(GapKeys[InnSetupGap.NoKitchens])))];
+        if (inputs.Input is null || kitchen is not { } number || !inputs.Input.Kitchens.Any(k => k.Number == number)) return [];
         var lines = new List<InnLine> { InnLine.Of(InnLineStyle.Heading, new InnSegment(string.Format(text("Inn.Setup.PickerTitle"), text($"Inn.Kitchen.{number}")))) };
         lines.AddRange(advice?.Suggestions.Kitchens.FirstOrDefault(s => s.Number == number) is { } suggestion
             ? KitchenLines(suggestion, data, text)
@@ -448,7 +427,7 @@ internal static class InnSetupView
     public static IReadOnlyList<InnAdvicePanel> Menu(InnSetupInputs inputs, InnSetupAdvice? advice, IReadOnlyCollection<string> onMenu, InnData data,
         Func<string, string> text)
     {
-        if (inputs.Input is null) return [Gaps(InnAdviceSpot.Menu, inputs, text)];
+        if (inputs.Input is null) return [];
         var lines = new List<InnLine>();
         // A rule the planner couldn't take in: the plan ignores it, so the player must know.
         lines.AddRange(inputs.RulesNotUnderstood.Select(r => InnLine.Of(InnLineStyle.Note, new InnSegment(string.Format(text("Inn.Setup.RuleNotUnderstood"), r)))));
@@ -483,11 +462,6 @@ internal static class InnSetupView
         else lines.AddRange(Rows(text("Inn.Setup.Recommend"), kitchen.Chefs.Select(c => One(Chef(c))), kitchen.ChefSubstitutes.Select(c => One(Chef(c))), text));
         return lines;
     }
-
-    private static InnAdvicePanel Gaps(InnAdviceSpot spot, InnSetupInputs inputs, Func<string, string> text) =>
-        new(spot, new InnStripModel([.. inputs.Gaps.Select(g => InnLine.Of(InnLineStyle.Note, new InnSegment(text(GapKeys[g]))))]));
-
-    private static InnStripModel Note(string words) => new([InnLine.Of(InnLineStyle.Note, new InnSegment(words))]);
 
     private static InnLine Working(Func<string, string> text) => InnLine.Of(InnLineStyle.Dim, new InnSegment(text("Inn.Setup.Working")));
 
