@@ -220,3 +220,47 @@ public class InnSetupMarksTests
         Assert.Empty(InnSetupMarks.Of(InnScreenKind.ChefPicker, ["melon-meatball-soup"], menu, chefs, Text));
     }
 }
+
+/// <summary>
+/// The setup screens' cards as the display keeps them for the marks (<see cref="InnDisplay"/>): the menu screen and the
+/// chef picker are read every half second, so a frame between reads (or a read that found no card) keeps the cards
+/// last read; another screen, or leaving the inn, forgets them, so no mark is left on a screen it isn't about.
+/// </summary>
+public class InnSetupCardsTests
+{
+    private static InnReading Menu(double at, params MenuCard[] cards) =>
+        new(InnScreenKind.Menu, S(at), Menu: new InnMenu(MenuTab.AllDishes, null, null, cards));
+
+    private static readonly MenuCard Soup = new("melon-meatball-soup", "?", false, true, null) { Area = new PixelRect(1667, 412, 898, 257) };
+
+    [Fact]
+    public void The_menus_cards_are_kept_between_reads_and_forgotten_on_another_screen()
+    {
+        var display = new InnDisplay();
+        display.Show(null, Menu(0, Soup), S(0));
+        Assert.Equal([Soup], display.MenuCards);
+
+        display.Show(null, new InnReading(InnScreenKind.Menu, S(0.3), Fresh: false), S(0.3));
+        display.Show(null, Menu(0.5), S(0.5));
+        Assert.Equal([Soup], display.MenuCards);
+
+        display.Show(null, new InnReading(InnScreenKind.Setup, S(1)), S(1));
+        Assert.Empty(display.MenuCards);
+        display.Show(null, Menu(1.5, Soup), S(1.5));
+        display.Show(null, null, S(2));
+        Assert.Empty(display.MenuCards);
+    }
+
+    [Fact]
+    public void The_pickers_cards_are_kept_between_reads_and_forgotten_on_another_screen()
+    {
+        var yvonne = new ChefCard(default, [ChefIcon.Dessert, ChefIcon.Dessert], "Savory", ["Yvonne"], "Yvonne") { Area = new PixelRect(650, 272, 240, 398) };
+        var display = new InnDisplay();
+        display.Show(null, new InnReading(InnScreenKind.ChefPicker, S(0)) { PickerCards = [yvonne] }, S(0));
+        display.Show(null, new InnReading(InnScreenKind.ChefPicker, S(0.3), Fresh: false), S(0.3));
+        Assert.Equal([yvonne], display.PickerCards);
+
+        display.Show(null, Menu(1), S(1));
+        Assert.Empty(display.PickerCards);
+    }
+}
