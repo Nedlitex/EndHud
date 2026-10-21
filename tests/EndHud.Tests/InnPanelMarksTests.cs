@@ -157,3 +157,59 @@ public class InnPanelMarkLayoutTests
         Assert.True(label.Height <= card.Height * 0.3, $"the label is {label.Height:F0} of the card's {card.Height:F0} units tall");
     }
 }
+
+/// <summary>
+/// The same card mark on the setup screens (owner, live 2026-10-20: "in the choose dish and choose cook menu, show the
+/// same suggestion like the suggestion in session for cooking", <see cref="InnSetupMarks"/>): on the menu screen each
+/// recommended dish's and drink's card in view, in a chef picker each recommended chef's card in view; only cards read
+/// for sure.
+/// </summary>
+public class InnSetupMarksTests
+{
+    private static MenuCard MenuCard(string? id, int x, int y, bool inView = true) =>
+        new(id, id ?? "?", OnMenu: false, Unlimited: true, Stock: null) { Area = inView ? new PixelRect(x, y, 898, 257) : null };
+
+    private static ChefCard ChefCard(string? id, int x, int y) =>
+        new(default, [ChefIcon.Entree, ChefIcon.Side], "Salty", id is null ? [] : [id], id) { Area = new PixelRect(x, y, 240, 398) };
+
+    [Fact]
+    public void On_the_menu_screen_each_recommended_card_in_view_is_marked()
+    {
+        IReadOnlyList<MenuCard> cards =
+        [
+            MenuCard("melon-meatball-soup", 1667, 412), MenuCard("berry-fruity-toss", 2625, 412),
+            MenuCard("spoon-swimmer", 2625, 729), MenuCard(null, 1667, 1045), MenuCard("fin-mato-soup", 1667, 1362, inView: false),
+        ];
+
+        var marks = InnSetupMarks.Of(InnScreenKind.Menu, ["melon-meatball-soup", "spoon-swimmer", "fin-mato-soup", "pre-tide-lungjing"], cards, [], Text);
+
+        Assert.Equal([new PixelRect(1667, 412, 898, 257), new PixelRect(2625, 729, 898, 257)], marks.Select(m => m.Area));
+        Assert.All(marks, m => Assert.True(m.OnCard));
+        Assert.All(marks, m => Assert.Equal("推荐", m.Label));
+    }
+
+    [Fact]
+    public void In_a_chef_picker_each_recommended_chefs_card_in_view_is_marked_and_no_unnamed_card()
+    {
+        IReadOnlyList<ChefCard> cards = [ChefCard("Lifeng", 109, 272), ChefCard(null, 379, 272), ChefCard("Yvonne", 650, 272), ChefCard("Akekuri", 109, 698)];
+
+        var marks = InnSetupMarks.Of(InnScreenKind.ChefPicker, ["Yvonne", "Akekuri", "Perlica"], [], cards, Text);
+
+        Assert.Equal([new PixelRect(650, 272, 240, 398), new PixelRect(109, 698, 240, 398)], marks.Select(m => m.Area));
+        Assert.All(marks, m => Assert.Equal("推荐", m.Label));
+    }
+
+    [Fact]
+    public void Nothing_is_marked_on_other_screens_or_with_nothing_recommended()
+    {
+        IReadOnlyList<MenuCard> menu = [MenuCard("melon-meatball-soup", 1667, 412)];
+        IReadOnlyList<ChefCard> chefs = [ChefCard("Yvonne", 650, 272)];
+
+        Assert.Empty(InnSetupMarks.Of(InnScreenKind.Setup, ["melon-meatball-soup", "Yvonne"], menu, chefs, Text));
+        Assert.Empty(InnSetupMarks.Of(null, ["melon-meatball-soup", "Yvonne"], menu, chefs, Text));
+        Assert.Empty(InnSetupMarks.Of(InnScreenKind.Menu, [], menu, chefs, Text));
+        // The menu's marks never come from the picker's cards, nor the picker's from the menu's.
+        Assert.Empty(InnSetupMarks.Of(InnScreenKind.Menu, ["Yvonne"], menu, chefs, Text));
+        Assert.Empty(InnSetupMarks.Of(InnScreenKind.ChefPicker, ["melon-meatball-soup"], menu, chefs, Text));
+    }
+}

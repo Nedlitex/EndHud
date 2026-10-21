@@ -25,6 +25,12 @@ internal sealed class InnDisplay
     /// <summary>The last reading's screen when it was the setup screen, a chef picker or the menu screen.</summary>
     public InnScreenKind? SetupScreen { get; private set; }
 
+    /// <summary>The menu screen's cards in view, as last read while it shows (kept through a read that found none).</summary>
+    public IReadOnlyList<MenuCard> MenuCards { get; private set; } = [];
+
+    /// <summary>A chef picker's cards in view, as last read while it shows.</summary>
+    public IReadOnlyList<ChefCard> PickerCards { get; private set; } = [];
+
     /// <summary>A reading of the inn (null: a frame that isn't the inn), handed to <paramref name="session"/>.</summary>
     public void Show(InnSession? session, InnReading? reading, TimeSpan now)
     {
@@ -32,12 +38,37 @@ internal sealed class InnDisplay
         {
             OnSession = false;
             SetupScreen = null;
+            MenuCards = [];
+            PickerCards = [];
             session?.Tick(now);
             return;
         }
         session?.Update(reading);
         OnSession = reading.InSession;
-        SetupScreen = reading.OnSetupScreens ? reading.Screen : null;
+        var setupScreen = reading.OnSetupScreens ? reading.Screen : (InnScreenKind?)null;
+        // Cards of another screen are gone; a read that found none (or a frame between reads) keeps those last read.
+        if (setupScreen != InnScreenKind.Menu) MenuCards = [];
+        else if (reading.Menu is { Cards.Count: > 0 } menu) MenuCards = menu.Cards;
+        if (setupScreen != InnScreenKind.ChefPicker) PickerCards = [];
+        else if (reading.PickerCards is { Count: > 0 } cards) PickerCards = cards;
+        SetupScreen = setupScreen;
+    }
+
+    /// <summary>
+    /// The marks on the setup screens' cards (<see cref="InnSetupMarks"/>): the menu screen's recommended dishes and drinks
+    /// (<paramref name="menu"/>'s plan), a chef picker's recommended chefs for its kitchen (<paramref name="chefs"/>' suggestion
+    /// for <paramref name="pickerKitchen"/>).
+    /// </summary>
+    public IReadOnlyList<InnPanelMark> SetupMarks(InnSetupAdvice? chefs, InnSetupAdvice? menu, int? pickerKitchen, Func<string, string> text)
+    {
+        IReadOnlyCollection<string> recommended = SetupScreen switch
+        {
+            InnScreenKind.Menu when menu is not null => [.. menu.Plan.Dishes.Select(d => d.Dish.Id), .. menu.Plan.Drinks.Select(d => d.Drink.Id)],
+            InnScreenKind.ChefPicker when chefs?.Suggestions.Kitchens.FirstOrDefault(k => k.Number == pickerKitchen) is { } kitchen =>
+                [.. kitchen.Chefs.Select(c => c.Id)],
+            _ => [],
+        };
+        return InnSetupMarks.Of(SetupScreen, recommended, MenuCards, PickerCards, text);
     }
 
     /// <summary>What the session's overlays show now: nothing off a session.</summary>

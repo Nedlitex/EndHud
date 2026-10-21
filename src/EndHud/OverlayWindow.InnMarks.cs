@@ -4,8 +4,9 @@ namespace EndHud;
 
 /// <summary>
 /// The marks on the open dispatch panel (<see cref="InnPanelMarks"/>): the suggested dish's card outlined, the other
-/// kitchens' tabs labelled. They follow the game's layout (no dragging, nothing in config); drawn again when the marks,
-/// the window's size or the inn's size change; with the banners' setting (InnCallsEnabled).
+/// kitchens' tabs labelled, with the banners' setting (InnCallsEnabled); and on the setup screens the recommended cards
+/// (<see cref="InnSetupMarks"/>). They follow the game's layout (no dragging, nothing in config); drawn again when the
+/// marks, the window's size or the inn's size change.
 /// </summary>
 public partial class OverlayWindow
 {

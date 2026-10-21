@@ -30,7 +30,11 @@ public enum ChefIcon
 /// <param name="OperatorId">Who the card is: the one candidate its portrait matches; null when the profile and the portrait don't agree (never guessed).</param>
 /// <param name="Portrait">The operator the portrait is closest to in the whole roster and how close (0 = the same character); null when it wasn't compared.</param>
 public sealed record ChefCard(PixelRect Place, IReadOnlyList<ChefIcon?> Icons, string? Flavor, IReadOnlyList<string> Candidates, string? OperatorId,
-    (string Id, float Difference)? Portrait = null);
+    (string Id, float Difference)? Portrait = null)
+{
+    /// <summary>The card's place at 4K on the window's centred 16:9 area (<see cref="Place"/> is in the frame's pixels).</summary>
+    public PixelRect Area { get; init; }
+}
 
 /// <summary>
 /// The chef picker (a kitchen's 安排干员 screen): who each card of the grid is, though the cards
@@ -93,7 +97,8 @@ public sealed class ChefPickerReader(InnData data, PortraitMatcher matcher)
                 var icons = IconCentres.Select(x => ClassifyIcon(frame, layout, left + x, barBottom + BarToIcons)).ToList();
                 // Not a card: the dark run wasn't a label bar (dark hair, a shadow).
                 if (icons.All(i => i is null)) continue;
-                var place = layout.Centered(new PixelRect(left, (int)Math.Round(barBottom - BarToCardTop), CardWidth, BarToCardTop + BarToChipBottom));
+                var area = new PixelRect(left, (int)Math.Round(barBottom - BarToCardTop), CardWidth, BarToCardTop + BarToChipBottom);
+                var place = layout.Centered(area);
                 string? flavor = ReadFlavor(frame, layout, left, barBottom);
                 var candidates = Candidates(icons, flavor);
                 string? id = null;
@@ -109,7 +114,7 @@ public sealed class ChefPickerReader(InnData data, PortraitMatcher matcher)
                         closest = (_roster[best].Id, differences[best]);
                     }
                 }
-                cards.Add(new ChefCard(place, icons, flavor, candidates, id, closest));
+                cards.Add(new ChefCard(place, icons, flavor, candidates, id, closest) { Area = area });
             }
         }
         return [.. cards.OrderBy(c => c.Place.Y / Math.Max(1, (int)(100 * layout.Scale))).ThenBy(c => c.Place.X)];

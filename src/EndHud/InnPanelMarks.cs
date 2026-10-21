@@ -18,6 +18,36 @@ internal sealed record InnPanelMark(PixelRect Area, string Label, bool OnCard)
 }
 
 /// <summary>
+/// The same card mark on the setup screens (owner, live 2026-10-20: "in the choose dish and choose cook menu, show the same
+/// suggestion like the suggestion in session for cooking"): on the menu screen (菜单设定) each recommended dish's and
+/// drink's card in view, in a chef picker each recommended chef's card in view, labelled "recommended" (Inn.Mark.Recommend).
+/// Only cards read for sure: a menu card whose name matched a dish or drink and that is wholly in view
+/// (<see cref="MenuCard.Area"/>), a chef card whose bonuses and portrait agree (<see cref="ChefCard.OperatorId"/>).
+/// </summary>
+internal static class InnSetupMarks
+{
+    /// <param name="screen">The screen showing; marks only on the menu screen and a chef picker.</param>
+    /// <param name="recommended">The ids recommended there: the menu's dishes and drinks, or the picker's kitchen's chefs.</param>
+    /// <param name="menuCards">The menu screen's cards in view, as last read.</param>
+    /// <param name="chefCards">The chef picker's cards in view, as last read.</param>
+    /// <param name="text">The i18n lookup.</param>
+    public static IReadOnlyList<InnPanelMark> Of(InnScreenKind? screen, IReadOnlyCollection<string> recommended, IReadOnlyList<MenuCard> menuCards,
+        IReadOnlyList<ChefCard> chefCards, Func<string, string> text)
+    {
+        if (recommended.Count == 0) return [];
+        string label = text("Inn.Mark.Recommend");
+        return screen switch
+        {
+            InnScreenKind.Menu => [.. menuCards.Where(c => c.Id is { } id && recommended.Contains(id) && c.Area is not null)
+                .Select(c => new InnPanelMark(c.Area!.Value, label, OnCard: true))],
+            InnScreenKind.ChefPicker => [.. chefCards.Where(c => c.OperatorId is { } id && recommended.Contains(id))
+                .Select(c => new InnPanelMark(c.Area, label, OnCard: true))],
+            _ => [],
+        };
+    }
+}
+
+/// <summary>
 /// What's marked on the open dispatch panel (owner, live 2026-10-20: "is it possible to ALSO have a suggestion marker
 /// by the dish itself on the right side?"; the banners must not cover the dispatch panel, so while it's open they're put
 /// away and the marks take over, <see cref="InnAdvice.BannerCalls"/>):

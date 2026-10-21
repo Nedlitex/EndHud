@@ -25,6 +25,7 @@ public partial class OverlayWindow
     private InnSession? _innSession;
     private OperatorLibrary? _innLibrary; // the library the session was made with
     private readonly InnDisplay _innDisplay = new(); // which inn screen shows, and what the session's overlays show
+    private IReadOnlyList<InnPanelMark> _innSessionMarks = [], _innSetupMarks = []; // the marks on the dispatch panel; on the setup screens' cards
     private string? _innKey, _innSetupKey;
     private InnSetupPlanning? _innChefPlanning, _innMenuPlanning;
     private readonly Dictionary<InnAdviceSpot, Border> _innAdviceFrames = [];
@@ -130,9 +131,10 @@ public partial class OverlayWindow
         var model = views.Panel;
         // Something to drag, size and see through while the menu is open, out of the inn.
         if (_config.InnHelperEnabled && _menuOpen && !_innDisplay.OnSession) model = InnStripView.Sample(_party.Identifier?.Library.Inn, Loc.Get);
-        var (calls, marks, wants) = (views.Calls, views.Marks, views.Wants);
+        var (calls, wants) = (views.Calls, views.Wants);
+        _innSessionMarks = views.Marks;
         RenderInnCalls(calls);
-        RenderInnMarks(marks);
+        RenderInnMarks([.. _innSessionMarks, .. _innSetupMarks]);
         RenderInnWants(wants);
         string? key = model?.Key;
         if (key == _innKey) return;
@@ -149,6 +151,7 @@ public partial class OverlayWindow
     private void RenderInnSetup()
     {
         IReadOnlyList<InnAdvicePanel> panels = [];
+        IReadOnlyList<InnPanelMark> marks = [];
         if (_config.InnHelperEnabled && _innDisplay.SetupScreen is { } screen && _innSession is { } session
             && _innChefPlanning is { } chefPlanning && _innMenuPlanning is { } menuPlanning && _innLibrary?.Inn is { } inn)
         {
@@ -166,6 +169,13 @@ public partial class OverlayWindow
                 chefs = chefPlanning.Showable(inputs);
             }
             panels = InnSetupView.ForScreen(screen, session, chefs, menu, inn, Loc.Get);
+            // The same mark as on the dispatch panel, on the recommended cards in view.
+            marks = _innDisplay.SetupMarks(chefs, menu, session.PickerKitchen, Loc.Get);
+        }
+        if (!marks.SequenceEqual(_innSetupMarks))
+        {
+            _innSetupMarks = marks;
+            RenderInnMarks([.. _innSessionMarks, .. _innSetupMarks]);
         }
         // Drawn again when a panel's words change, or the window's size or the player's size does (the lines' width follows them).
         string key = $"{HintCanvas.ActualWidth:F0}x{HintCanvas.ActualHeight:F0}@{InnScale():F3}\n"

@@ -55,6 +55,8 @@ public class InnChefPickerReaderTests(ITestOutputHelper output)
             // Which grid place the card is in: columns 270.5 px apart from x 109, rows 425.5 apart from y 310 (4K).
             int column = (int)Math.Round((card.Place.X / scale - 109) / 270.5), row = (int)Math.Round((card.Place.Y / scale - 310) / 425.5);
             string expected = Labels[row][column];
+            // Its place on the 4K layout (where the overlay marks it) is the same grid place at every size.
+            Assert.Equal((column, row), ((int)Math.Round((card.Area.X - 109) / 270.5), (int)Math.Round((card.Area.Y - 310) / 425.5)));
             output.WriteLine($"r{row + 1}c{column + 1}: icons {string.Join("+", card.Icons)}, flavor {card.Flavor}, " +
                              $"candidates {string.Join(" ", card.Candidates)} -> {card.OperatorId ?? "(unnamed)"} (is {expected}); portrait closest {card.Portrait?.Id} {card.Portrait?.Difference:F3}");
             if (card.OperatorId is null) continue;
