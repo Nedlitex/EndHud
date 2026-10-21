@@ -68,6 +68,13 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// <summary>A table card that couldn't be read is taken to be as it was for this long, then as unreadable.</summary>
     public static readonly TimeSpan TableKeptFor = TimeSpan.FromSeconds(3);
 
+    /// <summary>
+    /// A gourmand's table read in another state (paying, empty, a new guest) for this long, with no gourmand state
+    /// between, is done with its gourmand (the eating card can be missed). Longer than the HUD's fade, when every
+    /// card reads empty (session-hud-faded.jpg).
+    /// </summary>
+    public static readonly TimeSpan GourmandGoneAfter = TimeSpan.FromSeconds(3);
+
     /// <summary>The timer going up by more than this means a new session started.</summary>
     private static readonly TimeSpan NewSessionJump = TimeSpan.FromSeconds(10);
 
@@ -91,6 +98,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     private readonly Dictionary<string, int> _spares = [], _cooked = [], _servedBefore = [];
     private readonly HashSet<string> _dishesSeen = [], _drinksSeen = [];
     private readonly Dictionary<int, GourmandMemory> _gourmands = [];
+    private readonly Dictionary<int, TimeSpan> _gourmandLeaving = []; // a gourmand's table read in another state since then
     private readonly HashSet<string> _unreadLogged = [];
     private readonly HashSet<int> _unreadableLogged = []; // tables whose unreadable order was logged this session
     private readonly HashSet<InnGap> _gapsLogged = []; // what the advice waited for, logged once per session (never shown)
@@ -231,6 +239,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         _dishesSeen.Clear();
         _drinksSeen.Clear();
         _gourmands.Clear();
+        _gourmandLeaving.Clear();
         _blaze.Update(TimeSpan.Zero, null, inSession: false);
         _fire = null;
         _ordersSeen = false;
@@ -313,8 +322,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
                              && before.Card.Items.Select(x => x.Id).SequenceEqual(card.Items.Select(x => x.Id));
             _tables[i] = new TableMemory(card, at, sameOrder ? before!.OrderSince : at);
             if (card.State is TableState.Order or TableState.GourmandOrder) _ordersSeen = true;
-            if (card.State is not (TableState.GourmandArrived or TableState.GourmandOrdering or TableState.GourmandOrder))
-                _gourmands.Remove(card.Table);
+            TakeGourmandTable(card, at);
             foreach (var item in card.Items)
             {
                 if (item.Id is null) continue;
@@ -339,6 +347,34 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         }
         _servedBefore.Clear();
         foreach (var (id, count) in served) _servedBefore[id] = count;
+    }
+
+    /// <summary>
+    /// A gourmand's request is kept from the moment it's read until their order is fulfilled (owner, live 2026-10-20:
+    /// "if you cannot see but the order is not fulfilled, just keep showing"): at once when their card reads them
+    /// eating; when it reads another state (paying, empty, a new guest) on every reading for
+    /// <see cref="GourmandGoneAfter"/>, since a faded HUD reads every card empty for a moment. A card not read changes nothing.
+    /// </summary>
+    private void TakeGourmandTable(TableCard card, TimeSpan at)
+    {
+        if (!_gourmands.ContainsKey(card.Table)) return;
+        switch (card.State)
+        {
+            case TableState.GourmandArrived or TableState.GourmandOrdering or TableState.GourmandOrder:
+                _gourmandLeaving.Remove(card.Table);
+                return;
+            case TableState.GourmandEating:
+                Forget();
+                return;
+        }
+        if (!_gourmandLeaving.TryGetValue(card.Table, out var since)) _gourmandLeaving[card.Table] = at;
+        else if (at - since >= GourmandGoneAfter) Forget();
+
+        void Forget()
+        {
+            _gourmands.Remove(card.Table);
+            _gourmandLeaving.Remove(card.Table);
+        }
     }
 
     /// <summary>The estimate still has this dish cooking, but it's out: take its first place in a queue away.</summary>
@@ -489,7 +525,8 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         foreach (int table in unreadable)
             if (_unreadableLogged.Add(table)) _log($"inn: table {table}'s order can't be read; it's left out of the advice");
 
-        var gourmandTables = LiveTables(now).Where(t => _gourmands.ContainsKey(t.Card.Table)).Select(t => t.Card.Table).ToList();
+        // Every gourmand whose order isn't fulfilled, seen on this frame or not (TakeGourmandTable).
+        var gourmandTables = _gourmands.Keys.Order().ToList();
         var exact = _panelOpen is { } open ? new HashSet<int> { open } : [];
         var kitchens = Kitchens();
         var menu = MenuDishes();

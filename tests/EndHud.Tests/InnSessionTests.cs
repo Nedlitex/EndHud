@@ -407,4 +407,70 @@ public class InnSessionTests
 
         Assert.Empty(session.Advice(S(11))!.Gourmands);
     }
+
+    /// <summary>
+    /// Owner, live 2026-10-20 (test_yuanyuan3, 4:29): the gourmand panel "disappears … if you cannot see but the order is not
+    /// fulfilled, just keep showing". The HUD fades while the camera moves; on the faded frame every table card reads
+    /// empty (the fixture session-hud-faded.jpg through the real reader), then the cards come back unreadable for a
+    /// moment. The request is kept from the moment it's read until the table's gourmand order is fulfilled, not tied
+    /// to the bubble or the card being seen.
+    /// </summary>
+    [Fact]
+    public void A_gourmands_request_stays_through_faded_and_unreadable_frames_until_the_table_eats()
+    {
+        var session = Prepared(1);
+        var (_, request) = DishRequestMetBy(A, B, C, D, E);
+        var ordering = new TableCard(4, TableState.GourmandOrder, [], []);
+        session.Update(Session(10, tables: Tables(ordering), bubble: new GourmandBubble(request.Text, [request.Text])));
+        Assert.Equal(4, Assert.Single(session.Advice(S(10))!.Gourmands).Table);
+
+        // The faded HUD: every card read as empty, for a moment.
+        for (double t = 10.5; t <= 12; t += 0.5) session.Update(Session(t, tables: Tables()));
+        Assert.Equal(4, Assert.Single(session.Advice(S(12))!.Gourmands).Table);
+
+        // Then no card readable for long (the bubble long gone).
+        for (double t = 12.5; t <= 40; t += 0.5) session.Update(Session(t, tables: TablesAsRead(null, null, null, null, null, null)));
+        Assert.Equal(4, Assert.Single(session.Advice(S(40))!.Gourmands).Table);
+
+        session.Update(Session(41, tables: Tables(ordering)));
+        Assert.Equal(4, Assert.Single(session.Advice(S(41))!.Gourmands).Table);
+
+        // Fulfilled: the gourmand eats.
+        session.Update(Session(42, tables: Tables(new TableCard(4, TableState.GourmandEating, [], []))));
+        Assert.Empty(session.Advice(S(42))!.Gourmands);
+    }
+
+    /// <summary>
+    /// A table read in another state (paying, empty, a new guest) is done with its gourmand once it has read so for
+    /// <see cref="InnSession.GourmandGoneAfter"/> with no gourmand state between: the eating card can be missed, a
+    /// faded card can't last that long.
+    /// </summary>
+    [Fact]
+    public void A_gourmands_table_read_in_another_state_for_a_while_is_done()
+    {
+        var session = Prepared(1);
+        var (_, request) = DishRequestMetBy(A, B, C, D, E);
+        session.Update(Session(10, tables: Tables(new TableCard(4, TableState.GourmandOrder, [], [])), bubble: new GourmandBubble(request.Text, [request.Text])));
+
+        var paying = Tables(new TableCard(4, TableState.Paying, [], []));
+        session.Update(Session(20, tables: paying));
+        session.Update(Session(21, tables: paying));
+        Assert.Single(session.Advice(S(21))!.Gourmands);
+
+        session.Update(Session(20 + InnSession.GourmandGoneAfter.TotalSeconds, tables: paying));
+        Assert.Empty(session.Advice(S(20 + InnSession.GourmandGoneAfter.TotalSeconds))!.Gourmands);
+    }
+
+    [Fact]
+    public void A_gourmands_request_ends_with_the_session()
+    {
+        var session = Prepared(1);
+        var (_, request) = DishRequestMetBy(A, B, C, D, E);
+        session.Update(Session(10, tables: Tables(new TableCard(4, TableState.GourmandOrder, [], [])), bubble: new GourmandBubble(request.Text, [request.Text])));
+
+        session.Update(SetupScreen(30, 1));
+        session.Update(Session(31, tables: TablesAsRead(null, null, null, null, null, null)));
+
+        Assert.Empty(session.Advice(S(31))!.Gourmands);
+    }
 }
