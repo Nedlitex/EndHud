@@ -660,7 +660,9 @@ internal sealed class PartyMonitor : IDisposable
                 IntPtr hwnd = _target;
                 if (!_active || hwnd == IntPtr.Zero)
                 {
-                    // Stop capturing while the HUD is hidden; restart on demand.
+                    // Stop capturing while the HUD is hidden; restart on demand. Time stands
+                    // still for the inn meanwhile: an alt-tab isn't leaving the inn.
+                    Reading.Stop(InnClock.Now);
                     capture?.Dispose();
                     capture = null;
                     continue;
@@ -719,10 +721,12 @@ internal sealed class PartyMonitor : IDisposable
                         gameFrame = frame.Crop(client);
                     }
                     LatestFrame = gameFrame;
+                    var frameAt = InnClock.Now;
+                    Reading.Frame(frameAt);
                     // The inn first: in it the squad panel isn't on screen, and its screens are read instead.
                     Enter("inn");
                     // The overlay's advice runs on the same clock (InnClock), so its estimates line up with the readings.
-                    if (await TryInnAsync(gameFrame, InnClock.Now, panelSeenLast))
+                    if (await TryInnAsync(gameFrame, frameAt, panelSeenLast))
                     {
                         if (ReadSquad) Report(tracker.Track(NothingSeen), null);
                         continue;

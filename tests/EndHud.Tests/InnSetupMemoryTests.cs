@@ -120,8 +120,10 @@ public class InnSetupMemoryTests
         clock.Frame(S(64.2)); // back: the menu screen
         session.Update(Menu(64.2));
 
+        // The menu plans for the kitchens that cook: kitchen 1, its one chef placed (2 and 3 are empty).
         Assert.Empty(session.MenuInputs().Gaps);
-        Assert.Equal("1:2[Chen_Qianyu] 2:2[] 3:2[]", Kitchens(session.MenuInputs()));
+        Assert.Equal("1:1[Chen_Qianyu]", Kitchens(session.MenuInputs()));
+        Assert.Equal("1:2[Chen_Qianyu] 2:2[] 3:2[]", Kitchens(session.SetupInputs()));
     }
 
     /// <summary>Leaving the inn is still told: 30 s of frames that aren't the inn (a fight, the open world) forget the setup.</summary>

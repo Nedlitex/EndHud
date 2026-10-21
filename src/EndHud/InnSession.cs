@@ -55,7 +55,7 @@ internal sealed record InnAdvice(DispatchAdvice? Dispatch, InnGap? Gap, FullBlaz
 internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roster, Func<TimeSpan, TimeSpan> readingTime,
     Action<string>? log = null, Action<string>? warn = null)
 {
-    /// <summary>A session is over when none of its frames has been seen for this long (the results screen, leaving).</summary>
+    /// <summary>A session is over when none of its frames has been seen for this long (the results screen, leaving), in time spent reading the game.</summary>
     public static readonly TimeSpan EndAfter = TimeSpan.FromSeconds(15);
 
     /// <summary>A table card that couldn't be read is taken to be as it was for this long, then as unreadable.</summary>
@@ -69,10 +69,11 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
 
     // The setup as chosen so far, kept across pages until the theme list or leaving the inn.
     private readonly InnSetupMemory _memory = new(data, roster);
-    private TimeSpan? _lastInnReading;
+    private TimeSpan? _lastInnReading; // in reading time (readingTime): when an inn screen last showed
 
     // The session.
     private TimeSpan _lastSessionFrame, _advancedTo;
+    private TimeSpan _lastSessionRead; // _lastSessionFrame in reading time: what ending the session is measured in
     private SessionClock? _clock;
     // When the timer first read 00:00: it shows 00:00 from then on, and the inn serves
     // InnState.ServingAfterCloseSeconds more, counted from here.
@@ -105,6 +106,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// <summary>
     /// No inn screen for this long means the inn was left (a fight, the open world): the setup is
     /// forgotten. Longer than a screen's fade or a missed read, shorter than a trip out and back.
+    /// Counted in time spent reading the game (<see cref="ReadingClock"/>), never time it was in the background.
     /// </summary>
     public static readonly TimeSpan ForgetAfter = TimeSpan.FromSeconds(30);
 
@@ -126,9 +128,11 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// <summary>Takes in one reading of the inn.</summary>
     public void Update(InnReading reading)
     {
-        // A reading long after the last: the inn was left in between, and what was chosen is gone.
-        if (_lastInnReading is { } last && reading.At - last > ForgetAfter) _memory.Forget();
-        _lastInnReading = reading.At;
+        // Long after the last, in time spent reading other screens: the inn was left in between, and
+        // what was chosen is gone. Time the game was in the background doesn't count (ReadingClock).
+        var read = readingTime(reading.At);
+        if (_lastInnReading is { } last && read - last > ForgetAfter) _memory.Forget();
+        _lastInnReading = read;
         switch (reading.Screen)
         {
             case InnScreenKind.ThemeList:
@@ -153,6 +157,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             StartSession(reading.At);
         Advance(reading.At);
         _lastSessionFrame = reading.At;
+        _lastSessionRead = read;
         if (reading.Clock is not null) _clock = reading.Clock;
         if (reading.Clock is { Closed: true } && _closedAt is null) _closedAt = reading.At;
         _panelOpen = reading.Panel?.Kitchen;
@@ -165,12 +170,14 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
 
     /// <summary>
     /// A frame that isn't the inn, or time passing: ends a session not seen for <see cref="EndAfter"/>,
-    /// and forgets the setup when no inn screen has shown for <see cref="ForgetAfter"/>.
+    /// and forgets the setup when no inn screen has shown for <see cref="ForgetAfter"/>, both counted
+    /// in time spent reading the game (an alt-tab with the reading off is neither).
     /// </summary>
     public void Tick(TimeSpan now)
     {
-        if (Active && now - _lastSessionFrame > EndAfter) LeaveSession();
-        if (_lastInnReading is { } last && now - last > ForgetAfter)
+        var read = readingTime(now);
+        if (Active && read - _lastSessionRead > EndAfter) LeaveSession();
+        if (_lastInnReading is { } last && read - last > ForgetAfter)
         {
             _memory.Forget();
             _lastInnReading = null;
@@ -183,6 +190,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         Active = true;
         _advancedTo = at;
         _lastSessionFrame = at;
+        _lastSessionRead = readingTime(at);
         _log($"inn: session started ({(_memory.Setup is null ? "setup not seen" : $"theme {_memory.Setup.ThemeName}")}, {_memory.Menu.Count} menu items seen)");
     }
 
