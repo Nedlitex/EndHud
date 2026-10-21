@@ -64,9 +64,12 @@ public class InnCallTests(ITestOutputHelper output)
     public void Jittery_readings_leave_the_calls_on_screen_as_they_are()
     {
         var (raw, held, session, at) = Jittery();
-        output.WriteLine($"10 s of jittery readings (40 frames): the first suggestion per kitchen changed {raw} times before (worked out afresh each frame), the calls {held} times after (held)");
+        output.WriteLine($"10 s of jittery readings (40 frames): the advice's first suggestion per kitchen changed {raw} times, the calls {held} times");
 
-        Assert.True(raw > 0, "the script should make the advice flip, or it proves nothing");
+        // Until 2026-10-21 the advice was worked out afresh each frame and its first suggestion per kitchen changed 19 times
+        // on this script (the calls held it steady after); now the advice itself keeps the calls on screen
+        // (DispatchAdvisor.Advise with KeptCall), so neither changes.
+        Assert.Equal(0, raw);
         Assert.Equal(0, held);
         var calls = session.Advice(S(at))!.Calls;
         Assert.Single(calls, c => c is { Kind: InnCallKind.Queue, Table: 3 } && c.Dish!.Id == A); // the order, called in one kitchen only

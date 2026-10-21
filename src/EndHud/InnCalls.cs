@@ -72,7 +72,7 @@ internal sealed record InnKitchenView(Func<int, string, int> Queued, Func<int, b
 internal sealed class InnCallHold
 {
     /// <summary>An order moves to another kitchen only when it comes out there at least this much sooner.</summary>
-    public const double ClearlyEarlierSeconds = 5;
+    public const double ClearlyEarlierSeconds = DispatchAdvisor.KeepWithinSeconds;
 
     /// <summary>A call no longer valid is taken down only once it has stayed so this long.</summary>
     public static readonly TimeSpan GraceSeconds = TimeSpan.FromSeconds(1.5);
@@ -86,6 +86,18 @@ internal sealed class InnCallHold
     /// <param name="Queued">The kitchen's <see cref="InnKitchenView.Queued"/> for the call's dish when it was first shown.</param>
     /// <param name="InvalidSince">When it was first found no longer valid (and has been since); null while it stands.</param>
     private sealed record Held(InnCall Call, int Queued, TimeSpan? InvalidSince = null);
+
+    /// <summary>
+    /// The calls on screen for the advice to keep (<see cref="DispatchAdvisor.Advise(InnState, bool, IReadOnlyList{KeptCall})"/>):
+    /// each kitchen's order or dish to cook ahead not yet done, so the advice plans around what the player was told
+    /// instead of the hold arguing with it afterwards.
+    /// </summary>
+    public IReadOnlyList<KeptCall> Kept(InnKitchenView view) =>
+    [
+        .. _held.Values.Where(h => !Done(h, view) && h.Call is { Kind: InnCallKind.Queue or InnCallKind.CookAhead, Kitchen: not null, Dish: not null })
+            .OrderBy(h => h.Call.Kitchen)
+            .Select(h => new KeptCall(h.Call.Kitchen!.Value, h.Call.Dish!, h.Call.Kind == InnCallKind.Queue ? h.Call.Table : null)),
+    ];
 
     /// <summary>Forgets every call (the session ended).</summary>
     public void Clear()
