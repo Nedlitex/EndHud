@@ -45,21 +45,21 @@ public class InnSetupPlanningTests(ITestOutputHelper output)
     public async Task A_plan_for_chefs_since_taken_out_is_not_shown_for_their_empty_kitchens()
     {
         var gate = new ManualResetEventSlim(true);
-        var planning = new InnSetupPlanning(input =>
+        var planning = new InnSetupPlanning(Replacing, input =>
         {
             gate.Wait();
             return InnSetupAdvice.Fast(Planner, input);
         }, note: _ => { });
         var session = NewSession();
         session.Update(Staffed(0));
-        await planning.Request(session.SetupInputs())!;
+        await planning.Request(session.SetupInputs(), Settled)!;
         var staffed = planning.Showable(session.SetupInputs());
         Assert.NotNull(staffed);
         Assert.Equal(Text("Inn.Setup.Full"), KitchenLines(InnSetupView.Setup(session.SetupInputs(), staffed, Inn, Text), 1)[^1]);
 
         session.Update(Cleared(2));
         gate.Reset(); // the plan for the empty kitchens is being worked out
-        var cleared = planning.Request(session.SetupInputs());
+        var cleared = planning.Request(session.SetupInputs(), Settled);
         Assert.NotNull(cleared);
         Assert.Null(planning.Showable(session.SetupInputs())); // not the plan saying kitchens 1 and 2 are set
 
@@ -76,7 +76,10 @@ public class InnSetupPlanningTests(ITestOutputHelper output)
         }
     }
 
-    /// <summary>The quick advice shows first; the simulator's replaces it only when a panel would show something else.</summary>
+    /// <summary>
+    /// The quick advice shows first unless the simulator's comes within <see cref="InnSetupPlanning.RefinedWithin"/>;
+    /// the simulator's replaces it only when a panel would show something else.
+    /// </summary>
     [Fact]
     public async Task The_quick_advice_shows_first_and_the_refined_one_replaces_it_only_when_different()
     {
@@ -89,12 +92,12 @@ public class InnSetupPlanningTests(ITestOutputHelper output)
         // The same advice refined (another object, the same on screen): the quick one stays, nothing redrawn.
         var release = new ManualResetEventSlim(false);
         int doneCalls = 0;
-        var same = new InnSetupPlanning(_ => quick, (_, _) =>
+        var same = new InnSetupPlanning(Replacing, _ => quick, (_, _) =>
         {
             release.Wait();
             return quick with { };
         }, note: _ => { });
-        var work = same.Request(session.SetupInputs(), () => Interlocked.Increment(ref doneCalls))!;
+        var work = same.Request(session.SetupInputs(), Settled, () => Interlocked.Increment(ref doneCalls))!;
         await WaitUntil(() => same.Showable(session.SetupInputs()) is not null);
         Assert.Same(quick, same.Showable(session.SetupInputs())); // shown before the refined one is ready
         release.Set();
@@ -103,13 +106,26 @@ public class InnSetupPlanningTests(ITestOutputHelper output)
         Assert.Equal(0, same.Replaced);
         Assert.Equal(1, doneCalls);
 
-        // A different refined advice replaces it.
+        // A different refined advice coming after InnSetupPlanning.RefinedWithin replaces the quick one.
         doneCalls = 0;
-        var different = new InnSetupPlanning(_ => quick, (_, _) => other, note: _ => { });
-        await different.Request(session.SetupInputs(), () => Interlocked.Increment(ref doneCalls))!;
-        Assert.Same(other, different.Showable(session.SetupInputs()));
-        Assert.Equal(1, different.Replaced);
+        var late = new InnSetupPlanning(Replacing, _ => quick, (_, _) =>
+        {
+            Thread.Sleep(InnSetupPlanning.RefinedWithin + TimeSpan.FromMilliseconds(300));
+            return other;
+        }, note: _ => { });
+        await late.Request(session.SetupInputs(), Settled, () => Interlocked.Increment(ref doneCalls))!;
+        Assert.Same(other, late.Showable(session.SetupInputs()));
+        Assert.Equal(1, late.Replaced);
         Assert.Equal(2, doneCalls);
+        Assert.Equal(2, late.Changes);
+
+        // One ready within it is shown directly: the quick advice never shows, nothing swaps on screen.
+        doneCalls = 0;
+        var soon = new InnSetupPlanning(Replacing, _ => quick, (_, _) => other, note: _ => { });
+        await soon.Request(session.SetupInputs(), Settled, () => Interlocked.Increment(ref doneCalls))!;
+        Assert.Same(other, soon.Showable(session.SetupInputs()));
+        Assert.Equal(1, doneCalls);
+        Assert.Equal(1, soon.Changes);
     }
 
     /// <summary>Inputs changed while older ones are worked out: the older work is cancelled, and its late result is never kept.</summary>
@@ -122,7 +138,7 @@ public class InnSetupPlanningTests(ITestOutputHelper output)
         var clearedAdvice = Quick(cleared);
         var firstGate = new ManualResetEventSlim(false);
         int olderRefined = 0;
-        var planning = new InnSetupPlanning(input =>
+        var planning = new InnSetupPlanning(Replacing, input =>
         {
             if (input.Kitchens.Any(k => k.Placed.Count > 0)) firstGate.Wait(); // the older inputs' quick advice is slow
             return input.Kitchens.Any(k => k.Placed.Count > 0) ? staffedAdvice : clearedAdvice;
@@ -133,8 +149,8 @@ public class InnSetupPlanningTests(ITestOutputHelper output)
         }, note: _ => { });
 
         // Older inputs, then newer ones while the older are still worked out; the older finish last.
-        var older = planning.Request(staffed.SetupInputs())!;
-        var newer = planning.Request(cleared.SetupInputs())!;
+        var older = planning.Request(staffed.SetupInputs(), Settled)!;
+        var newer = planning.Request(cleared.SetupInputs(), Settled)!;
         await newer;
         firstGate.Set();
         await older;
@@ -150,16 +166,16 @@ public class InnSetupPlanningTests(ITestOutputHelper output)
         var logged = new List<string>();
         var entered = new ManualResetEventSlim(false);
         var seen = new System.Collections.Concurrent.ConcurrentQueue<CancellationToken>();
-        var planning = new InnSetupPlanning(input => InnSetupAdvice.Fast(Planner, input), (input, cancel) =>
+        var planning = new InnSetupPlanning(Replacing, input => InnSetupAdvice.Fast(Planner, input), (input, cancel) =>
         {
             seen.Enqueue(cancel);
             entered.Set();
             return InnSetupAdvice.For(Planner, input, cancel);
         }, log: logged.Add, note: _ => { });
-        var first = planning.Request(NewSessionWith(Cleared(0)).SetupInputs())!;
+        var first = planning.Request(NewSessionWith(Cleared(0)).SetupInputs(), Settled)!;
         entered.Wait(TimeSpan.FromSeconds(30));
         var watch = Stopwatch.StartNew();
-        var second = planning.Request(NewSessionWith(Staffed(0)).SetupInputs())!;
+        var second = planning.Request(NewSessionWith(Staffed(0)).SetupInputs(), Settled)!;
         await first;
         output.WriteLine($"the cancelled refinement stopped {watch.ElapsedMilliseconds} ms after newer inputs");
         Assert.True(seen.TryPeek(out var older) && older.IsCancellationRequested);
@@ -181,18 +197,18 @@ public class InnSetupPlanningTests(ITestOutputHelper output)
         async Task<long> Measure(InnSetupPlanning planning)
         {
             var session = NewSessionWith(Staffed(0));
-            await planning.Request(session.SetupInputs())!;
+            await planning.Request(session.SetupInputs(), Settled)!;
             var watch = Stopwatch.StartNew();
             session.Update(Cleared(1));
-            var work = planning.Request(session.SetupInputs());
+            var work = planning.Request(session.SetupInputs(), Settled);
             await WaitUntil(() => planning.Showable(session.SetupInputs()) is not null, TimeSpan.FromSeconds(120));
             long ms = watch.ElapsedMilliseconds;
             await work!;
             return ms;
         }
 
-        long before = await Measure(new InnSetupPlanning(input => InnSetupAdvice.For(Planner, input, CancellationToken.None), note: _ => { }));
-        long after = await Measure(new InnSetupPlanning(input => InnSetupAdvice.Fast(Planner, input),
+        long before = await Measure(new InnSetupPlanning(Replacing, input => InnSetupAdvice.For(Planner, input, CancellationToken.None), note: _ => { }));
+        long after = await Measure(new InnSetupPlanning(Replacing, input => InnSetupAdvice.Fast(Planner, input),
             (input, cancel) => InnSetupAdvice.For(Planner, input, cancel), note: _ => { }));
         output.WriteLine($"changed reading to advice on screen: before (simulator's plan only) {before} ms, after (quick advice first) {after} ms");
         Assert.True(after < before, $"after {after} ms, before {before} ms");

@@ -111,6 +111,26 @@ internal static partial class InnTestKit
             [.. Enumerable.Range(1, KitchenMath.MaxKitchens).Select(n => new SetupKitchen(n, 2, [null, null], staffed.Contains(n) ? ["chef", null] : [null, null]))]));
 
     /// <summary>
+    /// A judge for the setup planning's tests written before plans on screen stayed (and for fake advice that
+    /// isn't worked out for the inputs): a plan shown meanwhile while it fits as before, and any newer plan
+    /// that looks different replaces it. The real one is <see cref="InnPlanJudge"/>.
+    /// </summary>
+    public sealed class ReplacingJudge : IInnPlanJudge
+    {
+        private static readonly InnPlanJudge Real = new(new InnPlanner(Inn));
+
+        public bool Fits(InnPlanInput input, InnPlanInput planFor, InnSetupAdvice shown, bool chefsAsPlanned) =>
+            Real.Fits(input, planFor, shown, chefsAsPlanned: false);
+
+        public bool ClearlyBetter(InnPlanInput input, InnSetupAdvice candidate, InnSetupAdvice shown) => true;
+    }
+
+    public static readonly IInnPlanJudge Replacing = new ReplacingJudge();
+
+    /// <summary>A time long after every reading of a test: the menu's list has been still for long (<see cref="InnSetupPlanning.ScrollSettle"/>).</summary>
+    public static readonly TimeSpan Settled = TimeSpan.FromHours(1);
+
+    /// <summary>
     /// A reading clock for sessions whose tests give no gaps: the game read all along, every moment
     /// between two readings a frame of something (so time between inn readings is time elsewhere).
     /// </summary>

@@ -181,31 +181,31 @@ public class InnSetupPanelTests
     public async Task The_plan_is_worked_out_once_per_change_of_its_inputs()
     {
         int calls = 0;
-        var planning = new InnSetupPlanning(input => { Interlocked.Increment(ref calls); return Advice.Value; });
+        var planning = new InnSetupPlanning(Replacing, input => { Interlocked.Increment(ref calls); return Advice.Value; });
         var session = Ready();
 
-        var first = planning.Request(session.SetupInputs());
+        var first = planning.Request(session.SetupInputs(), Settled);
         Assert.NotNull(first);
-        Assert.Null(planning.Request(session.SetupInputs())); // the same inputs: nothing new
+        Assert.Null(planning.Request(session.SetupInputs(), Settled)); // the same inputs: nothing new
         await first;
-        Assert.Null(planning.Request(session.SetupInputs()));
+        Assert.Null(planning.Request(session.SetupInputs(), Settled));
         Assert.NotNull(planning.Showable(session.SetupInputs()));
 
         session.Update(Menu(6, null, (Inn.Dishes[0].Id, 2)));
-        var second = planning.Request(session.SetupInputs());
+        var second = planning.Request(session.SetupInputs(), Settled);
         Assert.NotNull(second);
         await second;
         Assert.Equal(2, calls);
         Assert.Equal(2, planning.Started);
-        Assert.Null(planning.Request(NewSession().SetupInputs())); // a gap: nothing to plan
+        Assert.Null(planning.Request(NewSession().SetupInputs(), Settled)); // a gap: nothing to plan
     }
 
     [Fact]
     public async Task An_older_plan_is_shown_meanwhile_only_while_all_it_names_is_still_there()
     {
-        var planning = new InnSetupPlanning(_ => Advice.Value);
+        var planning = new InnSetupPlanning(Replacing, _ => Advice.Value);
         var session = Ready();
-        await planning.Request(session.SetupInputs())!;
+        await planning.Request(session.SetupInputs(), Settled)!;
         var advice = planning.Showable(session.SetupInputs())!;
 
         // A dish's stock read: the older plan still names only what's there.
@@ -229,19 +229,19 @@ public class InnSetupPanelTests
     {
         var release = new TaskCompletionSource();
         int calls = 0;
-        var planning = new InnSetupPlanning(input =>
+        var planning = new InnSetupPlanning(Replacing, input =>
         {
             if (Interlocked.Increment(ref calls) == 2) release.Task.Wait();
             return Advice.Value;
         });
         var session = Ready();
-        await planning.Request(session.SetupInputs())!;
+        await planning.Request(session.SetupInputs(), Settled)!;
         var first = planning.Showable(session.SetupInputs());
         Assert.NotNull(first);
 
         session.Update(Setup(2, new SetupKitchen(1, 2, ["Perlica", null], ["佩丽卡", null]) { ChefsPlaced = 1 },
             new SetupKitchen(2, 2, [Placed, null], ["陈千语", null]) { ChefsPlaced = 1 }, new SetupKitchen(3, 2, [null, null], [null, null]) { ChefsPlaced = 0 }));
-        var second = planning.Request(session.SetupInputs());
+        var second = planning.Request(session.SetupInputs(), Settled);
         Assert.NotNull(second);
         Assert.Same(first, planning.Showable(session.SetupInputs())); // still worked out: the last plan shows meanwhile
 
@@ -254,9 +254,9 @@ public class InnSetupPanelTests
     public async Task A_planner_failure_is_logged_and_shows_no_plan()
     {
         var logged = new List<string>();
-        var planning = new InnSetupPlanning(_ => throw new ArgumentException("bad input"), log: logged.Add);
+        var planning = new InnSetupPlanning(Replacing, _ => throw new ArgumentException("bad input"), log: logged.Add);
         var inputs = Ready().SetupInputs();
-        await planning.Request(inputs)!;
+        await planning.Request(inputs, Settled)!;
 
         Assert.Null(planning.Showable(inputs));
         Assert.Contains(logged, l => l.Contains("bad input"));

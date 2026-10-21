@@ -104,8 +104,10 @@ public partial class OverlayWindow
             _innSession = new InnSession(data, library.Operators, _party.Reading.At);
             var planner = new InnPlanner(data);
             // The model's advice first (sub-second), the simulator's after (seconds) where it differs.
-            _innChefPlanning = new InnSetupPlanning(input => InnSetupAdvice.Fast(planner, input), (input, cancel) => InnSetupAdvice.For(planner, input, cancel));
-            _innMenuPlanning = new InnSetupPlanning(input => InnSetupAdvice.Fast(planner, input), (input, cancel) => InnSetupAdvice.For(planner, input, cancel));
+            // A plan on screen stays until it no longer fits or another is clearly better (InnPlanJudge).
+            var judge = new InnPlanJudge(planner);
+            _innChefPlanning = new InnSetupPlanning(judge, input => InnSetupAdvice.Fast(planner, input), (input, cancel) => InnSetupAdvice.For(planner, input, cancel));
+            _innMenuPlanning = new InnSetupPlanning(judge, input => InnSetupAdvice.Fast(planner, input), (input, cancel) => InnSetupAdvice.For(planner, input, cancel));
         }
         return _innSession;
     }
@@ -151,13 +153,13 @@ public partial class OverlayWindow
             if (screen == InnScreenKind.Menu)
             {
                 var inputs = session.MenuInputs();
-                menuPlanning.Request(inputs, () => Dispatcher.BeginInvoke(RenderInnSetup));
+                menuPlanning.Request(inputs, InnClock.Now, () => Dispatcher.BeginInvoke(RenderInnSetup));
                 menu = menuPlanning.Showable(inputs);
             }
             else
             {
                 var inputs = session.SetupInputs();
-                chefPlanning.Request(inputs, () => Dispatcher.BeginInvoke(RenderInnSetup));
+                chefPlanning.Request(inputs, InnClock.Now, () => Dispatcher.BeginInvoke(RenderInnSetup));
                 chefs = chefPlanning.Showable(inputs);
             }
             panels = InnSetupView.ForScreen(screen, session, chefs, menu, inn, Loc.Get, _party.InnProblem);

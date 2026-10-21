@@ -27,6 +27,12 @@ internal sealed record InnSetupInputs(IReadOnlyList<InnSetupGap> Gaps, InnPlanIn
     /// menu (and the menu advice says so). Always false for the chefs' advice, which picks them anyway.
     /// </summary>
     public bool ChefsPlanned { get; init; }
+
+    /// <summary>
+    /// When the menu screen last showed a card not seen before (on <see cref="InnClock"/>): the player is
+    /// scrolling the list while this is recent (<see cref="InnSetupPlanning.ScrollSettle"/>). Null when none was.
+    /// </summary>
+    public TimeSpan? NewCardAt { get; init; }
 }
 
 /// <summary>
@@ -53,6 +59,7 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
     private MenuRequirements? _requirements;
     private (int Chosen, int Allowed)? _dishCounter, _drinkCounter;
     private bool _setupUnreadable;
+    private TimeSpan? _newCardAt; // when the menu screen last showed a card not seen before
 
     /// <summary>The last clear reading of the setup screen (its kitchens kept from an earlier reading when this one had none); null when none since the theme list.</summary>
     public InnSetup? Setup { get; private set; }
@@ -83,6 +90,7 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
                 foreach (var read in reading.Menu?.Cards ?? [])
                 {
                     if (read.Id is null) continue;
+                    if (!_offered.ContainsKey(read.Id)) _newCardAt = reading.At;
                     // A stock left unread this time is the stock read before (it doesn't change on this screen).
                     var card = read is { Unlimited: false, Stock: null } && _offered.TryGetValue(read.Id, out var before)
                         ? read with { Unlimited = before.Unlimited, Stock = before.Stock }
@@ -108,6 +116,7 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
         _dishCounter = _drinkCounter = null;
         _setupUnreadable = false;
         PickerKitchen = null;
+        _newCardAt = null;
     }
 
     /// <summary>
@@ -271,6 +280,6 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
             string.Join(",", dishes.Select(d => $"{d.Dish.Id}:{d.Stock}").Order()), string.Join(",", drinks.Select(d => $"{d.Drink.Id}:{d.Stock}").Order()),
             $"{rules.MinDishes}-{rules.MaxDishes}/{rules.MinDrinks}-{rules.MaxDrinks}/{rules.MinTypes}",
             string.Join(",", dishRules.Select(t => $"{t.Count}:{string.Join("/", t.AnyOf)}").Order(StringComparer.Ordinal)), string.Join(",", setupRules.NotUnderstood));
-        return new InnSetupInputs([], input, key, setupRules.NotUnderstood);
+        return new InnSetupInputs([], input, key, setupRules.NotUnderstood) { NewCardAt = _newCardAt };
     }
 }
