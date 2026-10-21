@@ -159,7 +159,7 @@ public class InnSuggestionsTests(ITestOutputHelper output)
 
         Assert.Equal(listed.Count, listed.Distinct().Count());
         Assert.DoesNotContain(listed, planned.Contains);
-        Assert.DoesNotContain(listed, id => Inn.ChefBonuses.NotChefs.Contains(id));
+        Assert.DoesNotContain(listed, id => !Inn.ChefBonuses.Suggestable(id));
         foreach (var kitchen in suggestions.Kitchens)
         {
             Assert.Equal(plan.Kitchens.Single(k => k.Number == kitchen.Number).Chefs, kitchen.Chefs);
@@ -169,7 +169,7 @@ public class InnSuggestionsTests(ITestOutputHelper output)
             Assert.Equal(worth.OrderByDescending(w => w), worth);
             // No chef left out (planned nowhere, listed nowhere) adds more here than the last one listed.
             double last = worth[^1];
-            var left = input.Chefs.Where(c => !planned.Contains(c.Id) && !listed.Contains(c.Id) && !Inn.ChefBonuses.NotChefs.Contains(c.Id));
+            var left = input.Chefs.Where(c => !planned.Contains(c.Id) && !listed.Contains(c.Id) && Inn.ChefBonuses.Suggestable(c.Id));
             Assert.All(left.Take(40), c => Assert.True(Adds(input, plan, kitchen.Number, c) <= last + 1e-9, c.Id));
         }
     }
@@ -208,7 +208,7 @@ public class InnSuggestionsTests(ITestOutputHelper output)
     [Fact]
     public void A_kitchen_without_a_chef_is_unused_and_suggests_nothing()
     {
-        var cook = InnTestData.Library.Operators.First(o => Inn.ChefBonusesOf(o).Count > 0);
+        var cook = InnTestData.Library.Operators.First(o => Inn.ChefBonuses.Suggestable(o.Id) && Inn.ChefBonusesOf(o).Count > 0);
         var input = new InnPlanInput([], 4, 0, InnState.MaxTables, [new PlanKitchen(1, 1), new PlanKitchen(2, 1)], [cook],
             [.. Inn.Dishes.Select(d => new MenuDish(d, null))], [.. Inn.Drinks.Select(d => new MenuDrink(d, null))], new MenuRules(6, 8, 3, 8, 3, [])) { Preferred = [] };
         var plan = Planner.Plan(input);
