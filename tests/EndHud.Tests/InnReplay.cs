@@ -158,8 +158,12 @@ internal sealed class InnReplay
     /// <param name="Queues">What each kitchen's queue holds (<see cref="InnSession.QueueSignature"/>).</param>
     /// <param name="CooksAhead">The advice cooks something ahead somewhere (no: the counter full, no stock, the end).</param>
     /// <param name="State">The queues, open orders, counter and advice, in words (the trace's state lines).</param>
+    /// <param name="Sendable">The orders the advice sends to a kitchen now (not waiting for room nor out of stock).</param>
     internal sealed record CallStep(TimeSpan At, IReadOnlyDictionary<int, InnCall> Kitchens, IReadOnlySet<(string Dish, int Table)> Open, string Queues,
-        bool CooksAhead, string Why, string State = "");
+        bool CooksAhead, string Why, string State = "")
+    {
+        public IReadOnlySet<(string Dish, int Table)> Sendable { get; init; } = new HashSet<(string, int)>();
+    }
 
     /// <summary>A call that flashed (gone and back) or jumped (switched dish or kitchen with nothing done to cause it).</summary>
     internal sealed record Unsteady(TimeSpan At, int Kitchen, string What, string Why);
@@ -171,6 +175,7 @@ internal sealed class InnReplay
         var kitchens = advice?.Calls.Where(c => c.Kind is InnCallKind.Queue or InnCallKind.CookAhead or InnCallKind.Swap && c.Kitchen is not null)
             .ToDictionary(c => c.Kitchen!.Value) ?? [];
         var open = new HashSet<(string, int)>();
+        var sendable = new HashSet<(string, int)>();
         bool ahead = false;
         if (advice?.Dispatch is { } dispatch)
         {
@@ -182,6 +187,7 @@ internal sealed class InnReplay
                     else ahead = true;
                 }
                 foreach (var s in k.Replaces) open.Add((s.Put.Id, s.Table));
+                sendable.UnionWith(open);
             }
             foreach (var o in dispatch.Waiting.Concat(dispatch.OutOfStock)) open.Add((o.Dish.Id, o.Table));
         }
@@ -195,7 +201,7 @@ internal sealed class InnReplay
             if (was is not null) Changes.Add(new InnViewChange(at, "call", "-", was, state));
             if (now is not null) Changes.Add(new InnViewChange(at, "call", "+", now, state));
         }
-        Steps.Add(new CallStep(at, kitchens, open, queues, ahead, why, state[(state.LastIndexOf('[') + 1)..^1]));
+        Steps.Add(new CallStep(at, kitchens, open, queues, ahead, why, state[(state.LastIndexOf('[') + 1)..^1]) { Sendable = sendable });
     }
 
     /// <summary>This moment's advice per kitchen, before the hold: "1:dish@table(ready in),… 2:…".</summary>
@@ -299,6 +305,39 @@ internal sealed class InnReplay
         queues.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(q => q.StartsWith($"{kitchen}:", StringComparison.Ordinal))
             .SelectMany(q => q[(q.IndexOf(':') + 1)..].Split(',', StringSplitOptions.RemoveEmptyEntries)).ToList();
 
+    /// <summary>
+    /// A new order a kitchen can take (first among the orders the advice sends to a kitchen), and how long until a kitchen's
+    /// call showed it (null: never, covered or served before); <paramref name="KitchenFree"/>: some kitchen's call then
+    /// wasn't another order's (only then can it show at once: one call a kitchen).
+    /// </summary>
+    internal sealed record NewOrder(TimeSpan At, string Dish, int Table, double? ShownAfter, bool KitchenFree);
+
+    /// <summary>Every new order of the replay (<see cref="NewOrder"/>).</summary>
+    public List<NewOrder> NewOrders()
+    {
+        var list = new List<NewOrder>();
+        var before = new HashSet<(string Dish, int Table)>();
+        int kitchens = Steps.Count == 0 ? 0 : Steps.Max(s => s.Kitchens.Count == 0 ? 0 : s.Kitchens.Keys.Max());
+        for (int i = 0; i < Steps.Count; i++)
+        {
+            var step = Steps[i];
+            foreach (var order in step.Sendable.Where(o => !before.Contains(o)))
+            {
+                bool free = Enumerable.Range(1, kitchens).Any(k => step.Kitchens.GetValueOrDefault(k) is not { Kind: InnCallKind.Queue or InnCallKind.Swap });
+                double? shown = null;
+                for (int j = i; j < Steps.Count && Steps[j].Open.Contains(order); j++)
+                {
+                    if (!Steps[j].Kitchens.Values.Any(c => c.Kind is InnCallKind.Queue or InnCallKind.Swap && c.Dish?.Id == order.Dish && c.Table == order.Table)) continue;
+                    shown = (Steps[j].At - step.At).TotalSeconds;
+                    break;
+                }
+                list.Add(new NewOrder(step.At, order.Dish, order.Table, shown, free));
+            }
+            before = [.. step.Sendable];
+        }
+        return list;
+    }
+
     /// <summary>Per minute of the session: the kitchens' call changes, flashes and jumps.</summary>
     public (double Changes, double Flashes, double Jumps) CallRates()
     {
@@ -327,6 +366,10 @@ internal sealed class InnReplay
         sb.AppendLine(CultureInfo.InvariantCulture, $"# calls: {Changes.Count(c => c.Display == "call")} changes ({changes:F1}/min), {flashes.Count} flashes ({flashRate:F2}/min), {jumps.Count} jumps ({jumpRate:F2}/min)");
         foreach (var f in flashes) sb.AppendLine(CultureInfo.InvariantCulture, $"# flash {f.At.TotalSeconds,7:F1} kitchen {f.Kitchen}: {f.What}  <= {f.Why}");
         foreach (var j in jumps) sb.AppendLine(CultureInfo.InvariantCulture, $"# jump  {j.At.TotalSeconds,7:F1} kitchen {j.Kitchen}: {j.What}  <= {j.Why}");
+        var orders = NewOrders();
+        sb.AppendLine(CultureInfo.InvariantCulture, $"# new orders a kitchen can take: {orders.Count}; with a kitchen free of another order's call: {orders.Count(o => o.KitchenFree)}, shown at once: {orders.Count(o => o.KitchenFree && o.ShownAfter == 0)}");
+        foreach (var o in orders.Where(o => o.ShownAfter != 0))
+            sb.AppendLine(CultureInfo.InvariantCulture, $"# order {o.At.TotalSeconds,7:F1} {o.Dish}@{o.Table}: {(o.ShownAfter is { } after ? $"shown after {after:F1} s" : "never shown")}{(o.KitchenFree ? "" : " (every kitchen showing another order)")}");
         foreach (var c in Changes)
             sb.AppendLine(CultureInfo.InvariantCulture, $"{c.At.TotalSeconds,7:F1} {c.Display,-6} {c.Change} {c.What}  <= {c.Why}");
         // Every 10 s of the session: what the calls were worked out from.

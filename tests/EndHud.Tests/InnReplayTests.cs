@@ -65,32 +65,53 @@ public class InnReplayTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The owner's 2026-10-20 session (test_yuanyuan3.mp4, 0–430 s, a frame every 0.3 s through the real readers and the
-    /// reading loop's holds; Fixtures/inn-replay, text only) replayed through the session and the views. Before the
-    /// displays were held steady: 69 banners went and came back within a second and 37 were up for under half a
-    /// second (all banners: 60.8 changes a minute); 26 marks went and came back within a second.
+    /// The owner's recorded sessions, their readings taken through the real readers and the reading loop's holds, a frame
+    /// every 0.3 s (Fixtures/inn-replay, text only), replayed through the session and the views:
+    /// <list type="bullet">
+    /// <item>test_yuanyuan3 (2026-10-20, 0–430 s). Before the displays were held steady: 69 banners went and came back
+    /// within a second and 37 were up for under half a second (all banners: 60.8 changes a minute); 26 marks went and came
+    /// back within a second.</item>
+    /// <item>test_yuanyuan4 (2026-10-21, 0–470 s; owner: "the recommended dish flashes heavily and it jumps around ... the
+    /// recommendation should stay steady").</item>
+    /// </list>
+    /// Before 2026-10-21's fixes, the kitchens' calls: y3 88 changes (16.2 a minute), 3 flashes, 1 jump; y4 46 changes
+    /// (8.6 a minute), 1 flash, 3 jumps (<see cref="InnReplay.Steadiness"/>); and every banner slid out and in again each
+    /// time the dispatch panel opened and closed.
     /// </summary>
-    [Fact]
-    public void Over_the_owners_recorded_session_nothing_flashes()
+    [Theory]
+    [InlineData("test-yuanyuan3-readings.jsonl.gz")]
+    [InlineData("test-yuanyuan4-readings.jsonl.gz")]
+    public void Over_the_owners_recorded_sessions_nothing_flashes_or_jumps(string fixture)
     {
-        var replay = InnReplay.Run(InnReplay.Load(Path.Combine(AppContext.BaseDirectory, "Fixtures", "inn-replay", "test-yuanyuan3-readings.jsonl.gz")));
+        var replay = InnReplay.Run(InnReplay.Load(Path.Combine(AppContext.BaseDirectory, "Fixtures", "inn-replay", fixture)));
         foreach (var (display, rate) in replay.PerMinute()) output.WriteLine($"{display}: {rate:F1} changes/min");
-        if (Environment.GetEnvironmentVariable("ENDHUD_REPLAY_DUMP") is { Length: > 0 } dump) File.WriteAllText(dump, replay.Report());
+        if (Environment.GetEnvironmentVariable("ENDHUD_REPLAY_DUMP") is { Length: > 0 } dump) File.WriteAllText(dump.Replace("{fixture}", fixture, StringComparison.Ordinal), replay.Report());
 
         var banners = Flashes(replay, "banner");
         var marks = Flashes(replay, "mark");
         var gourmands = Flashes(replay, "gourmand");
+        var (flashes, jumps) = replay.Steadiness();
+        var orders = replay.NewOrders();
         output.WriteLine($"banners: {banners.HiddenUnderASecond} hidden under a second, {banners.UpUnderHalfASecond} up under half a second");
         output.WriteLine($"marks: {marks.HiddenUnderASecond} hidden under a second, {marks.UpUnderHalfASecond} up under half a second");
+        output.WriteLine($"calls: {replay.CallRates().Changes:F1} changes a minute, {flashes.Count} flashes, {jumps.Count} jumps");
+        output.WriteLine($"new orders a kitchen can take: {orders.Count}, shown at once {orders.Count(o => o.ShownAfter == 0)}");
 
         Assert.True(replay.SessionSpan > TimeSpan.FromMinutes(5), "the whole session was replayed");
+        // The kitchens' calls: none gone and back, none switched with nothing done to it.
+        Assert.Empty(flashes);
+        Assert.Empty(jumps);
+        // A new order is called at once wherever a kitchen isn't showing another order.
+        Assert.NotEmpty(orders);
+        Assert.All(orders.Where(o => o.KitchenFree), o => Assert.Equal(0, o.ShownAfter));
+        // The banners as drawn: none back within a second, a kitchen's banner never moving in the stack.
         Assert.Equal(0, banners.HiddenUnderASecond);
         Assert.True(banners.UpUnderHalfASecond <= 5, $"{banners.UpUnderHalfASecond} banners up under half a second");
-        Assert.True(replay.PerMinute()["banner"] <= 30, $"{replay.PerMinute()["banner"]:F1} banner changes a minute");
+        Assert.True(replay.PerMinute()["banner"] <= 15, $"{replay.PerMinute()["banner"]:F1} banner changes a minute");
+        Assert.DoesNotContain(replay.Changes, c => c.Display == "move" && !c.What.StartsWith("LastCall", StringComparison.Ordinal) && !c.What.StartsWith("Blaze", StringComparison.Ordinal));
         // The marks go the moment a frame shows the panel closed for sure (owner, live 2026-10-21: a mark left over the dining
-        // room); on this recording that is 11 times for under a second, each a frame reading the Full Blaze meter the open
-        // panel covers (closing and opening it again, or its slide) between frames reading it open. Was at most 8 with
-        // the marks held as long as the banners (1.5 s).
+        // room); on test_yuanyuan3 that is up to 11 times for under a second, each a frame reading the Full Blaze meter the
+        // open panel covers (closing and opening it again, or its slide) between frames reading it open.
         Assert.True(marks.HiddenUnderASecond <= 11, $"{marks.HiddenUnderASecond} marks hidden under a second");
         Assert.Equal((0, 0), (gourmands.HiddenUnderASecond, gourmands.UpUnderHalfASecond));
     }
