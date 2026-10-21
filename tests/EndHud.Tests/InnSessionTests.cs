@@ -291,7 +291,7 @@ public class InnSessionTests
     /// <summary>
     /// An order's card that can't be read keeps its order until a reading says otherwise (owner, 2026-10-21: a suggestion
     /// stays until the order is served or gone). Until then it was dropped after 3 s and called again when the card was
-    /// read: on test_yuanyuan3 table 2's "勺里游" went at 268.5 s and came back 1.5 s later.
+    /// read: on test_yuanyuan3 table 2's spoon-swimmer went at 268.5 s and came back 1.5 s later.
     /// </summary>
     [Fact]
     public void A_card_that_cant_be_read_keeps_its_order_until_read_otherwise()
