@@ -52,6 +52,22 @@ public class InnDishTypeRuleTests
         Assert.Empty(read.NotUnderstood);
     }
 
+    /// <summary>
+    /// The owner's screen (海陆宴, 菜单设定, 2026-10-20): OCR read the wrapped second half's "菜品" as
+    /// "菜口口" (品 is three 口), and the panel said "看不懂菜单要求" of a rule it knows.
+    /// </summary>
+    [Theory]
+    [InlineData("菜口口")]
+    [InlineData("菜吅")]
+    [InlineData("菜口")]
+    public void A_split_菜品_is_still_read(string misread)
+    {
+        var read = DishRule.ParseAll(["至少有1道带有[肉食]特性的菜品和1道带有[水", "产]特性的" + misread], Inn);
+
+        Assert.Equal(["Meaty", "Finny"], read.Rules.SelectMany(r => r.AnyOf));
+        Assert.Empty(read.NotUnderstood);
+    }
+
     [Fact]
     public void A_rule_not_understood_is_kept_as_read()
     {

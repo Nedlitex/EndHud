@@ -69,7 +69,7 @@ public sealed partial class MenuRequirementsReader(InnText text, InnData data)
     /// </summary>
     internal static string Normalise(string line)
     {
-        line = line.Replace("口口", "品");
+        line = DishRule.Repair(line.Replace("口口", "品"));
         int at = line.IndexOf("少有", StringComparison.Ordinal);
         return at >= 0 && !line.Contains("至少有") ? "至" + line[at..] : line;
     }

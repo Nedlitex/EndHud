@@ -29,7 +29,7 @@ public sealed partial record DishRule(int Count, IReadOnlyList<string> AnyOf)
     /// </summary>
     public static DishRule? Parse(string line, InnData data)
     {
-        string text = line.Replace(" ", "");
+        string text = Repair(line.Replace(" ", ""));
         if (TraitRuleText().Match(text) is { Success: true } traitRule)
         {
             var traits = Brackets().Matches(traitRule.Groups[2].Value)
@@ -57,11 +57,21 @@ public sealed partial record DishRule(int Count, IReadOnlyList<string> AnyOf)
     /// Inn Rating's own wordings ("至少需要…") are understood elsewhere (<see cref="MenuRequirementsReader"/>)
     /// and are not rules here.
     /// </summary>
+    /// <summary>
+    /// OCR's slips on a rule, put right: "菜品"'s 品 read as two or one boxes ("菜口口", "菜吅",
+    /// "菜口"; the owner's 海陆宴 menu screen, 2026-10-20, where the panel then said "看不懂" of a rule
+    /// it knows). Used by every reader of a rule, so a slip is put right whichever screen it's read on.
+    /// </summary>
+    public static string Repair(string text) => SplitPin().Replace(text, "菜品");
+
+    [GeneratedRegex("菜(?:口口|吅|口)")]
+    private static partial Regex SplitPin();
+
     public static DishRulesRead ParseAll(IReadOnlyList<string> lines, InnData data)
     {
         // One line can state two rules joined by 和 (海陆宴: "至少有1道带有[肉食]特性的菜品和1道带有[水产]
         // 特性的菜品"): the second is a rule of its own, as if it started "至少有".
-        string text = SecondRule().Replace(string.Concat(lines.Select(l => l.Replace(" ", ""))), "至少有");
+        string text = SecondRule().Replace(Repair(string.Concat(lines.Select(l => l.Replace(" ", "")))), "至少有");
         var rules = new List<DishRule>();
         var notUnderstood = new List<string>();
         foreach (string part in RuleStart().Split(text).Where(p => p.Length > 0))
