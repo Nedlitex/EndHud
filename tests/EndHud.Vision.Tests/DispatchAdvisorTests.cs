@@ -255,6 +255,62 @@ public class DispatchAdvisorTests
         Assert.DoesNotContain(ahead, a => a.Advice.Dish.CookSeconds == 15);
     }
 
+    // ---- The calls on screen kept (owner, 2026-10-21: "the recommendation should stay steady") ----
+
+    /// <summary>
+    /// An order the player has been told to queue in a kitchen stays there while it can still be queued there and comes
+    /// out there less than <see cref="DispatchAdvisor.KeepWithinSeconds"/> after the soonest kitchen; beyond that, the
+    /// soonest kitchen takes it as before. Kitchen 1 cooks 坛子肉 in 27 s behind 20 s of 果味沙拉 (47 s); kitchen 2 in 35 s
+    /// behind <c>y</c> s of 果味沙拉.
+    /// </summary>
+    [Fact]
+    public void An_order_shown_in_a_kitchen_stays_there_unless_another_is_clearly_sooner()
+    {
+        double margin = DispatchAdvisor.KeepWithinSeconds;
+        InnState With(double y) => State([Queue(1, ("果味沙拉", 20)), Queue(2, ("果味沙拉", y))], [Order(1, "坛子肉")]);
+        var shownInTwo = new[] { new KeptCall(2, Dish("坛子肉"), 1) };
+
+        // Kitchen 2 out (y + 35) a little later than kitchen 1 (47): kept in 2.
+        double within = 47 + margin - 1 - 35;
+        Assert.Equal(1, Assert.Single(Sent(Advisor(2).Advise(With(within)))).Kitchen);
+        Assert.Equal(2, Assert.Single(Sent(Advisor(2).Advise(With(within), fillEverySlot: false, shownInTwo))).Kitchen);
+
+        // Clearly later: moved to kitchen 1.
+        double beyond = 47 + margin - 35;
+        Assert.Equal(1, Assert.Single(Sent(Advisor(2).Advise(With(beyond), fillEverySlot: false, shownInTwo))).Kitchen);
+
+        // Kitchen 2 full: it can't be queued there.
+        var full = State([Queue(1, ("果味沙拉", 20)), Queue(2, ("果味沙拉", 1), ("肉包子", 15), ("肉包子", 15))], [Order(1, "坛子肉")]);
+        Assert.Equal(1, Assert.Single(Sent(Advisor(2).Advise(full, fillEverySlot: false, shownInTwo))).Kitchen);
+    }
+
+    /// <summary>
+    /// A dish to cook ahead the player has been shown stays the kitchen's dish to cook ahead while that's still possible
+    /// there: the kitchen still open to cooking ahead, the dish in stock and out in time, the counter with room. It takes
+    /// the counter's room before any other dish (on test_yuanyuan3 the last two places went to other kitchens' dishes and
+    /// the dish shown was dropped). The fastest dish (肉包子, 15 s) is otherwise cooked ahead last.
+    /// </summary>
+    [Fact]
+    public void A_dish_to_cook_ahead_shown_in_a_kitchen_stays_while_possible()
+    {
+        var shown = new[] { new KeptCall(2, Dish("肉包子"), null) };
+        var empty = new[] { Queue(1), Queue(2), Queue(3) };
+
+        Assert.NotEqual("肉包子", Advisor().Advise(State(empty)).For(2).Queue[0].Dish.Zh);
+        Assert.Equal("肉包子", Advisor().Advise(State(empty), fillEverySlot: false, shown).For(2).Queue[0].Dish.Zh);
+
+        // One place left on the counter: the dish shown takes it.
+        var oneLeft = Advisor().Advise(State(empty, counter: [.. Enumerable.Repeat("缘缘菜饭", 7)]), fillEverySlot: false, shown);
+        Assert.Equal((2, "肉包子"), (Assert.Single(All(oneLeft)).Kitchen, Assert.Single(All(oneLeft)).Advice.Dish.Zh));
+
+        // Impossible: the counter full, the dish out of stock, an order sent to that kitchen.
+        Assert.Empty(All(Advisor().Advise(State(empty, counter: [.. Enumerable.Repeat("缘缘菜饭", 8)]), fillEverySlot: false, shown)));
+        var noStock = InnSimulatorTests.RecordedMenu.Select(m => m with { Stock = m.Dish.Zh == "肉包子" ? 0 : null }).ToList();
+        Assert.DoesNotContain(All(Advisor().Advise(State(empty, menu: noStock), fillEverySlot: false, shown)), a => a.Advice.Dish.Zh == "肉包子");
+        var order = Advisor().Advise(State([Queue(1, ("果味沙拉", 20)), Queue(2), Queue(3, ("果味沙拉", 20))], [Order(4, "坛子肉")]), fillEverySlot: false, shown);
+        Assert.Equal(["4:坛子肉"], order.For(2).Queue.Select(q => $"{q.Table}:{q.Dish.Zh}"));
+    }
+
     [Fact]
     public void A_kitchen_sent_an_order_cooks_nothing_ahead()
     {

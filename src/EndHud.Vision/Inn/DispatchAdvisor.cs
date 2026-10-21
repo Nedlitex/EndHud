@@ -55,6 +55,12 @@ public sealed record QueueAdvice(Dish Dish, int? Table, double ReadyIn)
 /// <param name="OtherwiseIn">Seconds until it would be out in the best kitchen without a swap; null when no kitchen has room.</param>
 public sealed record ReplaceAdvice(int Kitchen, int Slot, Dish Remove, Dish Put, int Table, double ReadyIn, double? OtherwiseIn);
 
+/// <summary>
+/// A dish the player has been told to queue next in a kitchen (a call on screen): for <paramref name="Table"/>'s order,
+/// or to cook ahead when null. The advice keeps it there while it's still possible (<see cref="DispatchAdvisor.Advise(InnState, bool, IReadOnlyList{KeptCall})"/>).
+/// </summary>
+public sealed record KeptCall(int Kitchen, Dish Dish, int? Table);
+
 /// <summary>What to do in one kitchen: dishes to queue, in order, and any swap.</summary>
 public sealed record KitchenAdvice(int Kitchen, IReadOnlyList<QueueAdvice> Queue, IReadOnlyList<ReplaceAdvice> Replaces);
 
@@ -132,22 +138,44 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
     /// </summary>
     public const double NoCookAheadSeconds = 40;
 
+    /// <summary>
+    /// An order shown in a kitchen stays there unless another kitchen has it out at least this much sooner
+    /// (<see cref="KeptCall"/>).
+    /// </summary>
+    public const double KeepWithinSeconds = 5;
+
     public InnKitchens Kitchens { get; } = kitchens;
 
-    /// <summary>The advice for <paramref name="state"/>.</summary>
+    /// <summary>The advice for <paramref name="state"/>, with nothing shown to the player yet.</summary>
     /// <param name="fillEverySlot">
     /// Cook ahead into every free slot of every kitchen, not only idle ones: at the session's start
     /// (C16) and from Full Blaze's "get ready" (<see cref="FullBlazeAdvice.GetReady"/>).
     /// </param>
     /// <exception cref="ArgumentException">A queue for a kitchen not in play, or a table out of range.</exception>
-    public DispatchAdvice Advise(InnState state, bool fillEverySlot = false)
+    public DispatchAdvice Advise(InnState state, bool fillEverySlot = false) => Advise(state, fillEverySlot, []);
+
+    /// <summary>The advice for <paramref name="state"/>, keeping the calls on screen (<paramref name="kept"/>) while they're possible.</summary>
+    public DispatchAdvice Advise(InnState state, bool fillEverySlot, IReadOnlyList<KeptCall> kept)
     {
         var plan = new Plan(this, state);
         var waiting = new List<OrderedDish>();
         var outOfStock = new List<OrderedDish>();
         var leftovers = state.ServingSecondsLeft is { } servingLeft ? plan.HandOut(servingLeft, state.Closed) : [];
 
-        foreach (var order in plan.Pending)
+        // The orders on screen first: each stays in its kitchen while it can be queued there and comes out there less
+        // than KeepWithinSeconds after the soonest kitchen (owner, 2026-10-21: a suggestion "should stay steady").
+        var pending = plan.Pending.ToList();
+        foreach (var keep in kept.Where(k => k.Table is not null))
+        {
+            int i = pending.FindIndex(o => o.Table == keep.Table && o.Dish.Id == keep.Dish.Id);
+            if (i < 0 || !plan.InStock(pending[i].Dish) || !plan.CanQueue(keep.Kitchen)) continue;
+            var order = pending[i];
+            if (plan.ReadyIn(keep.Kitchen, order.Dish) >= plan.Soonest(order.Dish)!.Value.ReadyIn + KeepWithinSeconds) continue;
+            plan.Queue(keep.Kitchen, order.Dish, order.Table);
+            pending.RemoveAt(i);
+        }
+
+        foreach (var order in pending)
         {
             if (!plan.InStock(order.Dish))
             {
@@ -164,7 +192,7 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
                 waiting.Add(order);
         }
 
-        plan.CookAhead(everySlot: fillEverySlot);
+        plan.CookAhead(everySlot: fillEverySlot, [.. kept.Where(k => k.Table is null)]);
 
         return new DispatchAdvice(
             [.. Cooking.Select(k => new KitchenAdvice(k.Number, plan.QueueFor(k.Number), plan.ReplacesFor(k.Number)))],
@@ -332,6 +360,12 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
 
         private bool HasFreeSlot(int kitchen) => _queues[kitchen].Count < KitchenQueue.Slots;
 
+        /// <summary>The kitchen cooks and has a free slot.</summary>
+        public bool CanQueue(int kitchen) => _queues.ContainsKey(kitchen) && HasFreeSlot(kitchen);
+
+        /// <summary>Seconds until <paramref name="dish"/> is out in <paramref name="kitchen"/> if queued there now.</summary>
+        public double ReadyIn(int kitchen, Dish dish) => Left(kitchen) + Cook(kitchen, dish);
+
         /// <summary>A dish cooked ahead out in <paramref name="readyIn"/> seconds is still worth it: not in the last <see cref="NoCookAheadSeconds"/> of serving, and out before serving ends.</summary>
         private bool InTime(double readyIn) => _state.ServingSecondsLeft is not { } left || (left >= NoCookAheadSeconds && readyIn <= left);
 
@@ -419,10 +453,22 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
         /// (<see cref="FirstOut"/>), as for an order (owner, 2026-10-19), not where it cooks fastest
         /// in an empty kitchen nor the lowest-numbered one: a busy kitchen is never stacked while
         /// another would have the dish out sooner.
+        /// <para>A dish to cook ahead on screen (<paramref name="kept"/>) is picked once and kept: it goes first, into its
+        /// own kitchen, while that kitchen is open to cooking ahead, the dish is in stock and out in time, and the counter
+        /// has room; the other dishes share what's left.</para>
         /// </summary>
-        public void CookAhead(bool everySlot)
+        public void CookAhead(bool everySlot, IReadOnlyList<KeptCall> kept)
         {
             var (spares, room) = Spares();
+            foreach (var keep in kept)
+            {
+                if (room <= 0) break;
+                int k = keep.Kitchen;
+                if (!_queues.ContainsKey(k) || !(everySlot ? HasFreeSlot(k) : OpenToCookAhead(k)) || !InStock(keep.Dish) || !AheadInTime(k, keep.Dish)) continue;
+                Queue(k, keep.Dish, null);
+                spares[keep.Dish.Id] = spares.GetValueOrDefault(keep.Dish.Id) + 1;
+                room--;
+            }
             while (room > 0)
             {
                 var open = _queues.Keys.Where(k => everySlot ? HasFreeSlot(k) : OpenToCookAhead(k)).ToList();
