@@ -173,4 +173,33 @@ public class InnDispatchPanelReaderTests(ITestOutputHelper output)
     {
         Assert.Null(await (await Reader.Value).ReadAsync(await InnScreenTests.Load(fixture)));
     }
+
+    /// <summary>
+    /// Session frames with the dispatch panel closed (owner, live 2026-10-21: the panel's "queue this (table 1)" mark
+    /// floated over the dining room at 4:16 and 5:02 with the panel closed). Read as a panel, they put its marks back
+    /// over the room, the cards remembered from the last real panel standing in for the ones not read.
+    /// </summary>
+    public static TheoryData<string, string> ClosedPanelFrames()
+    {
+        var data = new TheoryData<string, string>();
+        foreach (string fixture in new[]
+                 {
+                     "session-panel-closed-mark-table1", "session-panel-closed-mark-table2", "session-gourmand-soup-and-drink",
+                     "session-gourmand-soup-and-drink-far", "session-gourmand-soup-and-drink-near", "session-gourmand-panel",
+                     "session-hud-faded", "session-gourmand-still-open", "session-gourmand-two-lines", "session-closed",
+                 })
+        foreach (var screen in new[] { SimulatedScreen.Uhd, SimulatedScreen.Qhd, SimulatedScreen.FullHd })
+            data.Add(fixture, screen.Name);
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(ClosedPanelFrames))]
+    public async Task No_panel_on_a_session_frame_with_the_panel_closed(string fixture, string screenName)
+    {
+        var screen = SimulatedScreen.Named(screenName);
+        var frame = await InnScreenTests.Load(fixture);
+        var panel = await (await Reader.Value).ReadAsync(screen == SimulatedScreen.Uhd ? frame : screen.Render(frame));
+        Assert.True(panel is null, $"{fixture} at {screenName}: read as the panel of kitchen {panel?.Kitchen} of {panel?.Kitchens}");
+    }
 }

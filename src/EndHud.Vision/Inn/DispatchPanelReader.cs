@@ -90,7 +90,9 @@ public sealed class DispatchPanelReader(InnText text, InnPictures pictures, InnD
             else if (max is < 170 or > 210) break;
             kitchens = k;
         }
-        if (kitchen == 0) return null;
+        // The tabs' samples alone also read the dining room behind the session's dark bars as "kitchen 1 of 1" (owner, live
+        // 2026-10-21: the panel's marks over the room with the panel closed): the first dish card's light face must show too.
+        if (kitchen == 0 || !FirstCardShows(frame, layout)) return null;
 
         var chefs = new string?[2];
         var names = new string?[2];
@@ -114,6 +116,28 @@ public sealed class DispatchPanelReader(InnText text, InnPictures pictures, InnD
 
         return new DispatchPanel(kitchen, kitchens, chefs, names, await ReadChanceAsync(frame, layout),
             await ReadDishesAsync(frame, layout), ReadQueue(frame, layout));
+    }
+
+    // Points on the first dish card's light face, at 4K from its top left: along its top and bottom edges, clear of its
+    // picture, name, badges and price. The panel always has a first card (a menu has a dish).
+    private static readonly (int X, int Y)[] FirstCardFace = [(200, 8), (330, 8), (480, 8), (560, 8), (880, 8), (200, 250), (330, 250), (480, 250), (560, 250), (880, 250)];
+
+    // Of them, at least this many light: measured 10 of 10 on every panel frame, at most 3 on a session frame without it.
+    private const int FirstCardLightPoints = 7;
+
+    /// <summary>The first dish card's light grey face is where the panel puts it.</summary>
+    private static bool FirstCardShows(Frame frame, InnLayout layout)
+    {
+        int light = 0;
+        foreach (var (dx, dy) in FirstCardFace)
+        {
+            var (x, y) = Point(layout, CardX + 1 + dx, CardY + dy);
+            if (x < 0 || y < 0 || x >= frame.Width || y >= frame.Height) continue;
+            var (r, g, b) = frame.GetPixel(x, y);
+            int max = Math.Max(r, Math.Max(g, b)), min = Math.Min(r, Math.Min(g, b));
+            if (min >= 190 && max - min <= 25) light++;
+        }
+        return light >= FirstCardLightPoints;
     }
 
     private static (int X, int Y) Point(InnLayout layout, double x, double y)
