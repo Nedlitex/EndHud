@@ -325,6 +325,7 @@
     <sys:String x:Key="Inn.Call.BlazeSoonCaption">满了就按 R 开启</sys:String>
     <sys:String x:Key="Inn.Call.Sample">派单提示示例</sys:String>
     <sys:String x:Key="Inn.Call.SampleCaption">营业时，该排什么菜会这样提示</sys:String>
+    <sys:String x:Key="Inn.Want.Table">桌{0}</sys:String>
     <sys:String x:Key="Inn.Mark.Queue">排这个（桌{0}）</sys:String>
     <sys:String x:Key="Inn.Mark.CookAhead">预做这个</sys:String>
     <sys:String x:Key="Inn.Mark.Swap">先拿掉{0}，再排这个</sys:String>

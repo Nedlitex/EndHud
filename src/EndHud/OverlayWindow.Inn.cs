@@ -141,6 +141,7 @@ public partial class OverlayWindow
         InnStripModel? model = null;
         IReadOnlyList<InnCall> calls = [];
         IReadOnlyList<InnPanelMark> marks = [];
+        IReadOnlyList<InnWant> wants = [];
         if (_config.InnHelperEnabled)
         {
             if (_innOnScreen && AdviceNow() is { } advice)
@@ -150,6 +151,8 @@ public partial class OverlayWindow
                 // The banners, except over the open dispatch panel, where its marks take over.
                 calls = advice.BannerCalls;
                 if (_config.InnCallsEnabled) marks = InnPanelMarks.Of(advice.Panel, advice.Calls, Loc.Get);
+                // What each gourmand wants, as glowing circles, while their order is open.
+                wants = InnWantsView.Of(advice);
             }
             else if (_menuOpen && !_innOnScreen)
                 // Something to drag, size and see through while the menu is open, out of the inn.
@@ -157,6 +160,7 @@ public partial class OverlayWindow
         }
         RenderInnCalls(calls);
         RenderInnMarks(marks);
+        RenderInnWants(wants);
         string? key = model?.Key;
         if (key == _innKey) return;
         _innKey = key;
@@ -290,6 +294,7 @@ public partial class OverlayWindow
         InnCallStack.Opacity = _config.InnStripOpacity;
         foreach (var frame in _innAdviceFrames.Values) frame.Opacity = _config.InnStripOpacity;
         foreach (var mark in _innMarks) mark.Opacity = _config.InnStripOpacity;
+        if (_innWantsFrame is not null) _innWantsFrame.Opacity = _config.InnStripOpacity;
         ConfigStore.Save(_config);
     }
 
