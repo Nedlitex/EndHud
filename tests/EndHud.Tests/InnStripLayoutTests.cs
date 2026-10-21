@@ -120,7 +120,7 @@ public class InnStripLayoutTests
         {
             double widest = banners.Max(b =>
             {
-                var element = ComboBanner.Create(ComboBanner.Content(null, b.PictureId is { } id ? PackagePicture(id) : null, b.Title, b.Caption));
+                var element = InnCallView.Banner(b, PackagePicture);
                 element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
                 return element.DesiredSize.Width;
             });
@@ -129,13 +129,36 @@ public class InnStripLayoutTests
             return (widest, drag.DesiredSize.Height);
         });
         double scale = ComboHintLayout.Scale(height, dpiScale: 1);
-        double stack = banners.Count * (ComboBanner.Height + ComboBanner.Gap) + label;
+        double stack = banners.Count * (InnCallView.BannerHeight + ComboBanner.Gap) + label;
 
         double right = HudConfig.DefaultComboHintX * width + (bannerWidth + Frame) * scale;
         double bottom = HudConfig.DefaultComboHintY * height + (stack + Frame) * scale;
 
         Assert.True(right <= width, $"right edge {right:F0} of {width} ({bannerWidth:F0} units wide at scale {scale:F2})");
         Assert.True(bottom <= height, $"bottom edge {bottom:F0} of {height} ({stack:F0} units tall at scale {scale:F2})");
+    }
+
+    /// <summary>
+    /// Owner, live 2026-10-20: "the picture in the banner is too small, make it very hard for user to notice". The dish's
+    /// picture fills most of the banner's height: at least <see cref="InnCallView.PictureSize"/> units, a 1080p window's
+    /// pixels (76 px; it was the combo icon's 44).
+    /// </summary>
+    [Fact]
+    public void A_banners_dish_picture_is_large_enough_to_read_at_a_glance()
+    {
+        var banner = InnCallView.Of(new InnCall(InnCallKind.Queue, 2, Inn.Dishes[0], 3), Text);
+
+        var (picture, height) = OnSta(() =>
+        {
+            var element = InnCallView.Banner(banner, PackagePicture);
+            element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            element.Arrange(new Rect(element.DesiredSize));
+            var image = Descendants(element).OfType<Image>().Single();
+            return (image.ActualHeight, element.ActualHeight);
+        });
+
+        Assert.True(picture >= 72, $"the dish's picture is {picture:F0} units tall");
+        Assert.True(picture >= 0.85 * height, $"the picture is {picture:F0} of the banner's {height:F0} units");
     }
 
     [Fact]

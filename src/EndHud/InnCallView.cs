@@ -1,3 +1,5 @@
+using System.Windows.Controls;
+using System.Windows.Media.Imaging;
 using EndHud.Vision.Inn;
 
 namespace EndHud;
@@ -24,6 +26,13 @@ internal static class InnCallView
     /// </summary>
     public const int MostBanners = 7;
 
+    /// <summary>
+    /// A call's banner height and its dish picture's size, at 1080p (scaled with the window): the picture nearly the
+    /// banner's height (owner, live 2026-10-20: the combo icon's 44 was "too small, make it very hard for user to
+    /// notice"). The fullest stack still fits from its default place at 1080p (InnStripLayoutTests).
+    /// </summary>
+    public const double BannerHeight = 84, PictureSize = 76;
+
     /// <param name="text">The i18n lookup (<see cref="Loc.Get"/>; the tests pass zh-CN.xaml's strings).</param>
     public static IReadOnlyList<InnBannerModel> Of(IReadOnlyList<InnCall> calls, Func<string, string> text) =>
         [.. calls.Select(c => Of(c, text)).OrderBy(b => b.Order).Take(MostBanners)];
@@ -44,6 +53,12 @@ internal static class InnCallView
             _ => new(call.Key, order, text("Inn.Blaze.GetReady"), text("Inn.Call.BlazeSoonCaption"), null),
         };
     }
+
+    /// <summary>A call's banner as the overlay draws it: <see cref="ComboBanner"/>'s look, the dish's picture in the icon slot.</summary>
+    /// <param name="picture">A dish's picture by id; null when the package has none.</param>
+    public static Border Banner(InnBannerModel model, Func<string, BitmapSource?> picture) =>
+        ComboBanner.Create(ComboBanner.Content(null, model.PictureId is { } id ? picture(id) : null, model.Title, model.Caption, iconSize: PictureSize),
+            BannerHeight);
 
     /// <summary>What to drag while the menu is open out of a session: one banner with a dish of the inn's own.</summary>
     public static InnBannerModel Sample(InnData? data, Func<string, string> text) =>

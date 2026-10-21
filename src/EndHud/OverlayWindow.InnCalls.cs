@@ -35,7 +35,7 @@ public partial class OverlayWindow
         foreach (var model in models)
         {
             if (_innCallBanners.Any(b => b.Key == model.Key)) continue;
-            var element = ComboBanner.Create(ComboBanner.Content(null, model.PictureId is { } id ? InnPicture(id) : null, model.Title, model.Caption));
+            var element = InnCallView.Banner(model, InnPicture);
             var holder = ComboBanner.Holder(element, model.Order);
             // In their order; banners still sliding out count too.
             int index = InnCallStack.Children.OfType<FrameworkElement>().Count(c => c.Tag is int order && order < model.Order);

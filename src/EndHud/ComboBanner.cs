@@ -15,6 +15,9 @@ internal static class ComboBanner
 {
     public const double Height = 72, Gap = 6;
 
+    /// <summary>The combo's icon beside the avatar.</summary>
+    public const double IconSize = 44;
+
     /// <summary>The overlay's gold (the Accent resource in OverlayWindow.xaml).</summary>
     public static readonly Brush Accent = Frozen(new SolidColorBrush(Color.FromRgb(0xE6, 0xC2, 0x29)));
 
@@ -49,15 +52,16 @@ internal static class ComboBanner
     /// <summary>
     /// The banner's content: the operator's avatar and combo icon (either may be missing), name and
     /// caption. <paramref name="soon"/>: about to be ready (the caption a countdown), drawn muted.
+    /// <paramref name="iconSize"/>: the icon's size (the inn's banners draw a dish's picture larger).
     /// </summary>
-    public static UIElement Content(BitmapSource? avatar, BitmapSource? icon, string name, string caption, bool soon = false)
+    public static UIElement Content(BitmapSource? avatar, BitmapSource? icon, string name, string caption, bool soon = false, double iconSize = IconSize)
     {
         // The banner is slanted like the game's; its content is slanted back upright.
         var content = new StackPanel { Orientation = Orientation.Horizontal, RenderTransform = new SkewTransform(12, 0) };
         if (avatar is not null)
             content.Children.Add(new Image { Source = avatar, Width = 60, Height = 60, Margin = new Thickness(14, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center });
         if (icon is not null)
-            content.Children.Add(new Image { Source = icon, Width = 44, Height = 44, Margin = new Thickness(avatar is null ? 14 : 0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center });
+            content.Children.Add(new Image { Source = icon, Width = iconSize, Height = iconSize, Margin = new Thickness(avatar is null ? 14 : 0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center });
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(avatar is null && icon is null ? 18 : 0, 0, 28, 0) };
         text.Children.Add(new TextBlock { Text = name, FontSize = 20, FontWeight = FontWeights.Bold, Foreground = TextBrush, FontFamily = Font });
         text.Children.Add(new TextBlock { Text = caption, FontSize = 14, Foreground = soon ? SoonCaption : Accent, FontFamily = Font });
@@ -96,11 +100,11 @@ internal static class ComboBanner
         Scale(banner).ScaleY = scale;
     }
 
-    /// <summary>The slanted banner around <paramref name="content"/>.</summary>
-    public static Border Create(UIElement content) => new()
+    /// <summary>The slanted banner around <paramref name="content"/>, <paramref name="height"/> tall (its space in a stack opens to that).</summary>
+    public static Border Create(UIElement content, double height = Height) => new()
     {
         MinWidth = 280,
-        Height = Height,
+        Height = height,
         VerticalAlignment = VerticalAlignment.Center,
         Background = new LinearGradientBrush(Color.FromArgb(0xE6, 0x10, 0x14, 0x18), Color.FromArgb(0x30, 0x10, 0x14, 0x18), 0),
         BorderBrush = Accent,
@@ -118,7 +122,7 @@ internal static class ComboBanner
 
     public static void SlideIn(Grid holder, Border banner)
     {
-        holder.BeginAnimation(FrameworkElement.HeightProperty, new DoubleAnimation(0, Height + Gap, GapTime) { EasingFunction = EaseOut });
+        holder.BeginAnimation(FrameworkElement.HeightProperty, new DoubleAnimation(0, banner.Height + Gap, GapTime) { EasingFunction = EaseOut });
         Translation(banner).BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(-SlideDistance, 0, SlideInTime) { EasingFunction = EaseOut });
         banner.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, SlideInTime));
         banner.BeginAnimation(Border.BorderThicknessProperty, new ThicknessAnimation(
@@ -146,7 +150,7 @@ internal static class ComboBanner
             Math.Clamp((sinceIn - start).TotalMilliseconds / duration.TotalMilliseconds, 0, 1);
         double x = -SlideDistance * (1 - EaseOut.Ease(In(SlideInTime)));
         double opacity = In(SlideInTime);
-        double height = (Height + Gap) * EaseOut.Ease(In(GapTime));
+        double height = (banner.Height + Gap) * EaseOut.Ease(In(GapTime));
         // Before the flare starts the edge has its normal width, as the animation leaves it.
         double edge = sinceIn < FlareStart ? EdgeWidth : FlareWidth + (EdgeWidth - FlareWidth) * EaseOut.Ease(In(FlareTime, FlareStart));
 
