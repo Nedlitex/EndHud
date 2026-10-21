@@ -26,6 +26,9 @@ internal sealed class InnDisplay
     /// <summary>The last reading's screen when it was the setup screen, a chef picker or the menu screen.</summary>
     public InnScreenKind? SetupScreen { get; private set; }
 
+    /// <summary>The advice the last <see cref="Views"/> drew from; null off a session (the replay's trace reads every call from it, banners hidden or not).</summary>
+    public InnAdvice? LastAdvice { get; private set; }
+
     /// <summary>A reading of the inn (null: a frame that isn't the inn), handed to <paramref name="session"/>.</summary>
     public void Show(InnSession? session, InnReading? reading, TimeSpan now)
     {
@@ -46,11 +49,13 @@ internal sealed class InnDisplay
     /// <param name="text">The i18n lookup.</param>
     public InnViews Views(InnSession? session, TimeSpan now, bool callsEnabled, Func<string, string> text)
     {
+        LastAdvice = null;
         if (!OnSession || session is null || Advice(session, now) is not { } advice)
         {
             if (session is not { Active: true }) _wants.Clear();
             return InnViews.None;
         }
+        LastAdvice = advice;
         var wants = _wants.Update(advice, text, now);
         return new InnViews(
             // The banners, except over the open dispatch panel, where its marks take over.

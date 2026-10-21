@@ -189,6 +189,13 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// <summary>What the last <see cref="Advice"/> changed of the calls shown, and why (<see cref="InnCallHold.Changes"/>).</summary>
     public IReadOnlyList<string> CallChanges => _calls.Changes;
 
+    /// <summary>What each kitchen's queue holds, by dish, as "1:a,b 2:c" (the replay's trace: a queue changing is the player's doing, its times moving on aren't).</summary>
+    public string QueueSignature() =>
+        string.Join(" ", _kitchens.Values.Select(k => $"{k.Queue.Kitchen}:{string.Join(",", k.Queue.Dishes.Select(d => d.Dish.Id))}"));
+
+    /// <summary>The dishes the estimate has on the counter, cooked ahead and not yet claimed (the replay's trace).</summary>
+    public string CounterSignature() => string.Join(",", _spares.Where(s => s.Value > 0).Select(s => $"{s.Key}x{s.Value}"));
+
     /// <summary>A session is on (its frames seen within <see cref="EndAfter"/>).</summary>
     public bool Active { get; private set; }
 
