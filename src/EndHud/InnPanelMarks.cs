@@ -7,7 +7,7 @@ using EndHud.Vision.Inn;
 
 namespace EndHud;
 
-/// <summary>A mark drawn on the open dispatch panel (派单).</summary>
+/// <summary>A mark drawn on the open dispatch panel.</summary>
 /// <param name="Area">What it marks, at 4K on the window's centred 16:9 area (<see cref="DispatchPanelReader.CardArea"/>, <see cref="DispatchPanelReader.TabArea"/>).</param>
 /// <param name="Label">Its words: what to do with the card, or that the tab's kitchen has something to queue.</param>
 /// <param name="OnCard">A dish's card (an outline and a label), else a kitchen's tab (a small label).</param>
@@ -19,13 +19,14 @@ internal sealed record InnPanelMark(PixelRect Area, string Label, bool OnCard)
 
 /// <summary>
 /// What's marked on the open dispatch panel (owner, live 2026-10-20: "is it possible to ALSO have a suggestion marker
-/// by the dish itself on the right side?"; the banners "must not cover the 派单 panel", so while it's open they're put
+/// by the dish itself on the right side?"; the banners must not cover the dispatch panel, so while it's open they're put
 /// away and the marks take over, <see cref="InnAdvice.BannerCalls"/>):
 /// <list type="bullet">
-/// <item>the card of the dish called for the kitchen the panel shows, outlined, with "排这个（桌3）", "预做这个" or
-/// "先拿掉雪绵豆沙，再排这个": only when that card was read as that dish (<see cref="KitchenDish.Card"/>); nothing when
-/// unsure;</item>
-/// <item>the tab of every other kitchen with a dish called, "有菜要排", so the player knows to switch to it.</item>
+/// <item>the card of the dish called for the kitchen the panel shows, outlined, with "queue this (table 3)", "cook this
+/// ahead" or "take out X, then queue this" (i18n Inn.Mark.Queue, CookAhead, Swap): only when that card was read as that
+/// dish (<see cref="KitchenDish.Card"/>); nothing when unsure;</item>
+/// <item>the tab of every other kitchen with a dish called, "a dish to queue" (Inn.Mark.Tab), so the player knows to
+/// switch to it.</item>
 /// </list>
 /// Full Blaze and the last call aren't marked: they wait for the panel to close. Every string from i18n/zh-CN.xaml.
 /// </summary>

@@ -153,7 +153,7 @@ internal sealed record InnStripLook(double FontSize, double PictureSize, double 
     public static readonly InnStripLook Normal = new(16, InnStrip.PictureSize, 2, new Thickness(12, 8, 14, 8));
 
     /// <summary>
-    /// The session's gourmand panel, larger (owner, live 2026-10-20: "老饕's panel's picture is also TOO small for human
+    /// The session's gourmand panel, larger (owner, live 2026-10-20: the gourmand panel's "picture is also TOO small for human
     /// to read, make that panel bigger"): 20 px words, 48 px pictures at 1080p.
     /// </summary>
     public static readonly InnStripLook Gourmands = new(20, 48, 3, new Thickness(14, 10, 16, 10));

@@ -59,8 +59,8 @@ internal sealed record InnStripModel(IReadOnlyList<InnLine> Lines)
 /// gourmand: what they asked for in plain words and what on the menu meets it, with where it is. Every other call
 /// (the next dish per kitchen, a swap, the last call, Full Blaze) is a banner (<see cref="InnCallView"/>). With no
 /// gourmand the panel is empty and put away. What the helper hasn't seen yet (the kitchens, the menu, the drinks) is
-/// never said (owner, live 2026-10-20: "do not display '还没看到厨房/菜单…', half of the time it is wrong and it is
-/// disturbing"); it's in the diagnostic log. Every string from i18n/zh-CN.xaml.
+/// never said (owner, live 2026-10-20, of the "kitchen/menu not seen yet" lines: "half of the time it is wrong and it
+/// is disturbing"); it's in the diagnostic log. Every string from i18n/zh-CN.xaml.
 /// </summary>
 internal static class InnStripView
 {

@@ -10,9 +10,9 @@ namespace EndHud;
 internal sealed record InnWant(int Table, string ItemId, string Name);
 
 /// <summary>
-/// What each gourmand wants, as round glowing circles in the gauges' buff style (owner, live 2026-10-20: "for 老饕, reuse
+/// What each gourmand wants, as round glowing circles in the gauges' buff style (owner, live 2026-10-20: "for [gourmands], reuse
 /// the buff to show the dish/drink they want to be a lot more visible"): one circle per request, the dish's or drink's
-/// picture in the middle, the table under it ("桌4") and the item's name below that, glowing for as long as the
+/// picture in the middle, the table under it ("table 4", Inn.Want.Table) and the item's name below that, glowing for as long as the
 /// gourmand's order is open (<see cref="InnSession"/> keeps the request until it's fulfilled). For two requests, the
 /// items in the order to serve them (each fills a request perfectly); otherwise each request's best option. The panel
 /// (<see cref="InnStripView"/>) keeps the detail: the requests in words, a second choice, where each item is.
@@ -57,7 +57,7 @@ internal static class InnWantsView
 /// <summary>
 /// Where the gourmands' circles go: right of the table cards at the top of the session's screen, where the cards'
 /// row leaves the screen free up to the status at the top right (the 4K frames: table 6's card ends at x 2258, the
-/// status ("上菜品中", "结账中") starts at about x 3200; the dispatch panel's top edge is at y 418). Anchored to the
+/// status (serving, paying) starts at about x 3200; the dispatch panel's top edge is at y 418). Anchored to the
 /// top-left corner like the table cards (InnLayout), so it follows them at any window size; not dragged, nothing in config.
 /// </summary>
 internal static class InnWantsLayout

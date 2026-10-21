@@ -45,12 +45,12 @@ internal sealed record InnAdvice(DispatchAdvice? Dispatch, InnGap? Gap, FullBlaz
     /// </summary>
     public IReadOnlyList<InnCall> Calls { get; init; } = [];
 
-    /// <summary>The dispatch panel (派单) open on the last session frame read, as read; null when it's closed.</summary>
+    /// <summary>The dispatch panel open on the last session frame read, as read; null when it's closed.</summary>
     public DispatchPanel? Panel { get; init; }
 
     /// <summary>
     /// The calls shown as banners: all of them, except while the dispatch panel is open, when none (owner, live
-    /// 2026-10-20: banners "must not cover the 派单 panel"); the panel's marks take over (<see cref="InnPanelMarks"/>).
+    /// 2026-10-20: banners must not cover the dispatch panel); the panel's marks take over (<see cref="InnPanelMarks"/>).
     /// </summary>
     public IReadOnlyList<InnCall> BannerCalls => Panel is null ? Calls : [];
 }
