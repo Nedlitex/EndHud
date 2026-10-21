@@ -299,6 +299,65 @@ public class InnSimulatorTests(ITestOutputHelper output)
         Assert.True(total <= 107, $"{total:F1} kitchen-seconds idle");
     }
 
+    /// <summary>
+    /// The player as the overlay drives them: each kitchen shows one call, the first of its advice, and the advice keeps
+    /// the calls shown (<see cref="KeptCall"/>) while they are possible; acting (at once, every 10 s, every 20 s) the player
+    /// queues what the advice says then. Where an order shown goes is decided once, when it is first shown (owner,
+    /// 2026-10-21: "the recommendation should stay steady"), which costs whatever another kitchen coming free sooner since
+    /// would have saved: printed, for the report.
+    /// </summary>
+    [Fact]
+    public void Following_the_calls_shown_keeps_the_kitchens_busy()
+    {
+        double total = 0, waits = 0;
+        foreach (var (name, kitchens, menu) in new[] { ("recorded", Kitchens(), RecordedMenu), ("live", LiveKitchens(), LiveMenu) })
+        {
+            foreach (double every in ActEvery)
+            {
+                double idle = 0, waited = 0;
+                for (int seed = 1; seed <= Seeds; seed++)
+                {
+                    var run = new InnSimulator(kitchens, menu).Run(RecordedOrderTimes(seed, menu: menu), FollowingTheCallsShown(new DispatchAdvisor(kitchens), every), servingAfterClose: LongRun);
+                    idle += run.IdleKitchenSeconds;
+                    waited += run.Orders.Average(o => o.Waited ?? 999);
+                }
+                total += idle;
+                waits += waited / Seeds;
+                output.WriteLine($"{name} kitchens, calls shown, acting every {every} s, {Seeds} seeds: idle {idle:F1} kitchen-seconds in all, average wait {waited / Seeds:F2} s");
+            }
+        }
+        output.WriteLine($"total idle {total:F1} kitchen-seconds, average wait over the six {waits / 6:F2} s");
+        // 2026-10-21, an order shown kept in its kitchen while possible: 132.0 kitchen-seconds idle (all of it the recorded
+        // kitchens acting every 20 s), average wait 35.34 s. Moving it when another kitchen had it out 8 s sooner (until
+        // 2026-10-21): 132.0 and 35.33 s. (More idle than the player above, 107.0, who queues the whole advice: a dish to
+        // cook ahead shown is kept in its kitchen too.)
+        Assert.True(total <= 132, $"{total:F1} kitchen-seconds idle");
+        Assert.True(waits / 6 <= 35.5, $"{waits / 6:F2} s average wait");
+    }
+
+    /// <summary>The player following the calls shown (<see cref="Following_the_calls_shown_keeps_the_kitchens_busy"/>).</summary>
+    private static InnPolicy FollowingTheCallsShown(DispatchAdvisor advisor, double actEvery)
+    {
+        double? actedAt = null;
+        IReadOnlyList<KeptCall> shown = [];
+        return inn =>
+        {
+            var advice = advisor.Advise(inn.State, fillEverySlot: inn.Now < 1, shown);
+            shown = [.. advice.Kitchens.Where(k => k.Queue.Count > 0).Select(k => new KeptCall(k.Kitchen, k.Queue[0].Dish, k.Queue[0].Table))];
+            if (actedAt is { } last && inn.Now - last < actEvery) return [];
+            actedAt = inn.Now;
+            shown = [];
+            var actions = new List<InnAction>(advice.Leftovers.Where(l => !l.Matches).Select(l => new GiveLeftover(l.Table, l.Dish, l.Ordered)));
+            foreach (var kitchen in advice.Kitchens)
+            {
+                foreach (var replace in kitchen.Replaces.OrderByDescending(r => r.Slot)) actions.Add(new RemoveDish(kitchen.Kitchen, replace.Slot));
+                foreach (var replace in kitchen.Replaces) actions.Add(new QueueDish(kitchen.Kitchen, replace.Put));
+                actions.AddRange(kitchen.Queue.Select(q => new QueueDish(kitchen.Kitchen, q.Dish)));
+            }
+            return actions;
+        };
+    }
+
     // ---- A session played from its guests ----
 
     private static IReadOnlyList<IReadOnlyList<Dish>> Guests(int count, string zh) => [.. Enumerable.Range(0, count).Select(_ => (IReadOnlyList<Dish>)[Dish(zh)])];
