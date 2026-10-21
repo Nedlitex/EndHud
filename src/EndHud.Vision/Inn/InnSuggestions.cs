@@ -126,11 +126,31 @@ public static class InnSuggester
         {
             var (count, placed) = places[k.Number];
             return (KitchenMath.Cooks(k)
-                ? new KitchenSuggestion(k.Number, [.. k.Chefs.Skip(placed)], chefSubs.GetValueOrDefault(k.Number) ?? [], dishesOf[k.Number],
+                ? new KitchenSuggestion(k.Number, StillToPlace(k, input), chefSubs.GetValueOrDefault(k.Number) ?? [], dishesOf[k.Number],
                     dishSubs.GetValueOrDefault(k.Number) ?? [], Types(dishesOf[k.Number]))
                 : new KitchenSuggestion(k.Number, [], [], [], [], [])) with { Placed = placed, Full = placed >= count };
         }).ToList();
         return new InnSuggestions(suggestions, unplaced, plan.Drinks, drinkSubs);
+    }
+
+    /// <summary>
+    /// The chefs of planned kitchen <paramref name="kitchen"/> still to put in, by who is placed in <paramref name="input"/>,
+    /// not by place: the plan may have been worked out before the player placed anyone, and the player may put its
+    /// second chef in first (owner, live 2026-10-21). Each chef placed takes out the plan's chef with their id; a place
+    /// taken by a chef whose name couldn't be read takes out the plan's own unnamed cook (a plan worked out with it
+    /// placed lists one), else nobody named. At most the places left.
+    /// </summary>
+    private static List<OperatorInfo> StillToPlace(Kitchen kitchen, InnPlanInput input)
+    {
+        var placed = input.Kitchens.FirstOrDefault(p => p.Number == kitchen.Number);
+        if (placed is null) return [.. kitchen.Chefs];
+        var left = kitchen.Chefs.ToList();
+        foreach (var chef in placed.Placed)
+        {
+            int at = left.FindIndex(c => c.Id == (chef?.Id ?? ""));
+            if (at >= 0) left.RemoveAt(at);
+        }
+        return [.. left.Where(c => c.Id.Length > 0).Take(Math.Max(0, placed.Places - placed.Placed.Count))];
     }
 
     /// <summary>The dish types of <paramref name="dishes"/>, the most dishes first (then in the order they come).</summary>
