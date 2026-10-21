@@ -57,7 +57,7 @@ public class InnSteadyTests
 
     /// <summary>
     /// The panel closed (owner, live 2026-10-21: "the recommendation leaks after the kitchen is closed", the card mark
-    /// "排这个（桌1）" over the dining room): its marks go on the first frame that shows it closed for sure (the Full Blaze
+    /// "queue this (table 1)" over the dining room): its marks go on the first frame that shows it closed for sure (the Full Blaze
     /// meter it covers read), through the overlay's own display, while the banners stay down for
     /// <see cref="InnSession.PanelClosedAfter"/> as before. A frame that merely misses the panel (its tabs misread while
     /// it's open, the meter still covered) keeps them: that is the 2026-10-20 flashing.

@@ -10,18 +10,18 @@ namespace EndHud;
 /// One of a gourmand's requests and what meets it: a row of their banner.
 /// </summary>
 /// <param name="Request">Which request (0 = the first said); 0 for a gourmand whose words weren't recognised.</param>
-/// <param name="Description">The request in plain words (<see cref="GourmandCondition.Describe"/>, a drink's with "饮品"); null for words not recognised.</param>
+/// <param name="Description">The request in plain words (<see cref="GourmandCondition.Describe"/>, a drink's as a drink, Inn.Gourmand.Drink); null for words not recognised.</param>
 /// <param name="ItemId">The best dish's or drink's id (its picture); null when nothing on the menu meets it, the words weren't recognised, or no drink of the menu was seen yet.</param>
 /// <param name="Name">The item's name, or the words saying why there's none; null when nothing can be said yet (a drink request before any drink of the menu was seen: "none fits" would be wrong).</param>
 internal sealed record InnWant(int Table, int Request, string? Description, string? ItemId, string? Name);
 
-/// <summary>A row of a gourmand's banner as drawn: "① 不含菜籽油的汤羹 → [picture] 白瓜肉丸汤".</summary>
-/// <param name="Number">The request's number (①, ②).</param>
+/// <summary>A row of a gourmand's banner as drawn: "(1) a soup without seed oil → [picture] the dish".</summary>
+/// <param name="Number">The request's number (Inn.Gourmand.Numbers).</param>
 /// <param name="Request">The request in plain words; null for words not recognised (the row is <paramref name="Item"/> only).</param>
 /// <param name="Item">The item's name or why there's none; null for nothing to say yet (the row is the request only).</param>
 internal sealed record InnGourmandRow(string Number, string? Request, string? PictureId, string? Item);
 
-/// <summary>One gourmand's banner: "老饕 桌4" over one numbered row per request.</summary>
+/// <summary>One gourmand's banner: "gourmand, table 4" (Inn.Gourmand.Title) over one numbered row per request.</summary>
 /// <param name="Key">Who the banner is (the gourmand, by table): it stays up while the gourmand's order is open, what it says updated in place.</param>
 internal sealed record InnGourmandBanner(string Key, int Table, string Title, IReadOnlyList<InnGourmandRow> Rows)
 {
@@ -33,7 +33,7 @@ internal sealed record InnGourmandBanner(string Key, int Table, string Title, IR
 /// What each gourmand wants, as banners in the cooking banners' combo style on the right side of the screen (owner,
 /// live 2026-10-21: "the recommendation of gourmand is very confusing now, user cannot distinguish between whether the
 /// two circles are alternatives or two requirements ... change the style of gourmand to be something like the banner"):
-/// one banner per gourmand, "老饕 桌4" (Inn.Gourmand.Title), then one numbered row per REQUEST, each the request in plain
+/// one banner per gourmand, titled with their table (Inn.Gourmand.Title), then one numbered row per REQUEST, each the request in plain
 /// words, an arrow, and the best dish or drink on the menu for it with its picture, so two rows read as two things to
 /// serve. Served in the rows' order, each item fills its own request (a dish fills the first request not yet filled
 /// that it meets, and the first row's item meets the first request). A request nothing on the menu meets says so

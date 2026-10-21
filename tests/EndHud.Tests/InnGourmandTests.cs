@@ -22,6 +22,11 @@ public class InnGourmandTests(ITestOutputHelper output)
     private const string A = "melon-meatball-soup", B = "fin-mato-soup", C = "mala-xiang-guo", D = "sweetbeans-on-snow", E = "meat-baozi";
     private const string Tea = "pre-tide-lungjing", Milk = "bottled-milk-a";
 
+    /// <summary>The first and second request's numbers, as the banner writes them.</summary>
+    private static string First => Text("Inn.Gourmand.Numbers")[0].ToString();
+
+    private static string Second => Text("Inn.Gourmand.Numbers")[1].ToString();
+
     private static InnAdvice Advice(params InnGourmandNote[] gourmands) =>
         new(new DispatchAdvice([], [], [], []), null, null, false, gourmands, [], new HashSet<int>(), false);
 
@@ -36,19 +41,19 @@ public class InnGourmandTests(ITestOutputHelper output)
 
     /// <summary>
     /// The owner's gourmand at table 4 (session-gourmand-soup-and-drink.jpg): a soup without seed oil and a drink without
-    /// alcohol. One banner, "老饕 桌4", and a numbered row per request: the request in plain words, an arrow, the best item
+    /// alcohol. One banner, titled with the table (Inn.Gourmand.Title), and a numbered row per request: the request in plain words, an arrow, the best item
     /// with its picture. A drink request says it's a drink.
     /// </summary>
     [Fact]
     public void One_banner_per_gourmand_with_a_numbered_row_per_request()
     {
-        var note = new InnGourmandNote(4, new GourmandAdvice([Request("不含菜籽油的汤羹", A, D), DrinkRequest("不要酒香的", Tea, Milk)], null), null, false);
+        var note = new InnGourmandNote(4, new GourmandAdvice([Request("soup, no seed oil", A, D), DrinkRequest("no alcohol", Tea, Milk)], null), null, false);
 
         var banners = InnGourmandView.Banners(InnGourmandView.Of(Advice(note), Text), Text);
 
         var banner = Assert.Single(banners);
-        Assert.Equal("老饕 桌4", banner.Title);
-        Assert.Equal([("①", "不含菜籽油的汤羹", A, Dish(A).Zh), ("②", "不要酒香的饮品", Tea, Drink(Tea).Zh)],
+        Assert.Equal(Format("Inn.Gourmand.Title", 4), banner.Title);
+        Assert.Equal([(First, "soup, no seed oil", A, Dish(A).Zh), (Second, Format("Inn.Gourmand.Drink", "no alcohol"), Tea, Drink(Tea).Zh)],
             banner.Rows.Select(r => (r.Number, r.Request, r.PictureId, r.Item)));
 
         // Drawn: the title, then each row's words, the arrow, the item's picture and its name, in that order.
@@ -60,7 +65,7 @@ public class InnGourmandTests(ITestOutputHelper output)
             var all = Descendants(element).ToList();
             return (all.OfType<TextBlock>().Select(t => t.Text).ToList(), all.OfType<Image>().Count());
         });
-        Assert.Equal(["老饕 桌4", "① 不含菜籽油的汤羹", " → ", Dish(A).Zh, "② 不要酒香的饮品", " → ", Drink(Tea).Zh], texts);
+        Assert.Equal([Format("Inn.Gourmand.Title", 4), $"{First} soup, no seed oil", " → ", Dish(A).Zh, $"{Second} {Format("Inn.Gourmand.Drink", "no alcohol")}", " → ", Drink(Tea).Zh], texts);
         Assert.Equal(2, pictures);
     }
 
@@ -72,7 +77,7 @@ public class InnGourmandTests(ITestOutputHelper output)
     public void The_items_chosen_to_serve_together_each_go_on_their_own_requests_row()
     {
         var serve = new[] { Option(Milk), Option(A) };
-        var note = new InnGourmandNote(2, new GourmandAdvice([Request("汤羹", A, B), DrinkRequest("奶香的", Tea, Milk)], serve), null, false);
+        var note = new InnGourmandNote(2, new GourmandAdvice([Request("a soup", A, B), DrinkRequest("milky", Tea, Milk)], serve), null, false);
 
         Assert.Equal([(0, A), (1, Milk)], InnGourmandView.Of(Advice(note), Text).Select(w => (w.Request, w.ItemId)));
     }
@@ -85,15 +90,15 @@ public class InnGourmandTests(ITestOutputHelper output)
     public void A_request_met_by_nothing_not_recognised_or_with_drinks_unseen_says_so()
     {
         var unknown = new InnGourmandNote(1, null, "read text", false);
-        var unmet = new InnGourmandNote(3, new GourmandAdvice([Request("甜品"), Request("菜肴", C)], null), null, false);
-        var drinksUnseen = new InnGourmandNote(5, new GourmandAdvice([DrinkRequest("茶香的")], null), null, DrinksUnknown: true);
+        var unmet = new InnGourmandNote(3, new GourmandAdvice([Request("a dessert"), Request("a side", C)], null), null, false);
+        var drinksUnseen = new InnGourmandNote(5, new GourmandAdvice([DrinkRequest("tea")], null), null, DrinksUnknown: true);
 
         var banners = InnGourmandView.Banners(InnGourmandView.Of(Advice(unknown, unmet, drinksUnseen), Text), Text);
 
-        Assert.Equal(["老饕 桌1", "老饕 桌3", "老饕 桌5"], banners.Select(b => b.Title));
-        Assert.Equal([("", null, null, "没认出要求")], banners[0].Rows.Select(r => (r.Number, r.Request, r.PictureId, r.Item)));
-        Assert.Equal([("①", "甜品", null, "没有合适的"), ("②", "菜肴", C, Dish(C).Zh)], banners[1].Rows.Select(r => (r.Number, r.Request, r.PictureId, r.Item)));
-        Assert.Equal([("①", "茶香的饮品", (string?)null, (string?)null)], banners[2].Rows.Select(r => (r.Number, r.Request, r.PictureId, r.Item)));
+        Assert.Equal([Format("Inn.Gourmand.Title", 1), Format("Inn.Gourmand.Title", 3), Format("Inn.Gourmand.Title", 5)], banners.Select(b => b.Title));
+        Assert.Equal([("", null, null, Text("Inn.Gourmand.Unknown"))], banners[0].Rows.Select(r => (r.Number, r.Request, r.PictureId, r.Item)));
+        Assert.Equal([(First, "a dessert", null, Text("Inn.Gourmand.None")), (Second, "a side", C, Dish(C).Zh)], banners[1].Rows.Select(r => (r.Number, r.Request, r.PictureId, r.Item)));
+        Assert.Equal([(First, Format("Inn.Gourmand.Drink", "tea"), (string?)null, (string?)null)], banners[2].Rows.Select(r => (r.Number, r.Request, r.PictureId, r.Item)));
         var asked = new List<string>();
         OnSta(() => banners.Select(b => InnGourmandView.Banner(b, id => { asked.Add(id); return null; })).ToList());
         Assert.Equal([C], asked);

@@ -82,8 +82,9 @@ public sealed partial record DishRule(int Count, IReadOnlyList<string> AnyOf)
         return new DishRulesRead(rules, notUnderstood);
     }
 
-    // The closing 品 may be lost where the line wraps, the panel putting it alone on the next line (owner, live
-    // 2026-10-21: "至少有2道「[甜品]类菜。" said as not understood, so the plan left the desserts out): "…菜" is enough.
+    // The closing character of "dishes" may be lost where the line wraps, the panel putting it alone on the next line
+    // (owner, live 2026-10-21: the tea-break theme's dessert half said as not understood, so the plan left the desserts
+    // out): the rule is read without it.
     [GeneratedRegex(@"至少有?(\d+)道带有(.+?)特性的菜")]
     private static partial Regex TraitRuleText();
 
