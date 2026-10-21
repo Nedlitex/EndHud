@@ -499,11 +499,21 @@ own. [`KitchenMath`](src/EndHud.Vision/Inn/KitchenMath.cs) gives a dish's cook t
 (珍馐) chance in a kitchen: the Inn Rating's base (2/4/6/8 %) + the chefs' choice bonuses + Si's
 品质把控 + the flavor bonuses, which reproduces both recorded 派单 panels (18 %, every time listed).
 A kitchen queues 3 dishes, one cooking ([`KitchenQueue`](src/EndHud.Vision/Inn/KitchenQueue.cs));
-the counter holds 8. [`DispatchAdvisor`](src/EndHud.Vision/Inn/DispatchAdvisor.cs) sends each
-ordered dish not already carried, on the counter or queued to the kitchen that has it out soonest
+the counter holds 8 (the simulator's model; the advice never gates on it, below). [`DispatchAdvisor`](src/EndHud.Vision/Inn/DispatchAdvisor.cs)
+sends each ordered dish not already carried, queued, or out of a kitchen for it to the kitchen that has it out soonest
 (ties: the better choice chance); cooks ahead (the dish cooked ahead least so far, then the slowest,
-never past the counter's room or without stock, leaving one slot free for orders); fills every free
-slot at the session's start and when Full Blaze is near. Every dish, ordered or cooked ahead, goes to
+never without stock, leaving one slot free for orders, with no counter cap); fills every free
+slot at the session's start and when Full Blaze is near. **No counter gate** (owner, 2026-10-21: "it should just not
+gate on how full it is, it offers little value"): EndHud only estimates the counter (出餐台), never reads it, and on
+test_yuanyuan4 the estimate went "full" (9 dishes on a counter of 8) from about 250 s, which stopped all cooking ahead
+and, with dishes taken to be there that weren't, covered real orders: no order call from 251.6 s to 350.4 s while
+tables waited up to 65 s. A dish not used gives its ingredients back, so cooking ahead is never a waste. So a dish
+cooked ahead on the counter covers no order and cooking ahead has no cap; what's left of the counter: a dish that came
+out of a kitchen for an order (it was that order's dish in the queue) still covers that order until it's served
+(`InnState.OutForOrders`; without it, an order whose dish had just come out was sent to a kitchen again and every
+kitchen's call reshuffled, test_yuanyuan3 362.4 s), the last call hands out what's on the counter, and cooking ahead
+prefers dishes there are fewer of. Kept: 3 slots a kitchen, all but one slot in a kitchen nothing was ordered for,
+nothing cooked ahead in the last 40 s of serving, no advice for a kitchen with no chef. Every dish, ordered or cooked ahead, goes to
 the kitchen where it comes out first (owner, 2026-10-19): the seconds left on the dish that kitchen
 is cooking, plus the dishes waiting behind it, plus this dish's cook time there; there's no
 "idle kitchen first" rule, an idle kitchen wins only when that makes it the earliest. It also and suggests taking a dish cooked
@@ -725,7 +735,8 @@ before a session and into it, the setup as chosen so far ([`InnSetupMemory`](src
 below); during it, each kitchen's chefs and queue (read off the dispatch
 panel when it shows that kitchen, otherwise moved on by cook times since: an estimate, and a dish
 turning served on a table card takes it off the counter or out of the estimate at once), the orders
-(oldest first, served items left out), dishes on the counter (cooked ahead and not yet claimed), the
+(oldest first, served items left out), dishes on the counter (estimated: each dish out of a kitchen is out for the next
+order of it still waiting for one, else cooked ahead; one out for an order turns cooked ahead if its order goes), the
 timer (0 s left once closed, for the end of the session's advice), the fire meter with
 `FullBlazeTracker`, and each gourmand's request. A gourmand's request is kept from the moment it's read
 until their order is fulfilled (owner, live 2026-10-20: "if you cannot see but the order is not fulfilled,
@@ -757,16 +768,17 @@ next dish for an order, a dish to cook ahead, or a swap). The calls on screen ar
 (`InnCallHold.Kept` → `DispatchAdvisor.Advise(state, fillEverySlot, kept)`, owner 2026-10-21: "the recommendation
 should stay steady"), which plans around them: an order shown in a kitchen stays there while it can be queued
 there and is out less than `DispatchAdvisor.KeepWithinSeconds` (8 s) after the soonest kitchen; a dish to cook
-ahead shown in a kitchen goes there first, and takes the counter's room first, while that kitchen has a free slot
+ahead shown in a kitchen goes there first, while that kitchen has a free slot
 and nothing ordered for it, the dish is in stock and out in time (leaving a slot free for orders decides only a
-new dish to cook ahead). So earliest-finish (owner decision 13) decides only a new call. A call stays until it is
+new dish to cook ahead). The soonest kitchen an order on screen is measured against counts the other orders on screen
+as queued in theirs (test_yuanyuan3, 383.7 s: an order left kitchen 1 for kitchen 2, which was showing another). So earliest-finish (owner decision 13) decides only a new call. A call stays until it is
 done (its dish went into that kitchen's queue: a queued + cooked-out count per kitchen and dish, put right by every
 dispatch-panel reading; or its order no longer waits for a kitchen), no longer valid (the kitchen full; the advice
 no longer cooking that dish ahead in that kitchen; the swap and its order gone) or clearly beaten (an order where a
 cook-ahead was; the advice moving the order to a kitchen clearly sooner, which it does at once). A call no longer
-valid stays `GraceSeconds` (1.5 s) first, a dish to cook ahead `CookAheadGraceSeconds` (10 s: the counter's room is
-a forecast that comes back as dishes are served). One order is called in one kitchen; a kitchen with no call takes
-an order still uncalled elsewhere when it has it out no more than 8 s later, so a new order shows at once. Full
+valid stays `GraceSeconds` (1.5 s) first, a dish to cook ahead `CookAheadGraceSeconds` (10 s: what drops it can come
+back a moment later). One order is called in one kitchen; a kitchen with no call, or showing only a dish to cook ahead,
+takes an order still uncalled elsewhere when it has it out no more than 8 s later, so a new order shows at once. Full
 Blaze and the last call come straight from the advice. Measured (InnCallTests, 10 s of jittery readings): the first
 suggestion per kitchen changed 19 times when the advice was worked out afresh, 0 times since it keeps the calls on
 screen; the calls 0 times.
@@ -858,7 +870,27 @@ test_yuanyuan3 16.2 → 7.7, 3 → 0, 4 → 0; test_yuanyuan4 8.6 → 4.5, 1 →
 changes a minute, y4 12.4 → 6.4, no kitchen's banner moving in the stack. Every new order a kitchen could take was
 called at once where a kitchen wasn't showing another order (5 of 5 on each). Fewer order calls than before is mostly
 orders whose dish the estimate now knows is out (it no longer loses dishes on a panel reading); the counter itself is
-an estimate, never read off the screen, so an order covered by a dish that isn't really there gets no call.
+an estimate, never read off the screen, so an order covered by a dish that isn't really there got no call (until the
+counter gate went, below).
+
+**No counter gate, replayed** (2026-10-21). Order banners put up, before → after: test_yuanyuan3 7 → 25 (from 250 s:
+6 → 19), test_yuanyuan4 6 → 18 (from 250 s: 4 → 14; from 250 s to 350 s: 0 → 4); dishes to cook ahead 14 → 26 and
+6 → 18. New orders a kitchen could take: y3 17, y4 13 (5 and 5 before), each called at once where a kitchen could take
+it. Still no flash and no jump on either; banners 22.9 and 15.4 changes a minute (11.4 and 6.4 before; each banner up
+once and down once, none back within a second), so the replay's bound on that rate is 25 (it was 15). Marks hidden for
+under a second on y3: 14 (11 before), the same panel flickers with more kitchens showing a call. Before those last
+fixes the change gave y3 1 flash and 23 jumps, y4 7 jumps: an order whose dish had just come out sent again (fixed:
+`OutForOrders`), an order on screen measured against a kitchen another order on screen takes (fixed, above), a second
+order of a dish waiting behind the first while a kitchen showed only a dish to cook ahead (fixed, above), and the
+analyser counting as jumps what its definition excludes: a call going because its order was gone (the table eating or
+paying), because the player queued another dish in that kitchen (an order shown there moves once that dish has cooked
+past the 5 s it could be swapped out in), or as a dish was served to any table (that order's call going frees its
+kitchen, as the player's queueing does). An order counts as one that should show at once only where a kitchen not
+showing another order has it out no more than 8 s after the advice's kitchen (`InnReplay.CallStep.FreeFor`), the
+hold's own rule. In the simulator (which keeps its counter of 8 and its assumption that a full counter holds a
+finished dish in its kitchen) the idle kitchen-seconds of `Following_the_advice_keeps_the_kitchens_busy` went 104 → 107
+and the average waits moved by -0.3 to +2.1 s (the most, a player acting every 20 s with the recorded kitchens:
+30.6 → 32.7 s); following the advice still serves every order sooner than the first free kitchen.
 
 `InnReplayTests.Over_the_owners_recorded_sessions_nothing_flashes_or_jumps` replays both fixtures on every run;
 `InnSteadyTests`, `InnSessionTests` and `InnCallTests` have one test per hold. To trace another recording (text only, to

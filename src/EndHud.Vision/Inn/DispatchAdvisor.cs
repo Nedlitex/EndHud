@@ -126,7 +126,8 @@ public sealed record DispatchAdvice(IReadOnlyList<KitchenAdvice> Kitchens, IRead
 /// there, else a wrong one, which still earns some money; oldest table first. A table whose dish can
 /// still make it waits for it. Drinks need no kitchen and aren't outstanding dishes, so a table waiting
 /// only for a drink is never handed a dish (it wouldn't be served). Once closed, every table whose own
-/// dish is on the counter or carried is handed it. The last call is the one rule the counter decides.</item>
+/// dish is on the counter or carried is handed it. Besides a dish out for an order covering that order,
+/// the last call is the one rule the counter decides.</item>
 /// </list>
 /// </summary>
 public sealed class DispatchAdvisor(InnKitchens kitchens)

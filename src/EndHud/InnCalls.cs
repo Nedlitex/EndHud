@@ -63,8 +63,8 @@ internal sealed record InnKitchenView(Func<int, string, int> Queued, Func<int, b
 /// <item><b>done:</b> its dish was put in that kitchen's queue (<see cref="InnKitchenView.Queued"/> went up), or
 /// its order is no longer waiting for a kitchen (queued elsewhere, served, gone);</item>
 /// <item><b>no longer valid:</b> the kitchen has no free slot; for a dish to cook ahead, the advice no longer cooks it
-/// ahead in that kitchen (the advice keeps it there while it can, <see cref="Kept"/>: so no stock, the end rules, the counter
-/// full, an order sent there); for a swap, neither the swap nor its order stands; the kitchen no longer cooks;</item>
+/// ahead in that kitchen (the advice keeps it there while it can, <see cref="Kept"/>: so no stock, the end rules, an order
+/// sent there); for a swap, neither the swap nor its order stands; the kitchen no longer cooks;</item>
 /// <item><b>clearly beaten:</b> an order (or a swap for one) is called where a dish to cook ahead was; for an
 /// order, the advice now has it out at least <see cref="ClearlyEarlierSeconds"/> sooner in another kitchen (the advice
 /// keeps it where it is otherwise, <see cref="Kept"/>): it moves there at once.</item>
@@ -85,11 +85,12 @@ internal sealed class InnCallHold
     public static readonly TimeSpan GraceSeconds = TimeSpan.FromSeconds(1.5);
 
     /// <summary>
-    /// A dish to cook ahead the advice no longer cooks ahead in its kitchen (the counter's room forecast short, as dishes
-    /// are served and cooked out it comes back) stays this long first: on test_yuanyuan4 kitchen 3's dish lost the counter's
-    /// last places for 3.3 s (189.3 s) and the kitchen then got another dish; on test_yuanyuan3 for 5.6 s (271.0 s), back
-    /// 0.6 s after it was taken down. Nothing is urgent about a dish to cook ahead; its kitchen full still takes it down
-    /// after <see cref="GraceSeconds"/>, and an order takes its place at once.
+    /// A dish to cook ahead the advice no longer cooks ahead in its kitchen stays this long first: nothing is urgent about
+    /// it, and what drops it can come back a moment later. Measured when cooking ahead stopped at the counter's room (until
+    /// 2026-10-21): on test_yuanyuan4 kitchen 3's dish lost the counter's last places for 3.3 s (189.3 s) and the kitchen
+    /// then got another dish; on test_yuanyuan3 for 5.6 s (271.0 s), back 0.6 s after it was taken down. With no counter cap
+    /// it still covers a kitchen holding two dishes for a moment. Its kitchen full still takes it down after
+    /// <see cref="GraceSeconds"/>, and an order takes its place at once.
     /// </summary>
     public static readonly TimeSpan CookAheadGraceSeconds = TimeSpan.FromSeconds(10);
 
@@ -280,7 +281,7 @@ internal sealed class InnCallHold
         {
             InnCallKind.Queue => view.HasRoom(kitchen) && wanted.GetValueOrDefault((call.Dish!.Id, call.Table!.Value)) > 0,
             // Still this kitchen's dish to cook ahead: the advice keeps it there while that's possible (KeptCall), so its
-            // going means it no longer is (no stock, the counter full, the end, an order sent to this kitchen).
+            // going means it no longer is (no stock, the end, an order sent to this kitchen).
             InnCallKind.CookAhead => view.HasRoom(kitchen) && wanted.GetValueOrDefault((call.Dish!.Id, -kitchen)) > 0,
             InnCallKind.Swap => advice.Replaces.Any(s => s.Remove.Id == call.Remove!.Id && s.Put.Id == call.Dish!.Id && s.Table == call.Table)
                                 || (view.HasRoom(kitchen) && wanted.GetValueOrDefault((call.Dish!.Id, call.Table!.Value)) > 0),
