@@ -766,19 +766,25 @@ second off (owner, live 2026-10-20: the suggestions "keep changing during the se
 [`InnCallHold`](src/EndHud/InnCalls.cs) turns it into `InnAdvice.Calls`, held steady: one call per kitchen (the
 next dish for an order, a dish to cook ahead, or a swap). The calls on screen are handed back to the advice
 (`InnCallHold.Kept` → `DispatchAdvisor.Advise(state, fillEverySlot, kept)`, owner 2026-10-21: "the recommendation
-should stay steady"), which plans around them: an order shown in a kitchen stays there while it can be queued
-there and is out less than `DispatchAdvisor.KeepWithinSeconds` (8 s) after the soonest kitchen; a dish to cook
-ahead shown in a kitchen goes there first, while that kitchen has a free slot
+should stay steady"), which plans around them: an order shown in a kitchen stays there while it is possible there
+(still waiting for a kitchen, in stock, a free slot there, out there before serving ends), however much sooner another
+kitchen has it since; a dish to cook ahead shown in a kitchen goes there first, while that kitchen has a free slot
 and nothing ordered for it, the dish is in stock and out in time (leaving a slot free for orders decides only a
-new dish to cook ahead). The soonest kitchen an order on screen is measured against counts the other orders on screen
-as queued in theirs (test_yuanyuan3, 383.7 s: an order left kitchen 1 for kitchen 2, which was showing another). So earliest-finish (owner decision 13) decides only a new call. A call stays until it is
-done (its dish went into that kitchen's queue: a queued + cooked-out count per kitchen and dish, put right by every
-dispatch-panel reading; or its order no longer waits for a kitchen), no longer valid (the kitchen full; the advice
-no longer cooking that dish ahead in that kitchen; the swap and its order gone) or clearly beaten (an order where a
-cook-ahead was; the advice moving the order to a kitchen clearly sooner, which it does at once). A call no longer
-valid stays `GraceSeconds` (1.5 s) first, a dish to cook ahead `CookAheadGraceSeconds` (10 s: what drops it can come
-back a moment later). One order is called in one kitchen; a kitchen with no call, or showing only a dish to cook ahead,
-takes an order still uncalled elsewhere when it has it out no more than 8 s later, so a new order shows at once. Full
+new dish to cook ahead). So earliest-finish (owner decisions 13, 19) decides only when a call is first made. A call
+stays until it is done (its dish went into that kitchen's queue: a queued + cooked-out count per kitchen and dish, put
+right by every dispatch-panel reading; or its order no longer waits for a kitchen), impossible (the kitchen full; for
+an order, the advice no longer sending it there; for a dish to cook ahead, the advice no longer cooking it ahead there;
+the swap and its order gone), or, for a dish to cook ahead only, an order comes to its kitchen. Nothing else replaces
+a call: an order shown is never moved to another kitchen or replaced by another order while it is possible, and a dish
+to cook ahead never gives way to another dish to cook ahead (until 2026-10-21 an order moved when another kitchen had it
+out `KeepWithinSeconds`, 8 s, sooner: with the analyser's blanket excuses gone, 4 jumps on test_yuanyuan3 and 2 on
+test_yuanyuan4, all of them that move). A call impossible for a moment stays `GraceSeconds` (1.5 s) first, still
+claiming its order (so it isn't called in a second kitchen meanwhile), a dish to cook ahead `CookAheadGraceSeconds`
+(10 s: what drops it can come back a moment later). One order is called in one kitchen; a kitchen with no call, or
+showing only a dish to cook ahead, takes an order not yet shown when it has it out no more than
+`InnCallHold.ShowElsewhereWithinSeconds` (8 s) after the advice's kitchen, so a new order shows at once. The cost: a new
+order the advice puts behind another order shown, with every other kitchen showing an order too, waits for a call
+until one is done (test_yuanyuan3, 379.2 s: 3.3 s). Full
 Blaze and the last call come straight from the advice. Measured (InnCallTests, 10 s of jittery readings): the first
 suggestion per kitchen changed 19 times when the advice was worked out afresh, 0 times since it keeps the calls on
 screen; the calls 0 times.
@@ -849,8 +855,11 @@ and it jumps around ... the recommendation should stay steady"). The replay also
 decides it (whether its banner shows or the open panel's mark does), with the queues, open orders, counter and advice
 beside each change and every 10 s, and counts (`InnReplay.Steadiness`): a **flash**, a kitchen's call gone and back
 within 2 s unless the player queued it; a **jump**, a kitchen's call switching dish, or an order or dish to cook ahead
-switching kitchen, when the call that went was still possible and nothing was done (not queued, its dish not served or
-out on the counter, its kitchen not full, no dish queued anywhere within the grace, cooking ahead not stopped). Its
+switching kitchen, when the call that went was still possible and nothing was done to that call (its dish not queued
+in its kitchen, nor for its order in another; its order not served, eating or paying, its dish not out on the counter;
+its kitchen not full, nor another dish queued in it by the player within the swap window; cooking ahead not stopped).
+A dish served to another table or a dish queued in another kitchen excuses nothing (until 2026-10-21 either, within the
+grace, excused any call going: in a busy session nearly always true, so the analyser could not see the moves). Its
 second fixture is test_yuanyuan4's readings (0–470 s). The causes found, each with its test:
 
 | Cause (measured) | Fix |
@@ -862,7 +871,8 @@ second fixture is test_yuanyuan4's readings (0–470 s). The causes found, each 
 | A panel's first frame read its queue empty, taking 30 s of dishes for out (the counter grew to 11 on a counter of 8 and covered every order); a panel with fewer tabs than before ("kitchen 1 of 1": the real panel misread, y4 168.6 s; or, on y3's older readings, the dark bar behind the theme line) | Dishes gone from a queue are taken once the next reading of that kitchen agrees; a panel with fewer tabs than this session has read is a frame the panel was missed on |
 | The cooking dish's seconds not read reset it to its whole cook time (y4 179.1 s) | Kept as the estimate has it |
 | A dish to cook ahead dropped for the kitchen holding two dishes for a moment (y3 141.6 s), or the counter's room forecast short for 3.3 s (y4 189.3 s) and 5.6 s (y3 271.0 s), then another dish | It stays while its kitchen has a free slot; out of the advice it stays `CookAheadGraceSeconds` (10 s) |
-| An order the advice moved to a clearly sooner kitchen stayed on the old one's banner for 15 s, until an unrelated order switched both (y3 364.2 s); 5 s re-decided an order with nothing done (y3 328.5 s: 39 s against 34 s) | It moves at once; the margin is 8 s |
+| An order the advice moved to a clearly sooner kitchen stayed on the old one's banner for 15 s, until an unrelated order switched both (y3 364.2 s); 5 s re-decided an order with nothing done (y3 328.5 s: 39 s against 34 s) | Until 2026-10-21 it moved at once with an 8 s margin; since, an order shown is never re-decided (below) |
+| With the analyser's blanket excuses gone (a dish served to any table, a queue added to anywhere), an order shown moved to a kitchen 8 s sooner, or a kitchen's order was replaced by the one moving in: y3 321.3 s, 364.2 s, y4 355.5 s, 4 and 2 jumps | The advice keeps an order shown in its kitchen while possible; the hold never replaces one by another order (`InnCallTests.An_order_shown_is_not_moved_when_another_kitchen_becomes_much_sooner`, `InnSteadyTests.An_order_shown_is_not_replaced_by_another_order`) |
 | Every opening and closing of the panel took all banners down and slid them in again; a banner going moved those below it | Hidden in place (`InnViews.Away`); each kitchen in its own row (above) |
 
 Measured with the same analyser at the instrumentation-only commit and after (calls per minute, flashes, jumps):
@@ -891,6 +901,13 @@ hold's own rule. In the simulator (which keeps its counter of 8 and its assumpti
 finished dish in its kitchen) the idle kitchen-seconds of `Following_the_advice_keeps_the_kitchens_busy` went 104 → 107
 and the average waits moved by -0.3 to +2.1 s (the most, a player acting every 20 s with the recorded kitchens:
 30.6 → 32.7 s); following the advice still serves every order sooner than the first free kitchen.
+
+**No re-deciding, replayed** (2026-10-21). With the strict analyser: y3 4 jumps → 0, y4 2 → 0, no flash before or after;
+calls 18.8 → 15.1 and 13.5 → 12.0 changes a minute; new orders shown at once 15 → 16 of 17 and 13 of 13. The existing
+simulator player queues the whole advice and never has a call on screen, so its numbers cannot change (107.0 idle
+kitchen-seconds, as before). `Following_the_calls_shown_keeps_the_kitchens_busy` plays the overlay's player (one call
+a kitchen, the advice keeping the calls shown; acting at once, every 10 s, every 20 s): 132.0 idle kitchen-seconds and
+an average wait of 35.34 s, against 132.0 and 35.33 s when the order moved to a kitchen 8 s sooner.
 
 `InnReplayTests.Over_the_owners_recorded_sessions_nothing_flashes_or_jumps` replays both fixtures on every run;
 `InnSteadyTests`, `InnSessionTests` and `InnCallTests` have one test per hold. To trace another recording (text only, to
