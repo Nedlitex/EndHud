@@ -56,9 +56,9 @@ internal sealed record InnKitchenView(Func<int, string, int> Queued, Func<int, b
 /// <list type="bullet">
 /// <item><b>done:</b> its dish was put in that kitchen's queue (<see cref="InnKitchenView.Queued"/> went up), or
 /// its order is no longer waiting for a kitchen (queued elsewhere, served, gone);</item>
-/// <item><b>no longer valid:</b> the kitchen has no free slot; for a dish to cook ahead, the advice neither cooks
-/// it ahead anywhere nor anything ahead in that kitchen (no stock, the end rules, the counter full); for a swap, neither the swap nor its
-/// order stands; the kitchen no longer cooks;</item>
+/// <item><b>no longer valid:</b> the kitchen has no free slot; for a dish to cook ahead, the advice no longer cooks it
+/// ahead in that kitchen (the advice keeps it there while it can, <see cref="Kept"/>: so no stock, the end rules, the counter
+/// full, an order sent there); for a swap, neither the swap nor its order stands; the kitchen no longer cooks;</item>
 /// <item><b>clearly beaten:</b> an order (or a swap for one) is called where a dish to cook ahead was; for an
 /// order, the advice now has it out at least <see cref="ClearlyEarlierSeconds"/> sooner in another kitchen.</item>
 /// </list>
@@ -111,33 +111,25 @@ internal sealed class InnCallHold
     {
         // Every order the advice still sends to a kitchen, and every dish it cooks ahead, counted (a table may want
         // two of a dish; a dish may be cooked ahead twice). A call shown claims one, so one is never called twice.
-        // A dish to cook ahead is under table 0.
+        // A dish to cook ahead is under its kitchen (as table -kitchen): the advice keeps each kitchen's own dish to cook
+        // ahead while it can (KeptCall), so one shown in kitchen 2 never stands for the one the advice put in kitchen 3.
         var wanted = new Dictionary<(string Dish, int Table), int>();
         void Add((string, int) order, int n) => wanted[order] = wanted.GetValueOrDefault(order) + n;
         foreach (var kitchen in dispatch.Kitchens)
         {
-            foreach (var q in kitchen.Queue) Add((q.Dish.Id, q.Table ?? 0), 1);
+            foreach (var q in kitchen.Queue) Add((q.Dish.Id, q.Table ?? -kitchen.Kitchen), 1);
             foreach (var swap in kitchen.Replaces) Add((swap.Put.Id, swap.Table), 1);
         }
         bool Claim(InnCall call)
         {
-            if (call.Dish is not { } dish) return true;
-            var key = (dish.Id, call.Table ?? 0);
-            if (wanted.GetValueOrDefault(key) <= 0)
-            {
-                // A dish to cook ahead shown stands for whatever its kitchen is to cook ahead now: it claims that.
-                if (call.Kind != InnCallKind.CookAhead || CookAheadIn(call.Kitchen) is not { } instead) return false;
-                key = instead;
-            }
+            if (WantedKey(call) is not { } key) return true;
+            if (wanted.GetValueOrDefault(key) <= 0) return false;
             Add(key, -1);
             return true;
         }
-        (string, int)? CookAheadIn(int? kitchen) =>
-            dispatch.Kitchens.FirstOrDefault(k => k.Kitchen == kitchen)?.Queue.Where(q => q.Table is null)
-                .Select(q => ((string, int)?)(q.Dish.Id, 0)).FirstOrDefault(k => wanted.GetValueOrDefault(k!.Value) > 0);
         void Release(InnCall call)
         {
-            if (call.Dish is { } dish) Add((dish.Id, call.Table ?? 0), 1);
+            if (WantedKey(call) is { } key) Add(key, 1);
         }
 
         // The calls shown that still stand claim their orders first.
@@ -223,11 +215,19 @@ internal sealed class InnCallHold
                 return new InnCall(InnCallKind.Swap, advice.Kitchen, swap.Put, swap.Table, swap.Remove);
         foreach (var q in advice.Queue)
         {
-            if (wanted.GetValueOrDefault((q.Dish.Id, q.Table ?? 0)) <= 0) continue; // called in another kitchen
+            if (wanted.GetValueOrDefault((q.Dish.Id, q.Table ?? -advice.Kitchen)) <= 0) continue; // called in another kitchen
             return q.Table is { } table ? new InnCall(InnCallKind.Queue, advice.Kitchen, q.Dish, table) : new InnCall(InnCallKind.CookAhead, advice.Kitchen, q.Dish);
         }
         return null;
     }
+
+    /// <summary>What a call claims of this moment's advice: its order (dish, table), or its kitchen's dish to cook ahead (dish, -kitchen).</summary>
+    private static (string Dish, int Table)? WantedKey(InnCall call) => call switch
+    {
+        { Dish: null } => null,
+        { Kind: InnCallKind.CookAhead, Kitchen: { } kitchen } => (call.Dish.Id, -kitchen),
+        _ => (call.Dish.Id, call.Table ?? 0),
+    };
 
     /// <summary>The call's dish was put in its kitchen's queue since it was shown.</summary>
     private static bool Done(Held held, InnKitchenView view) =>
@@ -239,12 +239,9 @@ internal sealed class InnCallHold
         return call.Kind switch
         {
             InnCallKind.Queue => view.HasRoom(kitchen) && wanted.GetValueOrDefault((call.Dish!.Id, call.Table!.Value)) > 0,
-            // Still cooked ahead, here or in another kitchen (the advice swapping which kitchen cooks it ahead and which
-            // takes an order is no news), or this kitchen is still to cook something ahead: a near-equal dish put first
-            // doesn't replace it (measured on the owner's 2026-10-20 recording: dishes to cook ahead swapped places
-            // every few seconds as the queues moved on).
-            InnCallKind.CookAhead => view.HasRoom(kitchen)
-                                     && (wanted.GetValueOrDefault((call.Dish!.Id, 0)) > 0 || advice.Queue.Any(q => q.Table is null && wanted.GetValueOrDefault((q.Dish.Id, 0)) > 0)),
+            // Still this kitchen's dish to cook ahead: the advice keeps it there while that's possible (KeptCall), so its
+            // going means it no longer is (no stock, the counter full, the end, an order sent to this kitchen).
+            InnCallKind.CookAhead => view.HasRoom(kitchen) && wanted.GetValueOrDefault((call.Dish!.Id, -kitchen)) > 0,
             InnCallKind.Swap => advice.Replaces.Any(s => s.Remove.Id == call.Remove!.Id && s.Put.Id == call.Dish!.Id && s.Table == call.Table)
                                 || (view.HasRoom(kitchen) && wanted.GetValueOrDefault((call.Dish!.Id, call.Table!.Value)) > 0),
             _ => false,

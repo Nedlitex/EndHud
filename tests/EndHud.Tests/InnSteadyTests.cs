@@ -249,23 +249,25 @@ public class InnSteadyTests
     }
 
     /// <summary>
-    /// A dish to cook ahead stays while its kitchen is still to cook something ahead (on the recording, near-equal
-    /// dishes swapped places every few seconds as the queues moved on); once the kitchen is to cook nothing ahead, it
-    /// goes after the grace.
+    /// A dish to cook ahead shown in a kitchen is handed to the advice to keep (<see cref="InnCallHold.Kept"/>; the advice
+    /// keeps it there while it can, so near-equal dishes no longer swap places), and stands for that kitchen only: the
+    /// advice cooking the same dish ahead in another kitchen doesn't hold it up. On test_yuanyuan4 at 167.7 s kitchen 2's
+    /// soup, no longer to be cooked ahead there, claimed the soup the advice had put in kitchen 3, whose call went instead.
     /// </summary>
     [Fact]
-    public void A_dish_to_cook_ahead_stays_while_its_kitchen_still_cooks_ahead()
+    public void A_dish_to_cook_ahead_stands_for_its_own_kitchen_only()
     {
         var hold = new InnCallHold();
-        var shown = Assert.Single(hold.Update(Advice(Kitchen(1, new QueueAdvice(Dish(A), null, 40))), null, View(), S(0)));
-        Assert.Equal(InnCallKind.CookAhead, shown.Kind);
+        var both = Advice(Kitchen(1, new QueueAdvice(Dish(A), null, 40)), Kitchen(2, new QueueAdvice(Dish(A), null, 40)));
+        var shown = hold.Update(both, null, View(), S(0));
+        Assert.Equal([(1, A), (2, A)], shown.Select(c => (c.Kitchen!.Value, c.Dish!.Id)));
+        Assert.Equal([(1, A), (2, A)], hold.Kept(View()).Select(k => (k.Kitchen, k.Dish.Id)));
 
-        var other = Advice(Kitchen(1, new QueueAdvice(Dish(B), null, 40)));
-        Assert.Equal([shown], hold.Update(other, null, View(), S(5)));
-        Assert.Equal([shown], hold.Update(other, null, View(), S(10)));
-
-        hold.Update(Advice(Kitchen(1)), null, View(), S(11));
-        Assert.Empty(hold.Update(Advice(Kitchen(1)), null, View(), S(11) + InnCallHold.GraceSeconds));
+        // Kitchen 1 no longer open to cooking ahead; the advice keeps kitchen 2's.
+        var onlyTwo = Advice(Kitchen(1), Kitchen(2, new QueueAdvice(Dish(A), null, 40)));
+        hold.Update(onlyTwo, null, View(), S(1));
+        var after = hold.Update(onlyTwo, null, View(), S(1) + InnCallHold.GraceSeconds);
+        Assert.Equal([(2, A)], after.Select(c => (c.Kitchen!.Value, c.Dish!.Id)));
     }
 
     /// <summary>An order is called at once in a kitchen whose call is only kept a moment: real news doesn't wait.</summary>
