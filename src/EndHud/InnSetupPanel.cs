@@ -66,6 +66,13 @@ internal interface IInnPlanJudge
 
     /// <summary><paramref name="candidate"/> beats <paramref name="shown"/> for <paramref name="input"/> by a clear margin.</summary>
     bool ClearlyBetter(InnPlanInput input, InnSetupAdvice candidate, InnSetupAdvice shown);
+
+    /// <summary>
+    /// <paramref name="shown"/>, kept for <paramref name="input"/>: the same plan (its chefs, dishes and drinks), its
+    /// suggestions worked out again for <paramref name="input"/> (<see cref="InnSuggester.Of"/>), so each kitchen's panel
+    /// follows what's placed now (owner, live 2026-10-21: a kitchen filled with the chefs advised kept advising them).
+    /// </summary>
+    InnSetupAdvice Restate(InnPlanInput input, InnSetupAdvice shown);
 }
 
 /// <summary>The judge over the planner: the plans compared as the planner compares them, with a margin on income.</summary>
@@ -95,6 +102,9 @@ internal sealed class InnPlanJudge(InnPlanner planner) : IInnPlanJudge
         if (!(stillPlaced && placedAsPlanned && chefs && dishes && drinks)) return false;
         return !plan.RulesMet || planner.MeetsRules(input.Rules, Dishes(input, shown), Drinks(input, shown));
     }
+
+    public InnSetupAdvice Restate(InnPlanInput input, InnSetupAdvice shown) =>
+        shown with { Suggestions = InnSuggester.Of(planner, input, shown.Plan) };
 
     public bool ClearlyBetter(InnPlanInput input, InnSetupAdvice candidate, InnSetupAdvice shown)
     {
@@ -137,8 +147,10 @@ internal sealed class InnPlanJudge(InnPlanner planner) : IInnPlanJudge
 /// A plan on screen stays (owner, live 2026-10-20: "the recommended recipe keeps changing, it is very hard to
 /// follow"): while it still fits the inputs (<see cref="IInnPlanJudge.Fits"/>: the player following it, a card
 /// seen while scrolling), a newer plan, fast or refined, replaces it only when clearly better
-/// (<see cref="IInnPlanJudge.ClearlyBetter"/>). New inputs cancel the work for the older ones: only the latest
-/// inputs' advice is ever stored.
+/// (<see cref="IInnPlanJudge.ClearlyBetter"/>). A plan kept for newer inputs keeps its chefs, dishes and drinks, and
+/// its suggestions are worked out again for them (<see cref="IInnPlanJudge.Restate"/>): a kitchen filled with the
+/// chefs advised says it's set, a kitchen half filled names only the chef still missing. New inputs cancel the work
+/// for the older ones: only the latest inputs' advice is ever stored.
 /// </summary>
 /// <param name="judge">Whether a plan shown stays (<see cref="InnPlanJudge"/>).</param>
 /// <param name="fast">The first, quick advice for an input.</param>
@@ -169,8 +181,8 @@ internal sealed class InnSetupPlanning(IInnPlanJudge judge, Func<InnPlanInput, I
     private CancellationTokenSource? _working;
     private InnSetupAdvice? _plan;
     private InnPlanInput? _planInput; // the inputs the plan shown was worked out for
-    private string? _planKey; // the latest inputs it was judged to fit
-    private int _started, _replaced, _changes;
+    private string? _planKey; // the latest inputs it was judged to fit, and its suggestions worked out for
+    private int _started, _replaced, _changes, _restated;
 
     /// <summary>Plans started so far (tests).</summary>
     public int Started
@@ -184,10 +196,19 @@ internal sealed class InnSetupPlanning(IInnPlanJudge judge, Func<InnPlanInput, I
         get { lock (_lock) return _replaced; }
     }
 
-    /// <summary>Times the advice on screen changed to look different (<see cref="InnSetupAdvice.Signature"/>; tests).</summary>
+    /// <summary>
+    /// Times another plan was put on screen looking different (<see cref="InnSetupAdvice.Signature"/>; tests). A plan
+    /// kept whose suggestions changed with what's placed (<see cref="Restated"/>) doesn't count: it's the same plan.
+    /// </summary>
     public int Changes
     {
         get { lock (_lock) return _changes; }
+    }
+
+    /// <summary>Times a plan kept for newer inputs was restated for them and looked different (<see cref="IInnPlanJudge.Restate"/>; tests).</summary>
+    public int Restated
+    {
+        get { lock (_lock) return _restated; }
     }
 
     /// <summary>
@@ -226,7 +247,7 @@ internal sealed class InnSetupPlanning(IInnPlanJudge judge, Func<InnPlanInput, I
                 cancel.ThrowIfCancellationRequested();
                 if (refine is null)
                 {
-                    if (Offer(inputs.Key, input, first, cancel, refined: false) is Outcome.Shown) done?.Invoke();
+                    if (Redraw(Offer(inputs.Key, input, first, cancel, refined: false))) done?.Invoke();
                     _note($"inn: setup advice in {fastMs} ms");
                     return;
                 }
@@ -240,17 +261,17 @@ internal sealed class InnSetupPlanning(IInnPlanJudge judge, Func<InnPlanInput, I
                     {
                         var outcome = Offer(inputs.Key, input, early.GetAwaiter().GetResult(), cancel, refined: true);
                         _note($"inn: setup advice in {watch.ElapsedMilliseconds} ms (simulator, shown directly)");
-                        if (outcome is Outcome.Shown) done?.Invoke();
+                        if (Redraw(outcome)) done?.Invoke();
                         return;
                     }
                 }
                 var shownFirst = Offer(inputs.Key, input, first, cancel, refined: false);
                 if (shownFirst is Outcome.Cancelled) return;
-                if (shownFirst is Outcome.Shown) done?.Invoke();
+                if (Redraw(shownFirst)) done?.Invoke();
                 var better = early is not null ? early.GetAwaiter().GetResult() : refine(input, cancel);
                 var replaced = Offer(inputs.Key, input, better, cancel, refined: true);
                 _note($"inn: setup advice in {fastMs} ms (model), refined in {watch.ElapsedMilliseconds} ms (simulator, {Say(replaced)})");
-                if (replaced is Outcome.Shown) done?.Invoke();
+                if (Redraw(replaced)) done?.Invoke();
             }
             catch (OperationCanceledException) when (cancel.IsCancellationRequested)
             {
@@ -269,13 +290,18 @@ internal sealed class InnSetupPlanning(IInnPlanJudge judge, Func<InnPlanInput, I
         Cancelled,
         Same,
         Kept,
+        Restated,
         Shown,
     }
+
+    /// <summary>The panels show something else now: another plan, or the one kept with its suggestions restated.</summary>
+    private static bool Redraw(Outcome outcome) => outcome is Outcome.Shown or Outcome.Restated;
 
     private static string Say(Outcome outcome) => outcome switch
     {
         Outcome.Shown => "different: shown",
         Outcome.Kept => "different, not clearly better: kept",
+        Outcome.Restated => "not clearly better: kept, restated for what's placed",
         _ => "the same",
     };
 
@@ -304,21 +330,32 @@ internal sealed class InnSetupPlanning(IInnPlanJudge judge, Func<InnPlanInput, I
     /// <summary>
     /// <paramref name="advice"/> for the latest inputs: shown when nothing fitting is on screen or it's clearly
     /// better than what is (<see cref="IInnPlanJudge"/>); otherwise the plan on screen stays and now stands for
-    /// these inputs. Nothing when newer inputs were asked for since.
+    /// these inputs, its suggestions worked out again for them (<see cref="IInnPlanJudge.Restate"/>, here on the
+    /// worker; the input the plan was worked out for stays what <see cref="IInnPlanJudge.Fits"/> judges by). Nothing
+    /// when newer inputs were asked for since.
     /// </summary>
     private Outcome Offer(string key, InnPlanInput input, InnSetupAdvice advice, CancellationToken cancel, bool refined)
     {
         InnSetupAdvice? shown;
         InnPlanInput? shownFor;
-        lock (_lock) (shown, shownFor) = (_plan, _planInput);
+        string? shownKey;
+        lock (_lock) (shown, shownFor, shownKey) = (_plan, _planInput, _planKey);
         bool replace = shown is null || shownFor is null || !judge.Fits(input, shownFor, shown, chefsAsPlanned: true)
                        || (shown.Signature != advice.Signature && judge.ClearlyBetter(input, advice, shown));
+        // Kept for other inputs than its suggestions were worked out for: worked out again (what's placed may differ).
+        var restated = !replace && shownKey != key ? judge.Restate(input, shown!) : null;
         lock (_lock)
         {
             if (cancel.IsCancellationRequested || !ReferenceEquals(shown, _plan)) return Outcome.Cancelled;
             if (!replace)
             {
                 _planKey = key;
+                if (restated is not null && restated.Signature != shown!.Signature)
+                {
+                    _plan = restated;
+                    _restated++;
+                    return Outcome.Restated;
+                }
                 return shown!.Signature == advice.Signature ? Outcome.Same : Outcome.Kept;
             }
             bool looksDifferent = shown?.Signature != advice.Signature;

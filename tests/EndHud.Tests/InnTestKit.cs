@@ -123,6 +123,8 @@ internal static partial class InnTestKit
             Real.Fits(input, planFor, shown, chefsAsPlanned: false);
 
         public bool ClearlyBetter(InnPlanInput input, InnSetupAdvice candidate, InnSetupAdvice shown) => true;
+
+        public InnSetupAdvice Restate(InnPlanInput input, InnSetupAdvice shown) => Real.Restate(input, shown);
     }
 
     public static readonly IInnPlanJudge Replacing = new ReplacingJudge();
