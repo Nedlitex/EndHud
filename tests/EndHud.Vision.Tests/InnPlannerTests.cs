@@ -425,7 +425,7 @@ public class InnPlannerTests(ITestOutputHelper output)
         Assert.False(ownersSimulated.BetterThan(simulatedPlan.Simulated!));
     }
 
-    /// <summary>The opening (C16): every kitchen that cooks gets dishes in every free slot, as many as the counter holds.</summary>
+    /// <summary>The opening (C16): every kitchen that cooks gets a dish in every free slot (no counter cap, owner 2026-10-21).</summary>
     [Theory]
     [MemberData(nameof(KitchenShapes))]
     public void The_plan_opens_with_every_kitchen_cooking(int kitchens, int places)
@@ -435,7 +435,7 @@ public class InnPlannerTests(ITestOutputHelper output)
         Assert.NotNull(plan.Opening);
         int cooking = plan.Kitchens.Count(k => k.Chefs.Count > 0);
         Assert.Equal(cooking, plan.Opening.Kitchens.Count);
-        Assert.Equal(Math.Min(cooking * KitchenQueue.Slots, InnCounter.Capacity), plan.Opening.Kitchens.Sum(k => k.Queue.Count));
+        Assert.Equal(cooking * KitchenQueue.Slots, plan.Opening.Kitchens.Sum(k => k.Queue.Count));
         Assert.All(plan.Opening.Kitchens.SelectMany(k => k.Queue), q => Assert.Contains(plan.Dishes, d => d.Dish.Id == q.Dish.Id));
     }
 

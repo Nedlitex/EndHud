@@ -165,14 +165,17 @@ public class DispatchAdvisorTests
         Assert.Equal(2, Assert.Single(Sent(advice)).Kitchen);
     }
 
+    /// <summary>
+    /// A dish carried or queued covers an order; one taken to be on the counter doesn't (owner, 2026-10-21: the counter
+    /// is only estimated, and an order covered by a dish that isn't really there got no call).
+    /// </summary>
     [Fact]
-    public void Dishes_already_carried_on_the_counter_or_queued_are_not_sent_again()
+    public void Dishes_already_carried_or_queued_are_not_sent_again_but_one_on_the_counter_is()
     {
         var advice = Advisor().Advise(State([Queue(1, ("果味沙拉", 12)), Queue(2), Queue(3)],
             [Order(1, "坛子肉"), Order(2, "肉包子"), Order(3, "果味沙拉"), Order(4, "缘缘菜饭")], counter: ["肉包子"], carried: ["坛子肉"]));
 
-        var (_, sent) = Assert.Single(Sent(advice));
-        Assert.Equal((4, Dish("缘缘菜饭")), (sent.Table!.Value, sent.Dish));
+        Assert.Equal([(2, Dish("肉包子")), (4, Dish("缘缘菜饭"))], Sent(advice).Select(s => (s.Advice.Table!.Value, s.Advice.Dish)).OrderBy(s => s.Item1));
     }
 
     /// <summary>
@@ -317,9 +320,9 @@ public class DispatchAdvisorTests
 
     /// <summary>
     /// A dish to cook ahead the player has been shown stays the kitchen's dish to cook ahead while that's still possible
-    /// there: a free slot and nothing ordered for that kitchen, the dish in stock and out in time, the counter with room. It takes
-    /// the counter's room before any other dish (on test_yuanyuan3 the last two places went to other kitchens' dishes and
-    /// the dish shown was dropped). The fastest dish (肉包子, 15 s) is otherwise cooked ahead last.
+    /// there: a free slot and nothing ordered for that kitchen, the dish in stock and out in time. It goes before any other
+    /// dish (on test_yuanyuan3 the last two places on the counter, when cooking ahead stopped at the counter's room, went to
+    /// other kitchens' dishes and the dish shown was dropped). The fastest dish (肉包子, 15 s) is otherwise cooked ahead last.
     /// </summary>
     [Fact]
     public void A_dish_to_cook_ahead_shown_in_a_kitchen_stays_while_possible()
@@ -336,12 +339,11 @@ public class DispatchAdvisorTests
         Assert.Empty(Advisor().Advise(State(twoQueued)).For(2).Queue);
         Assert.Equal(["肉包子"], Advisor().Advise(State(twoQueued), fillEverySlot: false, shown).For(2).Queue.Select(q => q.Dish.Zh));
 
-        // One place left on the counter: the dish shown takes it.
-        var oneLeft = Advisor().Advise(State(empty, counter: [.. Enumerable.Repeat("缘缘菜饭", 7)]), fillEverySlot: false, shown);
-        Assert.Equal((2, "肉包子"), (Assert.Single(All(oneLeft)).Kitchen, Assert.Single(All(oneLeft)).Advice.Dish.Zh));
+        // The counter full changes nothing (owner, 2026-10-21: no counter cap).
+        var fullCounter = Advisor().Advise(State(empty, counter: [.. Enumerable.Repeat("缘缘菜饭", InnCounter.Capacity)]), fillEverySlot: false, shown);
+        Assert.Equal("肉包子", fullCounter.For(2).Queue[0].Dish.Zh);
 
-        // Impossible: the counter full, the dish out of stock, an order sent to that kitchen.
-        Assert.Empty(All(Advisor().Advise(State(empty, counter: [.. Enumerable.Repeat("缘缘菜饭", 8)]), fillEverySlot: false, shown)));
+        // Impossible: the dish out of stock, an order sent to that kitchen.
         var noStock = InnSimulatorTests.RecordedMenu.Select(m => m with { Stock = m.Dish.Zh == "肉包子" ? 0 : null }).ToList();
         Assert.DoesNotContain(All(Advisor().Advise(State(empty, menu: noStock), fillEverySlot: false, shown)), a => a.Advice.Dish.Zh == "肉包子");
         var order = Advisor().Advise(State([Queue(1, ("果味沙拉", 20)), Queue(2), Queue(3, ("果味沙拉", 20))], [Order(4, "坛子肉")]), fillEverySlot: false, shown);
@@ -357,14 +359,17 @@ public class DispatchAdvisorTests
         Assert.All(advice.For(2).Queue.Concat(advice.For(3).Queue), q => Assert.True(q.CookAhead));
     }
 
-    /// <summary>Never more cooked ahead than the counter (8) has room for, counting what's on it and what's already ahead.</summary>
+    /// <summary>
+    /// How much is cooked ahead depends on the kitchens' free slots only, never on the counter (owner, 2026-10-21): each
+    /// idle kitchen up to all but one slot, whatever is on the counter. Before, it stopped at the counter's room (8, counting
+    /// what's on it and what's already ahead).
+    /// </summary>
     [Theory]
     [InlineData(0, 0, 6)]
-    [InlineData(5, 0, 3)]
-    [InlineData(7, 0, 1)]
-    [InlineData(8, 0, 0)]
-    [InlineData(4, 3, 1)] // 4 on the counter, 3 queued ahead: 1 more
-    public void Cooking_ahead_never_overfills_the_counter(int onCounter, int queuedAhead, int expected)
+    [InlineData(5, 0, 6)]
+    [InlineData(8, 0, 6)]
+    [InlineData(4, 3, 3)] // one dish queued ahead in each kitchen: one more each
+    public void Cooking_ahead_has_no_counter_cap(int onCounter, int queuedAhead, int expected)
     {
         var queues = new[] { Queue(1), Queue(2), Queue(3) };
         for (int i = 0; i < queuedAhead; i++) queues[i] = Queue(i + 1, ("肉包子", 15));
@@ -383,19 +388,19 @@ public class DispatchAdvisorTests
 
         var dishes = All(advice).Select(a => a.Advice.Dish.Zh).ToList();
         Assert.Equal(1, dishes.Count(d => d == "坛子肉"));
-        Assert.Equal(7, dishes.Count(d => d == "肉包子"));
-        Assert.Equal(8, dishes.Count);
+        Assert.Equal(8, dishes.Count(d => d == "肉包子"));
+        Assert.Equal(3 * KitchenQueue.Slots, dishes.Count);
     }
 
     /// <summary>
-    /// C16: at the session's start every free slot of every kitchen gets a dish, no more in all than
-    /// the counter holds, different dishes first, slowest first, each where it is out first (owner,
+    /// C16: at the session's start every free slot of every kitchen gets a dish (no counter cap, owner
+    /// 2026-10-21), different dishes first, slowest first, each where it is out first (owner,
     /// 2026-10-19: counting what is already queued there, not where it cooks fastest in an empty kitchen).
     /// </summary>
     [Theory]
     [InlineData(1, 3)]
     [InlineData(2, 6)]
-    [InlineData(3, 8)] // nine slots, but the counter holds eight
+    [InlineData(3, 9)]
     public void The_opening_fills_every_kitchen(int kitchens, int expected)
     {
         var advisor = Advisor(kitchens);
@@ -412,10 +417,11 @@ public class DispatchAdvisorTests
             // then the lower number): the 40 s soup in 1 (40 s everywhere), 莓果甜汤 in 2 (40 s; 1 would
             // have it out at 77), 白瓜肉丸汤 in 3 (40 s); then 果味沙拉 (30 s in 1: out at 70), 坛子肉 in 2
             // (75, over 1's 97), “勺里游” in 3 (75, over 2's 107), and the 15 s dishes where they're out at 85 and 90.
+            // The ninth, every dish now cooked ahead once, the slowest again in the one slot left: a 40 s soup in 3, out at 115.
             Assert.Equal(["茄果鳞肉汤", "果味沙拉", "肉包子"], advice.For(1).Queue.Select(q => q.Dish.Zh));
             Assert.Equal(["莓果甜汤", "坛子肉", "缘缘菜饭"], advice.For(2).Queue.Select(q => q.Dish.Zh));
-            Assert.Equal(["白瓜肉丸汤", "“勺里游”"], advice.For(3).Queue.Select(q => q.Dish.Zh));
-            Assert.Equal([85.0, 90, 75], advice.Kitchens.Select(k => k.Queue[^1].ReadyIn));
+            Assert.Equal(["白瓜肉丸汤", "“勺里游”", "莓果甜汤"], advice.For(3).Queue.Select(q => q.Dish.Zh));
+            Assert.Equal([85.0, 90, 115], advice.Kitchens.Select(k => k.Queue[^1].ReadyIn));
         }
     }
 
@@ -436,8 +442,8 @@ public class DispatchAdvisorTests
         var menu = new[] { new MenuDish(Dish("坛子肉"), null) };
 
         var ordered = advisor.Advise(State([Queue(1, ("白瓜肉丸汤", soupLeft)), Queue(2)], [Order(1, "坛子肉")], menu: menu));
-        // Room on the counter for one dish cooked ahead: 6 on it, the soup cooking ahead.
-        var ahead = advisor.Advise(State([Queue(1, ("白瓜肉丸汤", soupLeft)), Queue(2)], counter: [.. Enumerable.Repeat("坛子肉", 6)], menu: menu));
+        // Stock for one dish cooked ahead.
+        var ahead = advisor.Advise(State([Queue(1, ("白瓜肉丸汤", soupLeft)), Queue(2)], menu: [new MenuDish(Dish("坛子肉"), 1)]));
 
         var sent = Assert.Single(Sent(ordered));
         Assert.Equal((kitchen, readyIn), (sent.Kitchen, sent.Advice.ReadyIn));
@@ -468,7 +474,7 @@ public class DispatchAdvisorTests
             queued[kitchen] = Math.Max(queued[kitchen], a.ReadyIn);
             count[kitchen]++;
         }
-        Assert.Equal(InnCounter.Capacity, count.Values.Sum());
+        Assert.Equal(3 * KitchenQueue.Slots, count.Values.Sum()); // every slot: no counter cap
         foreach (var (kitchen, a) in All(advice))
         foreach (int other in count.Keys.Where(k => k != kitchen && count[k] < KitchenQueue.Slots))
             Assert.True(a.ReadyIn <= queued[other] + kitchens.CookSeconds(other, a.Dish),

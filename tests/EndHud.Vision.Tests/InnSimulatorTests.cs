@@ -211,12 +211,13 @@ public class InnSimulatorTests(ITestOutputHelper output)
     /// <summary>
     /// Owner, 2026-10-19, in the replay: at 285 s table 1's 果味沙拉 (30 s) can still be out in the
     /// 33 s the inn serves, so it waits and is served after 00:00; at 295 s table 2's 坛子肉 can't
-    /// (behind the salad: 47 s), so it gets a 肉包子 cooked ahead, a wrong dish, at once.
+    /// (behind the salad: 47 s), so it gets a 肉包子 cooked ahead, a wrong dish, at once. Eight 肉包子 in stock, so the
+    /// kitchen is idle by then (cooking ahead has no counter cap since 2026-10-21; unlimited, it would never be idle).
     /// </summary>
     [Fact]
     public void In_the_replay_the_last_call_is_per_table_and_counts_the_18_seconds()
     {
-        var menu = new[] { new MenuDish(Dish("肉包子"), null) };
+        var menu = new[] { new MenuDish(Dish("肉包子"), 8) };
         var kitchens = Kitchens(1);
 
         var run = new InnSimulator(kitchens, menu).Run([new InnOrder(285, 1, [Dish("果味沙拉")]), new InnOrder(295, 2, [Dish("坛子肉")])],
@@ -224,27 +225,6 @@ public class InnSimulatorTests(ITestOutputHelper output)
 
         Assert.InRange(run.Orders[0].ServedAt!.Value, 314, 318);
         Assert.InRange(run.Orders[1].ServedAt!.Value, 295, 296);
-    }
-
-    /// <summary>The counter never holds more than eight, following the advice (cooking ahead stops at its room).</summary>
-    [Fact]
-    public void Following_the_advice_never_overfills_the_counter()
-    {
-        var kitchens = Kitchens();
-        var advisor = new DispatchAdvisor(kitchens);
-        var follow = InnSimulator.Following(advisor);
-        int most = 0;
-        var inn = new InnSimulator(kitchens, RecordedMenu);
-
-        inn.Run(RecordedOrderTimes(2), sim =>
-        {
-            int spare = sim.Counter.Dishes.Count + sim.Queues.Sum(q => q.Dishes.Count) - sim.Outstanding.Count;
-            most = Math.Max(most, sim.Counter.Dishes.Count);
-            Assert.True(spare <= InnCounter.Capacity, $"{spare} dishes cooked ahead at {sim.Now} s");
-            return follow(sim);
-        }, servingAfterClose: LongRun);
-
-        Assert.InRange(most, 1, InnCounter.Capacity);
     }
 
     /// <summary>The six dishes of the owner's live session (2026-10-19, theme 海陆宴), as its 派单 panel listed them, unlimited.</summary>
@@ -314,8 +294,9 @@ public class InnSimulatorTests(ITestOutputHelper output)
         }
         output.WriteLine($"total idle {total:F1} kitchen-seconds");
         // Before dishes cooked ahead went where they're out first: 193.0 (all of it the recorded
-        // kitchens with a player acting every 20 s); after: 104.0.
-        Assert.True(total <= 104, $"{total:F1} kitchen-seconds idle");
+        // kitchens with a player acting every 20 s); after: 104.0. With no counter cap on cooking ahead
+        // (owner, 2026-10-21): 107.0.
+        Assert.True(total <= 107, $"{total:F1} kitchen-seconds idle");
     }
 
     // ---- A session played from its guests ----
