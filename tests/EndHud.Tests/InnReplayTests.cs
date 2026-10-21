@@ -96,6 +96,8 @@ public class InnReplayTests(ITestOutputHelper output)
         output.WriteLine($"marks: {marks.HiddenUnderASecond} hidden under a second, {marks.UpUnderHalfASecond} up under half a second");
         output.WriteLine($"calls: {replay.CallRates().Changes:F1} changes a minute, {flashes.Count} flashes, {jumps.Count} jumps");
         output.WriteLine($"new orders a kitchen can take: {orders.Count}, shown at once {orders.Count(o => o.ShownAfter == 0)}");
+        foreach (var u in flashes) output.WriteLine($"flash {u.At.TotalSeconds:F1} s kitchen {u.Kitchen}: {u.What} <= {u.Why}");
+        foreach (var u in jumps) output.WriteLine($"jump {u.At.TotalSeconds:F1} s kitchen {u.Kitchen}: {u.What} <= {u.Why}");
 
         Assert.True(replay.SessionSpan > TimeSpan.FromMinutes(5), "the whole session was replayed");
         // The kitchens' calls: none gone and back, none switched with nothing done to it.
