@@ -85,11 +85,19 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     public static readonly TimeSpan GourmandGoneAfter = TimeSpan.FromSeconds(3);
 
     /// <summary>
-    /// Fresh session frames in a row that must agree before the dispatch panel counts as opened or closed (owner, live
-    /// 2026-10-20: "it is still flashing"): its tabs misread on one frame, or a frame found again after a miss read
-    /// without the panel, would put the banners up over it and take them down a frame later.
+    /// Fresh session frames in a row that must read the dispatch panel before it counts as open (owner, live
+    /// 2026-10-20: "it is still flashing"): a panel read on one frame only would take the banners down and put them up
+    /// again a frame later.
     /// </summary>
-    public const int PanelFramesToChange = 2;
+    public const int PanelFramesToOpen = 2;
+
+    /// <summary>
+    /// How long no fresh frame may read the dispatch panel before it counts as closed. Measured on the
+    /// owner's 2026-10-20 recording (InnReplayTests): with the panel open, the reading said "closed" for one frame 48
+    /// times and for 2–5 frames in a row a dozen times more, between frames reading it open; each put every banner up
+    /// for a moment. Closing it a little late keeps the banners down meanwhile, which is how they were.
+    /// </summary>
+    public static readonly TimeSpan PanelClosedAfter = TimeSpan.FromSeconds(1.5);
 
     /// <summary>The timer going up by more than this means a new session started.</summary>
     private static readonly TimeSpan NewSessionJump = TimeSpan.FromSeconds(10);
@@ -111,6 +119,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     private readonly SortedDictionary<int, KitchenMemory> _kitchens = [];
     private int _panelKitchens;
     private readonly TableMemory?[] _tables = new TableMemory?[TableCardReader.Tables];
+    private readonly TableCard?[] _tableChange = new TableCard?[TableCardReader.Tables]; // an order's card read otherwise once, awaiting a second reading
     private readonly Dictionary<string, int> _spares = [], _cooked = [], _servedBefore = [];
     private readonly HashSet<string> _dishesSeen = [], _drinksSeen = [];
     private readonly Dictionary<int, GourmandMemory> _gourmands = [];
@@ -122,8 +131,9 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     private readonly FullBlazeTracker _blaze = new();
     private int? _fire;
     private bool _ordersSeen;
-    private DispatchPanel? _panelOpen; // the dispatch panel as shown: open since PanelFramesToChange frames read it, until as many don't
-    private int _panelDisagree; // fresh session frames in a row read the other way than _panelOpen
+    private DispatchPanel? _panelOpen; // the dispatch panel as shown: open once PanelFramesToOpen frames read it, until none has for PanelClosedAfter
+    private int _panelOpening; // fresh session frames in a row that read the panel while it's shown closed
+    private TimeSpan _panelReadAt; // the last fresh frame that read the panel
 
     private sealed class KitchenMemory(int number)
     {
@@ -208,7 +218,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         if (reading.Clock is not null) _clock = reading.Clock;
         if (reading.Clock is { Closed: true } && _closedAt is null) _closedAt = reading.At;
         if (reading.Panel is { } panel) TakePanel(panel);
-        TakePanelOpen(reading.Panel);
+        TakePanelOpen(reading.Panel, reading.At);
         if (reading.TableCards.Count > 0) TakeTables(reading.TableCards, reading.At);
         if (reading.Fire is { } fire) _fire = fire.Ready ? FullBlazeAdvisor.Full : fire.Fire ?? _fire;
         _blaze.Update(reading.At, reading.Fire?.Ready, inSession: true);
@@ -256,6 +266,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         _kitchens.Clear();
         _panelKitchens = 0;
         Array.Clear(_tables);
+        Array.Clear(_tableChange);
         _spares.Clear();
         _cooked.Clear();
         _servedBefore.Clear();
@@ -267,7 +278,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         _fire = null;
         _ordersSeen = false;
         _panelOpen = null;
-        _panelDisagree = 0;
+        _panelOpening = 0;
         _calls.Clear();
         _unreadableLogged.Clear();
         _gapsLogged.Clear();
@@ -301,18 +312,24 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     }
 
     /// <summary>
-    /// The dispatch panel shown as open or closed (<see cref="PanelFramesToChange"/>): while open, the latest reading of
-    /// it, or the last one when a frame missed it.
+    /// The dispatch panel shown as open or closed (<see cref="PanelFramesToOpen"/>, <see cref="PanelClosedAfter"/>): while
+    /// open, the latest reading of it, or the last one while frames read it closed.
     /// </summary>
-    private void TakePanelOpen(DispatchPanel? panel)
+    private void TakePanelOpen(DispatchPanel? panel, TimeSpan at)
     {
-        bool agrees = (panel is null) == (_panelOpen is null);
-        _panelDisagree = agrees ? 0 : _panelDisagree + 1;
-        if (agrees || _panelDisagree >= PanelFramesToChange)
+        if (panel is not null)
         {
-            _panelOpen = panel;
-            _panelDisagree = 0;
+            _panelReadAt = at;
+            _panelOpening = _panelOpen is null ? _panelOpening + 1 : 0;
+            if (_panelOpen is not null || _panelOpening >= PanelFramesToOpen)
+            {
+                _panelOpen = panel;
+                _panelOpening = 0;
+            }
+            return;
         }
+        _panelOpening = 0;
+        if (_panelOpen is not null && at - _panelReadAt >= PanelClosedAfter) _panelOpen = null;
     }
 
     /// <summary>The panel as shown, each dish's card as read on it before when this reading missed it (<see cref="KitchenMemory.Cards"/>).</summary>
@@ -373,8 +390,17 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         {
             if (cards[i] is not { } card) continue; // kept as it was for a while (TableKeptFor)
             var before = _tables[i];
-            bool sameOrder = before is not null && before.Card.State == card.State
-                             && before.Card.Items.Select(x => x.Id).SequenceEqual(card.Items.Select(x => x.Id));
+            bool sameOrder = before is not null && SameOrder(before.Card, card);
+            if (!sameOrder && before is not null && HoldsOrder(before.Card))
+            {
+                // An open order read otherwise (the HUD fading reads every card empty; a picture misread): the next
+                // reading must agree before the order is taken as gone or changed. Meanwhile the card is as it was,
+                // not seen anew (TableKeptFor still applies).
+                bool confirmed = _tableChange[i] is { } change && SameOrder(change, card);
+                _tableChange[i] = confirmed ? null : card;
+                if (!confirmed) continue;
+            }
+            _tableChange[i] = null;
             _tables[i] = new TableMemory(card, at, sameOrder ? before!.OrderSince : at);
             if (card.State is TableState.Order or TableState.GourmandOrder) _ordersSeen = true;
             TakeGourmandTable(card, at);
@@ -447,6 +473,13 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     }
 
     private static IEnumerable<OrderItem> Unserved(TableCard card) => card.Items.Where(i => !i.Served);
+
+    /// <summary>The same state and the same items (served or not).</summary>
+    private static bool SameOrder(TableCard a, TableCard b) => a.State == b.State && a.Items.Select(x => x.Id).SequenceEqual(b.Items.Select(x => x.Id));
+
+    /// <summary>A card with an order the advice works from: a guest's order, or a gourmand ordering or asking.</summary>
+    private static bool HoldsOrder(TableCard card) =>
+        card.State is TableState.Order or TableState.GourmandArrived or TableState.GourmandOrdering or TableState.GourmandOrder;
 
     /// <summary>
     /// Tables seen recently enough to go by, oldest order first. Counted against the last session

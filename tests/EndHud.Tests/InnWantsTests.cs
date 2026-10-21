@@ -92,8 +92,10 @@ public class InnWantsTests
         session.Update(Session(11, tables: Tables(), panel: Panel(1, 1, [A, B, C])));
         Assert.Single(InnWantsView.Of(session.Advice(S(11))!, Text));
 
+        // Eating, read on two readings in a row.
         session.Update(Session(12, tables: Tables(new TableCard(4, TableState.GourmandEating, [], []))));
-        Assert.Empty(InnWantsView.Of(session.Advice(S(12))!, Text));
+        session.Update(Session(12.3, tables: Tables(new TableCard(4, TableState.GourmandEating, [], []))));
+        Assert.Empty(InnWantsView.Of(session.Advice(S(12.3))!, Text));
     }
 
     /// <summary>

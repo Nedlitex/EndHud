@@ -55,8 +55,10 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
         var session = NewSession();
         session.Update(SetupScreen(-2, 1, 2, 3));
         session.Update(MenuScreen(-1, [.. panel.Dishes.Select(d => d.DishId).OfType<string>()]));
+        // The panel open on two frames in a row (InnSession.PanelFramesToOpen): the same frame again, a moment later.
         session.Update(reading);
-        var advice = session.Advice(S(0))!;
+        session.Update(reading with { At = S(0.3) });
+        var advice = session.Advice(S(0.3))!;
 
         Assert.Empty(advice.BannerCalls);
         var call = advice.Calls.Single(c => c.Kitchen == 2);
@@ -215,7 +217,8 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
 
         var session = NewSession();
         session.Update(reading);
-        var advice = session.Advice(S(0))!;
+        session.Update(reading with { At = S(0.3) });
+        var advice = session.Advice(S(0.3))!;
         Assert.Contains(1, advice.ExactKitchens);
         Assert.NotNull(advice.Dispatch);
     }

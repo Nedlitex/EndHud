@@ -29,28 +29,21 @@ internal static class InnWantsView
     internal const double PictureShare = 0.95;
 
     /// <param name="text">The i18n lookup (<see cref="Loc.Get"/>; the tests pass zh-CN.xaml's strings).</param>
-    public static IReadOnlyList<InnWant> Of(InnAdvice advice, Func<string, string> text)
+    public static IReadOnlyList<InnWant> Of(InnAdvice advice, Func<string, string> text) =>
+        [.. advice.Gourmands.OrderBy(g => g.Table).SelectMany(note => Of(note, text)).Take(MostCircles)];
+
+    /// <summary>One gourmand's circles, as this moment's advice has them.</summary>
+    internal static IReadOnlyList<InnWant> Of(InnGourmandNote note, Func<string, string> text)
     {
+        if (note.Advice is not { } gourmand) return [new InnWant(note.Table, null, text("Inn.Want.Unknown"))];
+        if (gourmand.Serve is { } serve && serve.Count == gourmand.Requests.Count) return [.. serve.Select(o => Want(note.Table, o))];
         var wants = new List<InnWant>();
-        foreach (var note in advice.Gourmands.OrderBy(g => g.Table))
+        foreach (var request in gourmand.Requests)
         {
-            if (note.Advice is not { } gourmand)
-            {
-                wants.Add(new InnWant(note.Table, null, text("Inn.Want.Unknown")));
-                continue;
-            }
-            if (gourmand.Serve is { } serve && serve.Count == gourmand.Requests.Count)
-            {
-                wants.AddRange(serve.Select(o => Want(note.Table, o)));
-                continue;
-            }
-            foreach (var request in gourmand.Requests)
-            {
-                if (request.Options.FirstOrDefault() is { } best) wants.Add(Want(note.Table, best));
-                else if (!note.DrinksUnknown) wants.Add(new InnWant(note.Table, null, text("Inn.Want.None")));
-            }
+            if (request.Options.FirstOrDefault() is { } best) wants.Add(Want(note.Table, best));
+            else if (!note.DrinksUnknown) wants.Add(new InnWant(note.Table, null, text("Inn.Want.None")));
         }
-        return [.. wants.Take(MostCircles)];
+        return wants;
     }
 
     private static InnWant Want(int table, GourmandOption option) => new(table, option.Id, option.Dish?.Zh ?? option.Drink!.Zh);
@@ -68,6 +61,55 @@ internal static class InnWantsView
 
     /// <summary>What would change on screen.</summary>
     public static string Key(IReadOnlyList<InnWant> wants) => string.Join("|", wants.Select(w => $"{w.Table}:{w.ItemId}:{w.Name}"));
+}
+
+/// <summary>
+/// The gourmands' circles held steady (owner, live 2026-10-20: "the display of both banner and the circle should just
+/// stay, not flash all the time"). The advice ranks what meets a request by how soon it's ready, worked out afresh on
+/// every frame: two dishes a second apart swap places as the kitchens' queues move on, and a dish on the counter
+/// comes and goes. A gourmand's circles once shown stay while every item in them still meets one of the gourmand's
+/// requests on the menu (it is among the advice's options), and change only when the gourmand's requests read
+/// differently (another count, recognised now) or the advice's choice is ready at least
+/// <see cref="ClearlySoonerSeconds"/> sooner (a dish now on the counter, say, where the one shown is still to cook).
+/// </summary>
+internal sealed class InnWantsHold
+{
+    /// <summary>Another choice replaces the circles shown only when it's ready at least this much sooner.</summary>
+    public const double ClearlySoonerSeconds = 10;
+
+    private readonly Dictionary<int, IReadOnlyList<InnWant>> _shown = [];
+
+    /// <summary>The circles to show now, for this moment's advice.</summary>
+    public IReadOnlyList<InnWant> Update(InnAdvice advice, Func<string, string> text)
+    {
+        var wants = new List<InnWant>();
+        var tables = advice.Gourmands.Select(g => g.Table).ToHashSet();
+        foreach (int gone in _shown.Keys.Where(t => !tables.Contains(t)).ToList()) _shown.Remove(gone);
+        foreach (var note in advice.Gourmands.OrderBy(g => g.Table))
+        {
+            var now = InnWantsView.Of(note, text);
+            if (!_shown.TryGetValue(note.Table, out var shown) || !Stands(shown, now, note)) _shown[note.Table] = shown = now;
+            wants.AddRange(shown);
+        }
+        return [.. wants.Take(InnWantsView.MostCircles)];
+    }
+
+    /// <summary>Forgets every gourmand (the session ended).</summary>
+    public void Clear() => _shown.Clear();
+
+    /// <summary>The circles shown still stand against this moment's <paramref name="now"/>.</summary>
+    private static bool Stands(IReadOnlyList<InnWant> shown, IReadOnlyList<InnWant> now, InnGourmandNote note)
+    {
+        if (shown.Count != now.Count) return false;
+        // Not an item (none fits, not recognised): stands while the advice says the same.
+        if (shown.Any(w => w.ItemId is null) || now.Any(w => w.ItemId is null)) return shown.SequenceEqual(now);
+        if (note.Advice is not { } advice) return false;
+        var options = advice.Requests.SelectMany(r => r.Options).GroupBy(o => o.Id).ToDictionary(g => g.Key, g => g.Min(o => o.ReadyIn));
+        if (shown.Any(w => !options.ContainsKey(w.ItemId!))) return false;
+        if (shown.SequenceEqual(now)) return true;
+        double Ready(IReadOnlyList<InnWant> wants) => wants.Max(w => options.GetValueOrDefault(w.ItemId!));
+        return Ready(now) + ClearlySoonerSeconds > Ready(shown);
+    }
 }
 
 /// <summary>

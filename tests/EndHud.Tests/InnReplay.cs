@@ -14,7 +14,7 @@ namespace EndHud.Tests;
 internal sealed record InnReplayEvent(TimeSpan At, InnReading? Reading);
 
 /// <summary>Something one of the session's overlays did that the player sees.</summary>
-/// <param name="Display">"banner", "mark", "circle" or "panel".</param>
+/// <param name="Display">"banner", "mark" or "circle".</param>
 /// <param name="Change">"+" appeared, "-" went, "~" drawn again with other content.</param>
 /// <param name="Why">What changed in the input on that step (screen, panel, tables, the call hold's reasons).</param>
 internal sealed record InnViewChange(TimeSpan At, string Display, string Change, string What, string Why);
@@ -92,13 +92,6 @@ internal sealed class InnReplay
         var circles = views.Wants.Select(w => $"table {w.Table}: {w.Name}").ToHashSet();
         Diff("circle", _circles, circles, at, why);
         _circles = circles;
-        string? panel = views.Panel?.Key;
-        if (panel != _panel)
-        {
-            string change = _panel is null ? "+" : panel is null ? "-" : "~";
-            Changes.Add(new InnViewChange(at, "panel", change, (panel ?? _panel)!.Replace("\n", " | "), why));
-            _panel = panel;
-        }
     }
 
     private void Diff(string display, HashSet<string> before, HashSet<string> now, TimeSpan at, string why)
@@ -138,7 +131,7 @@ internal sealed class InnReplay
     public IReadOnlyDictionary<string, double> PerMinute()
     {
         double minutes = Math.Max(SessionSpan.TotalMinutes, 1e-9);
-        return new[] { "banner", "mark", "circle", "panel" }.ToDictionary(d => d, d => Changes.Count(c => c.Display == d) / minutes);
+        return new[] { "banner", "mark", "circle" }.ToDictionary(d => d, d => Changes.Count(c => c.Display == d) / minutes);
     }
 
     public string Report()

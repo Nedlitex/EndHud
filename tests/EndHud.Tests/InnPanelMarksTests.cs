@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using EndHud.Vision;
 using EndHud.Vision.Inn;
 using Xunit;
 using static EndHud.Tests.InnTestKit;
@@ -94,6 +95,9 @@ public class InnPanelMarksTests
         Assert.NotEmpty(closed.BannerCalls);
         Assert.Null(closed.Panel);
 
+        // Read open on two frames in a row (InnSession.PanelFramesToOpen).
+        session.Update(Session(10.7, panel: KitchenTwo()));
+        Assert.NotEmpty(session.Advice(S(10.7))!.BannerCalls);
         session.Update(Session(11, panel: KitchenTwo()));
         var open = session.Advice(S(11))!;
         Assert.Empty(open.BannerCalls);
@@ -103,8 +107,11 @@ public class InnPanelMarksTests
         Assert.Contains(marks, m => m.OnCard && m.Area == DispatchPanelReader.CardArea(Array.IndexOf(Cards, call.Dish!.Id)));
         Assert.Equal(2, marks.Count(m => !m.OnCard)); // kitchens 1 and 3
 
+        // Read closed: the banners come back once no frame has read the panel for InnSession.PanelClosedAfter.
         session.Update(Session(12));
-        Assert.NotEmpty(session.Advice(S(12))!.BannerCalls);
+        Assert.Empty(session.Advice(S(12))!.BannerCalls);
+        session.Update(Session(11 + InnSession.PanelClosedAfter.TotalSeconds));
+        Assert.NotEmpty(session.Advice(S(11 + InnSession.PanelClosedAfter.TotalSeconds))!.BannerCalls);
     }
 }
 

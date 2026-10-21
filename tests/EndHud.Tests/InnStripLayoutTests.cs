@@ -63,7 +63,7 @@ public class InnStripLayoutTests
         var kitchens = Enumerable.Range(1, 3).Select(k => new KitchenAdvice(k, [], [new ReplaceAdvice(k, 1, longest[k], longest[k + 3], k, 30, 70)])).ToList();
         var leftovers = Enumerable.Range(0, 6).Select(i => new LeftoverAdvice(longest[i], i + 1, longest[8])).ToList();
         var calls = new InnCallHold().Update(new DispatchAdvice(kitchens, [], [], leftovers), FullBlazeAdvice.GetReady,
-            new InnKitchenView((_, _) => 0, _ => true, (_, _) => 1000));
+            new InnKitchenView((_, _) => 0, _ => true, (_, _) => 1000), TimeSpan.Zero);
         var banners = InnCallView.Of(calls, Text);
         Assert.Equal(InnCallView.MostBanners, banners.Count);
 

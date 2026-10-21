@@ -194,6 +194,8 @@ public class InnSessionTests
     public void A_queue_read_off_the_panel_is_exact_then_moved_on_by_cook_times_its_dish_coming_out_onto_the_counter()
     {
         var session = Prepared(1, 2);
+        // The panel read on two frames in a row: open (InnSession.PanelFramesToOpen).
+        session.Update(Session(9.7, tables: Tables(Order(5, E)), panel: Panel(1, 2, Menu[..5], (A, 10))));
         session.Update(Session(10, tables: Tables(Order(5, E)), panel: Panel(1, 2, Menu[..5], (A, 10))));
         Assert.Equal([1], session.Advice(S(10))!.ExactKitchens);
 
@@ -396,16 +398,23 @@ public class InnSessionTests
         Assert.Single(warnings);
     }
 
+    /// <summary>
+    /// Forgotten once their card reads them eating on two readings in a row: an order's card read otherwise once is
+    /// taken as misread (the replay of the owner's 2026-10-20 recording: 16 orders' cards read empty for one reading).
+    /// </summary>
     [Fact]
-    public void A_gourmand_is_forgotten_once_they_are_eating()
+    public void A_gourmand_is_forgotten_once_two_readings_in_a_row_show_them_eating()
     {
         var session = Prepared(1);
         var (_, request) = DishRequestMetBy(A, B, C, D, E);
         session.Update(Session(10, tables: Tables(new TableCard(6, TableState.GourmandOrder, [], [])), bubble: new GourmandBubble(request.Text, [request.Text])));
+        var eating = Tables(new TableCard(6, TableState.GourmandEating, [], []));
 
-        session.Update(Session(11, tables: Tables(new TableCard(6, TableState.GourmandEating, [], []))));
+        session.Update(Session(11, tables: eating));
+        Assert.Single(session.Advice(S(11))!.Gourmands);
 
-        Assert.Empty(session.Advice(S(11))!.Gourmands);
+        session.Update(Session(11.3, tables: eating));
+        Assert.Empty(session.Advice(S(11.3))!.Gourmands);
     }
 
     /// <summary>
@@ -435,9 +444,10 @@ public class InnSessionTests
         session.Update(Session(41, tables: Tables(ordering)));
         Assert.Equal(4, Assert.Single(session.Advice(S(41))!.Gourmands).Table);
 
-        // Fulfilled: the gourmand eats.
+        // Fulfilled: the gourmand eats (read so twice).
         session.Update(Session(42, tables: Tables(new TableCard(4, TableState.GourmandEating, [], []))));
-        Assert.Empty(session.Advice(S(42))!.Gourmands);
+        session.Update(Session(42.3, tables: Tables(new TableCard(4, TableState.GourmandEating, [], []))));
+        Assert.Empty(session.Advice(S(42.3))!.Gourmands);
     }
 
     /// <summary>
@@ -452,13 +462,15 @@ public class InnSessionTests
         var (_, request) = DishRequestMetBy(A, B, C, D, E);
         session.Update(Session(10, tables: Tables(new TableCard(4, TableState.GourmandOrder, [], [])), bubble: new GourmandBubble(request.Text, [request.Text])));
 
+        // Read paying at 20, confirmed by the next reading at 21: from then on it's another state.
         var paying = Tables(new TableCard(4, TableState.Paying, [], []));
         session.Update(Session(20, tables: paying));
         session.Update(Session(21, tables: paying));
-        Assert.Single(session.Advice(S(21))!.Gourmands);
+        session.Update(Session(22, tables: paying));
+        Assert.Single(session.Advice(S(22))!.Gourmands);
 
-        session.Update(Session(20 + InnSession.GourmandGoneAfter.TotalSeconds, tables: paying));
-        Assert.Empty(session.Advice(S(20 + InnSession.GourmandGoneAfter.TotalSeconds))!.Gourmands);
+        session.Update(Session(21 + InnSession.GourmandGoneAfter.TotalSeconds, tables: paying));
+        Assert.Empty(session.Advice(S(21 + InnSession.GourmandGoneAfter.TotalSeconds))!.Gourmands);
     }
 
     [Fact]

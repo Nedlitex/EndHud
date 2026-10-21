@@ -18,6 +18,8 @@ internal sealed record InnViews(IReadOnlyList<InnCall> Calls, IReadOnlyList<InnP
 /// </summary>
 internal sealed class InnDisplay
 {
+    private readonly InnWantsHold _wants = new();
+
     /// <summary>The last reading was a session frame (with or without the dispatch panel over it).</summary>
     public bool OnSession { get; private set; }
 
@@ -75,13 +77,17 @@ internal sealed class InnDisplay
     /// <param name="text">The i18n lookup.</param>
     public InnViews Views(InnSession? session, TimeSpan now, bool callsEnabled, Func<string, string> text)
     {
-        if (!OnSession || session is null || Advice(session, now) is not { } advice) return InnViews.None;
+        if (!OnSession || session is null || Advice(session, now) is not { } advice)
+        {
+            if (session is not { Active: true }) _wants.Clear();
+            return InnViews.None;
+        }
         return new InnViews(
             // The banners, except over the open dispatch panel, where its marks take over.
             advice.BannerCalls,
             callsEnabled ? InnPanelMarks.Of(advice.Panel, advice.Calls, text) : [],
-            // What each gourmand wants, as glowing circles, while their order is open.
-            InnWantsView.Of(advice, text));
+            // What each gourmand wants, as glowing circles, while their order is open, held steady.
+            _wants.Update(advice, text));
     }
 
     /// <summary>The session's advice now; null (and logged) if working it out failed, so the overlay carries on.</summary>
