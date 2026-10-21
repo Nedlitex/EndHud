@@ -333,20 +333,20 @@ public class DispatchAdvisorTests
     /// An order the player has been told to queue in a kitchen stays there while that's still possible there (owner,
     /// 2026-10-21: "the recommendation should stay steady"; the soonest kitchen decides only when it is first shown): a
     /// free slot, in stock, out before serving ends. Another kitchen having it out far sooner is no reason to move it.
-    /// Kitchen 1 cooks 坛子肉 in 27 s behind 20 s of 果味沙拉 (47 s); kitchen 2 in 35 s behind <c>y</c> s of 果味沙拉.
+    /// Kitchen 1 is empty and cooks 坛子肉 in 27 s; kitchen 2 in 35 s behind 12 s of 果味沙拉 (47 s).
     /// </summary>
     [Fact]
     public void An_order_shown_in_a_kitchen_stays_there_while_possible()
     {
-        InnState With(double y, double servingLeft = 200) => State([Queue(1, ("果味沙拉", 20)), Queue(2, ("果味沙拉", y))], [Order(1, "坛子肉")], servingLeft: servingLeft);
+        InnState With(double servingLeft) => State([Queue(1), Queue(2, ("果味沙拉", 12))], [Order(1, "坛子肉")], servingLeft: servingLeft);
         var shownInTwo = new[] { new KeptCall(2, Dish("坛子肉"), 1) };
 
-        // Kitchen 2 out 20 s after kitchen 1 (67 s against 47 s): the soonest kitchen for an order not shown, kept in 2.
-        Assert.Equal(1, Assert.Single(Sent(Advisor(2).Advise(With(32)))).Kitchen);
-        Assert.Equal(2, Assert.Single(Sent(Advisor(2).Advise(With(32), fillEverySlot: false, shownInTwo))).Kitchen);
+        // Kitchen 2 out 20 s after kitchen 1 (47 s against 27 s): the soonest kitchen for an order not shown, kept in 2.
+        Assert.Equal(1, Assert.Single(Sent(Advisor(2).Advise(With(200)))).Kitchen);
+        Assert.Equal(2, Assert.Single(Sent(Advisor(2).Advise(With(200), fillEverySlot: false, shownInTwo))).Kitchen);
 
-        // Out too late in kitchen 2 for serving (67 s with 60 s left), in time in kitchen 1: it can't stay.
-        Assert.Equal(1, Assert.Single(Sent(Advisor(2).Advise(With(32, servingLeft: 60), fillEverySlot: false, shownInTwo))).Kitchen);
+        // Out too late in kitchen 2 for serving (47 s with 40 s left), in time in kitchen 1: it can't stay.
+        Assert.Equal(1, Assert.Single(Sent(Advisor(2).Advise(With(40), fillEverySlot: false, shownInTwo))).Kitchen);
 
         // Kitchen 2 full: it can't be queued there.
         var full = State([Queue(1, ("果味沙拉", 20)), Queue(2, ("果味沙拉", 1), ("肉包子", 15), ("肉包子", 15))], [Order(1, "坛子肉")]);

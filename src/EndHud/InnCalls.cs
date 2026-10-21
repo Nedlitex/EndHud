@@ -161,8 +161,10 @@ internal sealed class InnCallHold
             if (WantedKey(call) is { } key) Add(key, 1);
         }
 
-        // The calls shown that still stand claim their orders first.
+        // The calls shown claim their orders first, those kept a moment too (so their order isn't called in another kitchen
+        // meanwhile): the kitchens whose call claimed one, to give it back if it's replaced.
         _changes.Clear();
+        var claimed = new HashSet<int>();
         var cooking = dispatch.Kitchens.ToDictionary(k => k.Kitchen);
         foreach (var (number, held) in _held.OrderBy(h => h.Key).ToList())
         {
@@ -178,6 +180,7 @@ internal sealed class InnCallHold
                 : null;
             if (why is null)
             {
+                claimed.Add(number);
                 if (held.InvalidSince is not null) _held[number] = held with { InvalidSince = null };
                 continue;
             }
@@ -185,6 +188,7 @@ internal sealed class InnCallHold
             if (now - since < GraceFor(held.Call, why))
             {
                 // Kept a moment: what dropped it may be a reading that comes right back.
+                if (Claim(held.Call)) claimed.Add(number);
                 if (held.InvalidSince is null) _changes.Add($"{held.Call.Key} kept a moment: {why}");
                 _held[number] = held with { InvalidSince = since };
                 continue;
@@ -202,8 +206,7 @@ internal sealed class InnCallHold
                 // Only an order displaces a call, and only a dish to cook ahead or a call kept a moment (no longer valid:
                 // the reading that dropped it may come right back, so nothing else replaces it meanwhile).
                 if (!IsOrder(candidate) || (held.InvalidSince is null && held.Call.Kind != InnCallKind.CookAhead)) continue;
-                // Only a call that stands claimed its order; one kept a moment claimed nothing to give back.
-                if (held.InvalidSince is null) Release(held.Call);
+                if (claimed.Remove(advice.Kitchen)) Release(held.Call);
                 _changes.Add($"{held.Call.Key} beaten by {candidate.Key}");
             }
             if (candidate is null || !Claim(candidate)) continue;
@@ -226,8 +229,7 @@ internal sealed class InnCallHold
             Claim(call);
             if (_held.TryGetValue(free.Kitchen, out var kept))
             {
-                // Only a call that stands claimed something to give back.
-                if (kept.InvalidSince is null) Release(kept.Call);
+                if (claimed.Remove(free.Kitchen)) Release(kept.Call);
                 _changes.Add(kept.InvalidSince is null ? $"{kept.Call.Key} replaced by {call.Key}, an order before a dish to cook ahead"
                     : $"{kept.Call.Key} replaced by {call.Key}, an order (it no longer stood)");
             }
