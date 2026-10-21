@@ -64,6 +64,10 @@ public class InnWireUpTests
             return Task.FromResult(PickerKitchen);
         }
 
+        public IReadOnlyList<ChefCard> PickerCards { get; set; } = [];
+
+        public IReadOnlyList<ChefCard> ReadPickerCards(Frame frame) => PickerCards;
+
         public Task<InnMenu?> ReadMenuAsync(Frame frame) => Task.FromResult<InnMenu?>(null);
 
         public Task<MenuRequirements?> ReadMenuRequirementsAsync(Frame frame) => Task.FromResult<MenuRequirements?>(null);
@@ -391,6 +395,7 @@ public class InnWireUpTests
         public Task<GourmandBubble?> ReadBubbleAsync(Frame frame) => throw new NotSupportedException();
         public Task<InnSetup?> ReadSetupAsync(Frame frame) => throw new NotSupportedException();
         public Task<int?> ReadPickerKitchenAsync(Frame frame) => throw new NotSupportedException();
+        public IReadOnlyList<ChefCard> ReadPickerCards(Frame frame) => throw new NotSupportedException();
         public Task<InnMenu?> ReadMenuAsync(Frame frame) => throw new NotSupportedException();
         public Task<MenuRequirements?> ReadMenuRequirementsAsync(Frame frame) => throw new NotSupportedException();
     }
