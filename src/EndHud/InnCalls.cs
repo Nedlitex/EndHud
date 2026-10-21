@@ -170,7 +170,8 @@ internal sealed class InnCallHold
                 // that dropped it may come right back. A call that stands gives way only when clearly beaten.
                 if (held.InvalidSince is not null ? candidate.Kind is not (InnCallKind.Queue or InnCallKind.Swap) : !Beats(candidate, held.Call, dispatch, view))
                     continue;
-                Release(held.Call);
+                // Only a call that stands claimed its order; one kept a moment claimed nothing to give back.
+                if (held.InvalidSince is null) Release(held.Call);
                 _changes.Add($"{held.Call.Key} beaten by {candidate.Key}");
             }
             if (candidate is null || !Claim(candidate)) continue;
