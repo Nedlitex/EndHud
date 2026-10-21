@@ -71,12 +71,20 @@ internal sealed class InnCallHold
     public const double ClearlyEarlierSeconds = 5;
 
     private readonly Dictionary<int, Held> _held = [];
+    private readonly List<string> _changes = [];
+
+    /// <summary>What the last <see cref="Update"/> changed of the calls shown, and why, in words (the replay's trace, InnReplayTests).</summary>
+    public IReadOnlyList<string> Changes => _changes;
 
     /// <param name="Queued">The kitchen's <see cref="InnKitchenView.Queued"/> for the call's dish when it was first shown.</param>
     private sealed record Held(InnCall Call, int Queued);
 
     /// <summary>Forgets every call (the session ended).</summary>
-    public void Clear() => _held.Clear();
+    public void Clear()
+    {
+        _held.Clear();
+        _changes.Clear();
+    }
 
     /// <summary>The calls to show now, given this moment's advice.</summary>
     public IReadOnlyList<InnCall> Update(DispatchAdvice dispatch, FullBlazeAdvice? blaze, InnKitchenView view)
@@ -105,11 +113,18 @@ internal sealed class InnCallHold
         }
 
         // The calls shown that still stand claim their orders first.
+        _changes.Clear();
         var cooking = dispatch.Kitchens.ToDictionary(k => k.Kitchen);
         foreach (var (number, held) in _held.OrderBy(h => h.Key).ToList())
         {
-            if (!cooking.TryGetValue(number, out var advice) || Done(held, view) || !Valid(held.Call, advice, wanted, view) || !Claim(held.Call))
-                _held.Remove(number);
+            string? why = !cooking.TryGetValue(number, out var advice) ? "the kitchen no longer cooks"
+                : Done(held, view) ? "done (queued)"
+                : !Valid(held.Call, advice, wanted, view) ? (view.HasRoom(number) ? "no longer advised" : "the kitchen is full")
+                : !Claim(held.Call) ? "its order is called elsewhere"
+                : null;
+            if (why is null) continue;
+            _held.Remove(number);
+            _changes.Add($"{held.Call.Key} dropped: {why}");
         }
 
         foreach (var advice in dispatch.Kitchens.OrderBy(k => k.Kitchen))
@@ -119,6 +134,7 @@ internal sealed class InnCallHold
             {
                 if (candidate is null || candidate.Key == held.Call.Key || !Beats(candidate, held.Call, dispatch, view)) continue;
                 Release(held.Call);
+                _changes.Add($"{held.Call.Key} beaten by {candidate.Key}");
             }
             if (candidate is null || !Claim(candidate)) continue;
             _held[advice.Kitchen] = new Held(candidate, candidate.Dish is { } dish ? view.Queued(advice.Kitchen, dish.Id) : 0);

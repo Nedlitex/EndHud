@@ -155,6 +155,9 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// <summary>What the menu advice works from (<see cref="InnSetupMemory.ForMenu"/>).</summary>
     public InnSetupInputs MenuInputs() => _memory.ForMenu();
 
+    /// <summary>What the last <see cref="Advice"/> changed of the calls shown, and why (<see cref="InnCallHold.Changes"/>).</summary>
+    public IReadOnlyList<string> CallChanges => _calls.Changes;
+
     /// <summary>A session is on (its frames seen within <see cref="EndAfter"/>).</summary>
     public bool Active { get; private set; }
 
