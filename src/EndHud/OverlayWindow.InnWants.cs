@@ -5,8 +5,8 @@ using System.Windows.Media;
 namespace EndHud;
 
 /// <summary>
-/// The gourmands' circles (<see cref="InnWantsView"/>): during a session, while a gourmand's order is open, right of
-/// the table cards (<see cref="InnWantsLayout"/>), also while the dispatch panel is open (they sit above it). The inn's
+/// The gourmands' circles (<see cref="InnWantsView"/>): during a session, while a gourmand's order is open, at the
+/// gauges' place at the bottom middle (<see cref="InnWantsLayout"/>), also while the dispatch panel is open. The inn's
 /// size and opacity apply; never hit-tested.
 /// </summary>
 public partial class OverlayWindow
@@ -17,7 +17,7 @@ public partial class OverlayWindow
     private void RenderInnWants(IReadOnlyList<InnWant> wants)
     {
         double width = HintCanvas.ActualWidth, height = HintCanvas.ActualHeight, scale = InnScale();
-        string? key = wants.Count == 0 ? null : $"{width:F0}x{height:F0}@{scale:F3}\n{InnWantsView.Key(wants)}";
+        string? key = wants.Count == 0 ? null : $"{width:F0}x{height:F0}@{scale:F3}:{_config.GaugesCenterX:F3},{_config.GaugesBottomY:F3}|{InnWantsView.Key(wants)}";
         if (key == _innWantsKey) return;
         _innWantsKey = key;
         if (_innWantsFrame is null)
@@ -31,10 +31,11 @@ public partial class OverlayWindow
             _innWantsFrame.Child = null;
             return;
         }
-        var at = InnWantsLayout.TopLeft(width, height);
         _innWantsFrame.Child = Gauges.Build(InnWantsView.Board(wants, InnPicture, Loc.Get));
         _innWantsFrame.LayoutTransform = new ScaleTransform(scale, scale);
         _innWantsFrame.Opacity = _config.InnStripOpacity;
+        _innWantsFrame.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var at = InnWantsLayout.TopLeft(width, height, _innWantsFrame.DesiredSize, _config.GaugesCenterX, _config.GaugesBottomY);
         Canvas.SetLeft(_innWantsFrame, at.X);
         Canvas.SetTop(_innWantsFrame, at.Y);
         _innWantsFrame.Visibility = Visibility.Visible;

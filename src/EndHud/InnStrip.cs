@@ -7,22 +7,66 @@ using System.Windows.Shapes;
 
 namespace EndHud;
 
+/// <summary>How a line of the inn strip is drawn.</summary>
+internal enum InnLineStyle
+{
+    /// <summary>A kitchen's line, an option.</summary>
+    Normal,
+
+    /// <summary>Stands out: the accent colour, bold.</summary>
+    Accent,
+
+    /// <summary>Something the player should know (a rule not understood, the rules unmet): orange, smaller.</summary>
+    Note,
+
+    /// <summary>Starts a card: accent colour, set apart from the lines above.</summary>
+    Heading,
+
+    /// <summary>Starts a block within a card (a kitchen's dish types in its setup advice): accent colour, not set apart by a rule.</summary>
+    Subheading,
+
+    /// <summary>Secondary text (a kitchen that's set, the plan being worked out): dimmed.</summary>
+    Dim,
+}
+
+/// <summary>A piece of a line: words, or a dish's or drink's name with its picture before it.</summary>
+/// <param name="PictureId">The dish or drink whose picture goes before the name; null for plain words.</param>
+/// <param name="KeepWithNext">A long line wraps, but never between this piece and the next (a marker and its dish, a dish and where it is).</param>
+internal sealed record InnSegment(string Text, string? PictureId = null, bool KeepWithNext = false)
+{
+    public InnSegment Kept() => this with { KeepWithNext = true };
+}
+
+internal sealed record InnLine(InnLineStyle Style, IReadOnlyList<InnSegment> Segments)
+{
+    /// <summary>How far in the line starts, in steps (a row under its heading is 1).</summary>
+    public int Indent { get; init; }
+
+    /// <summary>The first segment is a label ("干员："): the rest wrap beside it, never under it.</summary>
+    public bool Hanging { get; init; }
+
+    /// <summary>The line's words, pictures left out: what the player reads.</summary>
+    public string Text => string.Concat(Segments.Select(s => s.Text));
+
+    public static InnLine Of(InnLineStyle style, params InnSegment[] segments) => new(style, segments);
+}
+
+/// <summary>What an inn advice panel shows: one line after another, top to bottom.</summary>
+internal sealed record InnStripModel(IReadOnlyList<InnLine> Lines)
+{
+    /// <summary>A key that changes when anything drawn changes.</summary>
+    public string Key => string.Join("\n", Lines.Select(l => $"{l.Style}:{string.Join("|", l.Segments.Select(s => $"{s.PictureId}={s.Text}"))}"));
+}
+
 /// <summary>
-/// The inn strip as drawn: a dark see-through card, one line under another, each dish's or drink's
-/// picture beside its name (its name alone when the package has no picture for it). Text only:
-/// nothing is drawn over the game's own screens. Drawn at the size for a 1080p game window and
-/// scaled with the window (see ComboHintLayout), like the rotation strip.
+/// An inn advice panel as drawn (the setup screens' advice): a dark see-through card, one line under another, each
+/// operator's, dish's or drink's picture beside its name (its name alone when the package has no picture for it).
+/// Drawn at the size for a 1080p game window and scaled with the window (see ComboHintLayout).
 /// </summary>
 internal static class InnStrip
 {
     /// <summary>A picture's size beside its name, at 1080p (<see cref="InnStripLook.Normal"/>).</summary>
     internal const double PictureSize = 28;
-
-    /// <summary>
-    /// The lines' width at 1080p: a longer line wraps between dishes. Measured so the gourmand panel, drawn larger
-    /// (<see cref="InnStripLook.Gourmands"/>), fits from its default place to a 1080p window's edge (see InnStripLayoutTests).
-    /// </summary>
-    internal const double LineWidth = 520;
 
     /// <summary>How far in a line starts per step of its indent (a row under its heading), at 1080p.</summary>
     internal const double IndentStep = 16;
@@ -47,7 +91,7 @@ internal static class InnStrip
     }
 
     /// <param name="picture">A dish's or drink's picture by id; null when there's none.</param>
-    /// <param name="lineWidth">How wide the lines may be, at 1080p: <see cref="LineWidth"/> for the session's strip, a spot's width for setup advice (<see cref="InnAdviceLayout.LineWidth"/>).</param>
+    /// <param name="lineWidth">How wide the lines may be, at 1080p: the spot's width (<see cref="InnAdviceLayout.LineWidth"/>).</param>
     /// <param name="look">Its text and pictures' size: <see cref="InnStripLook.Normal"/>, or <see cref="InnStripLook.Compact"/> where a full panel must fit a small blank of the game's screen.</param>
     public static FrameworkElement Build(InnStripModel model, Func<string, BitmapSource?> picture, double lineWidth, InnStripLook? look = null)
     {
@@ -149,14 +193,8 @@ internal static class InnStrip
 /// <param name="LineGap">Space above and below each line.</param>
 internal sealed record InnStripLook(double FontSize, double PictureSize, double LineGap, Thickness Padding)
 {
-    /// <summary>The session's strip and the chefs' advice.</summary>
+    /// <summary>The chefs' advice.</summary>
     public static readonly InnStripLook Normal = new(16, InnStrip.PictureSize, 2, new Thickness(12, 8, 14, 8));
-
-    /// <summary>
-    /// The session's gourmand panel, larger (owner, live 2026-10-20: the gourmand panel's "picture is also TOO small for human
-    /// to read, make that panel bigger"): 20 px words, 48 px pictures at 1080p.
-    /// </summary>
-    public static readonly InnStripLook Gourmands = new(20, 48, 3, new Thickness(14, 10, 16, 10));
 
     /// <summary>The menu's advice: a full menu (eight dishes, eight drinks, their substitutes) in the menu screen's blank column.</summary>
     public static readonly InnStripLook Compact = new(13, 20, 1, new Thickness(10, 6, 10, 6));

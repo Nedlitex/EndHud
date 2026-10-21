@@ -46,31 +46,18 @@ public class ConfigTests
         Assert.Equal(opacity, config.InnStripOpacity);
     }
 
-    [Theory]
-    [InlineData("{}", HudConfig.DefaultInnStripX, HudConfig.DefaultInnStripY)]
-    [InlineData("{\"InnStripX\": 0.1, \"InnStripY\": 0.6}", 0.1, 0.6)]
-    [InlineData("{\"InnStripX\": -3, \"InnStripY\": 7}", 0.0, 1.0)]
-    // The gourmand panel's old default place (before it was drawn larger, 2026-10-20) moves to the new one.
-    [InlineData("{\"InnStripX\": 0.72, \"InnStripY\": 0.16}", HudConfig.DefaultInnStripX, 0.16)]
-    public void The_inn_strips_place_defaults_to_the_right_and_a_hand_edited_one_stays_on_the_window(string json, double x, double y)
-    {
-        var config = ConfigStore.Parse(json);
-
-        Assert.Equal(x, config.InnStripX);
-        Assert.Equal(y, config.InnStripY);
-    }
-
     /// <summary>
-    /// The setup advice follows the game's own layout (InnAdviceLayout) and has no place of its own
-    /// any more: a config saved with the old setup panel's place still loads, the rest kept.
+    /// The setup advice follows the game's own layout (InnAdviceLayout) and the gourmands' panel is gone (owner, live
+    /// 2026-10-20: "no longer need the older panel for gourmand"): a config saved with either's place still loads, the
+    /// rest kept.
     /// </summary>
     [Fact]
-    public void A_config_with_the_old_setup_panels_place_still_loads()
+    public void A_config_with_the_old_setup_panels_or_gourmand_panels_place_still_loads()
     {
-        var config = ConfigStore.Parse("""{ "InnSetupX": 0.62, "InnSetupBottomY": 0.38, "InnStripX": 0.5 }""");
+        var config = ConfigStore.Parse("""{ "InnSetupX": 0.62, "InnSetupBottomY": 0.38, "InnStripX": 0.5, "InnStripY": 0.16, "InnCallX": 0.3 }""");
 
-        Assert.Equal(0.5, config.InnStripX);
-        Assert.DoesNotContain(typeof(HudConfig).GetProperties(), p => p.Name.StartsWith("InnSetup", StringComparison.Ordinal));
+        Assert.Equal(0.3, config.InnCallX);
+        Assert.DoesNotContain(typeof(HudConfig).GetProperties(), p => p.Name.StartsWith("InnSetup", StringComparison.Ordinal) || p.Name is "InnStripX" or "InnStripY");
     }
 
     /// <summary>Before version 3 every start saved 50% (a slider bug), so 50% from then means the default.</summary>

@@ -6,10 +6,9 @@ namespace EndHud;
 /// What the inn's session overlays show at one moment, before anything is drawn: the banners' calls, the marks on the
 /// open dispatch panel, and the gourmands' circles.
 /// </summary>
-/// <param name="Panel">The gourmands' panel; null when it's put away.</param>
-internal sealed record InnViews(IReadOnlyList<InnCall> Calls, IReadOnlyList<InnPanelMark> Marks, IReadOnlyList<InnWant> Wants, InnStripModel? Panel)
+internal sealed record InnViews(IReadOnlyList<InnCall> Calls, IReadOnlyList<InnPanelMark> Marks, IReadOnlyList<InnWant> Wants)
 {
-    public static readonly InnViews None = new([], [], [], null);
+    public static readonly InnViews None = new([], [], []);
 }
 
 /// <summary>
@@ -82,9 +81,7 @@ internal sealed class InnDisplay
             advice.BannerCalls,
             callsEnabled ? InnPanelMarks.Of(advice.Panel, advice.Calls, text) : [],
             // What each gourmand wants, as glowing circles, while their order is open.
-            InnWantsView.Of(advice),
-            // The panel: the gourmands only; empty, it's put away.
-            InnStripView.Build(advice, text) is { Lines.Count: > 0 } built ? built : null);
+            InnWantsView.Of(advice, text));
     }
 
     /// <summary>The session's advice now; null (and logged) if working it out failed, so the overlay carries on.</summary>

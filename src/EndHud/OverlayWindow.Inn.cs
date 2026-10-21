@@ -26,10 +26,9 @@ public partial class OverlayWindow
     private OperatorLibrary? _innLibrary; // the library the session was made with
     private readonly InnDisplay _innDisplay = new(); // which inn screen shows, and what the session's overlays show
     private IReadOnlyList<InnPanelMark> _innSessionMarks = [], _innSetupMarks = []; // the marks on the dispatch panel; on the setup screens' cards
-    private string? _innKey, _innSetupKey;
+    private string? _innSetupKey;
     private InnSetupPlanning? _innChefPlanning, _innMenuPlanning;
     private readonly Dictionary<InnAdviceSpot, Border> _innAdviceFrames = [];
-    private Point? _innDragOffset;
     private double _innWindowScale = 1;
     private bool _loadingInnSettings = true;
     private readonly Dictionary<string, BitmapSource?> _innPictures = [];
@@ -72,7 +71,6 @@ public partial class OverlayWindow
         InnSizeText.Text = Loc.Format("Menu.Gauges.SizeValue", _config.InnStripScale * 100);
         InnOpacitySlider.Value = _config.InnStripOpacity;
         InnOpacityText.Text = Loc.Format("Menu.Gauges.SizeValue", _config.InnStripOpacity * 100);
-        InnContent.Opacity = _config.InnStripOpacity;
         _loadingInnSettings = false;
         ApplyInnSettings();
     }
@@ -121,26 +119,17 @@ public partial class OverlayWindow
     private void TickInn()
     {
         _innSession?.Tick(InnClock.Now);
-        if (_innDisplay.OnSession || _innDisplay.SetupScreen is not null || _innKey is not null || _innSetupKey is not null) RenderInn();
+        if (_innDisplay.OnSession || _innDisplay.SetupScreen is not null || _innWantsKey is not null || _innCallBanners.Count > 0 || _innSetupKey is not null) RenderInn();
     }
 
     private void RenderInn()
     {
         RenderInnSetup();
         var views = _config.InnHelperEnabled ? _innDisplay.Views(_innSession, InnClock.Now, _config.InnCallsEnabled, Loc.Get) : InnViews.None;
-        var model = views.Panel;
-        // Something to drag, size and see through while the menu is open, out of the inn.
-        if (_config.InnHelperEnabled && _menuOpen && !_innDisplay.OnSession) model = InnStripView.Sample(_party.Identifier?.Library.Inn, Loc.Get);
-        var (calls, wants) = (views.Calls, views.Wants);
         _innSessionMarks = views.Marks;
-        RenderInnCalls(calls);
+        RenderInnCalls(views.Calls);
         RenderInnMarks([.. _innSessionMarks, .. _innSetupMarks]);
-        RenderInnWants(wants);
-        string? key = model?.Key;
-        if (key == _innKey) return;
-        _innKey = key;
-        InnContent.Content = model is null ? null : InnStrip.Build(model, InnPicture, InnStrip.LineWidth, InnStripLook.Gourmands);
-        InnFrame.Visibility = model is null ? Visibility.Collapsed : Visibility.Visible;
+        RenderInnWants(views.Wants);
     }
 
     /// <summary>
@@ -259,7 +248,6 @@ public partial class OverlayWindow
         if (_loadingInnSettings || InnOpacityText is null) return;
         _config.InnStripOpacity = Math.Clamp(Math.Round(e.NewValue, 2), HudConfig.MinInnStripOpacity, HudConfig.MaxInnStripOpacity);
         InnOpacityText.Text = Loc.Format("Menu.Gauges.SizeValue", _config.InnStripOpacity * 100);
-        InnContent.Opacity = _config.InnStripOpacity;
         InnCallStack.Opacity = _config.InnStripOpacity;
         foreach (var frame in _innAdviceFrames.Values) frame.Opacity = _config.InnStripOpacity;
         foreach (var mark in _innMarks) mark.Opacity = _config.InnStripOpacity;
@@ -269,24 +257,17 @@ public partial class OverlayWindow
 
     private void InnResetButton_Click(object sender, RoutedEventArgs e)
     {
-        _config.InnStripX = HudConfig.DefaultInnStripX;
-        _config.InnStripY = HudConfig.DefaultInnStripY;
         _config.InnCallX = HudConfig.DefaultComboHintX;
         _config.InnCallY = HudConfig.DefaultComboHintY;
         ConfigStore.Save(_config);
-        PlaceInnFromConfig();
         PlaceInnCallsFromConfig();
     }
 
-    // ---- Placing the strip ----
+    // ---- Placing ----
 
     private void SetInnEditing(bool editing)
     {
-        InnFrame.BorderBrush = editing ? (Brush)FindResource("Accent") : Brushes.Transparent;
-        InnDragLabel.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
-        InnFrame.Cursor = editing ? Cursors.SizeAll : null;
         SetInnCallEditing(editing);
-        _innKey = "";
         RenderInn();
     }
 
@@ -294,46 +275,8 @@ public partial class OverlayWindow
     private void ScaleInnStrip(double scale)
     {
         _innWindowScale = scale;
-        double size = scale * _config.InnStripScale;
-        InnFrame.LayoutTransform = new ScaleTransform(size, size);
-        PlaceInnFromConfig();
-        ScaleInnCalls(size);
-        // The advice panels follow the game's layout and the size: drawn again.
-        RenderInnSetup();
-    }
-
-    private void PlaceInnFromConfig() => PlaceInn(_config.InnStripX * HintCanvas.ActualWidth, _config.InnStripY * HintCanvas.ActualHeight);
-
-    private void PlaceInn(double left, double top)
-    {
-        (left, top) = ComboHintLayout.Place(left, top, HintCanvas.ActualWidth, HintCanvas.ActualHeight);
-        Canvas.SetLeft(InnFrame, left);
-        Canvas.SetTop(InnFrame, top);
-    }
-
-    private void Inn_MouseDown(object sender, MouseButtonEventArgs e)
-    {
-        if (!_menuOpen) return;
-        _innDragOffset = e.GetPosition(InnFrame);
-        InnFrame.CaptureMouse();
-        e.Handled = true;
-    }
-
-    private void Inn_MouseMove(object sender, MouseEventArgs e)
-    {
-        if (_innDragOffset is not { } offset) return;
-        var at = e.GetPosition(HintCanvas);
-        PlaceInn(at.X - offset.X, at.Y - offset.Y);
-    }
-
-    private void Inn_MouseUp(object sender, MouseButtonEventArgs e)
-    {
-        if (_innDragOffset is null) return;
-        _innDragOffset = null;
-        InnFrame.ReleaseMouseCapture();
-        if (HintCanvas.ActualWidth <= 0 || HintCanvas.ActualHeight <= 0) return;
-        _config.InnStripX = Canvas.GetLeft(InnFrame) / HintCanvas.ActualWidth;
-        _config.InnStripY = Canvas.GetTop(InnFrame) / HintCanvas.ActualHeight;
-        ConfigStore.Save(_config);
+        ScaleInnCalls(scale * _config.InnStripScale);
+        // The advice panels, the marks and the circles follow the game's layout and the size: drawn again.
+        RenderInn();
     }
 }

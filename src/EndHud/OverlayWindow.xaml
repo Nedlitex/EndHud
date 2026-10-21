@@ -90,17 +90,6 @@
                 <ContentControl x:Name="RotationContent" />
             </StackPanel>
         </Border>
-        <!-- The inn helper's strip, its top-left corner at config InnStripX/InnStripY. -->
-        <Border x:Name="InnFrame" BorderThickness="2" Padding="6" CornerRadius="4" Background="Transparent"
-                Visibility="Collapsed"
-                MouseLeftButtonDown="Inn_MouseDown" MouseMove="Inn_MouseMove"
-                MouseLeftButtonUp="Inn_MouseUp">
-            <StackPanel>
-                <TextBlock x:Name="InnDragLabel" Visibility="Collapsed" Text="{DynamicResource Inn.Drag}"
-                           Foreground="{StaticResource Accent}" Margin="0,0,0,4" />
-                <ContentControl x:Name="InnContent" />
-            </StackPanel>
-        </Border>
         <!-- The inn session's banners (each kitchen's next dish, the last call, Full Blaze), styled like the
              combo-ready hints; top-left corner at config InnCallX/InnCallY, draggable while the menu is open. -->
         <Border x:Name="InnCallFrame" BorderThickness="2" Padding="6" CornerRadius="4" Background="Transparent"

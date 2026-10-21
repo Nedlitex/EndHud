@@ -107,17 +107,12 @@ internal sealed class HudConfig
     /// </summary>
     public bool InnHelperEnabled { get; set; } = true;
 
-    /// <summary>Where the inn strip sits, as a fraction of the game window: its left edge and its top (it grows right and down as lines come and go).</summary>
-    public double InnStripX { get; set; } = DefaultInnStripX;
-
-    public double InnStripY { get; set; } = DefaultInnStripY;
-
-    /// <summary>The inn helper's size (the strip and the setup advice) on top of following the game window (1 = 100%), from the menu's slider.</summary>
+    /// <summary>The inn helper's size (the banners, the gourmands' circles, the marks and the setup advice) on top of following the game window (1 = 100%), from the menu's slider.</summary>
     public double InnStripScale { get; set; } = 1;
 
     public const double MinInnStripScale = 0.5, MaxInnStripScale = 2;
 
-    /// <summary>How opaque the inn helper is (the strip and the setup advice; 1 = as drawn), from the menu's slider.</summary>
+    /// <summary>How opaque the inn helper is (the banners, the gourmands' circles, the marks and the setup advice; 1 = as drawn), from the menu's slider.</summary>
     public double InnStripOpacity { get; set; } = 1;
 
     public const double MinInnStripOpacity = 0.2, MaxInnStripOpacity = 1;
@@ -155,14 +150,6 @@ internal sealed class HudConfig
     // Bottom middle, just above the game's own HP and skill-point bars.
     public const double DefaultGaugesCenterX = 0.5;
     public const double DefaultGaugesBottomY = 0.885;
-
-    // At the right, below the gourmands' circles (InnWantsLayout) and the table cards' row; the gourmand panel drawn
-    // larger (2026-10-20) starts a little further left so its widest line still ends inside a 1080p window.
-    public const double DefaultInnStripX = 0.70;
-
-    /// <summary>The gourmand panel's default left before it was drawn larger: a config still holding it gets the new one.</summary>
-    internal const double OldDefaultInnStripX = 0.72;
-    public const double DefaultInnStripY = 0.16;
 
     public const double DefaultComboHintSeconds = 3;
     public const double DefaultComboHintLeadSeconds = 1;
@@ -243,12 +230,7 @@ internal static class ConfigStore
         config.InnStripOpacity = double.IsFinite(config.InnStripOpacity)
             ? Math.Clamp(config.InnStripOpacity, HudConfig.MinInnStripOpacity, HudConfig.MaxInnStripOpacity)
             : 1;
-        // A place off the window would leave the strip where nobody can drag it back.
-        config.InnStripX = double.IsFinite(config.InnStripX) ? Math.Clamp(config.InnStripX, 0, 1) : HudConfig.DefaultInnStripX;
-        // The old default, saved with every other setting, never the player's own place (a drag lands anywhere): the larger
-        // panel would run off a 1080p window from there.
-        if (config.InnStripX == HudConfig.OldDefaultInnStripX) config.InnStripX = HudConfig.DefaultInnStripX;
-        config.InnStripY = double.IsFinite(config.InnStripY) ? Math.Clamp(config.InnStripY, 0, 1) : HudConfig.DefaultInnStripY;
+        // A place off the window would leave the banners where nobody can drag them back.
         config.InnCallX = double.IsFinite(config.InnCallX) ? Math.Clamp(config.InnCallX, 0, 1) : HudConfig.DefaultComboHintX;
         config.InnCallY = double.IsFinite(config.InnCallY) ? Math.Clamp(config.InnCallY, 0, 1) : HudConfig.DefaultComboHintY;
         return config;
