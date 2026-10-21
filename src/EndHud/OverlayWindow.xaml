@@ -101,6 +101,17 @@
                 <StackPanel x:Name="InnCallStack" />
             </StackPanel>
         </Border>
+        <!-- The gourmands' banners (one per gourmand: their requests, each with what meets it), on the right; right edge and
+             top at config InnGourmandRight/InnGourmandTop, draggable while the menu is open. -->
+        <Border x:Name="InnGourmandFrame" BorderThickness="2" Padding="6" CornerRadius="4" Background="Transparent"
+                MouseLeftButtonDown="InnGourmand_MouseDown" MouseMove="InnGourmand_MouseMove"
+                MouseLeftButtonUp="InnGourmand_MouseUp">
+            <StackPanel>
+                <TextBlock x:Name="InnGourmandDragLabel" Visibility="Collapsed" Text="{DynamicResource Inn.Gourmand.Drag}"
+                           Foreground="{StaticResource Accent}" Margin="0,0,0,4" HorizontalAlignment="Right" />
+                <StackPanel x:Name="InnGourmandStack" />
+            </StackPanel>
+        </Border>
         <!-- The gauges, centred on config GaugesCenterX, standing on GaugesBottomY. -->
         <Border x:Name="GaugeFrame" BorderThickness="2" Padding="6" CornerRadius="4" Background="Transparent"
                 Visibility="Collapsed" SizeChanged="GaugeFrame_SizeChanged"

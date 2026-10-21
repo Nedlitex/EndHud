@@ -79,7 +79,7 @@ public class InnReplayTests(ITestOutputHelper output)
 
         var banners = Flashes(replay, "banner");
         var marks = Flashes(replay, "mark");
-        var circles = Flashes(replay, "circle");
+        var gourmands = Flashes(replay, "gourmand");
         output.WriteLine($"banners: {banners.HiddenUnderASecond} hidden under a second, {banners.UpUnderHalfASecond} up under half a second");
         output.WriteLine($"marks: {marks.HiddenUnderASecond} hidden under a second, {marks.UpUnderHalfASecond} up under half a second");
 
@@ -92,7 +92,7 @@ public class InnReplayTests(ITestOutputHelper output)
         // panel covers (closing and opening it again, or its slide) between frames reading it open. Was at most 8 with
         // the marks held as long as the banners (1.5 s).
         Assert.True(marks.HiddenUnderASecond <= 11, $"{marks.HiddenUnderASecond} marks hidden under a second");
-        Assert.Equal((0, 0), (circles.HiddenUnderASecond, circles.UpUnderHalfASecond));
+        Assert.Equal((0, 0), (gourmands.HiddenUnderASecond, gourmands.UpUnderHalfASecond));
     }
 
     /// <summary>How often a display's item went and came back within a second, and came and went within half a second.</summary>

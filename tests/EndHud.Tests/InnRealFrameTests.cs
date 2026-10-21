@@ -69,7 +69,7 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task A_gourmands_order_frame_becomes_a_circle_for_each_of_both_requests()
+    public async Task A_gourmands_order_frame_becomes_a_row_for_each_of_both_requests()
     {
         var (monitor, raised) = await Monitor();
 
@@ -88,9 +88,8 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
         Assert.Equal(1, note.Table);
         Assert.Equal(2, note.Advice!.Requests.Count);
 
-        var wants = InnWantsView.Of(session.Advice(S(0))!, Text);
-        Assert.Equal(2, wants.Count);
-        Assert.All(wants, w => Assert.Equal(1, w.Table));
+        var wants = InnGourmandView.Of(session.Advice(S(0))!, Text);
+        Assert.Equal([(1, 0), (1, 1)], wants.Select(w => (w.Table, w.Request)));
     }
 
     /// <summary>
@@ -227,6 +226,35 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
             Assert.True(advice.Plan.Dishes.Select(d => d.Dish.Type).Distinct().Count() >= 3, "fewer than 3 dish types");
             Assert.True(planner.MeetsRules(rules, advice.Plan.Dishes, advice.Plan.Drinks));
         }
+    }
+
+    /// <summary>
+    /// Owner, live 2026-10-21 (test_yuanyuan4, 4:20): table 4's gourmand asks 「清爽无油的汤羹，有吗？」 and 「来杯喝的，谨记，我滴酒
+    /// 不沾。」. Through the real readers and the session to the banner: "老饕 桌4", ① the soup without seed oil → 白瓜肉丸汤
+    /// (茄果鳞肉汤 has seed oil), ② a drink without alcohol → a drink that has none (陈酿葡萄露 is on the menu and never named).
+    /// </summary>
+    [Fact]
+    public async Task The_owners_gourmand_asking_for_a_soup_and_a_drink_gets_one_row_each()
+    {
+        var (monitor, raised) = await Monitor();
+        Assert.True(await monitor.TryInnAsync(await Load(Path.Combine("inn", "session-gourmand-soup-and-drink.jpg")), S(0), squadPanelSeen: false));
+        var reading = Assert.Single(raised)!;
+        Assert.Equal(TableState.GourmandOrder, reading.TableCards[3]!.State);
+
+        var session = NewSession();
+        session.Update(SetupScreen(-2, 1, 2, 3));
+        session.Update(MenuScreen(-1, "melon-meatball-soup", "fin-mato-soup", "sourberry-pudding", "boundary-lung-roll", "vintage-grapedew", "pre-tide-lungjing", "bottled-duskberry-juice"));
+        session.Update(reading);
+        session.Update(reading with { At = S(0.3) });
+
+        var banner = Assert.Single(InnGourmandView.Banners(InnGourmandView.Of(session.Advice(S(0.3))!, Text), Text));
+        foreach (var row in banner.Rows) output.WriteLine($"{row.Number} {row.Request} → {row.Item}");
+        Assert.Equal("老饕 桌4", banner.Title);
+        Assert.Equal(2, banner.Rows.Count);
+        Assert.Equal(("①", "melon-meatball-soup"), (banner.Rows[0].Number, banner.Rows[0].PictureId));
+        Assert.Equal("②", banner.Rows[1].Number);
+        Assert.EndsWith("饮品", banner.Rows[1].Request);
+        Assert.Contains(banner.Rows[1].PictureId, new[] { "pre-tide-lungjing", "bottled-duskberry-juice" });
     }
 
     [Fact]

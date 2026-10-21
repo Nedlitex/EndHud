@@ -14,7 +14,7 @@ namespace EndHud.Tests;
 internal sealed record InnReplayEvent(TimeSpan At, InnReading? Reading);
 
 /// <summary>Something one of the session's overlays did that the player sees.</summary>
-/// <param name="Display">"banner", "mark" or "circle".</param>
+/// <param name="Display">"banner", "mark" or "gourmand" (a gourmand's banner).</param>
 /// <param name="Change">"+" appeared, "-" went, "~" drawn again with other content.</param>
 /// <param name="Why">What changed in the input on that step (screen, panel, tables, the call hold's reasons).</param>
 internal sealed record InnViewChange(TimeSpan At, string Display, string Change, string What, string Why);
@@ -23,7 +23,7 @@ internal sealed record InnViewChange(TimeSpan At, string Display, string Change,
 /// The inn's session overlays replayed over a recorded sequence of readings, with the real session, call hold and
 /// views (<see cref="InnDisplay"/>, as the overlay drives them) on a fake clock taken from the readings' times, and the
 /// overlay's half-second tick between them. Every appearance, disappearance and change of a banner, a mark on the
-/// dispatch panel, a gourmand's circle and the gourmands' panel is recorded with the input that changed: text only.
+/// dispatch panel and a gourmand's banner is recorded with the input that changed: text only.
 /// </summary>
 internal sealed class InnReplay
 {
@@ -32,7 +32,8 @@ internal sealed class InnReplay
 
     private readonly InnSession _session = NewSession();
     private readonly InnDisplay _display = new();
-    private HashSet<string> _banners = [], _marks = [], _circles = [];
+    private HashSet<string> _banners = [], _marks = [], _gourmands = [];
+    private Dictionary<string, string> _gourmandContent = [];
     private string? _panel;
     private InnReading? _last;
     private TimeSpan? _sessionFrom, _sessionTo;
@@ -89,9 +90,13 @@ internal sealed class InnReplay
         var marks = views.Marks.Select(m => m.Key).ToHashSet();
         Diff("mark", _marks, marks, at, why);
         _marks = marks;
-        var circles = views.Wants.Select(w => $"table {w.Table}: {w.Name}").ToHashSet();
-        Diff("circle", _circles, circles, at, why);
-        _circles = circles;
+        var drawn = InnGourmandView.Banners(views.Wants, Text);
+        var gourmands = drawn.Select(b => b.Key).ToHashSet();
+        Diff("gourmand", _gourmands, gourmands, at, why);
+        foreach (var banner in drawn)
+            if (_gourmandContent.TryGetValue(banner.Key, out var before) && before != banner.Content) Changes.Add(new InnViewChange(at, "gourmand", "~", banner.Content, why));
+        _gourmandContent = drawn.ToDictionary(b => b.Key, b => b.Content);
+        _gourmands = gourmands;
     }
 
     private void Diff(string display, HashSet<string> before, HashSet<string> now, TimeSpan at, string why)
@@ -131,7 +136,7 @@ internal sealed class InnReplay
     public IReadOnlyDictionary<string, double> PerMinute()
     {
         double minutes = Math.Max(SessionSpan.TotalMinutes, 1e-9);
-        return new[] { "banner", "mark", "circle" }.ToDictionary(d => d, d => Changes.Count(c => c.Display == d) / minutes);
+        return new[] { "banner", "mark", "gourmand" }.ToDictionary(d => d, d => Changes.Count(c => c.Display == d) / minutes);
     }
 
     public string Report()

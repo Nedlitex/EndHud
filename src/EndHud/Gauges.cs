@@ -48,12 +48,6 @@ internal sealed record Gauge(GaugeKind Kind, BitmapSource? Avatar, BitmapSource?
 
     /// <summary>Starts the next operator's gauges: a little more space before it.</summary>
     public bool FirstOfOperator { get; init; }
-
-    /// <summary>A second, smaller line under <see cref="Label"/> (the inn's gourmand circles: the dish's name); null for none.</summary>
-    public string? Detail { get; init; }
-
-    /// <summary>A buff's picture in the middle, as a share of the space inside the ring (a dish's picture fills more of it than a status glyph).</summary>
-    public double PictureShare { get; init; } = 0.78;
 }
 
 internal sealed record GaugeBoard(IReadOnlyList<Gauge> Gauges);
@@ -74,7 +68,6 @@ internal static class Gauges
     private const double Inset = 4; // between the ring and the avatar
     private const double BadgeSize = 36;
     private const double SegmentGap = 8; // degrees between a counter's segments
-    internal const double DetailFontSize = 15;
 
     // Frozen: shared by every gauge drawn, from any thread.
     internal static readonly Color UltimateColor = Color.FromRgb(0xFF, 0xC8, 0x3C);
@@ -130,8 +123,8 @@ internal static class Gauges
             circle.Children.Add(new Image
             {
                 Source = gauge.Avatar,
-                Width = face * gauge.PictureShare,
-                Height = face * gauge.PictureShare,
+                Width = face * 0.78,
+                Height = face * 0.78,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 Opacity = gauge.Ready ? 1 : 0.3,
@@ -237,27 +230,13 @@ internal static class Gauges
             Margin = new Thickness(0, 3, 0, 0),
             Effect = Outline(),
         };
-        var gaugePanel = new StackPanel
+        return new StackPanel
         {
             Margin = new Thickness(6, 0, 6, 0),
             MinWidth = Size,
             Opacity = gauge.Fallen ? 0.35 : 1,
             Children = { circle, caption },
         };
-        if (gauge.Detail is { } detail)
-        {
-            gaugePanel.Children.Add(new TextBlock
-            {
-                Text = detail,
-                Foreground = Text,
-                FontSize = DetailFontSize,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                MaxWidth = Size + 24,
-                Effect = Outline(),
-            });
-        }
-        return gaugePanel;
     }
 
     /// <summary>A small dark disc at the circle's bottom right, holding the count or the ultimate's icon.</summary>

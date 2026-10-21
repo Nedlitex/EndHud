@@ -36,7 +36,11 @@ public sealed record GourmandOption(Dish? Dish, InnDrink? Drink, GourmandSource 
 
 /// <summary>One request: what it says, in plain words, and what on the menu meets it, best first.</summary>
 /// <param name="Options">Empty when nothing on the menu meets it.</param>
-public sealed record GourmandRequestAdvice(GourmandRequest Request, string Description, IReadOnlyList<GourmandOption> Options);
+public sealed record GourmandRequestAdvice(GourmandRequest Request, string Description, IReadOnlyList<GourmandOption> Options)
+{
+    /// <summary>Met by a drink, not a dish (<see cref="GourmandCondition.ForDrink"/>).</summary>
+    public bool ForDrink { get; init; }
+}
 
 /// <param name="Serve">One dish or drink per request, in the order to serve them so each fills a request perfectly; null when some request can't be met.</param>
 public sealed record GourmandAdvice(IReadOnlyList<GourmandRequestAdvice> Requests, IReadOnlyList<GourmandOption>? Serve);
@@ -65,7 +69,7 @@ public sealed class GourmandAdvisor(DispatchAdvisor dispatch)
             throw new ArgumentException($"{requests.Count} requests; a gourmand asks for 1 to {MaxRequests}.", nameof(requests));
         var conditions = requests.Select(r => GourmandCondition.Parse(r.When, dispatch.Kitchens.Inn)).ToList();
         var instances = conditions.Select(c => Instances(c, state, drinks).ToList()).ToList();
-        var advice = requests.Select((r, i) => new GourmandRequestAdvice(r, conditions[i].Describe(), Ranked(instances[i]))).ToList();
+        var advice = requests.Select((r, i) => new GourmandRequestAdvice(r, conditions[i].Describe(), Ranked(instances[i])) { ForDrink = conditions[i].ForDrink }).ToList();
         instances = [.. instances.Select(i => i.Take(WeighedPerRequest).ToList())];
         return new GourmandAdvice(advice, instances.Any(i => i.Count == 0) ? null : BestServing(conditions, instances));
     }

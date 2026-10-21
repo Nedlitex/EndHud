@@ -221,12 +221,14 @@ public class InnSteadyTests
         Assert.Equal((InnCallKind.Queue, 5, E), (Assert.Single(calls).Kind, calls[0].Table, calls[0].Dish!.Id));
     }
 
-    // ---- The gourmands' circles ----
+    // ---- The gourmands' banners ----
 
-    private static InnAdvice Gourmand(params (string Id, double ReadyIn)[] options) =>
+    private static InnAdvice Gourmand(params (string Id, double ReadyIn)[] options) => Gourmand(1, options);
+
+    private static InnAdvice Gourmand(int requests, params (string Id, double ReadyIn)[] options) =>
         new(new DispatchAdvice([], [], [], []), null, null, false,
-            [new InnGourmandNote(4, new GourmandAdvice([new GourmandRequestAdvice(new GourmandRequest("said", "x"), "plain",
-                [.. options.Select(o => new GourmandOption(Dish(o.Id), null, o.ReadyIn == 0 ? GourmandSource.Counter : GourmandSource.ToCook, o.ReadyIn == 0 ? null : 1, o.ReadyIn))])], null), null, false)],
+            [new InnGourmandNote(4, new GourmandAdvice([.. Enumerable.Range(0, requests).Select(r => new GourmandRequestAdvice(new GourmandRequest("said" + r, "x"), "plain" + r,
+                [.. options.Select(o => new GourmandOption(Dish(o.Id), null, o.ReadyIn == 0 ? GourmandSource.Counter : GourmandSource.ToCook, o.ReadyIn == 0 ? null : 1, o.ReadyIn))]))], null), null, false)],
             [], new HashSet<int>(), false);
 
     /// <summary>
@@ -235,15 +237,33 @@ public class InnSteadyTests
     /// while the one shown is still to cook) or the one shown no longer meets it on the menu.
     /// </summary>
     [Fact]
-    public void A_gourmands_circle_stays_when_a_near_equal_dish_moves_ahead()
+    public void A_gourmands_row_stays_when_a_near_equal_dish_moves_ahead()
     {
         var hold = new InnWantsHold();
-        Assert.Equal(A, Assert.Single(hold.Update(Gourmand((A, 30), (B, 31)), Text)).ItemId);
+        Assert.Empty(hold.Update(Gourmand((A, 30), (B, 31)), Text, S(0)));
+        Assert.Equal(A, Assert.Single(hold.Update(Gourmand((A, 30), (B, 31)), Text, S(0.6))).ItemId);
 
-        Assert.Equal(A, Assert.Single(hold.Update(Gourmand((B, 28), (A, 30)), Text)).ItemId);
+        Assert.Equal(A, Assert.Single(hold.Update(Gourmand((B, 28), (A, 30)), Text, S(1))).ItemId);
 
-        Assert.Equal(B, Assert.Single(hold.Update(Gourmand((B, 0), (A, 30)), Text)).ItemId);
+        Assert.Equal(B, Assert.Single(hold.Update(Gourmand((B, 0), (A, 30)), Text, S(1.5))).ItemId);
 
-        Assert.Equal(C, Assert.Single(hold.Update(Gourmand((C, 25)), Text)).ItemId);
+        Assert.Equal(C, Assert.Single(hold.Update(Gourmand((C, 25)), Text, S(2))).ItemId);
+    }
+
+    /// <summary>
+    /// A gourmand's banner first goes up once their rows have read the same for <see cref="InnWantsHold.ShowAfter"/>
+    /// (measured on the 2026-10-20 recording: a half-faded bubble read with one request, both 0.3 s later, put a banner up
+    /// and took it down within 0.3 s): it goes up once, with both requests. Once up, a change shows at once, in place.
+    /// </summary>
+    [Fact]
+    public void A_gourmands_banner_goes_up_once_what_it_says_has_stood_a_moment()
+    {
+        var hold = new InnWantsHold();
+        Assert.Empty(hold.Update(Gourmand(1, (A, 30)), Text, S(0)));
+        Assert.Empty(hold.Update(Gourmand(2, (A, 30)), Text, S(0.3)));
+        Assert.Empty(hold.Update(Gourmand(2, (A, 30)), Text, S(0.6)));
+        Assert.Equal(2, hold.Update(Gourmand(2, (A, 30)), Text, S(0.9)).Count);
+
+        Assert.Equal(B, hold.Update(Gourmand(2, (B, 0)), Text, S(1.2))[0].ItemId);
     }
 }
