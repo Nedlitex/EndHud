@@ -181,6 +181,42 @@ public class DispatchAdvisorTests
     }
 
     /// <summary>
+    /// A dish out of a kitchen for an order (it was that order's dish in the queue) covers it, as it did while queued; a
+    /// dish cooked ahead on the counter covers none. Without the first, an order whose dish had just come out was sent to
+    /// a kitchen again and every kitchen's call reshuffled (test_yuanyuan3, 362.4 s). Once closed, it's handed to its table.
+    /// </summary>
+    [Fact]
+    public void A_dish_out_for_an_order_covers_it_and_one_cooked_ahead_covers_none()
+    {
+        var orders = new[] { Order(1, "坛子肉"), Order(2, "坛子肉") };
+
+        var advice = Advisor().Advise(State([Queue(1), Queue(2), Queue(3)], orders, counter: ["坛子肉"], outForOrders: ["坛子肉"]));
+        var closed = Advisor().Advise(State([Queue(1), Queue(2), Queue(3)], orders, outForOrders: ["坛子肉"], servingLeft: InnState.ServingLeftAfterClose(0)));
+
+        Assert.Equal([2], Sent(advice).Select(s => s.Advice.Table!.Value)); // table 1's is out; the one cooked ahead isn't table 2's
+        Assert.Contains(new LeftoverAdvice(Dish("坛子肉"), 1, Dish("坛子肉")), closed.Leftovers);
+    }
+
+    /// <summary>
+    /// The orders on screen stay in their kitchens counting each other: an order shown in kitchen 1 isn't moved for an
+    /// empty kitchen 2 that kitchen 2's own order on screen takes. Kitchen 1 has 坛子肉 out in 20 + 27 = 47 s; kitchen 2
+    /// would in 35 s, but after its 白瓜肉丸汤 in 72 s; kitchen 3 in 5 + 35 = 40 s, less than 8 s sooner. Before, kitchen 2
+    /// counted as empty, the order left kitchen 1 and went to kitchen 3 (test_yuanyuan3, 383.7 s: an order moved to a
+    /// kitchen that was showing another).
+    /// </summary>
+    [Fact]
+    public void An_order_on_screen_counts_the_other_orders_on_screen_in_their_kitchens()
+    {
+        var shown = new[] { new KeptCall(1, Dish("坛子肉"), 3), new KeptCall(2, Dish("白瓜肉丸汤"), 5) };
+
+        var advice = Advisor().Advise(State([Queue(1, ("果味沙拉", 20)), Queue(2), Queue(3, ("肉包子", 5))], [Order(3, "坛子肉"), Order(5, "白瓜肉丸汤")]),
+            fillEverySlot: false, shown);
+
+        Assert.Equal(["3:坛子肉"], advice.For(1).Queue.Where(q => !q.CookAhead).Select(q => $"{q.Table}:{q.Dish.Zh}"));
+        Assert.Equal(["5:白瓜肉丸汤"], advice.For(2).Queue.Where(q => !q.CookAhead).Select(q => $"{q.Table}:{q.Dish.Zh}"));
+    }
+
+    /// <summary>
     /// Owner, 2026-10-21: the advice never gates on how full the counter is. EndHud only estimates the counter (it is
     /// never read off the screen); on test_yuanyuan4 the estimate went "full" from about 250 s and hid real orders. An
     /// order is sent to a kitchen with the counter full, even with a dish of its kind on it.

@@ -104,6 +104,28 @@ public class InnCallTests(ITestOutputHelper output)
         Assert.DoesNotContain(calls, c => c.Table == 3); // queued: nothing left to call for it
     }
 
+    /// <summary>
+    /// A new order the advice puts behind another order in kitchen 1 (one call a kitchen: it can't show there yet) shows at
+    /// once in kitchen 2, which shows only a dish to cook ahead, when kitchen 2 has it out no more than
+    /// <see cref="InnCallHold.ClearlyEarlierSeconds"/> later: 40 s against 38 s. Before, only a kitchen with no call took
+    /// it, and on test_yuanyuan4 (230.7 s) the order waited 5 s for a call.
+    /// </summary>
+    [Fact]
+    public void A_kitchen_showing_a_dish_to_cook_ahead_takes_a_new_order_put_behind_another_elsewhere()
+    {
+        var hold = new InnCallHold();
+        var view = new InnKitchenView((_, _) => 0, _ => true, (kitchen, _) => kitchen == 2 ? 40 : 19);
+        static KitchenAdvice Kitchen(int number, params QueueAdvice[] queue) => new(number, queue, []);
+
+        var before = hold.Update(new DispatchAdvice([Kitchen(1, new QueueAdvice(Dish(A), 5, 19)), Kitchen(2, new QueueAdvice(Dish(B), null, 50))], [], [], []),
+            null, view, S(10));
+        var after = hold.Update(new DispatchAdvice([Kitchen(1, new QueueAdvice(Dish(A), 5, 19), new QueueAdvice(Dish(A), 1, 38)), Kitchen(2, new QueueAdvice(Dish(B), null, 50))],
+            [], [], []), null, view, S(10.3));
+
+        Assert.Equal($"Queue:1:{A}:5: CookAhead:2:{B}::", Keys(before));
+        Assert.Equal($"Queue:1:{A}:5: Queue:2:{A}:1:", Keys(after));
+    }
+
     /// <summary>A dish to cook ahead stays on screen while it's still to be cooked ahead there, whichever near-equal dish the advice puts first.</summary>
     [Fact]
     public void A_dish_to_cook_ahead_stays_until_queued_and_an_order_replaces_it()
