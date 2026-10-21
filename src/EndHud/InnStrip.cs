@@ -42,7 +42,7 @@ internal sealed record InnLine(InnLineStyle Style, IReadOnlyList<InnSegment> Seg
     /// <summary>How far in the line starts, in steps (a row under its heading is 1).</summary>
     public int Indent { get; init; }
 
-    /// <summary>The first segment is a label ("干员："): the rest wrap beside it, never under it.</summary>
+    /// <summary>The first segment is a label (Inn.Setup.Recommend's "recommended:"): the rest wrap beside it, never under it.</summary>
     public bool Hanging { get; init; }
 
     /// <summary>The line's words, pictures left out: what the player reads.</summary>

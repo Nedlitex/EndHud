@@ -68,11 +68,11 @@ public class InnWantsTests
 
         var wants = InnWantsView.Of(Advice(unknown, unmet, drinksUnseen), Text);
 
-        Assert.Equal([(1, null, "没认出要求"), (3, null, "没有合适的"), (3, C, Dish(C).Zh)], wants.Select(w => (w.Table, w.ItemId, w.Name)));
+        Assert.Equal([(1, null, Text("Inn.Want.Unknown")), (3, null, Text("Inn.Want.None")), (3, C, Dish(C).Zh)], wants.Select(w => (w.Table, w.ItemId, w.Name)));
         var asked = new List<string>();
         var board = InnWantsView.Board(wants, id => { asked.Add(id); return null; }, Text);
         Assert.Equal([C], asked); // no picture is asked for a circle without an item
-        Assert.Equal(["桌1", "桌3", "桌3"], board.Gauges.Select(g => g.Label));
+        Assert.Equal([Format("Inn.Want.Table", 1), Format("Inn.Want.Table", 3), Format("Inn.Want.Table", 3)], board.Gauges.Select(g => g.Label));
         Assert.Null(board.Gauges[0].Avatar);
     }
 

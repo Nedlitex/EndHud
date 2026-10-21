@@ -169,7 +169,7 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
         output.WriteLine($"marked: {string.Join(" ", recommendedInView.Select(c => c.Id))}");
         Assert.NotEmpty(recommendedInView);
         Assert.Equal(recommendedInView.Select(c => c.Area!.Value), marks.Select(m => m.Area));
-        Assert.All(marks, m => Assert.Equal("推荐", m.Label));
+        Assert.All(marks, m => Assert.Equal(Text("Inn.Mark.Recommend"), m.Label));
     }
 
     /// <summary>

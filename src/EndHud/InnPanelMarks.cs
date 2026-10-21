@@ -19,7 +19,7 @@ internal sealed record InnPanelMark(PixelRect Area, string Label, bool OnCard)
 
 /// <summary>
 /// The same card mark on the setup screens (owner, live 2026-10-20: "in the choose dish and choose cook menu, show the same
-/// suggestion like the suggestion in session for cooking"): on the menu screen (菜单设定) each recommended dish's and
+/// suggestion like the suggestion in session for cooking"): on the menu screen each recommended dish's and
 /// drink's card in view, in a chef picker each recommended chef's card in view, labelled "recommended" (Inn.Mark.Recommend).
 /// Only cards read for sure: a menu card whose name matched a dish or drink and that is wholly in view
 /// (<see cref="MenuCard.Area"/>), a chef card whose bonuses and portrait agree (<see cref="ChefCard.OperatorId"/>).

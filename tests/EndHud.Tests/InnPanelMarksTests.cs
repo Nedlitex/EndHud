@@ -192,7 +192,7 @@ public class InnSetupMarksTests
 
         Assert.Equal([new PixelRect(1667, 412, 898, 257), new PixelRect(2625, 729, 898, 257)], marks.Select(m => m.Area));
         Assert.All(marks, m => Assert.True(m.OnCard));
-        Assert.All(marks, m => Assert.Equal("推荐", m.Label));
+        Assert.All(marks, m => Assert.Equal(Text("Inn.Mark.Recommend"), m.Label));
     }
 
     [Fact]
@@ -203,7 +203,7 @@ public class InnSetupMarksTests
         var marks = InnSetupMarks.Of(InnScreenKind.ChefPicker, ["Yvonne", "Akekuri", "Perlica"], [], cards, Text);
 
         Assert.Equal([new PixelRect(650, 272, 240, 398), new PixelRect(109, 698, 240, 398)], marks.Select(m => m.Area));
-        Assert.All(marks, m => Assert.Equal("推荐", m.Label));
+        Assert.All(marks, m => Assert.Equal(Text("Inn.Mark.Recommend"), m.Label));
     }
 
     [Fact]

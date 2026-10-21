@@ -6,19 +6,19 @@ namespace EndHud.Vision.Inn;
 /// <summary>A bonus icon under a chef picker card: what that chef speeds up in a kitchen.</summary>
 public enum ChefIcon
 {
-    /// <summary>主食 (a gold square with a bowl).</summary>
+    /// <summary>Entree (a gold square with a bowl).</summary>
     Entree,
 
-    /// <summary>菜肴 (a green square).</summary>
+    /// <summary>Side dish (a green square).</summary>
     Side,
 
-    /// <summary>汤羹 (a blue square).</summary>
+    /// <summary>Soup (a blue square).</summary>
     Soup,
 
-    /// <summary>甜品 (a red square).</summary>
+    /// <summary>Dessert (a red square).</summary>
     Dessert,
 
-    /// <summary>珍馐 (a yellow circle with a cloche).</summary>
+    /// <summary>Choice dish (a yellow circle with a cloche).</summary>
     Choice,
 }
 
@@ -37,7 +37,7 @@ public sealed record ChefCard(PixelRect Place, IReadOnlyList<ChefIcon?> Icons, s
 }
 
 /// <summary>
-/// The chef picker (a kitchen's 安排干员 screen): who each card of the grid is, though the cards
+/// The chef picker (a kitchen's assign-operators screen): who each card of the grid is, though the cards
 /// show no names. A card shows the operator's portrait, two bonus icons (told by their colour) and
 /// a flavor chip (one character, by OCR). Icons and flavor are the operator's bonus profile
 /// (<see cref="InnData.ChefBonusesOf"/>), which only a few operators share; the portrait (the same
@@ -56,7 +56,7 @@ public sealed class ChefPickerReader(InnData data, PortraitMatcher matcher)
     private const int CardWidth = 240;
     // The list's visible rows: a card is read only when it's wholly inside.
     private const int ListTop = 300, ListBottom = 1705;
-    // From the bottom of a card's dark label bar ("暂无安排"): the card's top, the bar's top,
+    // From the bottom of a card's dark label bar (its "not assigned" label): the card's top, the bar's top,
     // the icons' row (centre) and the flavor chip.
     private const int BarToCardTop = 273, BarHeight = 38, BarToIcons = 45, IconRadius = 24, BarToChipTop = 78, BarToChipBottom = 125;
     private static readonly int[] IconCentres = [86, 150];
@@ -65,14 +65,14 @@ public sealed class ChefPickerReader(InnData data, PortraitMatcher matcher)
     /// <summary>
     /// Difference (0 = the same character) above which a portrait is no one the roster has (a new
     /// operator the package doesn't know yet). Measured on the twelve cards at 4K, 1440p and 1080p:
-    /// each card's own operator 0.017–0.056; the nearest other operator 0.076 (噗切娜 to 大潘's card,
+    /// each card's own operator 0.017–0.056; the nearest other operator 0.076 (another operator's portrait to Da Pan's card,
     /// both drawn as round white creatures) to 0.13.
     /// </summary>
     public const float MaxDifference = 0.07f;
 
     /// <summary>
     /// Among a profile's candidates, the named one must be closer than every other by this much
-    /// (大潘's card: 大潘 0.029, 噗切娜 0.076 at 4K).
+    /// (Da Pan's card: Da Pan 0.029, the next 0.076 at 4K).
     /// </summary>
     public const float MinLead = 0.03f;
 
@@ -162,13 +162,13 @@ public sealed class ChefPickerReader(InnData data, PortraitMatcher matcher)
 
     /// <summary>
     /// An icon by the median hue and brightness of its saturated pixels within its circle: gold
-    /// (主食, h 0.13 v 0.59), green (菜肴, h 0.34), blue (汤羹, h 0.55), red (甜品, h 0.98) and bright
-    /// yellow (珍馐, h 0.16 v 0.98), as measured; null when too few pixels or none of these.
+    /// (entree, h 0.13 v 0.59), green (side, h 0.34), blue (soup, h 0.55), red (dessert, h 0.98) and bright
+    /// yellow (choice dish, h 0.16 v 0.98), as measured; null when too few pixels or none of these.
     /// </summary>
     internal static ChefIcon? ClassifyIcon(Frame frame, InnLayout layout, double x, double y)
     {
         if (IconColour(frame, layout, x, y) is not var (hue, value, share)) return null;
-        // The squares' fill covers over half the circle, the 珍馐 circle 34–44 % (its dark cloche the
+        // The squares' fill covers over half the circle, the choice dish's circle 34–44 % (its dark cloche the
         // rest), measured at 4K, 1440p and 1080p; less is no icon.
         if (share < 0.25) return null;
         if (Math.Abs(hue - -0.02) <= 0.05) return ChefIcon.Dessert;
@@ -227,7 +227,7 @@ public sealed class ChefPickerReader(InnData data, PortraitMatcher matcher)
         layout.Centered(new PixelRect(left + ChipInset, (int)Math.Round(barBottom + BarToChipTop), CardWidth - 2 * ChipInset, BarToChipBottom - BarToChipTop));
 
     /// <summary>
-    /// The flavor chip's one character (咸, 辣, 鲜, 酸, 甜) as a trait id, by its shape
+    /// The flavor chip's one character (salty, spicy, savory, sour, sweet) as a trait id, by its shape
     /// (<see cref="FlavorShapes"/>): Windows OCR read hardly any of these lone grey characters
     /// (3 of 12 at 4K, measured). Null when the glyph isn't clearly one of them.
     /// </summary>
@@ -357,7 +357,8 @@ public sealed class ChefPickerReader(InnData data, PortraitMatcher matcher)
 
     /// <summary>
     /// The five flavor characters as the chips draw them: each the average of its chips on
-    /// chef-picker.jpg at 4K (咸 ×3, 辣 ×2, 鲜 ×4, 酸 ×2, 甜 ×1).
+    /// chef-picker.jpg at 4K (salty ×3, spicy ×2, savory ×4, sour ×2, sweet ×1); each keyed by the character the game
+    /// draws, as the inn data names the flavor traits.
     /// </summary>
     internal static readonly FlavorShape[] FlavorShapes =
     [
