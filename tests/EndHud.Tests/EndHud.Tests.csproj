@@ -27,6 +27,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The readings of the owner's 2026-10-20 inn recording (text: what the readers read on each frame, no picture),
+         replayed through the session and the overlays' views (InnReplayTests). -->
+    <None Include="Fixtures\inn-replay\*.jsonl.gz" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- A 4K gameplay frame for the windowed-capture tests (Category=Desktop), from the test data
          submodule (tests/data); without it only those tests can't run. -->
     <None Include="..\data\Fixtures\combat-combos-nearly-refilled.jpg" Link="Fixtures\combat-combos-nearly-refilled.jpg"

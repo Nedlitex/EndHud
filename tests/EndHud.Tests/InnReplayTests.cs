@@ -64,6 +64,50 @@ public class InnReplayTests(ITestOutputHelper output)
         foreach (var (display, rate) in replay.PerMinute()) output.WriteLine($"{display}: {rate:F1}/min");
     }
 
+    /// <summary>
+    /// The owner's 2026-10-20 session (test_yuanyuan3.mp4, 0–430 s, a frame every 0.3 s through the real readers and the
+    /// reading loop's holds; Fixtures/inn-replay, text only) replayed through the session and the views. Before the
+    /// displays were held steady: 69 banners went and came back within a second and 37 were up for under half a
+    /// second (all banners: 60.8 changes a minute); 26 marks went and came back within a second.
+    /// </summary>
+    [Fact]
+    public void Over_the_owners_recorded_session_nothing_flashes()
+    {
+        var replay = InnReplay.Run(InnReplay.Load(Path.Combine(AppContext.BaseDirectory, "Fixtures", "inn-replay", "test-yuanyuan3-readings.jsonl.gz")));
+        foreach (var (display, rate) in replay.PerMinute()) output.WriteLine($"{display}: {rate:F1} changes/min");
+
+        var banners = Flashes(replay, "banner");
+        var marks = Flashes(replay, "mark");
+        var circles = Flashes(replay, "circle");
+        output.WriteLine($"banners: {banners.HiddenUnderASecond} hidden under a second, {banners.UpUnderHalfASecond} up under half a second");
+        output.WriteLine($"marks: {marks.HiddenUnderASecond} hidden under a second, {marks.UpUnderHalfASecond} up under half a second");
+
+        Assert.True(replay.SessionSpan > TimeSpan.FromMinutes(5), "the whole session was replayed");
+        Assert.Equal(0, banners.HiddenUnderASecond);
+        Assert.True(banners.UpUnderHalfASecond <= 5, $"{banners.UpUnderHalfASecond} banners up under half a second");
+        Assert.True(replay.PerMinute()["banner"] <= 30, $"{replay.PerMinute()["banner"]:F1} banner changes a minute");
+        Assert.True(marks.HiddenUnderASecond <= 8, $"{marks.HiddenUnderASecond} marks hidden under a second");
+        Assert.Equal((0, 0), (circles.HiddenUnderASecond, circles.UpUnderHalfASecond));
+    }
+
+    /// <summary>How often a display's item went and came back within a second, and came and went within half a second.</summary>
+    private static (int HiddenUnderASecond, int UpUnderHalfASecond) Flashes(InnReplay replay, string display)
+    {
+        int hidden = 0, up = 0;
+        var last = new Dictionary<string, InnViewChange>();
+        foreach (var change in replay.Changes.Where(c => c.Display == display))
+        {
+            if (last.TryGetValue(change.What, out var before))
+            {
+                double seconds = (change.At - before.At).TotalSeconds;
+                if (before.Change == "-" && change.Change == "+" && seconds < 1) hidden++;
+                if (before.Change == "+" && change.Change == "-" && seconds < 0.5) up++;
+            }
+            last[change.What] = change;
+        }
+        return (hidden, up);
+    }
+
     /// <summary>A trace of saved readings again (ENDHUD_INN_TRACE_OUT/readings.jsonl.gz), without the recording: views.txt.</summary>
     [InnRecordingFact]
     public void Trace_the_overlays_over_saved_readings()
