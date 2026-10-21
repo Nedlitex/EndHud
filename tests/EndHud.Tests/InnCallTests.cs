@@ -8,7 +8,7 @@ namespace EndHud.Tests;
 /// <summary>
 /// The session's calls held steady (owner, live 2026-10-20: the per-kitchen suggestions "keep changing during the
 /// session", hard to follow): <see cref="InnCallHold"/> through <see cref="InnSession.Advice"/>. A call stays until
-/// it's done, no longer valid, or clearly beaten; a real change (a new order, the dish queued) shows at once.
+/// it's done or impossible (a dish to cook ahead: or an order comes to its kitchen); a real change (a new order, the dish queued) shows at once.
 /// </summary>
 public class InnCallTests(ITestOutputHelper output)
 {

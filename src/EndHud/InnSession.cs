@@ -40,7 +40,7 @@ internal sealed record InnAdvice(DispatchAdvice? Dispatch, InnGap? Gap, FullBlaz
     IReadOnlyList<InnGourmandNote> Gourmands, IReadOnlyList<int> UnreadableTables, IReadOnlySet<int> ExactKitchens, bool Opening)
 {
     /// <summary>
-    /// What to tell the player now, each held steady until done, no longer valid or clearly beaten
+    /// What to tell the player now, each held steady until done or impossible (a dish to cook ahead: or an order comes to its kitchen)
     /// (<see cref="InnCallHold"/>): the next dish per kitchen, a swap, the last call, Full Blaze. Shown as banners.
     /// </summary>
     public IReadOnlyList<InnCall> Calls { get; init; } = [];
