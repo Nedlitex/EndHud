@@ -753,15 +753,23 @@ time it is wrong and it is disturbing").
 The dispatch advice is worked out afresh on every frame, so on its own it flips with every queue time read a
 second off (owner, live 2026-10-20: the suggestions "keep changing during the session").
 [`InnCallHold`](src/EndHud/InnCalls.cs) turns it into `InnAdvice.Calls`, held steady: one call per kitchen (the
-next dish for an order, a dish to cook ahead, or a swap) stays until it is done (its dish went into that
-kitchen's queue: a queued + cooked-out count per kitchen and dish, put right by every dispatch-panel reading so
-the estimate's drift isn't taken for queueing; or its order no longer waits for a kitchen), no longer valid (the
-kitchen full, the advice no longer cooking that dish ahead anywhere, the swap and its order gone) or clearly
-beaten (an order where a cook-ahead was; the held order out at least 5 s sooner elsewhere,
-`InnCallHold.ClearlyEarlierSeconds`). Ties keep the current call; one order is called in one kitchen; a kitchen
-with no call takes an order still uncalled elsewhere when it has it out no more than 5 s later, so a new order
-shows at once. Full Blaze and the last call come straight from the advice. Measured (InnCallTests, 10 s of
-jittery readings): the first suggestion per kitchen changed 19 times before, the calls 0 times.
+next dish for an order, a dish to cook ahead, or a swap). The calls on screen are handed back to the advice
+(`InnCallHold.Kept` → `DispatchAdvisor.Advise(state, fillEverySlot, kept)`, owner 2026-10-21: "the recommendation
+should stay steady"), which plans around them: an order shown in a kitchen stays there while it can be queued
+there and is out less than `DispatchAdvisor.KeepWithinSeconds` (8 s) after the soonest kitchen; a dish to cook
+ahead shown in a kitchen goes there first, and takes the counter's room first, while that kitchen has a free slot
+and nothing ordered for it, the dish is in stock and out in time (leaving a slot free for orders decides only a
+new dish to cook ahead). So earliest-finish (owner decision 13) decides only a new call. A call stays until it is
+done (its dish went into that kitchen's queue: a queued + cooked-out count per kitchen and dish, put right by every
+dispatch-panel reading; or its order no longer waits for a kitchen), no longer valid (the kitchen full; the advice
+no longer cooking that dish ahead in that kitchen; the swap and its order gone) or clearly beaten (an order where a
+cook-ahead was; the advice moving the order to a kitchen clearly sooner, which it does at once). A call no longer
+valid stays `GraceSeconds` (1.5 s) first, a dish to cook ahead `CookAheadGraceSeconds` (10 s: the counter's room is
+a forecast that comes back as dishes are served). One order is called in one kitchen; a kitchen with no call takes
+an order still uncalled elsewhere when it has it out no more than 8 s later, so a new order shows at once. Full
+Blaze and the last call come straight from the advice. Measured (InnCallTests, 10 s of jittery readings): the first
+suggestion per kitchen changed 19 times when the advice was worked out afresh, 0 times since it keeps the calls on
+screen; the calls 0 times.
 
 The calls are banners (owner, live 2026-10-20: "remove all hints from the current panel, use the combo instead.
 the current panel has the requirements of the gourmands"): [`InnCallView`](src/EndHud/InnCallView.cs) words them
@@ -771,13 +779,19 @@ the current panel has the requirements of the gourmands"): [`InnCallView`](src/E
 (the combo-ready hint's look, slide-in, gold edge flare, slide-out) with the dish's picture in the icon slot, up
 while the call stands. The inn's banners are 84 units tall with the dish's picture at 76 (76 px at 1080p, 152 at
 4K; the combo icon's 44 was "too small, make it very hard for user to notice", owner 2026-10-20;
-`InnCallView.BannerHeight`, `PictureSize`, `InnCallView.Banner`). Stacked Full Blaze, the kitchens by number, the
-last calls by table; at most 7 (`InnCallView.MostBanners`), so the fullest stack fits from its default place at
-1080p, 1440p and 4K.
+`InnCallView.BannerHeight`, `PictureSize`, `InnCallView.Banner`). Stacked in rows ([`InnBannerRows`](src/EndHud/InnCallView.cs),
+drawn by [`InnBannerStack`](src/EndHud/InnBannerStack.cs)): each kitchen that cooks has its row from the session's first
+frame, kept to its end (empty between its calls), its banner changing sliding out and in within the row; then Full
+Blaze and the last calls by table, below the kitchens, each opening and closing its own row. So no banner moves when
+another comes or goes (2026-10-21; before, Full Blaze came first and every banner below one that went glided up). A
+banner for the same call is the same element, never drawn or slid in again. At most 7 (`InnCallView.MostBanners`), so
+the fullest stack fits from its default place at 1080p, 1440p and 4K.
 
 **The open dispatch panel** (owner, live 2026-10-20: "is it possible to ALSO have a suggestion marker by the dish
-itself on the right side?"; the banners covered the panel's chef column). While the panel counts as open (below), no
-banner shows (`InnAdvice.BannerCalls`; they slide back when it closes) and
+itself on the right side?"; the banners covered the panel's chef column). While the panel counts as open (below), the
+banners and the gourmands' banners are hidden in place (`InnViews.Away`; shown again as they were when it closes, with
+no slide-in: until 2026-10-21 every opening took every banner down and every closing slid them all in again with the
+gold flare, which the owner saw as "flashes heavily") and
 [`InnPanelMarks`](src/EndHud/InnPanelMarks.cs) takes over: the call for the kitchen the panel shows is a glowing
 gold outline just outside its dish's card with a label in the card's blank lower right (`Inn.Mark.Queue`
 "queue this (table N)", `Inn.Mark.CookAhead`, `Inn.Mark.Swap` "take out X, then queue this"), only on a card read as
@@ -805,7 +819,7 @@ marks 35.4, circles 2.9, the gourmand panel 24.7. The causes and what holds each
 | Cause (measured) | Hold |
 |---|---|
 | The screen read Session for a single frame inside an open panel 48 times (and for 2–5 frames a dozen more), and the panel read open for one frame 26 times; 142 of 166 banner removals were the panel read as opened | The panel counts as open after `InnSession.PanelFramesToOpen` (2) fresh frames read it, and as closed only once no fresh frame has read it for `PanelClosedAfter` (1.5 s); meanwhile the last reading of it stands |
-| An order's card read Empty for one reading and back (the HUD fading) 16 times, another order 3 times | An order's card (an order, a gourmand ordering or asking) read otherwise is taken only when the next reading agrees (`InnSession.TakeTables`); a new order shows at once |
+| An order's card read Empty for one reading and back (the HUD fading) 16 times, another order 3 times | An order's card (an order, a gourmand ordering or asking) read otherwise is taken only when the next reading agrees (`InnSession.TakeTables`); a new order shows at once. Since 2026-10-21 an order with a dish not served read empty or ordering is gone only after `OrderGoneAfter` (below) |
 | An order dropping out of one moment's advice; dishes to cook ahead swapping places as the queues move on | `InnCallHold`: a call no longer valid stays `GraceSeconds` (1.5 s), unless done (queued: at once) or an order needs its kitchen (at once); a dish to cook ahead stays while its kitchen is still to cook something ahead |
 | A gourmand's best option changing as the queues move on | `InnWantsHold`: a gourmand's rows stay while each item still meets its own request on the menu, and change when the advice's choice is ready `ClearlySoonerSeconds` (10 s) sooner, or the requests read differently |
 | (2026-10-21) A bubble read half-faded with one request, both 0.3 s later; a gourmand's banner put up as the panel opened | A gourmand's banner first goes up once their rows have read the same for `InnWantsHold.ShowAfter` (0.5 s); it is keyed by table and redrawn in place when what it says changes |
@@ -817,10 +831,41 @@ panel, switching tabs, queueing), an order arriving or done, or the advice clear
 Since 2026-10-21 (marks gone the moment a frame shows the panel closed; the gourmands' banners): marks 33.9 a minute,
 11 hidden for under a second (each a frame reading the Full Blaze meter between frames reading the panel; at most 8
 before), gourmands' banners 3.9 a minute, none hidden under a second or up under half a second.
-`InnReplayTests.Over_the_owners_recorded_session_nothing_flashes` replays the fixture on every run; `InnSteadyTests`
-has one test per hold. To trace another recording (text only, to a folder of your choice):
+
+**The kitchens' calls held steady** (owner, live 2026-10-21, test_yuanyuan4.mp4: "the recommended dish flashes heavily
+and it jumps around ... the recommendation should stay steady"). The replay also traces each kitchen's call as the hold
+decides it (whether its banner shows or the open panel's mark does), with the queues, open orders, counter and advice
+beside each change and every 10 s, and counts (`InnReplay.Steadiness`): a **flash**, a kitchen's call gone and back
+within 2 s unless the player queued it; a **jump**, a kitchen's call switching dish, or an order or dish to cook ahead
+switching kitchen, when the call that went was still possible and nothing was done (not queued, its dish not served or
+out on the counter, its kitchen not full, no dish queued anywhere within the grace, cooking ahead not stopped). Its
+second fixture is test_yuanyuan4's readings (0–470 s). The causes found, each with its test:
+
+| Cause (measured) | Fix |
+|---|---|
+| The hold argued with an advice worked out afresh: a dish to cook ahead shown in kitchen 1 claimed the one the advice had put in kitchen 3, whose call went and came back (y3 123.0 s); the counter's last places went to other kitchens' dishes and kitchen 1's shown dish was replaced (y3 235.8 s) | The advice keeps the calls on screen (`KeptCall`, above); a dish to cook ahead is claimed and checked per kitchen |
+| An order's card not read for 3 s dropped the order (`TableKeptFor`) and it was called again when read (y3 268.5 s) | An order's card keeps its order until a reading says otherwise |
+| The HUD fading reads open orders Empty for up to 3.3 s, each time the same order after (y4 383.4 s: every kitchen's call gone, back 1.5 s later) | Guests never leave: an order with a dish not served read empty or ordering is gone only once every reading has said so for `InnSession.OrderGoneAfter` (5 s) |
+| The panel's queue compared with the estimate dish by dish: a soup queued behind the dish cooking taken for one cooked out 130 s before, its call not done (y3 245.4 s); a dish the estimate still had that the panel no longer showed never reached the counter (y3 176.4 s) | The panel's queue lined up first in, first out with the estimate (`InnSession.Align`: dishes cooked out too early at its front, told apart from one queued since by the seconds left on it; then the estimate's; then the player's), dishes moving on and off the counter with it |
+| A panel's first frame read its queue empty, taking 30 s of dishes for out (the counter grew to 11 on a counter of 8 and covered every order); a panel with fewer tabs than before ("kitchen 1 of 1": the real panel misread, y4 168.6 s; or, on y3's older readings, the dark bar behind the theme line) | Dishes gone from a queue are taken once the next reading of that kitchen agrees; a panel with fewer tabs than this session has read is a frame the panel was missed on |
+| The cooking dish's seconds not read reset it to its whole cook time (y4 179.1 s) | Kept as the estimate has it |
+| A dish to cook ahead dropped for the kitchen holding two dishes for a moment (y3 141.6 s), or the counter's room forecast short for 3.3 s (y4 189.3 s) and 5.6 s (y3 271.0 s), then another dish | It stays while its kitchen has a free slot; out of the advice it stays `CookAheadGraceSeconds` (10 s) |
+| An order the advice moved to a clearly sooner kitchen stayed on the old one's banner for 15 s, until an unrelated order switched both (y3 364.2 s); 5 s re-decided an order with nothing done (y3 328.5 s: 39 s against 34 s) | It moves at once; the margin is 8 s |
+| Every opening and closing of the panel took all banners down and slid them in again; a banner going moved those below it | Hidden in place (`InnViews.Away`); each kitchen in its own row (above) |
+
+Measured with the same analyser at the instrumentation-only commit and after (calls per minute, flashes, jumps):
+test_yuanyuan3 16.2 → 7.7, 3 → 0, 4 → 0; test_yuanyuan4 8.6 → 4.5, 1 → 0, 3 → 0. Banners as drawn: y3 24.7 → 11.4
+changes a minute, y4 12.4 → 6.4, no kitchen's banner moving in the stack. Every new order a kitchen could take was
+called at once where a kitchen wasn't showing another order (5 of 5 on each). Fewer order calls than before is mostly
+orders whose dish the estimate now knows is out (it no longer loses dishes on a panel reading); the counter itself is
+an estimate, never read off the screen, so an order covered by a dish that isn't really there gets no call.
+
+`InnReplayTests.Over_the_owners_recorded_sessions_nothing_flashes_or_jumps` replays both fixtures on every run;
+`InnSteadyTests`, `InnSessionTests` and `InnCallTests` have one test per hold. To trace another recording (text only, to
+a folder of your choice):
 `ENDHUD_INN_RECORDING=<recording.mp4> ENDHUD_INN_TRACE_OUT=<folder> [ENDHUD_INN_RECORDING_TO=<seconds>] dotnet test
-tests/EndHud.Tests --filter InnReplayTests` writes `readings.jsonl.gz` and `views.txt` (~14 min for 430 s at 4K).
+tests/EndHud.Tests --filter InnReplayTests` writes `readings.jsonl.gz` and `views.txt` (~12 min for 470 s at 4K);
+`ENDHUD_REPLAY_DUMP=<file with {fixture}>` writes each fixture's `views.txt` from the replay test.
 
 **What the gourmands want, as banners on the right** (owner, live 2026-10-21: "user cannot distinguish between whether
 the two circles are alternatives or two requirements ... change the style of gourmand to be something like the banner
@@ -835,8 +880,9 @@ gourmand whose words weren't recognised that (`Inn.Gourmand.Unknown`); a drink r
 was seen shows the request alone. At most 3 banners. The stack's right edge and top are the player's
 `InnGourmandRight`/`InnGourmandTop` (default 0.985 and 0.2: right of table 6's card, below the status at the top right),
 draggable while the menu is open (a sample banner shows then); the fullest stack fits at 1080p, 1440p and 4K
-(InnGourmandTests). Up until the order is fulfilled (the request kept as above), held steady (above), and put away
-while the dispatch panel is open: at the right it would cover the panel, as the cooking banners would. The circles
+(InnGourmandTests). Up until the order is fulfilled (the request kept as above), held steady (above), and hidden in
+place while the dispatch panel is open (`InnViews.Away`): at the right it would cover the panel, as the cooking banners
+would. The circles
 are gone, with the gauges' `Detail` and `PictureShare` they had added and the `Inn.Want.*` strings.
 
 [`OverlayWindow.Inn`](src/EndHud/OverlayWindow.Inn.cs) shows these only on session frames, and a sample banner while
