@@ -175,6 +175,37 @@ public class DispatchAdvisorTests
         Assert.Equal((4, Dish("缘缘菜饭")), (sent.Table!.Value, sent.Dish));
     }
 
+    /// <summary>
+    /// Owner, 2026-10-21: the advice never gates on how full the counter is. EndHud only estimates the counter (it is
+    /// never read off the screen); on test_yuanyuan4 the estimate went "full" from about 250 s and hid real orders. An
+    /// order is sent to a kitchen with the counter full, even with a dish of its kind on it.
+    /// </summary>
+    [Fact]
+    public void An_order_is_sent_to_a_kitchen_with_the_counter_full_even_of_its_own_dish()
+    {
+        var full = State([Queue(1), Queue(2), Queue(3)], [Order(1, "坛子肉")], counter: ["坛子肉", .. Enumerable.Repeat("肉包子", InnCounter.Capacity - 1)]);
+
+        var advice = Advisor().Advise(full);
+
+        var (_, sent) = Assert.Single(Sent(advice));
+        Assert.Equal((1, Dish("坛子肉")), (sent.Table!.Value, sent.Dish));
+    }
+
+    /// <summary>
+    /// Owner, 2026-10-21: cooking ahead has no counter cap (a dish not used gives its ingredients back, so cooking ahead
+    /// is never a waste). With the counter full, the idle kitchens still cook ahead, each up to all but one slot.
+    /// </summary>
+    [Fact]
+    public void Cooking_ahead_is_advised_with_the_counter_full()
+    {
+        var full = State([Queue(1), Queue(2), Queue(3)], counter: [.. Enumerable.Repeat("缘缘菜饭", InnCounter.Capacity)]);
+
+        var advice = Advisor().Advise(full);
+
+        Assert.Equal(3 * (KitchenQueue.Slots - 1), All(advice).Count());
+        Assert.All(All(advice), a => Assert.True(a.Advice.CookAhead));
+    }
+
     /// <summary>Several orders at once: each goes where it's out soonest given the ones sent before it.</summary>
     [Fact]
     public void Several_orders_spread_over_the_kitchens()

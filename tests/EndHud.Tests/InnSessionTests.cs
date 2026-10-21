@@ -364,6 +364,36 @@ public class InnSessionTests
     }
 
     /// <summary>
+    /// Owner, 2026-10-21: the advice never gates on how full the counter is. The counter is only estimated (never read
+    /// off the screen); on test_yuanyuan4 the estimate went "full" from about 250 s and real orders got no call. Here the
+    /// estimate has nine dishes out on a counter of eight, among them the dish table 3 orders: the order is still called,
+    /// and the kitchens left idle still cook ahead.
+    /// </summary>
+    [Fact]
+    public void An_order_and_cooking_ahead_are_advised_with_the_estimated_counter_full()
+    {
+        var session = Prepared();
+        double at = 10;
+        foreach (int kitchen in new[] { 1, 2, 3 })
+        {
+            // Read on two frames in a row: the panel open (InnSession.PanelFramesToOpen), the queue taken.
+            for (int frame = 0; frame < 2; frame++, at += 0.3)
+                session.Update(Session(at, panel: Panel(kitchen, 3, Menu[..5], (E, 15), (E, null), (E, null))));
+        }
+        session.Update(Session(at + 60));
+        Assert.Equal($"{E}x9", session.CounterSignature());
+
+        session.Update(Session(at + 60.3, tables: Tables(Order(3, E))));
+        session.Update(Session(at + 60.6, tables: Tables(Order(3, E))));
+        var advice = session.Advice(S(at + 60.6))!;
+
+        Assert.Contains(Queued(advice), q => q.Table == 3 && q.Dish.Id == E);
+        Assert.Contains(advice.Calls, c => c is { Kind: InnCallKind.Queue, Table: 3 } && c.Dish!.Id == E);
+        Assert.Contains(Queued(advice), q => q.CookAhead);
+        Assert.Contains(advice.Calls, c => c.Kind == InnCallKind.CookAhead);
+    }
+
+    /// <summary>
     /// The dispatch panel putting the estimate right moves dishes on and off the counter too: a dish the estimate still had
     /// cooking that the panel no longer shows came out (it's on the counter, for the next order of it); a dish the estimate
     /// had cooked out that the panel still shows isn't on the counter. Before, only the kitchen's count changed, and an
