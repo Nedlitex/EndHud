@@ -188,6 +188,33 @@ public class InnSteadyTests
     }
 
     /// <summary>
+    /// A panel read with fewer tabs than this session has read is uncertain and taken as a frame the panel was missed on.
+    /// On test_yuanyuan3's readings (taken before the panel reader learned to tell the dark bar behind the theme line from
+    /// the panel) such a "kitchen 1 of 1" with an empty queue showed for up to four frames over the dining room, each time
+    /// taking kitchen 1's dishes for out on the counter and taking the banners down; on test_yuanyuan4 the real panel read
+    /// "1 of 1" for a frame.
+    /// </summary>
+    [Fact]
+    public void A_panel_read_with_fewer_tabs_than_before_changes_nothing()
+    {
+        var session = Prepared();
+        var menu = Dishes.ToList();
+        var queued = Panel(1, 2, menu, (A, 30), (B, null));
+        session.Update(Session(10, panel: queued));
+        session.Update(Session(10.3, panel: queued));
+        for (double t = 11; t <= 20; t++) session.Update(Session(t));
+        var banners = session.Advice(S(20))!.BannerCalls;
+        Assert.NotEmpty(banners);
+
+        foreach (double t in new[] { 20.3, 20.6, 20.9, 21.2 }) session.Update(Session(t, panel: Panel(1, 1, menu)));
+        var advice = session.Advice(S(21.2))!;
+        Assert.Contains($"1:{A},{B}", session.QueueSignature());
+        Assert.Equal("", session.CounterSignature());
+        Assert.Equal(banners, advice.BannerCalls);
+        Assert.Null(advice.Panel);
+    }
+
+    /// <summary>
     /// The seconds left on the dish cooking not read on a frame (test_yuanyuan4 at 179.1 s and 180.6 s) leave its estimate as it
     /// was; until now it was taken to have its whole cook time left, 30 s more for that frame.
     /// </summary>
@@ -268,6 +295,23 @@ public class InnSteadyTests
         hold.Update(onlyTwo, null, View(), S(1));
         var after = hold.Update(onlyTwo, null, View(), S(1) + InnCallHold.GraceSeconds);
         Assert.Equal([(2, A)], after.Select(c => (c.Kitchen!.Value, c.Dish!.Id)));
+    }
+
+    /// <summary>
+    /// An order shown in a kitchen that the advice now sends to another (it keeps a shown order in place unless another
+    /// kitchen has it out clearly sooner) moves there at once: on test_yuanyuan3 at 364.2 s the player queued another
+    /// table's dish elsewhere and kitchen 2 came free, and kitchen 1's banner stayed on for 15 s while the advice said
+    /// kitchen 2, until an unrelated order at 379.2 s switched both at once.
+    /// </summary>
+    [Fact]
+    public void An_order_the_advice_moves_to_another_kitchen_moves_at_once()
+    {
+        var hold = new InnCallHold();
+        var shown = Assert.Single(hold.Update(Advice(Kitchen(1, new QueueAdvice(Dish(A), 5, 45)), Kitchen(2)), null, View(), S(0)));
+        Assert.Equal(1, shown.Kitchen);
+
+        var moved = hold.Update(Advice(Kitchen(1), Kitchen(2, new QueueAdvice(Dish(A), 5, 32))), null, View(), S(3));
+        Assert.Equal([(2, A, 5)], moved.Select(c => (c.Kitchen!.Value, c.Dish!.Id, c.Table!.Value)));
     }
 
     /// <summary>An order is called at once in a kitchen whose call is only kept a moment: real news doesn't wait.</summary>

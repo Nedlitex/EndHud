@@ -314,6 +314,56 @@ public class InnSessionTests
     }
 
     /// <summary>
+    /// The panel's queue is taken once two readings of that kitchen in a row agree on it: on its first frame the panel
+    /// reads its queue empty as it draws (test_yuanyuan3: seven times on kitchen 1, each taking the estimate's dishes, 30 s
+    /// from done, for out on the counter, which grew to 11 dishes on a counter of 8 and covered every new order).
+    /// </summary>
+    [Fact]
+    public void A_queue_read_on_one_frame_only_is_not_taken()
+    {
+        var session = Prepared(1, 2);
+        var menu = Menu.Take(5).ToList();
+        session.Update(Session(10, panel: Panel(1, 2, menu, (A, 30), (B, null))));
+        session.Update(Session(10.3, panel: Panel(1, 2, menu, (A, 30), (B, null))));
+        for (double t = 11; t <= 20; t++) session.Update(Session(t));
+
+        // Opened again: its first frame reads the queue empty, the next as it is.
+        session.Update(Session(20.3, panel: Panel(1, 2, menu)));
+        Assert.Contains($"1:{A},{B}", session.QueueSignature());
+        Assert.Equal("", session.CounterSignature());
+        session.Update(Session(20.6, panel: Panel(1, 2, menu, (A, 20), (B, null))));
+        session.Update(Session(20.9, panel: Panel(1, 2, menu, (A, 20), (B, null))));
+        Assert.Contains($"1:{A},{B}", session.QueueSignature());
+        Assert.Equal("", session.CounterSignature());
+    }
+
+    /// <summary>
+    /// A dish the player queues behind the dish cooking is theirs, even when the estimate cooked out one of that dish long
+    /// before: a queue is first in, first out, so only dishes at its front can be ones the estimate took out too early.
+    /// On test_yuanyuan3 at 245.4 s kitchen 3's soup to cook ahead was queued, taken for the soup cooked out 130 s before,
+    /// and its call wasn't done: it went 1.5 s later as "no longer advised" and came back.
+    /// </summary>
+    [Fact]
+    public void A_dish_queued_behind_the_one_cooking_is_the_players_even_if_one_like_it_came_out_before()
+    {
+        var session = Prepared(1, 2);
+        var menu = Menu.Take(5).ToList();
+        // Soup A cooked in kitchen 1 and came out long ago.
+        session.Update(Session(10, panel: Panel(1, 2, menu, (A, 5))));
+        session.Update(Session(10.3, panel: Panel(1, 2, menu, (A, 5))));
+        for (double t = 11; t < 60; t++) session.Update(Session(t));
+        session.Update(Session(60, panel: Panel(1, 2, menu, (B, 30))));
+        session.Update(Session(60.3, panel: Panel(1, 2, menu, (B, 30))));
+        Assert.Contains($"{A}x1", session.CounterSignature()); // the first soup, out and on the counter
+
+        // The player queues soup A behind B.
+        session.Update(Session(61, panel: Panel(1, 2, menu, (B, 29), (A, null))));
+        Assert.Contains($"1:{B},{A}", session.QueueSignature());
+        // A new soup, not the first one put back: that one is still on the counter.
+        Assert.Contains($"{A}x1", session.CounterSignature());
+    }
+
+    /// <summary>
     /// The dispatch panel putting the estimate right moves dishes on and off the counter too: a dish the estimate still had
     /// cooking that the panel no longer shows came out (it's on the counter, for the next order of it); a dish the estimate
     /// had cooked out that the panel still shows isn't on the counter. Before, only the kitchen's count changed, and an
@@ -327,6 +377,7 @@ public class InnSessionTests
         early.Update(Session(10, panel: Panel(1, 2, Menu.Take(5).ToList(), (A, 30))));
         early.Update(Session(10.3, panel: Panel(1, 2, Menu.Take(5).ToList(), (A, 30))));
         early.Update(Session(12, panel: Panel(1, 2, Menu.Take(5).ToList())));
+        early.Update(Session(12.1, panel: Panel(1, 2, Menu.Take(5).ToList()))); // gone: taken once a second reading agrees
         early.Update(Session(12.3, tables: Tables(Order(3, A))));
         early.Update(Session(12.6, tables: Tables(Order(3, A))));
         Assert.DoesNotContain(Queued(early.Advice(S(12.6))!), q => q.Table == 3);

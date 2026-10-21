@@ -144,8 +144,9 @@ internal sealed class InnReplay
     /// <param name="Open">The orders a kitchen is still to cook for and nothing covers yet: (dish, table).</param>
     /// <param name="Queues">What each kitchen's queue holds (<see cref="InnSession.QueueSignature"/>).</param>
     /// <param name="CooksAhead">The advice cooks something ahead somewhere (no: the counter full, no stock, the end).</param>
+    /// <param name="State">The queues, open orders, counter and advice, in words (the trace's state lines).</param>
     internal sealed record CallStep(TimeSpan At, IReadOnlyDictionary<int, InnCall> Kitchens, IReadOnlySet<(string Dish, int Table)> Open, string Queues,
-        bool CooksAhead, string Why);
+        bool CooksAhead, string Why, string State = "");
 
     /// <summary>A call that flashed (gone and back) or jumped (switched dish or kitchen with nothing done to cause it).</summary>
     internal sealed record Unsteady(TimeSpan At, int Kitchen, string What, string Why);
@@ -181,7 +182,7 @@ internal sealed class InnReplay
             if (was is not null) Changes.Add(new InnViewChange(at, "call", "-", was, state));
             if (now is not null) Changes.Add(new InnViewChange(at, "call", "+", now, state));
         }
-        Steps.Add(new CallStep(at, kitchens, open, queues, ahead, why));
+        Steps.Add(new CallStep(at, kitchens, open, queues, ahead, why, state[(state.LastIndexOf('[') + 1)..^1]));
     }
 
     /// <summary>This moment's advice per kitchen, before the hold: "1:dish@table(ready in),… 2:…".</summary>
@@ -192,7 +193,8 @@ internal sealed class InnReplay
     /// The kitchens' calls that flashed or jumped (owner, 2026-10-21: "the recommended dish flashes heavily and it jumps
     /// around ... the recommendation should stay steady"), over the whole replay:
     /// <list type="bullet">
-    /// <item><b>flash:</b> a kitchen's call gone and back within <see cref="UnsteadyWithinSeconds"/>;</item>
+    /// <item><b>flash:</b> a kitchen's call gone and back within <see cref="UnsteadyWithinSeconds"/>, nothing done to it
+    /// meanwhile (queued and then advised again is the next dish, not a flash);</item>
     /// <item><b>jump:</b> a kitchen's call switching to another dish (directly or after a gap that short), or the same
     /// order (or dish cooked ahead) switching kitchen, when the call that went was still possible and nothing was done to
     /// it: not queued, its order not served or gone, its kitchen not full, its kitchen's queue not added to by the player,
@@ -223,8 +225,9 @@ internal sealed class InnReplay
             }
             foreach (var (k, now) in cameNow)
             {
-                // Back in its kitchen after going a moment ago.
-                if (gone.Any(g => g.Kitchen == k && g.Call.Key == now.Key && g.At < step.At))
+                // Back in its kitchen after going a moment ago, though nothing was done to it (one queued and then
+                // advised again, the next of the same dish, is new advice).
+                if (gone.Any(g => g.Kitchen == k && g.Call.Key == now.Key && g.At < step.At && !g.Justified))
                 {
                     flashes.Add(new Unsteady(step.At, k, $"{now.Key} back", step.Why));
                     continue;
@@ -262,13 +265,17 @@ internal sealed class InnReplay
         if (step.Why.Contains($"{call.Key} dropped: the kitchen", StringComparison.Ordinal)) return true;
         if (call.Kind is InnCallKind.Queue or InnCallKind.Swap && !step.Open.Contains((call.Dish!.Id, call.Table!.Value))) return true;
         if (call.Kind == InnCallKind.CookAhead && !step.CooksAhead) return true;
-        // The player put something in this kitchen's queue, within the grace.
+        // The player queued a dish, within the grace: in this kitchen (it filled up), or in another (a call moves only when
+        // another kitchen is clearly sooner, which the player's queueing elsewhere can make it).
         var since = step.At - InnCallHold.GraceSeconds - TimeSpan.FromSeconds(0.5);
         for (int j = i; j > 0 && Steps[j].At >= since; j--)
         {
-            var before = QueueOf(Steps[j - 1].Queues, kitchen);
-            var after = QueueOf(Steps[j].Queues, kitchen);
-            if (after.Count > before.Count || after.Except(before).Any()) return true;
+            foreach (int k in Enumerable.Range(1, KitchenMath.MaxKitchens))
+            {
+                var before = QueueOf(Steps[j - 1].Queues, k);
+                var after = QueueOf(Steps[j].Queues, k);
+                if (after.Count > before.Count || after.Except(before).Any()) return true;
+            }
         }
         return false;
     }
@@ -307,6 +314,14 @@ internal sealed class InnReplay
         foreach (var j in jumps) sb.AppendLine(CultureInfo.InvariantCulture, $"# jump  {j.At.TotalSeconds,7:F1} kitchen {j.Kitchen}: {j.What}  <= {j.Why}");
         foreach (var c in Changes)
             sb.AppendLine(CultureInfo.InvariantCulture, $"{c.At.TotalSeconds,7:F1} {c.Display,-6} {c.Change} {c.What}  <= {c.Why}");
+        // Every 10 s of the session: what the calls were worked out from.
+        double next = 0;
+        foreach (var step in Steps.Where(s => s.State.Length > 0 && s.Queues.Length > 0))
+        {
+            if (step.At.TotalSeconds < next) continue;
+            next = Math.Floor(step.At.TotalSeconds / 10) * 10 + 10;
+            sb.AppendLine(CultureInfo.InvariantCulture, $"{step.At.TotalSeconds,7:F1} state  calls {string.Join(" ", step.Kitchens.Values.Select(c => c.Key))}; {step.State}");
+        }
         return sb.ToString();
     }
 

@@ -173,6 +173,12 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         /// <summary>The dispatch panel's card each dish was read on for this kitchen (the menu doesn't change in a session).</summary>
         public readonly Dictionary<string, int> Cards = [];
 
+        /// <summary>The queue's dishes as the panel last read them for this kitchen (taken or not).</summary>
+        public List<string>? LastRead;
+
+        /// <summary>Dishes the estimate cooked out of this queue since the panel last showed it, and when, in order (<see cref="Align"/>).</summary>
+        public readonly List<(string Id, TimeSpan At)> OutSinceRead = [];
+
         /// <summary>Dishes cooked out of this queue since the session began, by id (the estimate, put right by each panel reading).</summary>
         public readonly Dictionary<string, int> Out = [];
 
@@ -246,8 +252,11 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         _lastSessionRead = read;
         if (reading.Clock is not null) _clock = reading.Clock;
         if (reading.Clock is { Closed: true } && _closedAt is null) _closedAt = reading.At;
-        if (reading.Panel is { } panel) TakePanel(panel);
-        TakePanelOpen(reading.Panel, reading.At, closedForSure: reading.Panel is null && reading.Fire is not null);
+        // A panel read with fewer tabs than this session has read is uncertain: a frame the panel was missed on (the
+        // tabs misread on an open panel; on older readings, the dark bar behind the theme line taken for a panel).
+        var panelRead = reading.Panel is { } seenPanel && seenPanel.Kitchens >= _panelKitchens ? seenPanel : null;
+        if (panelRead is not null) TakePanel(panelRead, reading.At);
+        TakePanelOpen(panelRead, reading.At, closedForSure: reading.Panel is null && reading.Fire is not null);
         if (reading.TableCards.Count > 0) TakeTables(reading.TableCards, reading.At);
         if (reading.Fire is { } fire) _fire = fire.Ready ? FullBlazeAdvisor.Full : fire.Fire ?? _fire;
         _blaze.Update(reading.At, reading.Fire?.Ready, inSession: true);
@@ -336,6 +345,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         {
             foreach (var dish in kitchen.Queue.Tick(seconds))
             {
+                kitchen.OutSinceRead.Add((dish.Id, now));
                 kitchen.Out[dish.Id] = kitchen.Out.GetValueOrDefault(dish.Id) + 1;
                 _cooked[dish.Id] = _cooked.GetValueOrDefault(dish.Id) + 1;
                 _spares[dish.Id] = _spares.GetValueOrDefault(dish.Id) + 1;
@@ -377,11 +387,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// <summary>The panel as shown, each dish's card as read on it before when this reading missed it (<see cref="KitchenMemory.Cards"/>).</summary>
     private DispatchPanel? PanelShown()
     {
-        if (_panelOpen is not { } open) return null;
-        // As many tabs as ever read this session: the count read short on a frame (test_yuanyuan4, 168.6 s: "1 of 1") would
-        // take the other kitchens' tab marks away for that frame.
-        var panel = open.Kitchens < _panelKitchens ? open with { Kitchens = _panelKitchens } : open;
-        if (!_kitchens.TryGetValue(panel.Kitchen, out var kitchen)) return panel;
+        if (_panelOpen is not { } panel || !_kitchens.TryGetValue(panel.Kitchen, out var kitchen)) return _panelOpen;
         var read = panel.Dishes.Where(d => d.DishId is not null).Select(d => d.DishId!).ToHashSet();
         // A card read as no dish on this frame takes the dish it was read as before; a card read as another dish doesn't.
         var known = kitchen.Cards.Where(c => !read.Contains(c.Key) && panel.Dishes.All(d => d.DishId is null || d.Card != c.Value) && DishOf(c.Key) is not null)
@@ -389,7 +395,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         return known.Count == 0 ? panel : panel with { Dishes = [.. panel.Dishes.Where(d => d.DishId is not null || known.All(k => k.Card != d.Card)), .. known] };
     }
 
-    private void TakePanel(DispatchPanel panel)
+    private void TakePanel(DispatchPanel panel, TimeSpan at)
     {
         _panelKitchens = Math.Max(_panelKitchens, panel.Kitchens);
         var kitchen = Kitchen(panel.Kitchen);
@@ -424,20 +430,69 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             double left = i > 0 ? cook : q.SecondsLeft ?? (cookingNow?.Dish.Id == dish.Id ? cookingNow.SecondsLeft : cook);
             return new QueuedDish(dish, left);
         }).Take(KitchenQueue.Slots).ToList();
-        // The estimate put right: a dish it had cooked out that the panel still shows wasn't out yet, so it's not on the
-        // counter either; one it still had that the panel no longer shows is out, on the counter. What's left of a
-        // difference is a dish the player queued (or took out).
-        foreach (string id in dishes.Select(d => d.Dish.Id).Concat(kitchen.Queue.Dishes.Select(d => d.Dish.Id)).Distinct())
+        // The estimate put right. A queue is first in, first out, so the panel's queue reads as: dishes the estimate cooked
+        // out too early (at its front: the last ones it cooked out since this kitchen was last read), then what the
+        // estimate still has (after any dishes it kept too long, which came out), then what the player queued since. The
+        // dishes come off and onto the counter with it.
+        var estimate = kitchen.Queue.Dishes.Select(d => d.Dish.Id).ToList();
+        var seen = dishes.Select(d => d.Dish.Id).ToList();
+        double? frontLeft = filled.Count > 0 ? filled[0].SecondsLeft : null;
+        double frontCook = dishes.Count == 0 ? 0
+            : kitchen.PanelCookSeconds.TryGetValue(dishes[0].Dish.Id, out int shown) ? shown
+            : kitchens?.Kitchens.Any(k => k.Number == panel.Kitchen) == true ? kitchens.CookSeconds(panel.Kitchen, dishes[0].Dish) : dishes[0].Dish.CookSeconds;
+        var (cameOut, notOut, fits) = Align(estimate, seen, kitchen.OutSinceRead, frontLeft, frontCook, at);
+        // Dishes gone from the queue, or a queue that doesn't line up, are taken once the next reading of this kitchen
+        // agrees: on its first frame the panel reads its queue empty as it draws (test_yuanyuan3: seven times, each taking
+        // dishes 30 s from done for out). Dishes added (the player queueing) are taken at once.
+        bool confirmed = kitchen.LastRead is { } last && last.SequenceEqual(seen);
+        kitchen.LastRead = seen;
+        if ((cameOut > 0 || !fits) && !confirmed) return;
+        if (!fits) cameOut = 0; // a dish taken out, or a slot misread: nothing put on the counter for it
+        foreach (string id in estimate.Take(cameOut))
         {
-            int was = kitchen.Queue.Dishes.Count(d => d.Dish.Id == id), now = dishes.Count(d => d.Dish.Id == id);
-            int outBefore = kitchen.Out.GetValueOrDefault(id);
-            int notOut = now > was ? Math.Min(now - was, outBefore) : 0, cameOut = was > now ? was - now : 0;
-            kitchen.Out[id] = outBefore - notOut + cameOut;
-            int offCounter = Math.Min(notOut, _spares.GetValueOrDefault(id));
-            _spares[id] = _spares.GetValueOrDefault(id) - offCounter + cameOut;
-            _cooked[id] = _cooked.GetValueOrDefault(id) - notOut + cameOut;
+            kitchen.Out[id] = kitchen.Out.GetValueOrDefault(id) + 1;
+            _spares[id] = _spares.GetValueOrDefault(id) + 1;
+            _cooked[id] = _cooked.GetValueOrDefault(id) + 1;
         }
+        foreach (string id in seen.Take(notOut))
+        {
+            kitchen.Out[id] = kitchen.Out.GetValueOrDefault(id) - 1;
+            if (_spares.GetValueOrDefault(id) > 0) _spares[id]--;
+            _cooked[id] = _cooked.GetValueOrDefault(id) - 1;
+        }
+        kitchen.OutSinceRead.Clear();
         kitchen.Queue = new KitchenQueue(panel.Kitchen, dishes);
+    }
+
+    /// <summary>
+    /// How the panel's queue (<paramref name="seen"/>) lines up with the estimate's: the first <c>NotOut</c> dishes the panel
+    /// shows are ones the estimate cooked out too early (the last of <paramref name="outSinceRead"/>, in order), or the
+    /// first <c>CameOut</c> dishes of the estimate are out (it kept them too long); what the estimate has left then begins
+    /// the panel's queue, and the rest of it the player queued. Dishes at the front matching ones just cooked out are taken
+    /// as not out yet when the seconds left on the first (<paramref name="frontLeft"/>) say it can't be one queued since:
+    /// that would have at least its whole cook time (<paramref name="frontCook"/>) less the time since the estimate cooked
+    /// the other out. <c>Fits</c> false: nothing lines up (a dish taken out, a slot misread).
+    /// </summary>
+    internal static (int CameOut, int NotOut, bool Fits) Align(IReadOnlyList<string> estimate, IReadOnlyList<string> seen,
+        IReadOnlyList<(string Id, TimeSpan At)> outSinceRead, double? frontLeft, double frontCook, TimeSpan now)
+    {
+        bool Follows(int cameOut, int notOut)
+        {
+            var left = estimate.Skip(cameOut).ToList();
+            return left.Count <= seen.Count - notOut && seen.Skip(notOut).Take(left.Count).SequenceEqual(left);
+        }
+        for (int notOut = Math.Min(outSinceRead.Count, seen.Count); notOut > 0; notOut--)
+        {
+            var early = outSinceRead.Skip(outSinceRead.Count - notOut).ToList();
+            if (!seen.Take(notOut).SequenceEqual(early.Select(e => e.Id))) continue;
+            // A dish queued after the first of these came out would have at least this long left (1 s for the reading's rounding).
+            double queuedSinceAtLeast = frontCook - (now - early[0].At).TotalSeconds - 1;
+            if (frontLeft is { } left && left >= queuedSinceAtLeast) continue;
+            if (Follows(0, notOut)) return (0, notOut, true);
+        }
+        for (int cameOut = 0; cameOut <= estimate.Count; cameOut++)
+            if (Follows(cameOut, 0)) return (cameOut, 0, true);
+        return (estimate.Count, 0, false);
     }
 
     private void TakeTables(IReadOnlyList<TableCard?> cards, TimeSpan at)

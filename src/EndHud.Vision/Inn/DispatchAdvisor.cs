@@ -140,9 +140,11 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
 
     /// <summary>
     /// An order shown in a kitchen stays there unless another kitchen has it out at least this much sooner
-    /// (<see cref="KeptCall"/>).
+    /// (<see cref="KeptCall"/>). 5 s re-decided an order on test_yuanyuan3 (328.5 s: 39 s where shown, 34 s in a kitchen
+    /// whose dish had just come out, nothing done by the player), and the player then had the dish swap kitchens 14 s after
+    /// it was first shown; the one move the replays show after the player's own queueing gained 9 s.
     /// </summary>
-    public const double KeepWithinSeconds = 5;
+    public const double KeepWithinSeconds = 8;
 
     public InnKitchens Kitchens { get; } = kitchens;
 
@@ -454,8 +456,9 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
         /// in an empty kitchen nor the lowest-numbered one: a busy kitchen is never stacked while
         /// another would have the dish out sooner.
         /// <para>A dish to cook ahead on screen (<paramref name="kept"/>) is picked once and kept: it goes first, into its
-        /// own kitchen, while that kitchen is open to cooking ahead, the dish is in stock and out in time, and the counter
-        /// has room; the other dishes share what's left.</para>
+        /// own kitchen, while that kitchen has a free slot and nothing ordered for it, the dish is in stock and out in time,
+        /// and the counter has room; the other dishes share what's left. Leaving a slot free for orders decides only a new
+        /// dish to cook ahead: one shown isn't taken back for it (test_yuanyuan3, 141.6 s).</para>
         /// </summary>
         public void CookAhead(bool everySlot, IReadOnlyList<KeptCall> kept)
         {
@@ -464,7 +467,7 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
             {
                 if (room <= 0) break;
                 int k = keep.Kitchen;
-                if (!_queues.ContainsKey(k) || !(everySlot ? HasFreeSlot(k) : OpenToCookAhead(k)) || !InStock(keep.Dish) || !AheadInTime(k, keep.Dish)) continue;
+                if (!_queues.ContainsKey(k) || !HasFreeSlot(k) || (!everySlot && !NothingOrderedFor(k)) || !InStock(keep.Dish) || !AheadInTime(k, keep.Dish)) continue;
                 Queue(k, keep.Dish, null);
                 spares[keep.Dish.Id] = spares.GetValueOrDefault(keep.Dish.Id) + 1;
                 room--;
@@ -488,8 +491,10 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
         }
 
         /// <summary>A kitchen nothing was ordered for this time (nor swapped), with more than one slot free.</summary>
-        private bool OpenToCookAhead(int kitchen) =>
-            !_advice[kitchen].Any(a => !a.CookAhead) && _replaces[kitchen].Count == 0 && _queues[kitchen].Count < KitchenQueue.Slots - 1;
+        private bool OpenToCookAhead(int kitchen) => NothingOrderedFor(kitchen) && _queues[kitchen].Count < KitchenQueue.Slots - 1;
+
+        /// <summary>Nothing was ordered for (nor swapped into) the kitchen this time.</summary>
+        private bool NothingOrderedFor(int kitchen) => !_advice[kitchen].Any(a => !a.CookAhead) && _replaces[kitchen].Count == 0;
 
         /// <summary>
         /// Of <paramref name="kitchens"/>, the one that would have <paramref name="dish"/> out first if

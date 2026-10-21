@@ -286,7 +286,7 @@ public class DispatchAdvisorTests
 
     /// <summary>
     /// A dish to cook ahead the player has been shown stays the kitchen's dish to cook ahead while that's still possible
-    /// there: the kitchen still open to cooking ahead, the dish in stock and out in time, the counter with room. It takes
+    /// there: a free slot and nothing ordered for that kitchen, the dish in stock and out in time, the counter with room. It takes
     /// the counter's room before any other dish (on test_yuanyuan3 the last two places went to other kitchens' dishes and
     /// the dish shown was dropped). The fastest dish (肉包子, 15 s) is otherwise cooked ahead last.
     /// </summary>
@@ -298,6 +298,12 @@ public class DispatchAdvisorTests
 
         Assert.NotEqual("肉包子", Advisor().Advise(State(empty)).For(2).Queue[0].Dish.Zh);
         Assert.Equal("肉包子", Advisor().Advise(State(empty), fillEverySlot: false, shown).For(2).Queue[0].Dish.Zh);
+
+        // Kitchen 2 with two dishes queued: a new dish to cook ahead would leave it a slot for orders, but the one shown
+        // stays while there's a free slot (test_yuanyuan3 at 141.6 s: dropped, and back 1.5 s later as a dish came out).
+        var twoQueued = new[] { Queue(1), Queue(2, ("果味沙拉", 20), ("肉包子", 15)), Queue(3) };
+        Assert.Empty(Advisor().Advise(State(twoQueued)).For(2).Queue);
+        Assert.Equal(["肉包子"], Advisor().Advise(State(twoQueued), fillEverySlot: false, shown).For(2).Queue.Select(q => q.Dish.Zh));
 
         // One place left on the counter: the dish shown takes it.
         var oneLeft = Advisor().Advise(State(empty, counter: [.. Enumerable.Repeat("缘缘菜饭", 7)]), fillEverySlot: false, shown);

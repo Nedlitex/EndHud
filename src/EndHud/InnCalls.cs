@@ -60,7 +60,8 @@ internal sealed record InnKitchenView(Func<int, string, int> Queued, Func<int, b
 /// ahead in that kitchen (the advice keeps it there while it can, <see cref="Kept"/>: so no stock, the end rules, the counter
 /// full, an order sent there); for a swap, neither the swap nor its order stands; the kitchen no longer cooks;</item>
 /// <item><b>clearly beaten:</b> an order (or a swap for one) is called where a dish to cook ahead was; for an
-/// order, the advice now has it out at least <see cref="ClearlyEarlierSeconds"/> sooner in another kitchen.</item>
+/// order, the advice now has it out at least <see cref="ClearlyEarlierSeconds"/> sooner in another kitchen (the advice
+/// keeps it where it is otherwise, <see cref="Kept"/>): it moves there at once.</item>
 /// </list>
 /// Anything else keeps the call on screen: ties and near-equal choices keep the current one. One order is
 /// called in one kitchen only. Full Blaze and the last call are the advice's own (it doesn't flicker).
@@ -141,6 +142,16 @@ internal sealed class InnCallHold
             {
                 _held.Remove(number);
                 _changes.Add($"{held.Call.Key} dropped: done (queued)");
+                continue;
+            }
+            // An order the advice now sends to another kitchen: it keeps a shown order where it is unless another kitchen
+            // has it out clearly sooner (KeptCall), so this is that decision, and the order moves at once.
+            if (held.Call is { Kind: InnCallKind.Queue, Dish: { } ordered, Table: { } table } && cooking.TryGetValue(number, out var here)
+                && !here.Queue.Any(q => q.Table == table && q.Dish.Id == ordered.Id)
+                && dispatch.Kitchens.FirstOrDefault(k => k.Kitchen != number && k.Queue.Any(q => q.Table == table && q.Dish.Id == ordered.Id)) is { } there)
+            {
+                _held.Remove(number);
+                _changes.Add($"{held.Call.Key} moved: out clearly sooner in kitchen {there.Kitchen}");
                 continue;
             }
             string? why = !cooking.TryGetValue(number, out var advice) ? "the kitchen no longer cooks"
