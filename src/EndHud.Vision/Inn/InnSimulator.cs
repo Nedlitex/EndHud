@@ -139,8 +139,12 @@ public sealed class InnSimulator
     /// <summary>Ordered dishes the tables are still waiting for, oldest first.</summary>
     public IReadOnlyList<OrderedDish> Outstanding => _outstanding;
 
-    /// <summary>The inn as the advisor sees it: the serving time left counts the time served after the timer's 00:00.</summary>
-    public InnState State => new(Queues, Counter.Dishes, [], _outstanding,
+    /// <summary>
+    /// The inn as the advisor sees it: the serving time left counts the time served after the timer's 00:00. A dish out of
+    /// a kitchen is served at once to an order waiting for it (<see cref="Serve"/>), so none is on the counter for an order
+    /// when the player acts: the counter's dishes were all cooked ahead.
+    /// </summary>
+    public InnState State => new(Queues, Counter.Dishes, OutForOrders: [], Carried: [], _outstanding,
         [.. Menu.Select(m => m with { Stock = _stock[m.Dish.Id] })], Math.Max(0, SessionSeconds + _servingAfterClose - Now));
 
     /// <summary>

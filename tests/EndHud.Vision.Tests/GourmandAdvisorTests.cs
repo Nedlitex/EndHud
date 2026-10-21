@@ -20,7 +20,7 @@ public class GourmandAdvisorTests
         [.. new[] { "瓶装优质兽奶", "潮前龙井", "瓶装霞莓饮", "直饮水" }.Select(zh => new MenuDrink(InnTestData.Drink(zh), null))];
 
     private static InnState State(IReadOnlyList<KitchenQueue>? queues = null, IReadOnlyList<string>? counter = null, IReadOnlyList<string>? carried = null) =>
-        new(queues ?? [new KitchenQueue(1), new KitchenQueue(2), new KitchenQueue(3)], [.. (counter ?? []).Select(Dish)], [.. (carried ?? []).Select(Dish)], [],
+        new(queues ?? [new KitchenQueue(1), new KitchenQueue(2), new KitchenQueue(3)], [.. (counter ?? []).Select(Dish)], OutForOrders: [], [.. (carried ?? []).Select(Dish)], [],
             InnSimulatorTests.RecordedMenu, ServingSecondsLeft: 200);
 
     private static GourmandCondition Condition(string text) => GourmandCondition.Parse(text, Inn);

@@ -21,8 +21,10 @@ public class DispatchAdvisorTests
 
     /// <param name="servingLeft">Until the inn stops serving (the timer + <see cref="InnState.ServingAfterCloseSeconds"/>); by default mid-session, far from the end.</param>
     private static InnState State(IReadOnlyList<KitchenQueue> queues, IReadOnlyList<OrderedDish>? outstanding = null,
-        IReadOnlyList<string>? counter = null, IReadOnlyList<string>? carried = null, IReadOnlyList<MenuDish>? menu = null, double? servingLeft = 200) =>
-        new(queues, [.. (counter ?? []).Select(Dish)], [.. (carried ?? []).Select(Dish)], outstanding ?? [], menu ?? InnSimulatorTests.RecordedMenu, servingLeft);
+        IReadOnlyList<string>? counter = null, IReadOnlyList<string>? carried = null, IReadOnlyList<MenuDish>? menu = null, double? servingLeft = 200,
+        IReadOnlyList<string>? outForOrders = null) =>
+        new(queues, [.. (counter ?? []).Concat(outForOrders ?? []).Select(Dish)], [.. (outForOrders ?? []).Select(Dish)], [.. (carried ?? []).Select(Dish)],
+            outstanding ?? [], menu ?? InnSimulatorTests.RecordedMenu, servingLeft);
 
     private static OrderedDish Order(int table, string dish) => new(table, Dish(dish));
 
@@ -256,7 +258,7 @@ public class DispatchAdvisorTests
             var dish = menu[random.Next(menu.Count)];
             outstanding.Add(new OrderedDish(6, dish));
 
-            var advice = advisor.Advise(new InnState(queues, [], [], outstanding, InnSimulatorTests.RecordedMenu, ServingSecondsLeft: 200));
+            var advice = advisor.Advise(new InnState(queues, [], [], [], outstanding, InnSimulatorTests.RecordedMenu, ServingSecondsLeft: 200));
 
             var options = queues.Where(q => q.HasFreeSlot)
                 .Select(q => (q.Kitchen, ReadyIn: q.SecondsUntilEmpty + kitchens.CookSeconds(q.Kitchen, dish), Choice: kitchens.ChoicePercent(q.Kitchen, dish)))
