@@ -227,7 +227,7 @@ internal sealed class InnReplay
         var jumps = new List<Unsteady>();
         var window = TimeSpan.FromSeconds(UnsteadyWithinSeconds);
         // Every call that went: its kitchen, when, and whether something done or impossible took it.
-        var gone = new List<(int Kitchen, InnCall Call, TimeSpan At, bool Justified)>();
+        var gone = new List<(int Kitchen, InnCall Call, TimeSpan At, bool Justified, bool Done)>();
         for (int i = 1; i < Steps.Count; i++)
         {
             var step = Steps[i];
@@ -239,14 +239,14 @@ internal sealed class InnReplay
                 var was = prior.Kitchens.GetValueOrDefault(k);
                 var now = step.Kitchens.GetValueOrDefault(k);
                 if (was?.Key == now?.Key) continue;
-                if (was is not null) gone.Add((k, was, step.At, Justified(was, k, i)));
+                if (was is not null) gone.Add((k, was, step.At, Justified(was, k, i), step.Why.Contains($"{was.Key} dropped: done", StringComparison.Ordinal)));
                 if (now is not null) cameNow.Add((k, now));
             }
             foreach (var (k, now) in cameNow)
             {
-                // Back in its kitchen after going a moment ago, though nothing was done to it (one queued and then
-                // advised again, the next of the same dish, is new advice).
-                if (gone.Any(g => g.Kitchen == k && g.Call.Key == now.Key && g.At < step.At && !g.Justified))
+                // Back in its kitchen after going a moment ago, unless the player queued it (then advised again: the
+                // next of the same dish, new advice).
+                if (gone.Any(g => g.Kitchen == k && g.Call.Key == now.Key && g.At < step.At && !g.Done))
                 {
                     flashes.Add(new Unsteady(step.At, k, $"{now.Key} back", step.Why));
                     continue;
@@ -284,7 +284,12 @@ internal sealed class InnReplay
         var step = Steps[i];
         if (step.Why.Contains($"{call.Key} dropped: done", StringComparison.Ordinal)) return true;
         if (step.Why.Contains($"{call.Key} dropped: the kitchen", StringComparison.Ordinal)) return true;
-        if (call.Kind is InnCallKind.Queue or InnCallKind.Swap && !step.Open.Contains((call.Dish!.Id, call.Table!.Value))) return true;
+        // The advice stopped altogether (the inn closing: the last call).
+        if (step.Open.Count == 0 && !step.CooksAhead && call.Kind is InnCallKind.Queue or InnCallKind.Swap) return true;
+        // Its order: its dish out on the counter now, or served (a table's card read with that dish newly served). An order
+        // merely read away (a card misread as the HUD fades) is not something done.
+        if (call.Kind is InnCallKind.Queue or InnCallKind.Swap && !step.Open.Contains((call.Dish!.Id, call.Table!.Value))
+            && (OnCounter(step, call.Dish.Id) || ServedWithin(i, call.Table.Value, call.Dish.Id))) return true;
         if (call.Kind == InnCallKind.CookAhead && !step.CooksAhead) return true;
         // The player queued a dish, within the grace: in this kitchen (it filled up), or in another (a call moves only when
         // another kitchen is clearly sooner, which the player's queueing elsewhere can make it).
@@ -297,6 +302,27 @@ internal sealed class InnReplay
                 var after = QueueOf(Steps[j].Queues, k);
                 if (after.Count > before.Count || after.Except(before).Any()) return true;
             }
+        }
+        return false;
+    }
+
+    /// <summary>The estimate has <paramref name="dish"/> out on the counter at <paramref name="step"/>.</summary>
+    private static bool OnCounter(CallStep step, string dish)
+    {
+        int at = step.State.IndexOf("counter ", StringComparison.Ordinal);
+        if (at < 0) return false;
+        int end = step.State.IndexOf(';', at);
+        return step.State[at..(end < 0 ? step.State.Length : end)].Contains($"{dish}x", StringComparison.Ordinal);
+    }
+
+    /// <summary>A reading within the grace before step <paramref name="i"/> read <paramref name="table"/>'s <paramref name="dish"/> newly served.</summary>
+    private bool ServedWithin(int i, int table, string dish)
+    {
+        var since = Steps[i].At - InnCallHold.GraceSeconds - TimeSpan.FromSeconds(0.5);
+        for (int j = i; j >= 0 && Steps[j].At >= since; j--)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(Steps[j].Why, $@"table {table} (\S+) -> (\S+)");
+            if (match.Success && match.Groups[2].Value.Split('+').Contains(dish + "*") && !match.Groups[1].Value.Split('+').Contains(dish + "*")) return true;
         }
         return false;
     }
