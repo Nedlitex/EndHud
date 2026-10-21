@@ -218,7 +218,7 @@ internal sealed class InnReplay
                 var was = prior.Kitchens.GetValueOrDefault(k);
                 var now = step.Kitchens.GetValueOrDefault(k);
                 if (was?.Key == now?.Key) continue;
-                if (was is not null) gone.Add((k, was, step.At, Justified(was, k, prior, step)));
+                if (was is not null) gone.Add((k, was, step.At, Justified(was, k, i)));
                 if (now is not null) cameNow.Add((k, now));
             }
             foreach (var (k, now) in cameNow)
@@ -250,17 +250,27 @@ internal sealed class InnReplay
         return false;
     }
 
-    /// <summary>The call that went at <paramref name="step"/> went for something done or because it became impossible.</summary>
-    private static bool Justified(InnCall call, int kitchen, CallStep prior, CallStep step)
+    /// <summary>
+    /// The call that went at step <paramref name="i"/> went for something done or because it became impossible. A call no
+    /// longer valid stays its grace (<see cref="InnCallHold.GraceSeconds"/>) first, so the player's queueing that made it
+    /// go may be up to that long before.
+    /// </summary>
+    private bool Justified(InnCall call, int kitchen, int i)
     {
+        var step = Steps[i];
         if (step.Why.Contains($"{call.Key} dropped: done", StringComparison.Ordinal)) return true;
         if (step.Why.Contains($"{call.Key} dropped: the kitchen", StringComparison.Ordinal)) return true;
         if (call.Kind is InnCallKind.Queue or InnCallKind.Swap && !step.Open.Contains((call.Dish!.Id, call.Table!.Value))) return true;
         if (call.Kind == InnCallKind.CookAhead && !step.CooksAhead) return true;
-        // The player put something in this kitchen's queue.
-        var before = QueueOf(prior.Queues, kitchen);
-        var after = QueueOf(step.Queues, kitchen);
-        return after.Count > before.Count || after.Except(before).Any();
+        // The player put something in this kitchen's queue, within the grace.
+        var since = step.At - InnCallHold.GraceSeconds - TimeSpan.FromSeconds(0.5);
+        for (int j = i; j > 0 && Steps[j].At >= since; j--)
+        {
+            var before = QueueOf(Steps[j - 1].Queues, kitchen);
+            var after = QueueOf(Steps[j].Queues, kitchen);
+            if (after.Count > before.Count || after.Except(before).Any()) return true;
+        }
+        return false;
     }
 
     private static List<string> QueueOf(string queues, int kitchen) =>

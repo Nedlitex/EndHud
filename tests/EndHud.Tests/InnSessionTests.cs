@@ -288,21 +288,60 @@ public class InnSessionTests
         Assert.Contains(Queued(advice), q => q.Table == 4 && q.Dish.Id == B);
     }
 
+    /// <summary>
+    /// An order's card that can't be read keeps its order until a reading says otherwise (owner, 2026-10-21: a suggestion
+    /// stays until the order is served or gone). Until then it was dropped after 3 s and called again when the card was
+    /// read: on test_yuanyuan3 table 2's "勺里游" went at 268.5 s and came back 1.5 s later.
+    /// </summary>
     [Fact]
-    public void A_card_that_cant_be_read_is_taken_as_it_was_for_3_seconds_then_said_to_be_unreadable()
+    public void A_card_that_cant_be_read_keeps_its_order_until_read_otherwise()
     {
         var session = Prepared(1, 2);
         session.Update(Session(10, tables: Tables(Order(3, A))));
+        var unread = TablesAsRead(Empty(1), Empty(2), null, Empty(4), Empty(5), Empty(6));
 
-        session.Update(Session(12, tables: TablesAsRead(Empty(1), Empty(2), null, Empty(4), Empty(5), Empty(6))));
-        var kept = session.Advice(S(12))!;
-        Assert.Contains(Queued(kept), q => q.Table == 3);
-        Assert.Empty(kept.UnreadableTables);
+        foreach (double t in new[] { 12.0, 14, 20, 40 })
+        {
+            session.Update(Session(t, tables: unread));
+            var kept = session.Advice(S(t))!;
+            Assert.Contains(Queued(kept), q => q.Table == 3 && q.Dish.Id == A);
+            Assert.Empty(kept.UnreadableTables);
+        }
 
-        session.Update(Session(14, tables: TablesAsRead(Empty(1), Empty(2), null, Empty(4), Empty(5), Empty(6))));
-        var stale = session.Advice(S(14))!;
-        Assert.DoesNotContain(Queued(stale), q => q.Table == 3);
-        Assert.Equal([3], stale.UnreadableTables);
+        // Read as served: done.
+        session.Update(Session(40.3, tables: Tables(Order(3, new OrderItem(A, Served: true)))));
+        Assert.DoesNotContain(Queued(session.Advice(S(40.3))!), q => q.Table == 3);
+    }
+
+    /// <summary>
+    /// The dispatch panel putting the estimate right moves dishes on and off the counter too: a dish the estimate still had
+    /// cooking that the panel no longer shows came out (it's on the counter, for the next order of it); a dish the estimate
+    /// had cooked out that the panel still shows isn't on the counter. Before, only the kitchen's count changed, and an
+    /// order was sent to a kitchen for a dish already out (test_yuanyuan3, 176.4 s) or taken as covered by one still cooking.
+    /// </summary>
+    [Fact]
+    public void The_panel_putting_a_queue_right_moves_dishes_on_and_off_the_counter()
+    {
+        // Out early: the estimate has A cooking 28 s more, the panel shows the queue empty. Table 3 then orders A: it's on the counter.
+        var early = Prepared(1, 2);
+        early.Update(Session(10, panel: Panel(1, 2, Menu.Take(5).ToList(), (A, 30))));
+        early.Update(Session(10.3, panel: Panel(1, 2, Menu.Take(5).ToList(), (A, 30))));
+        early.Update(Session(12, panel: Panel(1, 2, Menu.Take(5).ToList())));
+        early.Update(Session(12.3, tables: Tables(Order(3, A))));
+        early.Update(Session(12.6, tables: Tables(Order(3, A))));
+        Assert.DoesNotContain(Queued(early.Advice(S(12.6))!), q => q.Table == 3);
+
+        // Still cooking: the estimate cooked A out (its time read 2 s), the panel shows it 20 s from done. Table 3's A is
+        // still to come from that kitchen, nothing on the counter covers a second order of A.
+        var late = Prepared(1, 2);
+        late.Update(Session(10, panel: Panel(1, 2, Menu.Take(5).ToList(), (A, 2))));
+        late.Update(Session(10.3, panel: Panel(1, 2, Menu.Take(5).ToList(), (A, 2))));
+        late.Update(Session(14, tables: Tables(Order(3, A))));
+        late.Update(Session(14.3, panel: Panel(1, 2, Menu.Take(5).ToList(), (A, 20))));
+        late.Update(Session(14.6, tables: Tables(Order(3, A), Order(4, A))));
+        late.Update(Session(14.9, tables: Tables(Order(3, A), Order(4, A))));
+        var advice = late.Advice(S(14.9))!;
+        Assert.Single(Queued(advice), q => q.Table is 3 or 4 && q.Dish.Id == A);
     }
 
     /// <summary>

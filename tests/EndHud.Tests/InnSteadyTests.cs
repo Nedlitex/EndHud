@@ -131,11 +131,13 @@ public class InnSteadyTests
     // ---- Table cards ----
 
     /// <summary>
-    /// An order's card read empty for one reading (the HUD fading; 16 times on the recording) is taken as misread: the
-    /// order stays in the advice; read so twice in a row, it's gone.
+    /// An order with a dish not yet served whose card reads empty (or ordering) is misread: guests never leave, and a table
+    /// empties only after eating and paying. The HUD fading reads every card empty, on the two recordings for up to 3.3 s
+    /// (test_yuanyuan4 at 383.4 s: three tables at once, and every kitchen's call went and came back 1.5 s later). The order
+    /// stays until every reading has said so for <see cref="InnSession.OrderGoneAfter"/>.
     /// </summary>
     [Fact]
-    public void An_orders_card_read_empty_for_one_reading_keeps_the_order()
+    public void An_orders_card_read_empty_while_the_hud_fades_keeps_the_order()
     {
         var session = Prepared();
         session.Update(Session(10, tables: Tables(Order(3, A))));
@@ -143,13 +145,70 @@ public class InnSteadyTests
 
         session.Update(Session(10.3, tables: Tables()));
         Assert.Contains(Ordered(session.Advice(S(10.3))!), o => o == (3, A));
-
         session.Update(Session(10.6, tables: Tables(Order(3, A))));
         Assert.Contains(Ordered(session.Advice(S(10.6))!), o => o == (3, A));
 
-        session.Update(Session(10.9, tables: Tables()));
-        session.Update(Session(11.2, tables: Tables()));
-        Assert.DoesNotContain(Ordered(session.Advice(S(11.2))!), o => o == (3, A));
+        // 3.3 s of empty readings, as on the recordings: kept.
+        for (double t = 10.9; t <= 14.2; t += 0.3) session.Update(Session(t, tables: Tables()));
+        Assert.Contains(Ordered(session.Advice(S(14.2))!), o => o == (3, A));
+
+        // Empty on every reading for OrderGoneAfter: gone.
+        double gone = 10.9 + InnSession.OrderGoneAfter.TotalSeconds;
+        for (double t = 14.5; t <= gone + 0.3; t += 0.3) session.Update(Session(t, tables: Tables()));
+        Assert.DoesNotContain(Ordered(session.Advice(S(gone + 0.3))!), o => o == (3, A));
+    }
+
+    /// <summary>An order read eating (every dish served, the eating card) is done at the second reading, as before: no wait.</summary>
+    [Fact]
+    public void An_order_read_eating_is_done_without_waiting()
+    {
+        var session = Prepared();
+        session.Update(Session(10, tables: Tables(Order(3, A))));
+        session.Update(Session(10.3, tables: Tables(new TableCard(3, TableState.Eating, [], []))));
+        session.Update(Session(10.6, tables: Tables(new TableCard(3, TableState.Eating, [], []))));
+        Assert.DoesNotContain(Ordered(session.Advice(S(10.6))!), o => o == (3, A));
+    }
+
+    /// <summary>
+    /// The dispatch panel's tabs read short for a frame (test_yuanyuan4 at 168.6 s and 179.1–179.7 s: kitchens "1 of 1",
+    /// "1 of 2"): the mark on a tab of a kitchen with a dish to queue stays, the tabs being as many as ever read this session.
+    /// </summary>
+    [Fact]
+    public void A_tab_count_read_short_keeps_the_tab_marks()
+    {
+        var session = Prepared();
+        var two = KitchenOne() with { Kitchens = 2 };
+        session.Update(Session(10, panel: two));
+        session.Update(Session(10.3, panel: two));
+        Assert.Contains(InnPanelMarks.Of(session.Advice(S(10.3))!.Panel, session.Advice(S(10.3))!.Calls, Text), m => !m.OnCard);
+
+        session.Update(Session(10.6, panel: two with { Kitchens = 1 }));
+        var advice = session.Advice(S(10.6))!;
+        Assert.Contains(InnPanelMarks.Of(advice.Panel, advice.Calls, Text), m => !m.OnCard);
+    }
+
+    /// <summary>
+    /// The seconds left on the dish cooking not read on a frame (test_yuanyuan4 at 179.1 s and 180.6 s) leave its estimate as it
+    /// was; until now it was taken to have its whole cook time left, 30 s more for that frame.
+    /// </summary>
+    [Fact]
+    public void The_cooking_dishs_time_not_read_keeps_its_estimate()
+    {
+        var session = Prepared();
+        DispatchPanel Queue(int? left, int kitchen = 1, string dish = A) =>
+            KitchenOne() with { Kitchen = kitchen, Queue = [new QueueSlot(true, dish, left), new QueueSlot(false, null, null), new QueueSlot(false, null, null)] };
+        // Kitchen 2 busy for 30 s more (10 s into its dish: too far in to swap it out).
+        session.Update(Session(9.4, panel: Queue(30, kitchen: 2, dish: B)));
+        session.Update(Session(9.7, panel: Queue(30, kitchen: 2, dish: B)));
+        session.Update(Session(10, panel: Queue(9)));
+        session.Update(Session(10.3, panel: Queue(9)));
+        session.Update(Session(10.6, panel: Queue(null)));
+        session.Update(Session(10.9, tables: Tables(Order(3, E))));
+        session.Update(Session(11.2, tables: Tables(Order(3, E))));
+
+        // Kitchen 1 has its soup out in about 8 s: the order's entree (15 s) is out there in about 23 s, not in kitchen 2 in about 44.
+        var order = session.Advice(S(11.2))!.Dispatch!.Kitchens.SelectMany(k => k.Queue).Single(q => q.Table == 3);
+        Assert.True(order.ReadyIn <= 25, $"ready in {order.ReadyIn} s");
     }
 
     private static IEnumerable<(int?, string)> Ordered(InnAdvice advice) =>

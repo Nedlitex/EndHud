@@ -82,8 +82,19 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// <summary>A session is over when none of its frames has been seen for this long (the results screen, leaving), in time spent reading the game.</summary>
     public static readonly TimeSpan EndAfter = TimeSpan.FromSeconds(15);
 
-    /// <summary>A table card that couldn't be read is taken to be as it was for this long, then as unreadable.</summary>
+    /// <summary>
+    /// A table card that couldn't be read is taken to be as it was for this long; an order's card keeps its order until a
+    /// reading says otherwise (owner, 2026-10-21: a suggestion stays until the order is served or gone).
+    /// </summary>
     public static readonly TimeSpan TableKeptFor = TimeSpan.FromSeconds(3);
+
+    /// <summary>
+    /// An order with a dish not yet served whose card reads empty or ordering is taken as gone only once every reading has
+    /// said so for this long (owner, 2026-10-20: guests never leave, so a table empties only after eating and paying; the
+    /// HUD fading reads every card empty, measured on test_yuanyuan3 and test_yuanyuan4 for up to 3.3 s, each time
+    /// followed by the same order).
+    /// </summary>
+    public static readonly TimeSpan OrderGoneAfter = TimeSpan.FromSeconds(5);
 
     /// <summary>
     /// A gourmand's table read in another state (paying, empty, a new guest) for this long, with no gourmand state
@@ -134,6 +145,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     private int _panelKitchens;
     private readonly TableMemory?[] _tables = new TableMemory?[TableCardReader.Tables];
     private readonly TableCard?[] _tableChange = new TableCard?[TableCardReader.Tables]; // an order's card read otherwise once, awaiting a second reading
+    private readonly TimeSpan?[] _tableEmptySince = new TimeSpan?[TableCardReader.Tables]; // an open order's card read empty since then (OrderGoneAfter)
     private readonly Dictionary<string, int> _spares = [], _cooked = [], _servedBefore = [];
     private readonly HashSet<string> _dishesSeen = [], _drinksSeen = [];
     private readonly Dictionary<int, GourmandMemory> _gourmands = [];
@@ -284,6 +296,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         _panelKitchens = 0;
         Array.Clear(_tables);
         Array.Clear(_tableChange);
+        Array.Clear(_tableEmptySince);
         _spares.Clear();
         _cooked.Clear();
         _servedBefore.Clear();
@@ -364,7 +377,11 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// <summary>The panel as shown, each dish's card as read on it before when this reading missed it (<see cref="KitchenMemory.Cards"/>).</summary>
     private DispatchPanel? PanelShown()
     {
-        if (_panelOpen is not { } panel || !_kitchens.TryGetValue(panel.Kitchen, out var kitchen)) return _panelOpen;
+        if (_panelOpen is not { } open) return null;
+        // As many tabs as ever read this session: the count read short on a frame (test_yuanyuan4, 168.6 s: "1 of 1") would
+        // take the other kitchens' tab marks away for that frame.
+        var panel = open.Kitchens < _panelKitchens ? open with { Kitchens = _panelKitchens } : open;
+        if (!_kitchens.TryGetValue(panel.Kitchen, out var kitchen)) return panel;
         var read = panel.Dishes.Where(d => d.DishId is not null).Select(d => d.DishId!).ToHashSet();
         // A card read as no dish on this frame takes the dish it was read as before; a card read as another dish doesn't.
         var known = kitchen.Cards.Where(c => !read.Contains(c.Key) && panel.Dishes.All(d => d.DishId is null || d.Card != c.Value) && DishOf(c.Key) is not null)
@@ -397,19 +414,28 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         var filled = panel.Queue.Where(q => q.Filled).ToList();
         if (filled.Any(q => DishOf(q.DishId) is null)) return;
         var kitchens = Kitchens();
+        // The dish cooking with its seconds not read on this frame (test_yuanyuan4, 179.1 s): as the estimate has it, when the
+        // estimate has that dish cooking; only otherwise its whole cook time.
+        var cookingNow = kitchen.Queue.Dishes.FirstOrDefault();
         var dishes = filled.Select((q, i) =>
         {
             var dish = DishOf(q.DishId)!;
             double cook = kitchens?.Kitchens.Any(k => k.Number == panel.Kitchen) == true ? kitchens.CookSeconds(panel.Kitchen, dish) : dish.CookSeconds;
-            return new QueuedDish(dish, i == 0 && q.SecondsLeft is { } left ? left : cook);
+            double left = i > 0 ? cook : q.SecondsLeft ?? (cookingNow?.Dish.Id == dish.Id ? cookingNow.SecondsLeft : cook);
+            return new QueuedDish(dish, left);
         }).Take(KitchenQueue.Slots).ToList();
-        // The estimate put right: a dish it had cooked out that the panel still shows wasn't out yet; one it still
-        // had that the panel no longer shows is out. What's left of a difference is a dish the player queued (or took out).
+        // The estimate put right: a dish it had cooked out that the panel still shows wasn't out yet, so it's not on the
+        // counter either; one it still had that the panel no longer shows is out, on the counter. What's left of a
+        // difference is a dish the player queued (or took out).
         foreach (string id in dishes.Select(d => d.Dish.Id).Concat(kitchen.Queue.Dishes.Select(d => d.Dish.Id)).Distinct())
         {
             int was = kitchen.Queue.Dishes.Count(d => d.Dish.Id == id), now = dishes.Count(d => d.Dish.Id == id);
             int outBefore = kitchen.Out.GetValueOrDefault(id);
-            kitchen.Out[id] = now > was ? outBefore - Math.Min(now - was, outBefore) : outBefore + (was - now);
+            int notOut = now > was ? Math.Min(now - was, outBefore) : 0, cameOut = was > now ? was - now : 0;
+            kitchen.Out[id] = outBefore - notOut + cameOut;
+            int offCounter = Math.Min(notOut, _spares.GetValueOrDefault(id));
+            _spares[id] = _spares.GetValueOrDefault(id) - offCounter + cameOut;
+            _cooked[id] = _cooked.GetValueOrDefault(id) - notOut + cameOut;
         }
         kitchen.Queue = new KitchenQueue(panel.Kitchen, dishes);
     }
@@ -421,6 +447,16 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             if (cards[i] is not { } card) continue; // kept as it was for a while (TableKeptFor)
             var before = _tables[i];
             bool sameOrder = before is not null && SameOrder(before.Card, card);
+            if (!sameOrder && before?.Card is { State: TableState.Order } open && open.Items.Any(item => !item.Served)
+                && card.State is TableState.Empty or TableState.Ordering)
+            {
+                // A dish not yet served and the table read empty: the HUD fading (guests never leave). Gone only once
+                // every reading has said so for OrderGoneAfter.
+                _tableEmptySince[i] ??= at;
+                if (at - _tableEmptySince[i]!.Value < OrderGoneAfter) continue;
+                _tableChange[i] = card; // read so long enough: confirmed below
+            }
+            else _tableEmptySince[i] = null;
             if (!sameOrder && before is not null && HoldsOrder(before.Card))
             {
                 // An open order read otherwise (the HUD fading reads every card empty; a picture misread): the next
@@ -517,7 +553,8 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// frame read, not the clock: frames the session was missed on (held) say nothing about a card.
     /// </summary>
     private IEnumerable<TableMemory> LiveTables(TimeSpan now) =>
-        _tables.OfType<TableMemory>().Where(t => _lastSessionFrame - t.SeenAt <= TableKeptFor).OrderBy(t => t.OrderSince).ThenBy(t => t.Card.Table);
+        _tables.OfType<TableMemory>().Where(t => t.Card.State == TableState.Order || _lastSessionFrame - t.SeenAt <= TableKeptFor)
+            .OrderBy(t => t.OrderSince).ThenBy(t => t.Card.Table);
 
     /// <summary>
     /// A gourmand's bubble, given to the table whose gourmand said it (owner, live 2026-10-21: table 4's circles showed
@@ -657,9 +694,9 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         var unreadable = new List<int>();
         foreach (var table in _tables.OfType<TableMemory>())
         {
-            bool stale = _lastSessionFrame - table.SeenAt > TableKeptFor;
+            // An order's card not read since is still that order (LiveTables): only a picture not told apart makes it unreadable.
             bool unknownItem = table.Card.State == TableState.Order && table.Card.Items.Any(i => i.Id is null);
-            if (unknownItem || (stale && table.Card.State == TableState.Order)) unreadable.Add(table.Card.Table);
+            if (unknownItem) unreadable.Add(table.Card.Table);
         }
         // Not shown to the player (nothing they can do about it): logged once per table and session.
         foreach (int table in unreadable)
