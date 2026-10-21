@@ -220,4 +220,98 @@ public class InnSetupStabilityTests(ITestOutputHelper output)
         var withoutIt = input with { Dishes = [.. input.Dishes.Where(d => d.Dish.Id != gone)] };
         Assert.False(Judge.Fits(withoutIt, input, shown, chefsAsPlanned: false));
     }
+
+    // ---- The kitchens' panels follow the chefs placed (owner, live 2026-10-21, debug_yuanyuan1) ----
+
+    /// <summary>The setup screen: kitchen 1 full (Perlica, Avywenna), kitchens 2 and 3 with these chefs placed (operator ids).</summary>
+    private static InnReading Placing(double at, IReadOnlyList<string> kitchen2, IReadOnlyList<string> kitchen3)
+    {
+        static SetupKitchen Kitchen(int number, IReadOnlyList<string> ids)
+        {
+            string?[] chefs = [.. ids, .. Enumerable.Repeat<string?>(null, 2 - ids.Count)];
+            return new SetupKitchen(number, 2, chefs, [.. chefs.Select(id => id is null ? null : Library.Operators.Single(o => o.Id == id).NameZh)])
+            {
+                ChefsPlaced = ids.Count,
+            };
+        }
+        return new(InnScreenKind.Setup, S(at), Setup: new InnSetup("养身心", Inn.Themes.Single(t => t.Zh == "养身心"), "开启2次满堂彩",
+            ["至少有2道带有[素食]或[滋补]特性的菜品"], ["Veggy", "Rich"],
+            [
+                new SetupKitchen(1, 2, ["Perlica", "Avywenna"], ["佩丽卡", "艾维文娜"]) { ChefsPlaced = 2 },
+                Kitchen(2, kitchen2),
+                Kitchen(3, kitchen3),
+            ]));
+    }
+
+    /// <summary>The plan worked out with kitchen 1 full and kitchens 2 and 3 empty, and the planning showing it.</summary>
+    private static async Task<(InnSession Session, InnSetupPlanning Planning, InnSetupAdvice Shown)> KitchenOneFull()
+    {
+        var session = NewSession();
+        session.Update(Placing(0, [], []));
+        var planning = new InnSetupPlanning(Judge, input => InnSetupAdvice.Fast(Planner, input), note: _ => { });
+        await planning.Request(session.SetupInputs(), Settled)!;
+        var shown = planning.Showable(session.SetupInputs())!;
+        Assert.All(new[] { 2, 3 }, n => Assert.Equal(2, shown.Plan.Kitchens.Single(k => k.Number == n).Chefs.Count));
+        return (session, planning, shown);
+    }
+
+    private static IReadOnlyList<string> Ids(InnSetupAdvice advice, int kitchen) => [.. advice.Plan.Kitchens.Single(k => k.Number == kitchen).Chefs.Select(c => c.Id)];
+
+    private static async Task Show(InnSession session, InnSetupPlanning planning, InnReading reading)
+    {
+        session.Update(reading);
+        if (planning.Request(session.SetupInputs(), Settled) is { } work) await work;
+    }
+
+    private static string Say(IReadOnlyList<InnAdvicePanel> panels) =>
+        string.Join(" | ", panels.Select(p => $"{p.Spot}: {string.Join(" / ", p.Model.Lines.Select(l => l.Text))}"));
+
+    /// <summary>
+    /// The owner's sequence (debug_yuanyuan1): kitchen 1's chefs were placed before the plan was worked out, so its panel
+    /// says it's set; then kitchens 2 and 3 were filled with exactly the chefs recommended. The plan stays (the player
+    /// follows it), and every kitchen's panel now says it's set, as kitchen 1's does: no panel goes on recommending
+    /// chefs for places already filled with them.
+    /// </summary>
+    [Fact]
+    public async Task Following_the_plan_every_full_kitchen_says_it_is_set()
+    {
+        var (session, planning, shown) = await KitchenOneFull();
+
+        await Show(session, planning, Placing(2, Ids(shown, 2), []));
+        await Show(session, planning, Placing(4, Ids(shown, 2), Ids(shown, 3)));
+
+        var advice = planning.Showable(session.SetupInputs());
+        Assert.NotNull(advice);
+        var panels = InnSetupView.Setup(session.SetupInputs(), advice, Inn, Text);
+        output.WriteLine(Say(panels));
+        Assert.All(new[] { 2, 3 }, n => Assert.Equal(Ids(shown, n), Ids(advice, n))); // the plan followed is the plan kept
+        Assert.Equal([InnAdviceSpot.Kitchen1, InnAdviceSpot.Kitchen2, InnAdviceSpot.Kitchen3], panels.Select(p => p.Spot));
+        Assert.All(panels, p =>
+        {
+            Assert.Equal(Text("Inn.Setup.Full"), p.Model.Lines[^1].Text);
+            Assert.DoesNotContain(p.Model.Lines, l => l.Text.StartsWith(Text("Inn.Setup.Recommend"), StringComparison.Ordinal));
+        });
+    }
+
+    /// <summary>
+    /// A kitchen half filled by the plan's second chef: its panel names only the chef still missing (the first), never
+    /// the one already in; the kitchen filled beside it says it's set.
+    /// </summary>
+    [Fact]
+    public async Task A_half_filled_kitchen_names_only_the_chef_still_missing()
+    {
+        var (session, planning, shown) = await KitchenOneFull();
+        var kitchen3 = Ids(shown, 3);
+
+        await Show(session, planning, Placing(2, Ids(shown, 2), [kitchen3[1]]));
+
+        var advice = planning.Showable(session.SetupInputs());
+        Assert.NotNull(advice);
+        var panels = InnSetupView.Setup(session.SetupInputs(), advice, Inn, Text);
+        output.WriteLine(Say(panels));
+        Assert.Equal(Text("Inn.Setup.Full"), panels.Single(p => p.Spot == InnAdviceSpot.Kitchen2).Model.Lines[^1].Text);
+        var recommend = panels.Single(p => p.Spot == InnAdviceSpot.Kitchen3).Model.Lines
+            .Single(l => l.Text.StartsWith(Text("Inn.Setup.Recommend"), StringComparison.Ordinal));
+        Assert.Equal([InnSetupView.OperatorPicture + kitchen3[0]], recommend.Segments.Select(s => s.PictureId).OfType<string>());
+    }
 }

@@ -274,4 +274,31 @@ public class InnSuggestionsTests(ITestOutputHelper output)
         Assert.Equal(2, byNumber[3].Chefs.Count);
         Assert.All(suggestions.Kitchens.SelectMany(k => k.Chefs.Concat(k.ChefSubstitutes)), c => Assert.DoesNotContain(c.Id, placed));
     }
+
+    /// <summary>
+    /// A plan shown for empty kitchens, followed by the player in another order (owner, live 2026-10-21, debug_yuanyuan1):
+    /// the plan's second chef for a kitchen placed first. The chef still to place is the one not placed, by who they are,
+    /// not by place: never the chef already in, and none once both are in.
+    /// </summary>
+    [Fact]
+    public void The_chef_still_to_place_is_the_one_not_placed_whatever_the_order()
+    {
+        var (input, plan, _) = Truly.Value;
+        var kitchen = plan.Kitchens.First(k => k.Chefs.Count == 2);
+        var (first, second) = (kitchen.Chefs[0], kitchen.Chefs[1]);
+        InnPlanInput With(params OperatorInfo[] placed) => input with
+        {
+            Kitchens = [.. input.Kitchens.Select(k => k.Number == kitchen.Number ? k with { Placed = placed } : k)],
+        };
+
+        var secondFirst = InnSuggester.Of(Planner, With(second), plan).Kitchens.Single(k => k.Number == kitchen.Number);
+        output.WriteLine($"kitchen {kitchen.Number}: plan {first.Id} + {second.Id}, {second.Id} placed: still to place {string.Join(" ", secondFirst.Chefs.Select(c => c.Id))}");
+        Assert.Equal([first.Id], secondFirst.Chefs.Select(c => c.Id));
+        Assert.Equal(1, secondFirst.Placed);
+        Assert.False(secondFirst.Full);
+
+        var both = InnSuggester.Of(Planner, With(second, first), plan).Kitchens.Single(k => k.Number == kitchen.Number);
+        Assert.Empty(both.Chefs);
+        Assert.True(both.Full);
+    }
 }
