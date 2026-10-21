@@ -504,7 +504,7 @@ sends each ordered dish not already carried, queued, or out of a kitchen for it 
 (ties: the better choice chance); cooks ahead (the dish cooked ahead least so far, then the slowest,
 never without stock, leaving one slot free for orders, with no counter cap); fills every free
 slot at the session's start and when Full Blaze is near. **No counter gate** (owner, 2026-10-21: "it should just not
-gate on how full it is, it offers little value"): EndHud only estimates the counter (出餐台), never reads it, and on
+gate on how full it is, it offers little value"): EndHud only estimates the counter, never reads it, and on
 test_yuanyuan4 the estimate went "full" (9 dishes on a counter of 8) from about 250 s, which stopped all cooking ahead
 and, with dishes taken to be there that weren't, covered real orders: no order call from 251.6 s to 350.4 s while
 tables waited up to 65 s. A dish not used gives its ingredients back, so cooking ahead is never a waste. So a dish
