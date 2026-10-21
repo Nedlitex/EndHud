@@ -37,7 +37,14 @@ internal sealed record InnGourmandNote(int Table, GourmandAdvice? Advice, string
 /// <param name="ExactKitchens">Kitchens the open dispatch panel shows right now; the others' queues are estimated from cook times.</param>
 /// <param name="Opening">No guest has ordered yet: every kitchen is being filled ahead.</param>
 internal sealed record InnAdvice(DispatchAdvice? Dispatch, InnGap? Gap, FullBlazeAdvice? Blaze, bool BlazeRunning,
-    IReadOnlyList<InnGourmandNote> Gourmands, IReadOnlyList<int> UnreadableTables, IReadOnlySet<int> ExactKitchens, bool Opening);
+    IReadOnlyList<InnGourmandNote> Gourmands, IReadOnlyList<int> UnreadableTables, IReadOnlySet<int> ExactKitchens, bool Opening)
+{
+    /// <summary>
+    /// What to tell the player now, each held steady until done, no longer valid or clearly beaten
+    /// (<see cref="InnCallHold"/>): the next dish per kitchen, a swap, the last call, Full Blaze. Shown as banners.
+    /// </summary>
+    public IReadOnlyList<InnCall> Calls { get; init; } = [];
+}
 
 /// <summary>
 /// What the helper knows of the inn, in memory only (plan S5/S7). Before a session: the setup as
@@ -85,6 +92,8 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     private readonly HashSet<string> _dishesSeen = [], _drinksSeen = [];
     private readonly Dictionary<int, GourmandMemory> _gourmands = [];
     private readonly HashSet<string> _unreadLogged = [];
+    private readonly HashSet<int> _unreadableLogged = []; // tables whose unreadable order was logged this session
+    private readonly InnCallHold _calls = new();
     private readonly FullBlazeTracker _blaze = new();
     private int? _fire;
     private bool _ordersSeen;
@@ -96,6 +105,12 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         public bool ChefsSeen;
         public KitchenQueue Queue = new(number);
         public readonly Dictionary<string, int> PanelCookSeconds = [];
+
+        /// <summary>Dishes cooked out of this queue since the session began, by id (the estimate, put right by each panel reading).</summary>
+        public readonly Dictionary<string, int> Out = [];
+
+        /// <summary>Dishes of an id ever put in this queue: those in it and those cooked out (<see cref="InnKitchenView.Queued"/>).</summary>
+        public int Queued(string id) => Queue.Dishes.Count(d => d.Dish.Id == id) + Out.GetValueOrDefault(id);
     }
 
     /// <param name="OrderSince">When this order first showed: older orders are served first.</param>
@@ -219,6 +234,8 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         _fire = null;
         _ordersSeen = false;
         _panelOpen = null;
+        _calls.Clear();
+        _unreadableLogged.Clear();
     }
 
     private KitchenMemory Kitchen(int number)
@@ -241,6 +258,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         {
             foreach (var dish in kitchen.Queue.Tick(seconds))
             {
+                kitchen.Out[dish.Id] = kitchen.Out.GetValueOrDefault(dish.Id) + 1;
                 _cooked[dish.Id] = _cooked.GetValueOrDefault(dish.Id) + 1;
                 _spares[dish.Id] = _spares.GetValueOrDefault(dish.Id) + 1;
             }
@@ -271,7 +289,15 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             var dish = DishOf(q.DishId)!;
             double cook = kitchens?.Kitchens.Any(k => k.Number == panel.Kitchen) == true ? kitchens.CookSeconds(panel.Kitchen, dish) : dish.CookSeconds;
             return new QueuedDish(dish, i == 0 && q.SecondsLeft is { } left ? left : cook);
-        }).Take(KitchenQueue.Slots);
+        }).Take(KitchenQueue.Slots).ToList();
+        // The estimate put right: a dish it had cooked out that the panel still shows wasn't out yet; one it still
+        // had that the panel no longer shows is out. What's left of a difference is a dish the player queued (or took out).
+        foreach (string id in dishes.Select(d => d.Dish.Id).Concat(kitchen.Queue.Dishes.Select(d => d.Dish.Id)).Distinct())
+        {
+            int was = kitchen.Queue.Dishes.Count(d => d.Dish.Id == id), now = dishes.Count(d => d.Dish.Id == id);
+            int outBefore = kitchen.Out.GetValueOrDefault(id);
+            kitchen.Out[id] = now > was ? outBefore - Math.Min(now - was, outBefore) : outBefore + (was - now);
+        }
         kitchen.Queue = new KitchenQueue(panel.Kitchen, dishes);
     }
 
@@ -321,6 +347,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             int slot = kitchen.Queue.Dishes.ToList().FindIndex(d => d.Dish.Id == id);
             if (slot < 0) continue;
             kitchen.Queue.RemoveAt(slot);
+            kitchen.Out[id] = kitchen.Out.GetValueOrDefault(id) + 1;
             _cooked[id] = _cooked.GetValueOrDefault(id) + 1;
             return;
         }
@@ -456,6 +483,9 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             bool unknownItem = table.Card.State == TableState.Order && table.Card.Items.Any(i => i.Id is null);
             if (unknownItem || (stale && table.Card.State == TableState.Order)) unreadable.Add(table.Card.Table);
         }
+        // Not shown to the player (nothing they can do about it): logged once per table and session.
+        foreach (int table in unreadable)
+            if (_unreadableLogged.Add(table)) _log($"inn: table {table}'s order can't be read; it's left out of the advice");
 
         var gourmandTables = LiveTables(now).Where(t => _gourmands.ContainsKey(t.Card.Table)).Select(t => t.Card.Table).ToList();
         var exact = _panelOpen is { } open ? new HashSet<int> { open } : [];
@@ -500,6 +530,8 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             bool drinksUnknown = drinks.Count == 0 && memory.Requests.Any(r => GourmandCondition.Parse(r.When, data).ForDrink);
             notes.Add(new InnGourmandNote(table, new GourmandAdvisor(advisor).Advise(memory.Requests, state, drinks), null, drinksUnknown));
         }
-        return new InnAdvice(dispatch, null, blaze, _blaze.Running, notes, unreadable, exact, !_ordersSeen);
+        var view = new InnKitchenView((k, id) => Kitchen(k).Queued(id), k => Kitchen(k).Queue.HasFreeSlot,
+            (k, dish) => Kitchen(k).Queue.SecondsUntilEmpty + kitchens.CookSeconds(k, dish));
+        return new InnAdvice(dispatch, null, blaze, _blaze.Running, notes, unreadable, exact, !_ordersSeen) { Calls = _calls.Update(dispatch, blaze, view) };
     }
 }
