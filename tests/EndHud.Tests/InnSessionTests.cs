@@ -485,4 +485,85 @@ public class InnSessionTests
 
         Assert.Empty(session.Advice(S(31))!.Gourmands);
     }
+    // ---- Two gourmands (owner, live 2026-10-21, test_yuanyuan4 4:16–5:02) ----
+
+    private static GourmandBubble Said(int pool, params int[] requests)
+    {
+        var gourmand = Inn.Gourmands.Single(g => g.Pool == "normal" && g.Number == pool);
+        string[] lines = [.. requests.Select(r => gourmand.Requests[r].Text)];
+        return new GourmandBubble(string.Concat(lines), lines);
+    }
+
+    /// <summary>Table 2's gourmand (normal 4): 「嗯……想吃甜品，最好有点酸。」「来一些不带水产的汤羹。」</summary>
+    private static readonly GourmandBubble TableTwoSays = Said(4, 1, 4);
+
+    /// <summary>Table 4's gourmand (normal 3, session-gourmand-soup-and-drink.jpg): 「清爽无油的汤羹，有吗？」「来杯喝的，谨记，我滴酒不沾。」</summary>
+    private static readonly GourmandBubble TableFourSays = Said(3, 3, 5);
+
+    private static TableCard Gourmand(int table, TableState state) => new(table, state, [], []);
+
+    /// <summary>
+    /// Table 4's circles showed 酸莓布丁 and 白瓜肉丸汤 from 4:16 to 5:02 while its gourmand asked for a soup without seed
+    /// oil and a drink without alcohol (the bubble read right, InnBubbleReaderTests): another gourmand's words, kept. Table 2's
+    /// gourmand had said them; read again while table 4's gourmand had just sat down, they went to table 4 (the table with
+    /// no words yet), and table 4's own bubble, two requests like the first, never replaced them.
+    /// </summary>
+    [Fact]
+    public void A_bubble_still_showing_another_tables_words_is_not_taken_for_a_new_gourmands()
+    {
+        var session = Prepared(1, 2);
+        session.Update(Session(10, tables: Tables(Gourmand(2, TableState.GourmandOrder)), bubble: TableTwoSays));
+        // Table 4's gourmand sits down while table 2's bubble is still read.
+        session.Update(Session(11, tables: Tables(Gourmand(2, TableState.GourmandOrder), Gourmand(4, TableState.GourmandArrived)), bubble: TableTwoSays));
+        session.Update(Session(11.3, tables: Tables(Gourmand(2, TableState.GourmandOrder), Gourmand(4, TableState.GourmandArrived)), bubble: TableTwoSays));
+        // Table 2 is served and eats; table 4 speaks.
+        for (double t = 12; t <= 13; t += 0.3)
+            session.Update(Session(t, tables: Tables(Gourmand(2, TableState.GourmandEating), Gourmand(4, TableState.GourmandOrder)), bubble: TableFourSays));
+
+        var note = Assert.Single(session.Advice(S(13))!.Gourmands);
+        Assert.Equal(4, note.Table);
+        Assert.Equal(TableFourSays.Lines, note.Advice!.Requests.Select(r => r.Request.Text));
+        Assert.Equal([false, true], note.Advice.Requests.Select(r => GourmandCondition.Parse(r.Request.When, Inn).ForDrink));
+        // The soup without seed oil is 白瓜肉丸汤, not 茄果鳞肉汤 (seed oil); the drink one without alcohol.
+        Assert.Equal(A, note.Advice.Requests[0].Options[0].Id);
+        Assert.All(note.Advice.Requests[1].Options, o => Assert.NotNull(o.Drink));
+        Assert.NotEmpty(note.Advice.Requests[1].Options);
+    }
+
+    /// <summary>
+    /// A gourmand already served: their bubble read again (still on screen as they eat, or the camera passing) is not a
+    /// new gourmand's words, whatever table has just got one.
+    /// </summary>
+    [Fact]
+    public void The_words_of_a_gourmand_already_served_are_nobodys_new_request()
+    {
+        var session = Prepared(1, 2);
+        session.Update(Session(10, tables: Tables(Gourmand(2, TableState.GourmandOrder)), bubble: TableTwoSays));
+        session.Update(Session(11, tables: Tables(Gourmand(2, TableState.GourmandEating))));
+        session.Update(Session(11.3, tables: Tables(Gourmand(2, TableState.GourmandEating))));
+        Assert.Empty(session.Advice(S(11.3))!.Gourmands);
+
+        session.Update(Session(12, tables: Tables(Gourmand(2, TableState.GourmandEating), Gourmand(4, TableState.GourmandArrived)), bubble: TableTwoSays));
+        Assert.Empty(session.Advice(S(12))!.Gourmands);
+
+        session.Update(Session(13, tables: Tables(Gourmand(2, TableState.GourmandEating), Gourmand(4, TableState.GourmandOrder)), bubble: TableFourSays));
+        var note = Assert.Single(session.Advice(S(13))!.Gourmands);
+        Assert.Equal(4, note.Table);
+        Assert.Equal(TableFourSays.Lines, note.Advice!.Requests.Select(r => r.Request.Text));
+    }
+
+    /// <summary>
+    /// A new gourmand at the same table (the last one left without their eating card being read): their own words replace
+    /// the last one's, even when as many.
+    /// </summary>
+    [Fact]
+    public void A_new_gourmands_words_at_a_table_replace_the_last_ones()
+    {
+        var session = Prepared(1, 2);
+        session.Update(Session(10, tables: Tables(Gourmand(4, TableState.GourmandOrder)), bubble: TableTwoSays));
+        session.Update(Session(11, tables: Tables(Gourmand(4, TableState.GourmandArrived)), bubble: TableFourSays));
+
+        var note = Assert.Single(session.Advice(S(11))!.Gourmands);
+        Assert.Equal(TableFourSays.Lines, note.Advice!.Requests.Select(r => r.Request.Text));
+    }
 }

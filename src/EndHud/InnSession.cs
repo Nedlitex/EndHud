@@ -107,6 +107,12 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// </summary>
     public static readonly TimeSpan PanelClosedAfter = TimeSpan.FromSeconds(1.5);
 
+    /// <summary>
+    /// A served gourmand's words read off a bubble again within this long are theirs, not a new gourmand's
+    /// (<see cref="TakeBubble"/>): a bubble stays a moment as they eat, and shows again as the camera passes.
+    /// </summary>
+    public static readonly TimeSpan GourmandEchoFor = TimeSpan.FromSeconds(30);
+
     /// <summary>The timer going up by more than this means a new session started.</summary>
     private static readonly TimeSpan NewSessionJump = TimeSpan.FromSeconds(10);
 
@@ -132,6 +138,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     private readonly HashSet<string> _dishesSeen = [], _drinksSeen = [];
     private readonly Dictionary<int, GourmandMemory> _gourmands = [];
     private readonly Dictionary<int, TimeSpan> _gourmandLeaving = []; // a gourmand's table read in another state since then
+    private readonly List<(IReadOnlyList<GourmandRequest> Requests, TimeSpan At)> _gourmandsDone = []; // served gourmands' words, and when (TakeBubble)
     private readonly HashSet<string> _unreadLogged = [];
     private readonly HashSet<int> _unreadableLogged = []; // tables whose unreadable order was logged this session
     private readonly HashSet<InnGap> _gapsLogged = []; // what the advice waited for, logged once per session (never shown)
@@ -231,7 +238,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         if (reading.TableCards.Count > 0) TakeTables(reading.TableCards, reading.At);
         if (reading.Fire is { } fire) _fire = fire.Ready ? FullBlazeAdvisor.Full : fire.Fire ?? _fire;
         _blaze.Update(reading.At, reading.Fire?.Ready, inSession: true);
-        if (reading.Bubble is { } bubble) TakeBubble(bubble);
+        if (reading.Bubble is { } bubble) TakeBubble(bubble, reading.At);
     }
 
     /// <summary>
@@ -283,6 +290,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         _drinksSeen.Clear();
         _gourmands.Clear();
         _gourmandLeaving.Clear();
+        _gourmandsDone.Clear();
         _blaze.Update(TimeSpan.Zero, null, inSession: false);
         _fire = null;
         _ordersSeen = false;
@@ -474,6 +482,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
 
         void Forget()
         {
+            if (_gourmands.TryGetValue(card.Table, out var done) && done.Requests.Count > 0) _gourmandsDone.Add((done.Requests, at));
             _gourmands.Remove(card.Table);
             _gourmandLeaving.Remove(card.Table);
         }
@@ -509,24 +518,45 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     private IEnumerable<TableMemory> LiveTables(TimeSpan now) =>
         _tables.OfType<TableMemory>().Where(t => _lastSessionFrame - t.SeenAt <= TableKeptFor).OrderBy(t => t.OrderSince).ThenBy(t => t.Card.Table);
 
-    private void TakeBubble(GourmandBubble bubble)
+    /// <summary>
+    /// A gourmand's bubble, given to the table whose gourmand said it (owner, live 2026-10-21: table 4's circles showed
+    /// another gourmand's dessert and soup for 46 s while it asked for a soup and a drink). The bubble doesn't say whose it
+    /// is, so its words do:
+    /// <list type="number">
+    /// <item>A table holding any of these words: theirs (the fuller reading kept: a half-faded bubble names fewer).</item>
+    /// <item>Words of a gourmand served within <see cref="GourmandEchoFor"/>: their bubble read again, nobody's new request.</item>
+    /// <item>Otherwise a gourmand speaking anew: the newest gourmand table with no words yet; else the newest one asking
+    /// (arrived or choosing), whose words were someone else's or an earlier gourmand's at that table, replaced.</item>
+    /// </list>
+    /// Words not recognised go only to a table with none (and are logged once).
+    /// </summary>
+    private void TakeBubble(GourmandBubble bubble, TimeSpan at)
     {
-        var table = _tables.OfType<TableMemory>()
+        var asking = _tables.OfType<TableMemory>()
             .Where(t => t.Card.State is TableState.GourmandArrived or TableState.GourmandOrdering or TableState.GourmandOrder)
-            .OrderBy(t => _gourmands.TryGetValue(t.Card.Table, out var g) && g.Requests.Count > 0 ? 1 : 0)
-            .ThenByDescending(t => t.OrderSince)
-            .FirstOrDefault();
-        if (table is null) return;
+            .OrderByDescending(t => t.OrderSince).ThenBy(t => t.Card.Table)
+            .ToList();
         var requests = bubble.Requests(data).Select(m => m.Request).Take(GourmandAdvisor.MaxRequests).ToList();
-        _gourmands.TryGetValue(table.Card.Table, out var known);
+        bool Words(int table) => _gourmands.TryGetValue(table, out var g) && g.Requests.Count > 0;
         if (requests.Count > 0)
         {
-            // A bubble read half-faded may name fewer requests than it has: keep the fuller reading.
-            if (known is null || known.Requests.Count < requests.Count) _gourmands[table.Card.Table] = new GourmandMemory(requests, null);
+            if (_gourmands.FirstOrDefault(g => g.Value.Requests.Intersect(requests).Any()) is { Value: { } said } owner)
+            {
+                if (said.Requests.Count < requests.Count) _gourmands[owner.Key] = new GourmandMemory(requests, null);
+                return;
+            }
+            if (_gourmandsDone.Any(d => at - d.At <= GourmandEchoFor && d.Requests.Intersect(requests).Any())) return;
+            var table = asking.FirstOrDefault(t => !Words(t.Card.Table))
+                        ?? asking.FirstOrDefault(t => t.Card.State is TableState.GourmandArrived or TableState.GourmandOrdering)
+                        ?? asking.FirstOrDefault();
+            if (table is null) return;
+            if (Words(table.Card.Table)) _log($"inn: table {table.Card.Table}'s gourmand says other words now; the earlier ones were another gourmand's");
+            _gourmands[table.Card.Table] = new GourmandMemory(requests, null);
+            _gourmandLeaving.Remove(table.Card.Table);
             return;
         }
-        if (known is { Requests.Count: > 0 }) return;
-        _gourmands[table.Card.Table] = new GourmandMemory([], bubble.Text);
+        if (asking.FirstOrDefault(t => !Words(t.Card.Table)) is not { } waiting) return;
+        _gourmands[waiting.Card.Table] = new GourmandMemory([], bubble.Text);
         if (_unreadLogged.Add(bubble.Text)) _warn($"inn: a gourmand's request wasn't recognised; read \"{bubble.Text}\"");
     }
 

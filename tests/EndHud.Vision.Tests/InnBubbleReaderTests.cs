@@ -53,6 +53,36 @@ public class InnBubbleReaderTests(ITestOutputHelper output)
         Assert.Equal(["来点汤，要酸口，促消化。", "上好的肉！做点菜！"], bubble.Requests(Inn).Select(m => m.Request.Text));
     }
 
+    /// <summary>
+    /// Owner, live 2026-10-21 ("it also missed the drink requirement"): table 4's gourmand asks 「清爽无油的汤羹，有吗？」 and
+    /// 「来杯喝的，谨记，我滴酒不沾。」 (gourmand 3 of the normal pool: 汤羹&amp;非&lt;菜籽油&gt;, 非[酒香]: a soup and a drink), the
+    /// bubble large, middle-sized and small as the camera moves. Each is read as both of them, and only them.
+    /// </summary>
+    public static TheoryData<string, string> SoupAndDrinkBubbles()
+    {
+        var data = new TheoryData<string, string>();
+        foreach (string fixture in new[] { "session-gourmand-soup-and-drink", "session-gourmand-soup-and-drink-near", "session-panel-closed-mark-table2" })
+        foreach (var screen in new[] { SimulatedScreen.Uhd, SimulatedScreen.Qhd, SimulatedScreen.FullHd })
+            data.Add(fixture, screen.Name);
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(SoupAndDrinkBubbles))]
+    public async Task A_soup_and_a_drink_are_both_read(string fixture, string screenName)
+    {
+        var screen = SimulatedScreen.Named(screenName);
+        var frame = await InnScreenTests.Load(fixture);
+        var bubble = await new BubbleReader(InnScreenTests.Text).ReadAsync(screen == SimulatedScreen.Uhd ? frame : screen.Render(frame));
+
+        Assert.NotNull(bubble);
+        output.WriteLine($"{fixture} {screen.Width}x{screen.Height}: \"{bubble.Text}\" → {string.Join(" | ", bubble.Lines)}");
+        var requests = bubble.Requests(Inn);
+        Assert.Equal(["清爽无油的汤羹，有吗？", "来杯喝的，谨记，我滴酒不沾。"], requests.Select(m => m.Request.Text));
+        Assert.All(requests, m => Assert.Equal(("normal", 3), (m.Gourmand.Pool, m.Gourmand.Number)));
+        Assert.Equal([false, true], requests.Select(m => GourmandCondition.Parse(m.Request.When, Inn).ForDrink));
+    }
+
     [Theory]
     [MemberData(nameof(WithoutBubble))]
     public async Task No_bubble_where_there_is_none(string fixture)
