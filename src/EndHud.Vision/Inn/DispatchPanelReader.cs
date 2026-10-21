@@ -6,7 +6,11 @@ namespace EndHud.Vision.Inn;
 /// <param name="DishId">The dish (<see cref="Dish.Id"/>), or null when the name read matches none.</param>
 /// <param name="Name">The name as read.</param>
 /// <param name="CookSeconds">The cook time in this kitchen, its chefs' bonuses counted; null when unread.</param>
-public sealed record KitchenDish(string? DishId, string Name, int? CookSeconds);
+public sealed record KitchenDish(string? DishId, string Name, int? CookSeconds)
+{
+    /// <summary>The card it was read on: 0–7, left to right, top to bottom (<see cref="DispatchPanelReader.CardArea"/>).</summary>
+    public int Card { get; init; }
+}
 
 /// <summary>A place in the kitchen's queue.</summary>
 /// <param name="Filled">A dish is there (its "−" shows).</param>
@@ -42,6 +46,7 @@ public sealed class DispatchPanelReader(InnText text, InnPictures pictures, InnD
     private const int ChanceDigitsLeft = 1150, ChanceDigitsRight = 1330;
     // The menu: two columns, up to four rows of dish cards.
     private const double CardX = 1467, CardColumnStep = 920, CardY = 630, CardRowStep = 277.5;
+    private const int CardWidth = 896, CardHeight = 258;
     private static readonly PixelRect CookTime = new(58, 12, 100, 46), DishName = new(320, 22, 380, 62);
     // The queue: the dish cooking (right, in a white circle), and two waiting (grey discs), each with a "−".
     private static readonly (double X, double Y, int ArtSize, int Compare)[] Slots = [(1209, 1608, 195, 55), (962, 1672, 190, 70), (732, 1672, 190, 70)];
@@ -52,6 +57,23 @@ public sealed class DispatchPanelReader(InnText text, InnPictures pictures, InnD
     // A picture is named when its mean colour difference is at most this and the next one this much
     // further (measured: right pictures 10.6–29.6, the next ones ≥ 14.8 behind).
     private const double MaxDifference = 36, MinLead = 8;
+
+    /// <summary>How many dish cards the panel has room for: two columns of four.</summary>
+    public const int Cards = 8;
+
+    /// <summary>
+    /// A dish card's place (<see cref="KitchenDish.Card"/>), at 4K on the centred 16:9 area: measured on
+    /// dispatch-panel-queue.jpg (all eight cards), each card's light face 896 × 258 from (1468, 630), the next column
+    /// 920 to the right, the next row 277.5 down.
+    /// </summary>
+    public static PixelRect CardArea(int card) => new((int)Math.Round(CardX + 1 + CardColumnStep * (card % 2)), (int)Math.Round(CardY + CardRowStep * (card / 2)),
+        CardWidth, CardHeight);
+
+    /// <summary>A kitchen's tab (1–3) at the panel's top, at 4K on the centred 16:9 area: 644 × 126 from (503, 449), the next 665 to the right.</summary>
+    public static PixelRect TabArea(int kitchen) => new((int)Math.Round(FirstTabX - 17 + TabStep * (kitchen - 1)), 449, 644, 126);
+
+    /// <summary>A dish card's place in a window of <paramref name="width"/> × <paramref name="height"/> pixels.</summary>
+    public static PixelRect CardOnScreen(int card, int width, int height) => new InnLayout(width, height).Centered(CardArea(card));
 
     /// <summary>The panel, or null when it isn't showing (no tab is dark).</summary>
     public async Task<DispatchPanel?> ReadAsync(Frame frame)
@@ -151,7 +173,7 @@ public sealed class DispatchPanelReader(InnText text, InnPictures pictures, InnD
             }
             if (name is null) continue;
             var timeRegion = layout.Centered(CookTime with { X = (int)x + CookTime.X, Y = (int)y + CookTime.Y });
-            dishes.Add(new KitchenDish(id, name, Seconds(InnDigits.Read(frame, timeRegion, LightOnDark, layout.Scale, minHeightShare: DigitsNotUnit))));
+            dishes.Add(new KitchenDish(id, name, Seconds(InnDigits.Read(frame, timeRegion, LightOnDark, layout.Scale, minHeightShare: DigitsNotUnit))) { Card = row * 2 + column });
         }
         return dishes;
     }
