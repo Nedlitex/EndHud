@@ -110,6 +110,13 @@ internal static partial class InnTestKit
         new(InnScreenKind.Setup, S(at), Setup: new InnSetup("theme", null, null, [], [],
             [.. Enumerable.Range(1, KitchenMath.MaxKitchens).Select(n => new SetupKitchen(n, 2, [null, null], staffed.Contains(n) ? ["chef", null] : [null, null]))]));
 
-    public static InnSession NewSession(List<string>? warnings = null) =>
-        new(Inn, Library.Operators, log: _ => { }, warn: m => warnings?.Add(m));
+    /// <summary>
+    /// A reading clock for sessions whose tests give no gaps: the game read all along, every moment
+    /// between two readings a frame of something (so time between inn readings is time elsewhere).
+    /// </summary>
+    public static TimeSpan ReadAllAlong(TimeSpan now) => now;
+
+    /// <param name="readingTime">Time spent reading the game (<see cref="ReadingClock.At"/>); <see cref="ReadAllAlong"/> when not given.</param>
+    public static InnSession NewSession(List<string>? warnings = null, Func<TimeSpan, TimeSpan>? readingTime = null) =>
+        new(Inn, Library.Operators, readingTime ?? ReadAllAlong, log: _ => { }, warn: m => warnings?.Add(m));
 }

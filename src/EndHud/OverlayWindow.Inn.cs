@@ -101,7 +101,7 @@ public partial class OverlayWindow
         {
             _innLibrary = library;
             _innPictures.Clear();
-            _innSession = new InnSession(data, library.Operators);
+            _innSession = new InnSession(data, library.Operators, _party.Reading.At);
             var planner = new InnPlanner(data);
             // The model's advice first (sub-second), the simulator's after (seconds) where it differs.
             _innChefPlanning = new InnSetupPlanning(input => InnSetupAdvice.Fast(planner, input), (input, cancel) => InnSetupAdvice.For(planner, input, cancel));

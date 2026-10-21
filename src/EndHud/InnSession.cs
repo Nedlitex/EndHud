@@ -49,7 +49,11 @@ internal sealed record InnAdvice(DispatchAdvice? Dispatch, InnGap? Gap, FullBlaz
 /// request. A session ends when no session frame has been seen for <see cref="EndAfter"/>, or a
 /// setup screen shows, and is forgotten.
 /// </summary>
-internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roster, Action<string>? log = null, Action<string>? warn = null)
+/// <param name="readingTime">Time spent reading the game at a moment of <see cref="InnClock"/>
+/// (<see cref="ReadingClock.At"/>): what leaving the inn is measured in, so time the game was in
+/// the background (reading off, no frames) never counts as leaving.</param>
+internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roster, Func<TimeSpan, TimeSpan> readingTime,
+    Action<string>? log = null, Action<string>? warn = null)
 {
     /// <summary>A session is over when none of its frames has been seen for this long (the results screen, leaving).</summary>
     public static readonly TimeSpan EndAfter = TimeSpan.FromSeconds(15);

@@ -99,6 +99,46 @@ public class InnSetupMemoryTests
         Assert.Empty(session.OnMenu);
     }
 
+    /// <summary>
+    /// The bug the owner saw (live 2026-10-20, "why does it show 还没看到厨房, we come here after set
+    /// all kitchens"): every kitchen set on the setup screen, a 27 s alt-tab with the reading off,
+    /// back on the menu screen, and the menu said no kitchen had been seen. Time the game was in the
+    /// background isn't time spent away from the inn.
+    /// </summary>
+    [Fact]
+    public void The_setup_survives_time_the_game_was_in_the_background()
+    {
+        var clock = new ReadingClock();
+        var session = NewSession(readingTime: clock.At);
+        for (double t = 0; t <= 4; t += 0.25) clock.Frame(S(t));
+        session.Update(Setup(0));
+        session.Update(Picker(2, 1));
+        session.Update(Setup(4));
+        clock.Stop(S(4.2)); // another window in front: the reading off
+
+        foreach (double t in new[] { 10.0, 30, 60 }) session.Tick(S(t)); // the overlay's slow loop goes on meanwhile
+        clock.Frame(S(64.2)); // back: the menu screen
+        session.Update(Menu(64.2));
+
+        Assert.Empty(session.MenuInputs().Gaps);
+        Assert.Equal("1:2[Chen_Qianyu] 2:2[] 3:2[]", Kitchens(session.MenuInputs()));
+    }
+
+    /// <summary>Leaving the inn is still told: 30 s of frames that aren't the inn (a fight, the open world) forget the setup.</summary>
+    [Fact]
+    public void Time_spent_reading_other_screens_still_forgets_the_setup()
+    {
+        var clock = new ReadingClock();
+        var session = NewSession(readingTime: clock.At);
+        clock.Frame(S(0));
+        session.Update(Setup(0));
+        for (double t = 0.25; t <= 31; t += 0.25) clock.Frame(S(t)); // the open world, read all along
+
+        session.Tick(S(31));
+
+        Assert.Equal([InnSetupGap.NoSetup], session.MenuInputs().Gaps);
+    }
+
     [Fact]
     public void A_reading_long_after_the_last_one_starts_from_nothing()
     {

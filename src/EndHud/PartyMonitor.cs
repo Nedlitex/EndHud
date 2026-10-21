@@ -78,6 +78,12 @@ internal sealed class PartyMonitor : IDisposable
 
     private bool _inInn;
 
+    /// <summary>
+    /// Time spent reading the game (<see cref="ReadingClock"/>): runs while frames are read, stands
+    /// still while reading is off; the inn's memory measures leaving the inn in it.
+    /// </summary>
+    public ReadingClock Reading { get; } = new();
+
     private static readonly TimeSpan BossStatusEvery = TimeSpan.FromSeconds(1);
     private int _libraryBusy;
     private DateTime _lastCheckUtc = DateTime.MinValue;

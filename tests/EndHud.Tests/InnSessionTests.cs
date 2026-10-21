@@ -43,6 +43,48 @@ public class InnSessionTests
         Assert.Null(session.Advice(S(26)));
     }
 
+    /// <summary>
+    /// A session goes on through an alt-tab (owner 2026-10-20: the reading turns off whenever another
+    /// window is in front): time with the reading off doesn't end it, nor forget the setup.
+    /// </summary>
+    [Fact]
+    public void A_session_survives_time_the_game_was_in_the_background()
+    {
+        var clock = new ReadingClock();
+        var session = NewSession(readingTime: clock.At);
+        clock.Frame(S(0));
+        session.Update(SetupScreen(0, 1, 2, 3));
+        clock.Frame(S(1));
+        session.Update(MenuScreen(1, Menu));
+        for (double t = 1.25; t <= 10; t += 0.25) clock.Frame(S(t));
+        session.Update(Session(10, tables: Tables(Order(3, A))));
+        clock.Stop(S(10.2));
+
+        session.Tick(S(40));
+        Assert.True(session.Active);
+
+        clock.Frame(S(60));
+        session.Update(Session(60, left: 250, tables: Tables(Order(3, A))));
+        var advice = session.Advice(S(60))!;
+        Assert.Null(advice.Gap);
+        Assert.False(advice.Opening);
+    }
+
+    /// <summary>With frames read all along, a session not seen for 15 s still ends.</summary>
+    [Fact]
+    public void Time_spent_reading_other_screens_still_ends_the_session()
+    {
+        var clock = new ReadingClock();
+        var session = NewSession(readingTime: clock.At);
+        clock.Frame(S(0));
+        session.Update(Session(0));
+        for (double t = 0.25; t <= 16; t += 0.25) clock.Frame(S(t));
+
+        session.Tick(S(16));
+
+        Assert.False(session.Active);
+    }
+
     [Theory]
     [InlineData(InnScreenKind.Setup)]
     [InlineData(InnScreenKind.Menu)]
