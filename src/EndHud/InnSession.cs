@@ -337,7 +337,8 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     {
         if (_panelOpen is not { } panel || !_kitchens.TryGetValue(panel.Kitchen, out var kitchen)) return _panelOpen;
         var read = panel.Dishes.Where(d => d.DishId is not null).Select(d => d.DishId!).ToHashSet();
-        var known = kitchen.Cards.Where(c => !read.Contains(c.Key) && panel.Dishes.All(d => d.Card != c.Value) && DishOf(c.Key) is not null)
+        // A card read as no dish on this frame takes the dish it was read as before; a card read as another dish doesn't.
+        var known = kitchen.Cards.Where(c => !read.Contains(c.Key) && panel.Dishes.All(d => d.DishId is null || d.Card != c.Value) && DishOf(c.Key) is not null)
             .Select(c => new KitchenDish(c.Key, DishOf(c.Key)!.Zh, null) { Card = c.Value }).ToList();
         return known.Count == 0 ? panel : panel with { Dishes = [.. panel.Dishes.Where(d => d.DishId is not null || known.All(k => k.Card != d.Card)), .. known] };
     }
