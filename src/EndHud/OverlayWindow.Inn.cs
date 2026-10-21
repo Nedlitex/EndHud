@@ -117,7 +117,7 @@ public partial class OverlayWindow
     private void TickInn()
     {
         _innSession?.Tick(InnClock.Now);
-        if (_innDisplay.OnSession || _innDisplay.SetupScreen is not null || _innGourmandBanners.Count > 0 || _innCallBanners.Count > 0 || _innSetupKey is not null) RenderInn();
+        if (_innDisplay.OnSession || _innDisplay.SetupScreen is not null || _innGourmandBanners.Count > 0 || _innCallBannersStack?.Count > 0 || _innSetupKey is not null) RenderInn();
     }
 
     private void RenderInn()
@@ -125,9 +125,9 @@ public partial class OverlayWindow
         RenderInnSetup();
         var views = _config.InnHelperEnabled ? _innDisplay.Views(_innSession, InnClock.Now, _config.InnCallsEnabled, Loc.Get) : InnViews.None;
         _innSessionMarks = views.Marks;
-        RenderInnCalls(views.Calls);
+        RenderInnCalls(views);
         RenderInnMarks(_innSessionMarks);
-        RenderInnGourmands(views.Wants);
+        RenderInnGourmands(views.Wants, views.Away);
     }
 
     /// <summary>

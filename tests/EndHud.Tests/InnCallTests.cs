@@ -125,9 +125,12 @@ public class InnCallTests(ITestOutputHelper output)
         Assert.Contains(calls, c => c is { Kind: InnCallKind.Queue, Table: 2 });
     }
 
-    /// <summary>Calls stack in a fixed order: Full Blaze first, then the kitchens by number, then the last call by table.</summary>
+    /// <summary>
+    /// Calls stack in a fixed order: the kitchens by number, then Full Blaze, then the last call by table (owner, 2026-10-21:
+    /// "the recommendation should stay steady"; Full Blaze coming or going above the kitchens moved every kitchen's banner).
+    /// </summary>
     [Fact]
-    public void Calls_stack_by_kitchen_number()
+    public void Calls_stack_by_kitchen_number_then_full_blaze()
     {
         var session = Prepared();
         session.Update(Session(10, tables: Tables(Order(1, A), Order(2, B)), fire: new FireMeter(90, 4, false)));
@@ -137,6 +140,99 @@ public class InnCallTests(ITestOutputHelper output)
         Assert.Equal(kitchens.Order(), kitchens);
         Assert.Equal(kitchens.Distinct().Count(), kitchens.Count);
         int blaze = calls.ToList().FindIndex(c => c.Kind is InnCallKind.BlazeNow or InnCallKind.BlazeGetReady);
-        Assert.True(blaze <= 0, "Full Blaze goes first");
+        Assert.Equal(calls.Count - 1, blaze);
+    }
+
+    /// <summary>
+    /// Each kitchen keeps its row for the session (<see cref="InnBannerRows"/>): a kitchen's banner going leaves its row
+    /// empty, so the banners below don't move; Full Blaze and the last calls come below the kitchens, so they move none.
+    /// </summary>
+    [Fact]
+    public void A_kitchens_banner_keeps_its_row_whatever_comes_and_goes()
+    {
+        var rows = new InnBannerRows();
+        InnCall Ahead(int kitchen, string dish) => new(InnCallKind.CookAhead, kitchen, Dish(dish));
+        int RowOf(IReadOnlyList<InnBannerRow> shown, int kitchen) => shown.ToList().FindIndex(r => r.Banner?.Key.Contains($":{kitchen}:", StringComparison.Ordinal) == true);
+
+        int[] cooking = [1, 2, 3];
+        var all = rows.Rows(cooking, [Ahead(1, A), Ahead(2, B), Ahead(3, C)], Text);
+        Assert.Equal([0, 1, 2], new[] { RowOf(all, 1), RowOf(all, 2), RowOf(all, 3) });
+
+        // Kitchen 1's banner goes, Full Blaze comes: kitchens 2 and 3 stay in rows 1 and 2, kitchen 1's row stays, empty.
+        var after = rows.Rows(cooking, [Ahead(2, B), Ahead(3, C), new InnCall(InnCallKind.BlazeNow)], Text);
+        Assert.Equal([1, 2], new[] { RowOf(after, 2), RowOf(after, 3) });
+        Assert.Null(after[0].Banner);
+        Assert.Equal("BlazeNow::::", after[3].Banner!.Key);
+
+        // A new session starts with no rows; a kitchen that cooks has its row from the start, so kitchen 3's first banner
+        // comes in under kitchens 1 and 2's empty rows, and Full Blaze below it doesn't move when kitchen 1's first comes.
+        rows.Clear();
+        var three = rows.Rows(cooking, [Ahead(3, C), new InnCall(InnCallKind.BlazeNow)], Text);
+        Assert.Equal((2, 3), (RowOf(three, 3), three.ToList().FindIndex(r => r.Banner?.Key == "BlazeNow::::")));
+        var one = rows.Rows(cooking, [Ahead(1, A), Ahead(3, C), new InnCall(InnCallKind.BlazeNow)], Text);
+        Assert.Equal((0, 2, 3), (RowOf(one, 1), RowOf(one, 3), one.ToList().FindIndex(r => r.Banner?.Key == "BlazeNow::::")));
+
+        // A table given two of a dish at the last call: one banner.
+        var twice = new InnCall(InnCallKind.LastCall, Dish: Dish(A), Table: 2);
+        Assert.Single(rows.Rows(cooking, [twice, twice], Text), r => r.Banner?.Key == twice.Key);
+    }
+    /// <summary>
+    /// The stack as the overlay draws it (<see cref="InnBannerStack"/>, on a WPF panel): a banner whose call stands is the same
+    /// element on every update (never drawn or slid in again), a kitchen's row keeps its place in the stack while its banner
+    /// changes or goes, and the banners below it stay where they are.
+    /// </summary>
+    [Fact]
+    public void The_drawn_stack_keeps_standing_banners_and_every_kitchens_place()
+    {
+        OnSta(() =>
+        {
+            var panel = new System.Windows.Controls.StackPanel();
+            var stack = new InnBannerStack(panel, model => InnCallView.Banner(model, _ => null));
+            var rows = new InnBannerRows();
+            int[] cooking = [1, 2, 3];
+            InnCall Ahead(int kitchen, string dish) => new(InnCallKind.CookAhead, kitchen, Dish(dish));
+            void Show(params InnCall[] calls) => stack.Update(rows.Rows(cooking, calls, Text));
+
+            Show(Ahead(1, A), Ahead(2, B), Ahead(3, C));
+            var one = stack.BannerIn("kitchen:1");
+            var two = stack.BannerIn("kitchen:2");
+            var three = stack.BannerIn("kitchen:3");
+            var place = new[] { 1, 2, 3 }.Select(k => panel.Children.IndexOf(stack.HolderOf($"kitchen:{k}")!)).ToList();
+
+            // The same calls again: the same elements.
+            Show(Ahead(1, A), Ahead(2, B), Ahead(3, C));
+            Assert.Same(one, stack.BannerIn("kitchen:1"));
+            Assert.Same(two, stack.BannerIn("kitchen:2"));
+
+            // Kitchen 1's call goes and Full Blaze comes: kitchens 2 and 3 are the same elements in the same places.
+            Show(Ahead(2, B), Ahead(3, C), new InnCall(InnCallKind.BlazeNow));
+            Assert.Null(stack.BannerIn("kitchen:1"));
+            Assert.Same(two, stack.BannerIn("kitchen:2"));
+            Assert.Same(three, stack.BannerIn("kitchen:3"));
+            Assert.Equal(place, new[] { 1, 2, 3 }.Select(k => panel.Children.IndexOf(stack.HolderOf($"kitchen:{k}")!)));
+
+            // Kitchen 2's call changes: a new element in the same row; kitchen 3 untouched.
+            Show(Ahead(2, D), Ahead(3, C), new InnCall(InnCallKind.BlazeNow));
+            Assert.NotSame(two, stack.BannerIn("kitchen:2"));
+            Assert.Same(three, stack.BannerIn("kitchen:3"));
+            Assert.Equal(place, new[] { 1, 2, 3 }.Select(k => panel.Children.IndexOf(stack.HolderOf($"kitchen:{k}")!)));
+            return 0;
+        });
+    }
+
+    private static T OnSta<T>(Func<T> work)
+    {
+        T result = default!;
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try { result = work(); }
+            catch (Exception ex) { failure = ex; }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        if (failure is not null) throw failure;
+        return result;
     }
 }

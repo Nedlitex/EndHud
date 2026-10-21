@@ -140,6 +140,36 @@ internal static class ComboBanner
     }
 
     /// <summary>
+    /// A banner slides into a space already open (a kitchen's row kept for the session, <see cref="OpenHolder"/>): as
+    /// <see cref="SlideIn"/>, but nothing around it moves.
+    /// </summary>
+    public static void SlideInPlace(Border banner)
+    {
+        Translation(banner).BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(-SlideDistance, 0, SlideInTime) { EasingFunction = EaseOut });
+        banner.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, SlideInTime));
+        banner.BeginAnimation(Border.BorderThicknessProperty, new ThicknessAnimation(
+            new Thickness(FlareWidth, 0, 0, 0), new Thickness(EdgeWidth, 0, 0, 0), FlareTime) { BeginTime = FlareStart, EasingFunction = EaseOut });
+    }
+
+    /// <summary>A banner slides out of a space that stays open (a kitchen's row): as <see cref="SlideOut"/>, its space kept.</summary>
+    public static void SlideOutInPlace(Border banner, Action removed)
+    {
+        Translation(banner).BeginAnimation(TranslateTransform.XProperty,
+            new DoubleAnimation(-SlideDistance / 2, SlideOutTime) { EasingFunction = EaseIn });
+        var fade = new DoubleAnimation(0, SlideOutTime);
+        fade.Completed += (_, _) => removed();
+        banner.BeginAnimation(UIElement.OpacityProperty, fade);
+    }
+
+    /// <summary>A space for banners of <paramref name="height"/> (+ the gap), opening once and then kept (a kitchen's row).</summary>
+    public static Grid OpenHolder(double height, object? tag = null)
+    {
+        var holder = new Grid { Tag = tag, Height = 0 };
+        holder.BeginAnimation(FrameworkElement.HeightProperty, new DoubleAnimation(0, height + Gap, GapTime) { EasingFunction = EaseOut });
+        return holder;
+    }
+
+    /// <summary>
     /// Sets the banner as it looks <paramref name="sinceIn"/> after it started sliding in, and
     /// <paramref name="sinceOut"/> after it started sliding out (null: not yet). The same timings
     /// and easing as <see cref="SlideIn"/> and <see cref="SlideOut"/>, without running them.

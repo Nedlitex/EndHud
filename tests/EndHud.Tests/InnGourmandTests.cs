@@ -105,8 +105,9 @@ public class InnGourmandTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Through the overlay's own display: the banner is up while the order is open, put away while the dispatch panel is
-    /// open (it would cover the panel, as the cooking banners would), back when it's closed, gone once fulfilled.
+    /// Through the overlay's own display: the banner is up while the order is open, put away in place while the dispatch
+    /// panel is open (it would cover the panel, as the cooking banners would; <see cref="InnViews.Away"/>, the same banner
+    /// shown again after, no slide-in), back when it's closed, gone once fulfilled.
     /// </summary>
     [Fact]
     public void The_banner_stays_while_the_order_is_open_is_put_away_over_the_panel_and_goes_when_fulfilled()
@@ -126,7 +127,8 @@ public class InnGourmandTests(ITestOutputHelper output)
 
         display.Show(session, Session(11, tables: gourmand, panel: Panel(1, 1, [A, B, C])), S(11));
         display.Show(session, Session(11.3, tables: gourmand, panel: Panel(1, 1, [A, B, C])), S(11.3));
-        Assert.Empty(Wants(11.3));
+        Assert.True(display.Views(session, S(11.3), callsEnabled: true, Text).Away);
+        Assert.Equal(4, Assert.Single(Wants(11.3)).Table);
 
         display.Show(session, Session(11.6 + InnSession.PanelClosedAfter.TotalSeconds, tables: gourmand), S(11.6 + InnSession.PanelClosedAfter.TotalSeconds));
         Assert.Single(Wants(11.6 + InnSession.PanelClosedAfter.TotalSeconds));

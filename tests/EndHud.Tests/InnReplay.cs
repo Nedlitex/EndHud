@@ -14,7 +14,8 @@ namespace EndHud.Tests;
 internal sealed record InnReplayEvent(TimeSpan At, InnReading? Reading);
 
 /// <summary>Something one of the session's overlays did that the player sees.</summary>
-/// <param name="Display">"banner", "mark" or "gourmand" (a gourmand's banner).</param>
+/// <param name="Display">"banner", "mark", "gourmand" (a gourmand's banner), "call" (a kitchen's call, shown or hidden), "move" (a
+/// banner standing in another row) or "away" (the stacks hidden in place over the open dispatch panel).</param>
 /// <param name="Change">"+" appeared, "-" went, "~" drawn again with other content.</param>
 /// <param name="Why">What changed in the input on that step (screen, panel, tables, the call hold's reasons).</param>
 internal sealed record InnViewChange(TimeSpan At, string Display, string Change, string What, string Why);
@@ -34,7 +35,9 @@ internal sealed class InnReplay
     private readonly InnDisplay _display = new();
     private HashSet<string> _banners = [], _marks = [], _gourmands = [];
     private Dictionary<string, string> _gourmandContent = [];
-    private bool _panelShown;
+    private bool _panelShown, _away;
+    private readonly InnBannerRows _rows = new();
+    private Dictionary<string, int> _bannerRows = [];
     private InnReading? _last;
     private TimeSpan? _sessionFrom, _sessionTo;
 
@@ -88,9 +91,19 @@ internal sealed class InnReplay
         _panelShown = panel;
         string why = _session.CallChanges.Count > 0 ? $"{input}; calls: {string.Join("; ", _session.CallChanges)}" : input;
         TakeCalls(at, _display.LastAdvice, why);
-        var banners = InnCallView.Of(views.Calls, Text).Select(b => $"{b.Key} ({b.Title})").ToHashSet();
+        // The banners as the overlay draws them: every call in its row (InnBannerRows), the stack hidden in place while the
+        // dispatch panel is open (no banner goes or comes for that); a banner standing in another row than before moved.
+        if (!views.Session) _rows.Clear();
+        var rows = views.Session ? _rows.Rows(views.Kitchens, views.Calls, Text) : [];
+        var placed = rows.Select((r, i) => (r.Banner, Row: i)).Where(r => r.Banner is not null).ToDictionary(r => $"{r.Banner!.Key} ({r.Banner.Title})", r => r.Row);
+        var banners = placed.Keys.ToHashSet();
         Diff("banner", _banners, banners, at, why);
+        foreach (var (banner, row) in placed)
+            if (_bannerRows.TryGetValue(banner, out int was) && was != row) Changes.Add(new InnViewChange(at, "move", "~", $"{banner} row {was} -> {row}", why));
+        _bannerRows = placed;
         _banners = banners;
+        if (views.Away != _away) Changes.Add(new InnViewChange(at, "away", views.Away ? "-" : "+", "the banner stacks, hidden in place", why));
+        _away = views.Away;
         var marks = views.Marks.Select(m => m.Key).ToHashSet();
         Diff("mark", _marks, marks, at, why);
         _marks = marks;
@@ -300,7 +313,7 @@ internal sealed class InnReplay
     public IReadOnlyDictionary<string, double> PerMinute()
     {
         double minutes = Math.Max(SessionSpan.TotalMinutes, 1e-9);
-        return new[] { "banner", "mark", "gourmand", "call" }.ToDictionary(d => d, d => Changes.Count(c => c.Display == d) / minutes);
+        return new[] { "banner", "mark", "gourmand", "call", "move" }.ToDictionary(d => d, d => Changes.Count(c => c.Display == d) / minutes);
     }
 
     public string Report()

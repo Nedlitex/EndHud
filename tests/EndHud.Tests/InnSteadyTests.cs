@@ -79,7 +79,7 @@ public class InnSteadyTests
         display.Show(session, Session(10.9, fire: new FireMeter(14, 6, Ready: false)), S(10.9));
         var closed = display.Views(session, S(10.9), callsEnabled: true, Text);
         Assert.Empty(closed.Marks);
-        Assert.Empty(closed.Calls);
+        Assert.True(closed.Away); // the banners still put away a moment
         // A tick later, and a frame missing the meter: still no mark.
         Assert.Empty(display.Views(session, S(11.1), callsEnabled: true, Text).Marks);
         display.Show(session, Session(11.2), S(11.2));
@@ -88,6 +88,30 @@ public class InnSteadyTests
         // Read open again: the marks are back with it.
         display.Show(session, Session(11.4, panel: KitchenOne()), S(11.4));
         Assert.NotEmpty(display.Views(session, S(11.4), callsEnabled: true, Text).Marks);
+    }
+
+    /// <summary>
+    /// While the dispatch panel is open the banners and the gourmands' banners are put away in place, not taken down: the
+    /// views keep every call and request and say they are away (<see cref="InnViews.Away"/>), so the overlay hides the
+    /// stacks and shows the same banners again when the panel closes, with no slide-in (owner, 2026-10-21: "the recommended
+    /// dish flashes heavily"; on test_yuanyuan4 every opening and closing of the panel took every banner out and slid it in
+    /// again with its gold flare).
+    /// </summary>
+    [Fact]
+    public void The_open_panel_puts_the_banners_away_in_place()
+    {
+        var session = Prepared();
+        var display = new InnDisplay();
+        display.Show(session, Session(10), S(10));
+        var closed = display.Views(session, S(10), callsEnabled: true, Text);
+        Assert.False(closed.Away);
+        Assert.NotEmpty(closed.Calls);
+
+        display.Show(session, Session(10.3, panel: KitchenOne()), S(10.3));
+        display.Show(session, Session(10.6, panel: KitchenOne()), S(10.6));
+        var open = display.Views(session, S(10.6), callsEnabled: true, Text);
+        Assert.True(open.Away);
+        Assert.Equal(closed.Calls.Select(c => c.Key), open.Calls.Select(c => c.Key));
     }
 
     /// <summary>Read open on one frame only (26 times on the recording): the banners stay up.</summary>

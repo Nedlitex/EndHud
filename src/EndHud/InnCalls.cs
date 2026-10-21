@@ -34,13 +34,19 @@ internal sealed record InnCall(InnCallKind Kind, int? Kitchen = null, Dish? Dish
     /// <summary>Who it is: two calls with one key are the same call (its banner stays as it is).</summary>
     public string Key => $"{Kind}:{Kitchen}:{Dish?.Id}:{Table}:{Remove?.Id}";
 
-    /// <summary>Calls are stacked in this order: Full Blaze, then the kitchens by number, then the last call by table.</summary>
+    /// <summary>
+    /// Calls are stacked in this order: the kitchens by number, then Full Blaze, then the last call by table. The kitchens
+    /// first, each in a row kept for the session (<see cref="InnBannerRows"/>), so nothing coming or going moves them.
+    /// </summary>
     public (int Group, int Number) Order => Kind switch
     {
-        InnCallKind.BlazeNow or InnCallKind.BlazeGetReady => (0, 0),
+        InnCallKind.BlazeNow or InnCallKind.BlazeGetReady => (1, 0),
         InnCallKind.LastCall => (2, Table ?? 0),
-        _ => (1, Kitchen ?? 0),
+        _ => (0, Kitchen ?? 0),
     };
+
+    /// <summary>A kitchen's call (a dish to queue, cook ahead or swap): it goes in that kitchen's row.</summary>
+    public bool ForKitchen => Order.Group == 0 && Kitchen is not null;
 }
 
 /// <summary>What <see cref="InnCallHold"/> asks of the session about a kitchen, as it is now.</summary>

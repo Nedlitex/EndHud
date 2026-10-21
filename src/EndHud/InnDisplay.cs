@@ -9,6 +9,19 @@ namespace EndHud;
 internal sealed record InnViews(IReadOnlyList<InnCall> Calls, IReadOnlyList<InnPanelMark> Marks, IReadOnlyList<InnWant> Wants)
 {
     public static readonly InnViews None = new([], [], []);
+
+    /// <summary>
+    /// The dispatch panel is open: the banners and the gourmands' banners are put away in place (hidden, not taken down),
+    /// so the same banners show again when it closes, with no slide-in (owner, 2026-10-21: "the recommended dish flashes
+    /// heavily"). They'd cover the panel, whose marks take over meanwhile.
+    /// </summary>
+    public bool Away { get; init; }
+
+    /// <summary>A session's views (<see cref="None"/> is not): the banners' rows are kept while this holds (<see cref="InnBannerRows"/>).</summary>
+    public bool Session { get; init; }
+
+    /// <summary>The kitchens that cook this session, each with its banner row from the start (<see cref="InnBannerRows"/>).</summary>
+    public IReadOnlyList<int> Kitchens { get; init; } = [];
 }
 
 /// <summary>
@@ -58,12 +71,17 @@ internal sealed class InnDisplay
         LastAdvice = advice;
         var wants = _wants.Update(advice, text, now);
         return new InnViews(
-            // The banners, except over the open dispatch panel, where its marks take over.
-            advice.BannerCalls,
+            // The banners: every call, put away in place over the open dispatch panel, where its marks take over.
+            advice.Calls,
             // The marks only while the panel is on screen: gone the moment a frame reads it closed.
             callsEnabled ? InnPanelMarks.Of(advice.MarkedPanel, advice.Calls, text) : [],
-            // What each gourmand wants, while their order is open, held steady; put away over the open panel (the banners would cover it).
-            advice.Panel is null ? wants : []);
+            // What each gourmand wants, while their order is open, held steady; put away in place over the open panel too.
+            wants)
+        {
+            Away = advice.Panel is not null,
+            Session = true,
+            Kitchens = [.. advice.Dispatch?.Kitchens.Select(k => k.Kitchen) ?? []],
+        };
     }
 
     /// <summary>The session's advice now; null (and logged) if working it out failed, so the overlay carries on.</summary>

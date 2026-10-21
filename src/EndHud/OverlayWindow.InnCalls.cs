@@ -10,39 +10,37 @@ namespace EndHud;
 /// be added to a kitchen, try to use the same ui as combo ready"; "remove all hints from the current panel, use the
 /// combo instead"): each call of <see cref="InnAdvice.Calls"/> as a <see cref="ComboBanner"/> with the dish's picture,
 /// up for as long as the call stands (the calls are held steady, <see cref="InnCallHold"/>), sliding in when it's
-/// new and out when it's done. Stacked in a fixed order (Full Blaze, the kitchens by number, the last call). Only
+/// new and out when it's done. Stacked in a fixed order (the kitchens by number, each in a row kept for the session;
+/// then Full Blaze and the last call), hidden in place while the dispatch panel is open. Only
 /// during a session; at the combo hint's place by default, draggable while the menu is open (a sample banner shows
 /// then); the inn helper's size and opacity apply.
 /// </summary>
 public partial class OverlayWindow
 {
-    private readonly List<(string Key, Border Element, Grid Holder)> _innCallBanners = [];
+    private InnBannerStack? _innCallBannersStack;
+    private readonly InnBannerRows _innCallRows = new();
     private Point? _innCallDragOffset;
 
-    /// <summary>Puts up the banners for <paramref name="calls"/> (none: all slide out); a banner already up for a call stays as it is.</summary>
-    private void RenderInnCalls(IReadOnlyList<InnCall> calls)
-    {
-        var models = _config.InnHelperEnabled && _config.InnCallsEnabled ? InnCallView.Of(calls, Loc.Get).ToList() : [];
-        // Something to drag while placing it.
-        if (_menuOpen && models.Count == 0 && _config.InnHelperEnabled && _config.InnCallsEnabled)
-            models.Add(InnCallView.Sample(_party.Identifier?.Library.Inn, Loc.Get));
+    /// <summary>The banners drawn into <c>InnCallStack</c> (made on first use: the XAML's elements exist by then).</summary>
+    private InnBannerStack InnCallBanners => _innCallBannersStack ??= new InnBannerStack(InnCallStack, model => InnCallView.Banner(model, InnPicture));
 
-        foreach (var banner in _innCallBanners.Where(b => models.All(m => m.Key != b.Key)).ToList())
-        {
-            _innCallBanners.Remove(banner);
-            ComboBanner.SlideOut(banner.Holder, banner.Element, () => InnCallStack.Children.Remove(banner.Holder));
-        }
-        foreach (var model in models)
-        {
-            if (_innCallBanners.Any(b => b.Key == model.Key)) continue;
-            var element = InnCallView.Banner(model, InnPicture);
-            var holder = ComboBanner.Holder(element, model.Order);
-            // In their order; banners still sliding out count too.
-            int index = InnCallStack.Children.OfType<FrameworkElement>().Count(c => c.Tag is int order && order < model.Order);
-            InnCallStack.Children.Insert(index, holder);
-            _innCallBanners.Add((model.Key, element, holder));
-            ComboBanner.SlideIn(holder, element);
-        }
+    /// <summary>
+    /// Puts up the calls' banners in their rows (<see cref="InnBannerRows"/>; off a session: all slide out and the kitchens'
+    /// rows are forgotten). A banner already up for a call stays as it is; a kitchen's banner changing slides out and in
+    /// within its row, which stays, so nothing else moves. While the dispatch panel is open the stack is hidden in place
+    /// and shown again as it is when the panel closes (<see cref="InnViews.Away"/>).
+    /// </summary>
+    private void RenderInnCalls(InnViews views)
+    {
+        var (calls, away) = (views.Calls, views.Away);
+        bool on = _config.InnHelperEnabled && _config.InnCallsEnabled;
+        if (!on || !views.Session) _innCallRows.Clear();
+        var rows = on && views.Session ? _innCallRows.Rows(views.Kitchens, calls, Loc.Get).ToList() : [];
+        // Something to drag while placing it.
+        if (_menuOpen && rows.Count == 0 && on)
+            rows.Add(new InnBannerRow("sample", InnCallView.Sample(_party.Identifier?.Library.Inn, Loc.Get)));
+        InnCallStack.Visibility = away && !_menuOpen ? Visibility.Hidden : Visibility.Visible;
+        InnCallBanners.Update(rows);
     }
 
     private void InnCallsCheckBox_Click(object sender, RoutedEventArgs e)

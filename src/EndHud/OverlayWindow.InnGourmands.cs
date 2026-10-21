@@ -21,11 +21,13 @@ public partial class OverlayWindow
     /// Puts up the banners for <paramref name="wants"/> (none: all slide out). A gourmand's banner already up stays where
     /// it is; when what it says changes (a request read later, another item clearly sooner) it's drawn again in place.
     /// </summary>
-    private void RenderInnGourmands(IReadOnlyList<InnWant> wants)
+    /// <param name="away">The dispatch panel is open: the stack is hidden in place and shown again as it is (<see cref="InnViews.Away"/>).</param>
+    private void RenderInnGourmands(IReadOnlyList<InnWant> wants, bool away)
     {
         var banners = _config.InnHelperEnabled ? InnGourmandView.Banners(wants, Loc.Get).ToList() : [];
         if (_menuOpen && banners.Count == 0 && _config.InnHelperEnabled)
             banners.Add(InnGourmandView.Sample(_party.Identifier?.Library.Inn, Loc.Get));
+        InnGourmandStack.Visibility = away && !_menuOpen ? Visibility.Hidden : Visibility.Visible;
 
         foreach (var banner in _innGourmandBanners.Where(b => banners.All(m => m.Key != b.Key)).ToList())
         {

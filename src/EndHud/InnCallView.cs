@@ -13,6 +13,47 @@ namespace EndHud;
 /// <param name="PictureId">The dish whose picture is shown; null for none (Full Blaze).</param>
 internal sealed record InnBannerModel(string Key, int Order, string Title, string Caption, string? PictureId);
 
+/// <summary>One row of the banners' stack: a kitchen's row (<paramref name="Banner"/> null while it has no call), or a row for one other banner.</summary>
+/// <param name="Row">Who the row is: "kitchen:N", or the banner's own key.</param>
+internal sealed record InnBannerRow(string Row, InnBannerModel? Banner)
+{
+    public bool IsKitchen => Row.StartsWith(KitchenRow, StringComparison.Ordinal);
+
+    public const string KitchenRow = "kitchen:";
+}
+
+/// <summary>
+/// The banners' rows, kept for the session (owner, 2026-10-21: "the recommendation should stay steady"): each kitchen that
+/// has had a banner keeps its row, empty between its calls, so no banner moves when another comes or goes; Full Blaze and
+/// the last calls stack below the kitchens, each in its own row while it stands. The overlay draws these rows, and the
+/// replay (InnReplayTests) measures them.
+/// </summary>
+internal sealed class InnBannerRows
+{
+    private readonly SortedSet<int> _kitchens = [];
+
+    /// <summary>Forgets the kitchens' rows (the session ended).</summary>
+    public void Clear() => _kitchens.Clear();
+
+    /// <summary>The rows, top to bottom, for <paramref name="calls"/>; at most <see cref="InnCallView.MostBanners"/>.</summary>
+    /// <param name="kitchens">The kitchens that cook this session: each has its row from the start, so none opening later moves another.</param>
+    public IReadOnlyList<InnBannerRow> Rows(IReadOnlyList<int> kitchens, IReadOnlyList<InnCall> calls, Func<string, string> text)
+    {
+        _kitchens.UnionWith(kitchens);
+        foreach (var call in calls.Where(c => c.ForKitchen)) _kitchens.Add(call.Kitchen!.Value);
+        var rows = new List<InnBannerRow>();
+        foreach (int kitchen in _kitchens)
+        {
+            var call = calls.FirstOrDefault(c => c.ForKitchen && c.Kitchen == kitchen);
+            rows.Add(new InnBannerRow($"{InnBannerRow.KitchenRow}{kitchen}", call is null ? null : InnCallView.Of(call, text)));
+        }
+        // One banner per key (a table given two of a dish at the last call: one banner says it).
+        foreach (var banner in calls.Where(c => !c.ForKitchen).Select(c => InnCallView.Of(c, text)).DistinctBy(b => b.Key).OrderBy(b => b.Order))
+            rows.Add(new InnBannerRow(banner.Key, banner));
+        return [.. rows.Take(InnCallView.MostBanners)];
+    }
+}
+
 /// <summary>
 /// The calls' words (owner, live 2026-10-20: "remove all hints from the current panel, use the combo instead"),
 /// every string from i18n/zh-CN.xaml: "厨房二：茄果鳞肉汤", "厨房二 预做：雪绵豆沙", "厨房一 换：雪绵豆沙 → 茄果鳞肉汤",
@@ -21,7 +62,7 @@ internal sealed record InnBannerModel(string Key, int Order, string Title, strin
 internal static class InnCallView
 {
     /// <summary>
-    /// The most banners up at once: Full Blaze, three kitchens and three last calls. More last calls wait for one
+    /// The most banners up at once: three kitchens, Full Blaze and three last calls. More last calls wait for one
     /// to be done; the stack stays inside a 1080p window from its default place (InnCallLayoutTests).
     /// </summary>
     public const int MostBanners = 7;
