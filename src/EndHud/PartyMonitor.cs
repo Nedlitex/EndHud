@@ -85,7 +85,15 @@ internal sealed class PartyMonitor : IDisposable
     public ReadingClock Reading { get; } = new();
 
     /// <summary>A frame of the game was read at <paramref name="now"/> (<see cref="InnClock"/>): the reading clock moves on.</summary>
-    internal void FrameRead(TimeSpan now) => Reading.Frame(now);
+    internal void FrameRead(TimeSpan now)
+    {
+        var skipped = Reading.Frame(now);
+        if (skipped <= TimeSpan.Zero) return;
+        // Back from a pause: the inn's holds pick up where they were, as if no time had passed
+        // (InnFrameReader.Resume), so the screen held before the pause is looked for on every frame.
+        _innFrames?.Resume(skipped);
+        if (_missedSince is { } since) _missedSince = since + skipped;
+    }
 
     private static readonly TimeSpan BossStatusEvery = TimeSpan.FromSeconds(1);
     private int _libraryBusy;
@@ -391,11 +399,32 @@ internal sealed class PartyMonitor : IDisposable
     /// <summary>Called from the UI thread whenever the game window or HUD visibility changes.</summary>
     public void SetTarget(IntPtr gameWindow, bool active)
     {
+        bool wasOn = _active && _target != IntPtr.Zero, on = active && gameWindow != IntPtr.Zero;
         if (gameWindow != _target || active != _active)
-            DiagnosticLog.Info($"reading {(active && gameWindow != IntPtr.Zero ? "on" : "off")}: {Native.Describe(gameWindow)}");
+            DiagnosticLog.Info($"reading {(on ? "on" : "off")}: {Native.Describe(gameWindow)}");
         _target = gameWindow;
         _active = active;
+        // Back on (the game in front again): read now, not after the rest of the interval.
+        if (on && !wasOn && _wake.CurrentCount == 0)
+        {
+            try
+            {
+                _wake.Release();
+            }
+            catch (SemaphoreFullException)
+            {
+            }
+        }
     }
+
+    /// <summary>Wakes the reading loop's wait between frames.</summary>
+    private readonly SemaphoreSlim _wake = new(0, 1);
+
+    /// <summary>
+    /// Back from a pause with the window capture kept, how long to wait for a new picture before
+    /// building the capture again (which sends one at once). The game draws every frame while in front.
+    /// </summary>
+    internal static readonly TimeSpan ResumeWait = TimeSpan.FromSeconds(0.5);
 
     public void Start()
     {
@@ -645,6 +674,8 @@ internal sealed class PartyMonitor : IDisposable
 
         WindowCapture? capture = null;
         IntPtr captured = IntPtr.Zero;
+        (int Width, int Height) capturedSize = default; // the game's client area when its capture was built
+        bool paused = false; // the reading was off since the last frame
         var tracker = new PartyTracker();
         var bossClock = Stopwatch.StartNew();
         var ct = _cts.Token;
@@ -666,16 +697,23 @@ internal sealed class PartyMonitor : IDisposable
             while (!ct.IsCancellationRequested)
             {
                 Enter("waiting");
-                await Task.Delay(_interval, ct);
+                // Woken at once when the reading turns back on (SetTarget), not after the interval.
+                await _wake.WaitAsync(_interval, ct);
 
                 IntPtr hwnd = _target;
                 if (!_active || hwnd == IntPtr.Zero)
                 {
-                    // Stop capturing while the HUD is hidden; restart on demand. Time stands
-                    // still for the inn meanwhile: an alt-tab isn't leaving the inn.
+                    // Paused while the HUD is hidden (another window in front). Time stands still for
+                    // the inn meanwhile: an alt-tab isn't leaving the inn. The window capture is kept,
+                    // so coming back reads at once instead of building a capture again; it's let go
+                    // only when the window really changed: closed, minimised, or another window.
                     Reading.Stop(InnClock.Now);
-                    capture?.Dispose();
-                    capture = null;
+                    if (capture is not null && (hwnd == IntPtr.Zero || hwnd != captured || !Native.IsWindow(hwnd) || Native.IsIconic(hwnd)))
+                    {
+                        capture.Dispose();
+                        capture = null;
+                    }
+                    paused = true;
                     continue;
                 }
 
@@ -703,7 +741,28 @@ internal sealed class PartyMonitor : IDisposable
                     {
                         _source = "window capture";
                         bool started = false;
-                        if (capture is null || captured != hwnd)
+                        var size = Native.ClientAreaOnScreen(hwnd);
+                        if (capture is not null && (captured != hwnd || (size.Width, size.Height) != capturedSize))
+                        {
+                            // Another window, or the game's window resized: a capture for it as it is now.
+                            capture.Dispose();
+                            capture = null;
+                        }
+                        Frame? frame = null;
+                        if (capture is not null && paused)
+                        {
+                            // Back from a pause with the capture kept: a picture the window presents
+                            // now, never the last one from before the pause (Windows sends frames
+                            // only when the picture changes, and those during the pause were dropped).
+                            frame = await capture.TryGetNewFrameAsync(ResumeWait, ct);
+                            if (frame is null)
+                            {
+                                capture.Dispose();
+                                capture = null;
+                            }
+                        }
+                        paused = false;
+                        if (capture is null)
                         {
                             capture?.Dispose();
                             capture = new WindowCapture(hwnd);
@@ -716,10 +775,11 @@ internal sealed class PartyMonitor : IDisposable
                                 DiagnosticLog.Info($"graphics (capture device on {capture.Adapter}):{Environment.NewLine}{GraphicsInfo.Describe(hwnd)}");
                             }
                             captured = hwnd;
+                            capturedSize = (size.Width, size.Height);
                             started = true;
                         }
 
-                        var frame = await capture.GetFrameAsync(ct);
+                        frame ??= await capture.GetFrameAsync(ct);
                         silentCaptures = 0;
                         var client = Native.ClientAreaInCapture(hwnd, frame.Width, frame.Height);
                         if (started) DiagnosticLog.Info($"capture started: frame {frame.Width}x{frame.Height}, game area {client}; {Native.Describe(hwnd)}");

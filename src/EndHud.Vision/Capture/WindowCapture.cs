@@ -67,7 +67,22 @@ public sealed class WindowCapture : IDisposable
     /// so if none arrives within 2 s the last frame is returned (the window still shows it);
     /// <see cref="TimeoutException"/> only if no frame has arrived at all.
     /// </summary>
-    public async Task<Frame> GetFrameAsync(CancellationToken cancellationToken = default)
+    public async Task<Frame> GetFrameAsync(CancellationToken cancellationToken = default) =>
+        await NextFrameAsync(FrameTimeout, cancellationToken) ?? Latest() ?? throw new TimeoutException("The window has not presented a frame yet.");
+
+    /// <summary>
+    /// The next frame the window presents within <paramref name="wait"/>, or null: never an older
+    /// one (after a pause, the last frame copied may be older than what the window shows).
+    /// </summary>
+    public Task<Frame?> TryGetNewFrameAsync(TimeSpan wait, CancellationToken cancellationToken = default) =>
+        NextFrameAsync(wait, cancellationToken);
+
+    private Frame? Latest()
+    {
+        lock (_lock) return _latest;
+    }
+
+    private async Task<Frame?> NextFrameAsync(TimeSpan wait, CancellationToken cancellationToken)
     {
         var tcs = new TaskCompletionSource<Frame>(TaskCreationOptions.RunContinuationsAsynchronously);
         lock (_lock)
@@ -77,15 +92,13 @@ public sealed class WindowCapture : IDisposable
         }
         try
         {
-            return await tcs.Task.WaitAsync(FrameTimeout, cancellationToken);
+            return await tcs.Task.WaitAsync(wait, cancellationToken);
         }
         catch (TimeoutException)
         {
             lock (_lock)
-            {
                 if (_pending == tcs) _pending = null;
-                return _latest ?? throw new TimeoutException("The window has not presented a frame yet.");
-            }
+            return null;
         }
     }
 

@@ -168,6 +168,16 @@ internal sealed class InnFrameReader(IInnScreens screens)
     public bool InInn => _last is not null;
 
     /// <summary>
+    /// Reading resumed after <paramref name="skipped"/> without frames (the game in the background):
+    /// the inn screen seen before is held as if no time had passed, so a first frame back that misses
+    /// it (the game redrawing as it gets the focus) doesn't send the reader to looking once a second.
+    /// </summary>
+    public void Resume(TimeSpan skipped)
+    {
+        if (_seenAt is { } seen) _seenAt = seen + skipped;
+    }
+
+    /// <summary>
     /// The frame's inn reading, or null when it isn't the inn (or the inn wasn't looked for on this
     /// frame: see the class). <paramref name="squadPanelSeen"/>: the last squad reading saw the panel.
     /// </summary>
