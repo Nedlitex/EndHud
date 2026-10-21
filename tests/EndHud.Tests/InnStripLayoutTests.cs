@@ -76,7 +76,7 @@ public class InnStripLayoutTests
 
     private static Size Measure(InnStripModel model, Func<string, BitmapSource?> picture) => OnSta(() =>
     {
-        var element = InnStrip.Build(model, picture, InnStrip.LineWidth);
+        var element = InnStrip.Build(model, picture, InnStrip.LineWidth, InnStripLook.Gourmands);
         element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         return element.DesiredSize;
     });
@@ -161,6 +161,28 @@ public class InnStripLayoutTests
         Assert.True(picture >= 0.85 * height, $"the picture is {picture:F0} of the banner's {height:F0} units");
     }
 
+    /// <summary>
+    /// Owner, live 2026-10-20: "老饕's panel's picture is also TOO small for human to read, make that panel bigger". At
+    /// 1080p the gourmand panel's pictures are 48 px (were 28) and its words 20 px (were 16).
+    /// </summary>
+    [Fact]
+    public void The_gourmand_panels_pictures_and_words_are_large()
+    {
+        var (pictures, words) = OnSta(() =>
+        {
+            var element = InnStrip.Build(Busiest(), PackagePicture, InnStrip.LineWidth, InnStripLook.Gourmands);
+            element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            element.Arrange(new Rect(element.DesiredSize));
+            var all = Descendants(element).ToList();
+            return (all.OfType<Image>().Select(i => i.ActualHeight).ToList(), all.OfType<TextBlock>().Select(t => t.FontSize).ToList());
+        });
+
+        Assert.NotEmpty(pictures);
+        Assert.All(pictures, h => Assert.True(h >= 48, $"a picture {h:F0} units tall"));
+        Assert.True(words.Min() >= 17, $"the smallest words are {words.Min():F0} units"); // a note's words are a little smaller
+        Assert.True(words.Max() >= 20, $"the largest words are {words.Max():F0} units");
+    }
+
     [Fact]
     public void A_long_gourmand_line_wraps_between_dishes_not_off_the_panel()
     {
@@ -178,7 +200,7 @@ public class InnStripLayoutTests
 
         var (images, texts) = OnSta(() =>
         {
-            var element = InnStrip.Build(model, id => id == missing ? null : PackagePicture(id), InnStrip.LineWidth);
+            var element = InnStrip.Build(model, id => id == missing ? null : PackagePicture(id), InnStrip.LineWidth, InnStripLook.Gourmands);
             element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             element.Arrange(new Rect(element.DesiredSize));
             var all = Descendants(element).ToList();

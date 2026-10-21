@@ -160,7 +160,7 @@ public partial class OverlayWindow
         string? key = model?.Key;
         if (key == _innKey) return;
         _innKey = key;
-        InnContent.Content = model is null ? null : InnStrip.Build(model, InnPicture, InnStrip.LineWidth);
+        InnContent.Content = model is null ? null : InnStrip.Build(model, InnPicture, InnStrip.LineWidth, InnStripLook.Gourmands);
         InnFrame.Visibility = model is null ? Visibility.Collapsed : Visibility.Visible;
     }
 

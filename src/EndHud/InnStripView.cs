@@ -64,8 +64,12 @@ internal sealed record InnStripModel(IReadOnlyList<InnLine> Lines)
 /// </summary>
 internal static class InnStripView
 {
-    /// <summary>Options shown per gourmand request: the best few are what the player needs.</summary>
-    public const int OptionsShown = 3;
+    /// <summary>
+    /// Options shown per gourmand request: the best and a second choice (the best is also the request's glowing circle,
+    /// InnWantsView). Two, not three, since the panel is drawn larger (owner, live 2026-10-20) and the busiest panel, two
+    /// gourmands of two requests each, must still fit the window at 1080p (InnStripLayoutTests).
+    /// </summary>
+    public const int OptionsShown = 2;
 
     /// <param name="text">The i18n lookup (<see cref="Loc.Get"/>; the tests pass zh-CN.xaml's strings).</param>
     public static InnStripModel Build(InnAdvice advice, Func<string, string> text)
@@ -74,6 +78,9 @@ internal static class InnStripView
         string F(string key, params object[] args) => string.Format(text(key), args);
 
         var lines = new List<InnLine>();
+        // Over the open dispatch panel it would cover the dish cards and their mark: put away meanwhile (the gourmands'
+        // circles stay, above the panel).
+        if (advice.Panel is not null) return new InnStripModel(lines);
         foreach (var note in advice.Gourmands.OrderBy(g => g.Table)) lines.AddRange(GourmandLines(note, advice.ExactKitchens, T, F));
         return new InnStripModel(lines);
     }

@@ -50,6 +50,8 @@ public class ConfigTests
     [InlineData("{}", HudConfig.DefaultInnStripX, HudConfig.DefaultInnStripY)]
     [InlineData("{\"InnStripX\": 0.1, \"InnStripY\": 0.6}", 0.1, 0.6)]
     [InlineData("{\"InnStripX\": -3, \"InnStripY\": 7}", 0.0, 1.0)]
+    // The gourmand panel's old default place (before it was drawn larger, 2026-10-20) moves to the new one.
+    [InlineData("{\"InnStripX\": 0.72, \"InnStripY\": 0.16}", HudConfig.DefaultInnStripX, 0.16)]
     public void The_inn_strips_place_defaults_to_the_right_and_a_hand_edited_one_stays_on_the_window(string json, double x, double y)
     {
         var config = ConfigStore.Parse(json);

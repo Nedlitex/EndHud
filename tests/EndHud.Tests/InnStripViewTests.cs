@@ -353,18 +353,19 @@ public class InnStripViewTests
         {
             new(Dish(A), null, GourmandSource.Counter, null, 0),
             new(Dish(B), null, GourmandSource.Queued, 2, 34.2),
-            new(Dish(C), null, GourmandSource.ToCook, 1, 35),
         };
+        var toCook = new GourmandOption(Dish(C), null, GourmandSource.ToCook, 1, 35);
         var drink = new GourmandOption(null, Drink(Tea), GourmandSource.DrinkBar, null, 0);
-        var note = new InnGourmandNote(4, new GourmandAdvice([new GourmandRequestAdvice(request, "plain", options), new GourmandRequestAdvice(request, "drink", [drink])], null), null, false);
+        var note = new InnGourmandNote(4, new GourmandAdvice([new GourmandRequestAdvice(request, "plain", options), new GourmandRequestAdvice(request, "other", [toCook]),
+            new GourmandRequestAdvice(request, "drink", [drink])], null), null, false);
 
         var lines = Strip(Advice(Kitchens(new KitchenAdvice(1, [], [])), gourmands: [note], exact: new HashSet<int> { 2 })).Lines;
 
         string Wrap(string where) => Format("Inn.Where.Wrap", where);
         Assert.Contains(lines, l => l.Text == Text("Inn.Gourmand.Options")
             + Dish(A).Zh + Wrap(Text("Inn.Where.Counter")) + Text("Inn.Between")
-            + Dish(B).Zh + Wrap(Format("Inn.Where.Kitchen", Kitchen(2), 35)) + Text("Inn.Between")
-            + Dish(C).Zh + Wrap(Format("Inn.Where.ToCookAbout", Kitchen(1), 35)));
+            + Dish(B).Zh + Wrap(Format("Inn.Where.Kitchen", Kitchen(2), 35)));
+        Assert.Contains(lines, l => l.Text == Text("Inn.Gourmand.Options") + Dish(C).Zh + Wrap(Format("Inn.Where.ToCookAbout", Kitchen(1), 35)));
         Assert.Contains(lines, l => l.Text == Text("Inn.Gourmand.Options") + Drink(Tea).Zh + Wrap(Text("Inn.Where.DrinkBar")));
     }
 
@@ -394,6 +395,25 @@ public class InnStripViewTests
 
         Assert.Equal(Format("Inn.Gourmand.Title", 5), lines[0].Text);
         Assert.Equal(Text("Inn.Gourmand.NoneOnMenu"), lines[2].Text);
+    }
+
+    /// <summary>The larger gourmand panel would cover the open dispatch panel's dish cards (and the mark on one): put away meanwhile.</summary>
+    [Fact]
+    public void The_gourmand_panel_is_put_away_while_the_dispatch_panel_is_open()
+    {
+        var session = Prepared(1);
+        var (request, _) = DishRequestMetBy(A, B, C, D, E);
+        var gourmand = Tables(new TableCard(6, TableState.GourmandOrder, [], []));
+        session.Update(Session(10, tables: gourmand, bubble: new GourmandBubble(request.Text, [request.Text])));
+        Assert.NotEmpty(Strip(session.Advice(S(10))!).Lines);
+
+        session.Update(Session(11, tables: gourmand, panel: Panel(1, 1, Menu.Take(5).ToList())));
+        var open = session.Advice(S(11))!;
+        Assert.Single(open.Gourmands); // still known
+        Assert.Empty(Strip(open).Lines);
+
+        session.Update(Session(12, tables: gourmand));
+        Assert.NotEmpty(Strip(session.Advice(S(12))!).Lines);
     }
 
     /// <summary>A drink request before any drink of the menu has been seen: nothing to offer yet, and nothing said about it (not "none on the menu", which would be wrong).</summary>

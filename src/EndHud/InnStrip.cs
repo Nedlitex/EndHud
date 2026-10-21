@@ -19,10 +19,10 @@ internal static class InnStrip
     internal const double PictureSize = 28;
 
     /// <summary>
-    /// The lines' width at 1080p: a longer line wraps between dishes. Measured so the strip fits right
-    /// of the dispatch panel, from its default place to the window's edge (see InnStripLayoutTests).
+    /// The lines' width at 1080p: a longer line wraps between dishes. Measured so the gourmand panel, drawn larger
+    /// (<see cref="InnStripLook.Gourmands"/>), fits from its default place to a 1080p window's edge (see InnStripLayoutTests).
     /// </summary>
-    internal const double LineWidth = 470;
+    internal const double LineWidth = 520;
 
     /// <summary>How far in a line starts per step of its indent (a row under its heading), at 1080p.</summary>
     internal const double IndentStep = 16;
@@ -151,6 +151,12 @@ internal sealed record InnStripLook(double FontSize, double PictureSize, double 
 {
     /// <summary>The session's strip and the chefs' advice.</summary>
     public static readonly InnStripLook Normal = new(16, InnStrip.PictureSize, 2, new Thickness(12, 8, 14, 8));
+
+    /// <summary>
+    /// The session's gourmand panel, larger (owner, live 2026-10-20: "老饕's panel's picture is also TOO small for human
+    /// to read, make that panel bigger"): 20 px words, 48 px pictures at 1080p.
+    /// </summary>
+    public static readonly InnStripLook Gourmands = new(20, 48, 3, new Thickness(14, 10, 16, 10));
 
     /// <summary>The menu's advice: a full menu (eight dishes, eight drinks, their substitutes) in the menu screen's blank column.</summary>
     public static readonly InnStripLook Compact = new(13, 20, 1, new Thickness(10, 6, 10, 6));

@@ -156,9 +156,12 @@ internal sealed class HudConfig
     public const double DefaultGaugesCenterX = 0.5;
     public const double DefaultGaugesBottomY = 0.885;
 
-    // Right of the dispatch panel (which spans the middle of the screen) and below the table cards,
-    // above the Full Blaze meter at the right edge.
-    public const double DefaultInnStripX = 0.72;
+    // At the right, below the gourmands' circles (InnWantsLayout) and the table cards' row; the gourmand panel drawn
+    // larger (2026-10-20) starts a little further left so its widest line still ends inside a 1080p window.
+    public const double DefaultInnStripX = 0.70;
+
+    /// <summary>The gourmand panel's default left before it was drawn larger: a config still holding it gets the new one.</summary>
+    internal const double OldDefaultInnStripX = 0.72;
     public const double DefaultInnStripY = 0.16;
 
     public const double DefaultComboHintSeconds = 3;
@@ -242,6 +245,9 @@ internal static class ConfigStore
             : 1;
         // A place off the window would leave the strip where nobody can drag it back.
         config.InnStripX = double.IsFinite(config.InnStripX) ? Math.Clamp(config.InnStripX, 0, 1) : HudConfig.DefaultInnStripX;
+        // The old default, saved with every other setting, never the player's own place (a drag lands anywhere): the larger
+        // panel would run off a 1080p window from there.
+        if (config.InnStripX == HudConfig.OldDefaultInnStripX) config.InnStripX = HudConfig.DefaultInnStripX;
         config.InnStripY = double.IsFinite(config.InnStripY) ? Math.Clamp(config.InnStripY, 0, 1) : HudConfig.DefaultInnStripY;
         config.InnCallX = double.IsFinite(config.InnCallX) ? Math.Clamp(config.InnCallX, 0, 1) : HudConfig.DefaultComboHintX;
         config.InnCallY = double.IsFinite(config.InnCallY) ? Math.Clamp(config.InnCallY, 0, 1) : HudConfig.DefaultComboHintY;
