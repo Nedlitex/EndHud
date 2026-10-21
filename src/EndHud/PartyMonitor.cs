@@ -84,6 +84,9 @@ internal sealed class PartyMonitor : IDisposable
     /// </summary>
     public ReadingClock Reading { get; } = new();
 
+    /// <summary>A frame of the game was read at <paramref name="now"/> (<see cref="InnClock"/>): the reading clock moves on.</summary>
+    internal void FrameRead(TimeSpan now) => Reading.Frame(now);
+
     private static readonly TimeSpan BossStatusEvery = TimeSpan.FromSeconds(1);
     private int _libraryBusy;
     private DateTime _lastCheckUtc = DateTime.MinValue;
@@ -397,9 +400,17 @@ internal sealed class PartyMonitor : IDisposable
     public void Start()
     {
         _ = Task.Run(KeepLibraryAsync);
-        _ = Task.Run(RunAsync);
+        StartReading();
         _ = Task.Run(WatchAsync);
     }
+
+    /// <summary>Only the reading loop, without the operator library (tests set <see cref="InnFrames"/> themselves).</summary>
+    internal void StartReading() => _ = Task.Run(RunAsync);
+
+    private int _capturesStarted;
+
+    /// <summary>Window captures built so far (each one logs "capture started").</summary>
+    internal int CapturesStarted => Volatile.Read(ref _capturesStarted);
 
     private void Enter(string stage)
     {
@@ -696,6 +707,7 @@ internal sealed class PartyMonitor : IDisposable
                         {
                             capture?.Dispose();
                             capture = new WindowCapture(hwnd);
+                            Interlocked.Increment(ref _capturesStarted);
                             _capture = capture;
                             if (describedWindow != hwnd)
                             {
@@ -722,7 +734,7 @@ internal sealed class PartyMonitor : IDisposable
                     }
                     LatestFrame = gameFrame;
                     var frameAt = InnClock.Now;
-                    Reading.Frame(frameAt);
+                    FrameRead(frameAt);
                     // The inn first: in it the squad panel isn't on screen, and its screens are read instead.
                     Enter("inn");
                     // The overlay's advice runs on the same clock (InnClock), so its estimates line up with the readings.

@@ -176,7 +176,7 @@ public class WindowedGameCaptureTests
     private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
 
     /// <summary>An ordinary window (title bar, borders) on its own UI thread, showing one image in its client area.</summary>
-    private sealed class BorderedGameWindow : IDisposable
+    internal sealed class BorderedGameWindow : IDisposable
     {
         private readonly Thread _thread;
         private readonly ManualResetEventSlim _shown = new();

@@ -184,6 +184,7 @@ internal static class Native
     /// </summary>
     public static PixelRect ClientAreaInCapture(IntPtr hwnd, int frameWidth, int frameHeight)
     {
+        using var physical = PhysicalPixels.Enter();
         if (DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, out RECT frame, Marshal.SizeOf<RECT>()) != 0)
             GetWindowRect(hwnd, out frame);
         GetClientRect(hwnd, out var client);
@@ -196,6 +197,7 @@ internal static class Native
     /// <summary>The window's client area (the game picture) in physical screen coordinates.</summary>
     public static PixelRect ClientAreaOnScreen(IntPtr hwnd)
     {
+        using var physical = PhysicalPixels.Enter();
         if (!GetClientRect(hwnd, out var client)) return default;
         var origin = new POINT();
         ClientToScreen(hwnd, ref origin);
@@ -205,6 +207,26 @@ internal static class Native
 
     [DllImport("user32.dll")]
     private static extern uint GetDpiForWindow(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+
+    private static readonly IntPtr PerMonitorAwareV2 = new(-4);
+
+    /// <summary>
+    /// The calling thread measures in physical pixels until disposed, then as before. EndHud is per-monitor
+    /// DPI aware for the whole process (app.manifest), so there this changes nothing; a host that isn't
+    /// (the tests' runner) would otherwise get a scaled client area, which doesn't match the captured frame.
+    /// </summary>
+    private readonly struct PhysicalPixels(IntPtr before) : IDisposable
+    {
+        public static PhysicalPixels Enter() => new(SetThreadDpiAwarenessContext(PerMonitorAwareV2));
+
+        public void Dispose()
+        {
+            if (before != IntPtr.Zero) SetThreadDpiAwarenessContext(before);
+        }
+    }
 
     /// <summary>
     /// A window as the diagnostic log records it: title, class, its frame and client area on the

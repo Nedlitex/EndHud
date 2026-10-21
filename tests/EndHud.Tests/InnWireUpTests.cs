@@ -136,6 +136,33 @@ public class InnWireUpTests
     }
 
     /// <summary>
+    /// Owner, live 2026-10-20: "the capture is too slow" after an alt-tab. Back in the game on an
+    /// inn screen, a first frame that misses it (the game redrawing as it gets the focus) holds the
+    /// screen as any missed frame does: time with the reading off doesn't run the hold out, so the
+    /// inn is looked for on the next frame, not a second later, and its advice isn't put away.
+    /// </summary>
+    [Fact]
+    public async Task Back_from_an_alt_tab_the_inn_screen_is_held_and_found_on_the_next_frame()
+    {
+        var (monitor, screens, raised) = Monitor();
+        screens.Kind = InnScreenKind.Menu;
+        monitor.FrameRead(S(0));
+        Assert.True(await monitor.TryInnAsync(AnyFrame, S(0), false));
+        monitor.Reading.Stop(S(0.5)); // another window in front: the reading off for 27 s
+
+        screens.Kind = null;
+        monitor.FrameRead(S(27.5));
+        Assert.False(await monitor.TryInnAsync(AnyFrame, S(27.5), false));
+        screens.Kind = InnScreenKind.Menu;
+        monitor.FrameRead(S(27.75));
+
+        Assert.True(await monitor.TryInnAsync(AnyFrame, S(27.75), false));
+        Assert.DoesNotContain(null, raised);
+        Assert.False(raised[1]!.Fresh);
+        Assert.True(raised[^1]!.Fresh);
+    }
+
+    /// <summary>
     /// Owner, live 2026-10-19: "the page refreshes too slowly". The log showed "inn: left" then the
     /// setup screens found again ~1.2 s later: one frame whose title wasn't read counted as leaving, the
     /// advice was put away, and the inn was looked for only once a second after. Every inn screen is
