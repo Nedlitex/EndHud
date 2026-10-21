@@ -245,7 +245,8 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
         var setup = Setup!;
         var r = _requirements;
         int rating = Math.Clamp(r?.Rating ?? setup.Theme?.Rating ?? KitchenMath.MaxRating, 1, KitchenMath.MaxRating);
-        var chefs = roster.Where(o => !data.ChefBonuses.NotChefs.Contains(o.Id)).ToList();
+        // Only operators who can cook and are in the game (InnChefRules.Suggestable: Argent Flow isn't out yet, owner 2026-10-20).
+        var chefs = roster.Where(o => data.ChefBonuses.Suggestable(o.Id)).ToList();
         int? Stock(string id) => _offered.TryGetValue(id, out var card) && !card.Unlimited ? card.Stock : null;
         // What the player has: once the menu screen has shown dishes, those it showed (the player's own list,
         // owner: "it never even picked any one that I have"); before, every dish the rating unlocks and those a

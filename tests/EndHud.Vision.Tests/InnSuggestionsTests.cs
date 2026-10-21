@@ -128,6 +128,26 @@ public class InnSuggestionsTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// Owner, 2026-10-20: "明河 is not an available operator yet, do not suggest him for now". Argent Flow is on the
+    /// hand-kept list of operators not in the game yet (inn-data.json), and is never planned nor a substitute, even
+    /// when everyone else is stripped of their kitchen bonuses and he'd be the best chef by far.
+    /// </summary>
+    [Fact]
+    public void An_operator_not_yet_in_the_game_is_never_planned_nor_a_substitute()
+    {
+        Assert.Contains(Inn.ChefBonuses.NotYetAvailable, o => o.Id == "Argent_Flow");
+        var roster = InnTestData.Library.Operators.Select(o => o.Id == "Argent_Flow" ? o : o with { Hobbies = [], Element = null }).ToList();
+        Assert.NotEmpty(Inn.ChefBonusesOf(roster.Single(o => o.Id == "Argent_Flow")));
+        var input = Input(["Veggy", "Rich"], [new DishRule(2, ["Veggy", "Rich"])]) with { Chefs = roster };
+
+        var plan = Planner.Plan(input);
+        var suggestions = InnSuggester.Of(Planner, input, plan);
+
+        Assert.DoesNotContain(plan.Kitchens.SelectMany(k => k.Chefs), c => c.Id == "Argent_Flow");
+        Assert.DoesNotContain(suggestions.Kitchens.SelectMany(k => k.Chefs.Concat(k.ChefSubstitutes)), c => c.Id == "Argent_Flow");
+    }
+
     // ---- Substitutes ----
 
     [Fact]

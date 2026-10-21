@@ -41,7 +41,23 @@ public sealed record InnElement(string Id, string Zh, string Flavor);
 /// <param name="FlavorFromRating">The element's flavor bonus applies from this Inn Rating on.</param>
 /// <param name="NotChefs">Operators that can't be put in a kitchen.</param>
 public sealed record InnChefRules(int DishSpeedPercent, int ChoiceChancePercent, int FlavorPercent, int FlavorFromRating,
-    IReadOnlyList<InnHobby> Hobbies, IReadOnlyList<InnElement> Elements, IReadOnlyList<string> NotChefs);
+    IReadOnlyList<InnHobby> Hobbies, IReadOnlyList<InnElement> Elements, IReadOnlyList<string> NotChefs)
+{
+    /// <summary>
+    /// Operators the wiki's roster already lists but the game doesn't offer yet, so no player has them: never
+    /// suggested as a chef. Kept by hand in inn-data.json, each with where it's from, and taken out once the
+    /// operator is in the game. Empty in a file from before the list.
+    /// </summary>
+    public IReadOnlyList<InnNotYetAvailable> NotYetAvailable { get; init; } = [];
+
+    /// <summary>The operator may be suggested as a chef: one who can cook and is in the game.</summary>
+    public bool Suggestable(string operatorId) => !NotChefs.Contains(operatorId) && !NotYetAvailable.Any(o => o.Id == operatorId);
+}
+
+/// <summary>An operator not in the game yet (see <see cref="InnChefRules.NotYetAvailable"/>).</summary>
+/// <param name="Id">The operator's id in the roster (<see cref="OperatorInfo.Id"/>), e.g. "Argent_Flow".</param>
+/// <param name="Source">Who said so and when, e.g. "owner, 2026-10-20".</param>
+public sealed record InnNotYetAvailable(string Id, string Source);
 
 /// <summary>How a dish is unlocked: one of an Inn Rating, a theme's star, or something else (said in English).</summary>
 public sealed record DishUnlock(int? Rating = null, string? Theme = null, int? Stars = null, string? Other = null);
@@ -217,6 +233,8 @@ public sealed record InnData(int Format, IReadOnlyList<InnDishType> DishTypes, I
             foreach (var ingredient in dish.Ingredients.Where(i => !Ingredients.Any(k => k.Id == i.Id)))
                 problems.Add($"{dish.Id}: unknown ingredient {ingredient.Id}.");
         }
+        foreach (var op in ChefBonuses.NotYetAvailable.Where(o => string.IsNullOrWhiteSpace(o.Id) || string.IsNullOrWhiteSpace(o.Source)))
+            problems.Add($"Not yet available \"{op.Id}\": an id and a source are both needed.");
         foreach (var group in Drinks.GroupBy(d => d.Id).Where(g => g.Count() > 1)) problems.Add($"Two drinks are {group.Key}.");
         // One picture per id: a drink can't share one with a dish.
         foreach (var drink in Drinks.Where(d => Dishes.Any(x => x.Id == d.Id))) problems.Add($"{drink.Id} is a dish and a drink.");

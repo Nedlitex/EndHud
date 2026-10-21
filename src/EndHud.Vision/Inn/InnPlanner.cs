@@ -1176,7 +1176,7 @@ public sealed class InnPlanner(InnData inn)
             _placed = [.. input.Kitchens.Select(k => k.Placed.Select(o => o ?? PlainCook).ToArray())];
             var placed = input.Kitchens.SelectMany(k => k.Placed).OfType<OperatorInfo>().Select(o => o.Id).ToHashSet();
             _profiles = [.. input.Chefs
-                .Where(o => !inn.ChefBonuses.NotChefs.Contains(o.Id) && !placed.Contains(o.Id))
+                .Where(o => inn.ChefBonuses.Suggestable(o.Id) && !placed.Contains(o.Id))
                 .DistinctBy(o => o.Id)
                 .GroupBy(o => string.Join("|", inn.ChefBonusesOf(o).Select(b => $"{b.Kind}:{b.Percent}:{b.DishType}:{b.Flavor}").Order(StringComparer.Ordinal)))
                 .Select(g => (g.Key, g.ToList()))];

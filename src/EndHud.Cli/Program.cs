@@ -24,6 +24,8 @@ using EndHud.Vision.Operators;
 //       drink pictures in pictures.zip, kept by hand) and
 //       write the operator package EndHud ships and updates from (operators/operator-library.zip).
 //       Unchanged content keeps the same bytes. Inn data with problems stops the build.
+//       --keep-roster: don't ask the wiki; keep the roster, avatars, skills and statuses of the
+//       package already at <out.zip> and only put the inn's data in afresh (the wiki down, an inn-only edit).
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 
@@ -39,7 +41,7 @@ return args.FirstOrDefault() switch
         double.Parse(Option("--end-margin") ?? "0", System.Globalization.CultureInfo.InvariantCulture), Option("--reference")),
     "capture" when args.Length >= 3 => await CaptureAsync(args[1], args[2]),
     "build-portrait-references" when args.Length >= 3 => await BuildReferencesAsync(args[1], args[2]),
-    "build-operator-package" when args.Length >= 2 && Option("--inn") is { } inn => await BuildPackageAsync(args[1], inn),
+    "build-operator-package" when args.Length >= 2 && Option("--inn") is { } inn => await BuildPackageAsync(args[1], inn, args.Contains("--keep-roster")),
     "learn" when args.Length >= 2 && Option("--library") is { } lib && Option("--slots") is { } ids => await LearnAsync(args[1], lib, ids),
     _ => Usage(),
 };
@@ -62,7 +64,7 @@ static int Usage()
           endhud-cli learn <screenshot.png> --library <library-dir> --slots <id1>,<id2>,<id3>,<id4>
           endhud-cli capture <window-title-part> <out.png>
           endhud-cli build-portrait-references <squads.json> <out.json>
-          endhud-cli build-operator-package <out.zip> --inn <inn folder>
+          endhud-cli build-operator-package <out.zip> --inn <inn folder> [--keep-roster]
         """);
     return 2;
 }
@@ -203,7 +205,7 @@ static async Task<int> FetchAsync(string libraryDir)
 
 // The operator package: the wiki's roster zipped as EndHud ships it. Starts from the previous
 // package's files (so unchanged images aren't downloaded again) and keeps its date when nothing changed.
-static async Task<int> BuildPackageAsync(string outZip, string innFolder)
+static async Task<int> BuildPackageAsync(string outZip, string innFolder, bool keepRoster)
 {
     // The inn data first: it's kept by hand, so a mistake in it stops the build before the wiki is asked.
     string innFile = Path.Combine(innFolder, EndHud.Vision.Inn.InnData.FileName);
@@ -232,8 +234,13 @@ static async Task<int> BuildPackageAsync(string outZip, string innFolder)
         }
     }
 
+    if (keepRoster && !File.Exists(Path.Combine(work, "operators.json")))
+    {
+        Console.Error.WriteLine($"--keep-roster needs a readable package at {outZip} to keep the roster of.");
+        return 1;
+    }
     using var http = WikiOperatorSource.CreateHttpClient();
-    var result = await OperatorReference.UpdateAsync(work, http);
+    var result = keepRoster ? null : await OperatorReference.UpdateAsync(work, http);
     // The inn is written afresh from inn/: nothing of the previous package's (a removed dish's picture, a renamed folder) is kept.
     string innWork = Path.GetDirectoryName(EndHud.Vision.Inn.InnData.PathIn(work))!;
     if (Directory.Exists(innWork)) Directory.Delete(innWork, recursive: true);
@@ -256,9 +263,9 @@ static async Task<int> BuildPackageAsync(string outZip, string innFolder)
     if (inn.MissingChinese() is { Count: > 0 } missing) Console.WriteLine($"inn: {inn.Dishes.Count} dishes, {inn.Themes.Count} themes; not yet seen in Chinese: {string.Join(", ", missing)}");
     if (inn.Dishes.Select(d => d.Id).Concat(inn.Drinks.Select(d => d.Id)).Where(id => !File.Exists(EndHud.Vision.Inn.InnData.PicturePath(work, id))).ToList() is { Count: > 0 } unpictured)
         Console.WriteLine($"inn: no picture yet for {string.Join(", ", unpictured)}");
-    Console.WriteLine($"{info.Operators} operators ({result.Added.Count} new, {result.Download.Downloaded} images downloaded, {result.Download.Failed} failed), "
+    Console.WriteLine($"{info.Operators} operators ({(result is null ? "the roster kept, the wiki not asked" : $"{result.Added.Count} new, {result.Download.Downloaded} images downloaded, {result.Download.Failed} failed")}), "
         + $"content of {info.ContentAtUtc:yyyy-MM-dd HH:mm} UTC: {(changed ? "written" : "unchanged")} {Path.GetFullPath(outZip)} ({zip.Length / 1024} KB)");
-    return result.Download.Failed > 0 && result.Operators == 0 ? 1 : 0;
+    return result is { Download.Failed: > 0, Operators: 0 } ? 1 : 0;
 }
 
 static async Task<int> IdentifyAsync(string imagePath, string libraryDir, string? debugDir)

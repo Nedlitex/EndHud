@@ -54,9 +54,11 @@ public class InnSetupPanelTests
 
         Assert.Empty(inputs.Gaps);
         var input = Assert.IsType<InnPlanInput>(inputs.Input);
-        // Every operator who can cook: Si and the Endministrator can't.
-        Assert.Equal(Library.Operators.Where(o => !Inn.ChefBonuses.NotChefs.Contains(o.Id)).Select(o => o.Id).Order(), input.Chefs.Select(c => c.Id).Order());
-        Assert.DoesNotContain(input.Chefs, c => c.Id is "Si" or "Endministrator");
+        // Every operator who can cook and is in the game: Si and the Endministrator can't cook; Argent Flow (明河) isn't
+        // out yet (owner, 2026-10-20: "明河 is not an available operator yet, do not suggest him for now").
+        Assert.Equal(Library.Operators.Where(o => !Inn.ChefBonuses.NotChefs.Contains(o.Id) && o.Id != "Argent_Flow").Select(o => o.Id).Order(),
+            input.Chefs.Select(c => c.Id).Order());
+        Assert.DoesNotContain(input.Chefs, c => c.Id is "Si" or "Endministrator" or "Argent_Flow");
         Assert.Equal(["1:2", "2:2", "3:2"], input.Kitchens.Select(k => $"{k.Number}:{k.Places}"));
         Assert.Equal(4, input.Rating);
         Assert.Equal(new[] { "Veggy", "Rich" }, input.HotTraits);
@@ -127,12 +129,13 @@ public class InnSetupPanelTests
     // Each spot's words: see InnSetupViewTests.
 
     [Fact]
-    public void Nothing_seen_says_only_that_the_theme_is_missing()
+    public void Nothing_seen_shows_no_menu_panel()
     {
         var session = NewSession();
         session.Update(new InnReading(InnScreenKind.Menu, S(0), Fresh: false));
 
-        Assert.Equal(["还没看到主题：打开「营业设定」"], Lines(InnSetupView.Menu(session.MenuInputs(), null, session.OnMenu, Inn, Text)));
+        Assert.Equal([InnSetupGap.NoSetup], session.MenuInputs().Gaps);
+        Assert.Empty(InnSetupView.Menu(session.MenuInputs(), null, session.OnMenu, Inn, Text));
     }
 
     [Fact]

@@ -82,7 +82,7 @@ public static class InnSuggester
         // What each chef not in the plan adds in each kitchen used.
         var planned = kitchens.SelectMany(k => k.Chefs).Select(c => c.Id)
             .Concat(input.Kitchens.SelectMany(k => k.Placed).OfType<OperatorInfo>().Select(o => o.Id)).ToHashSet();
-        var cooks = input.Chefs.Where(o => !inn.ChefBonuses.NotChefs.Contains(o.Id) && !planned.Contains(o.Id)).DistinctBy(o => o.Id).ToList();
+        var cooks = input.Chefs.Where(o => inn.ChefBonuses.Suggestable(o.Id) && !planned.Contains(o.Id)).DistinctBy(o => o.Id).ToList();
         var chefWorth = new List<(int Kitchen, OperatorInfo Item, ChefWorth Worth)>();
         for (int k = 0; k < kitchens.Length; k++)
         {
