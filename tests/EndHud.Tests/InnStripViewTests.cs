@@ -5,9 +5,10 @@ using static EndHud.Tests.InnTestKit;
 namespace EndHud.Tests;
 
 /// <summary>
-/// What the inn strip says (<see cref="InnStripView"/>), in the app's own zh-CN strings: one line per
-/// kitchen with the dishes to queue (pictures beside every name), the Full Blaze reminder above
-/// them, a swap, what can't be read, and the gourmand card.
+/// What the inn shows during a session, in the app's own zh-CN strings (owner, live 2026-10-20: "remove all hints
+/// from the current panel, use the combo instead. the current panel has the requirements of the gourmands"): the
+/// panel (<see cref="InnStripView"/>) only the gourmand cards, and every other call a banner
+/// (<see cref="InnCallView"/>): each kitchen's next dish, a swap, the last call, Full Blaze, with the dish's picture.
 /// </summary>
 public class InnStripViewTests
 {
@@ -17,9 +18,22 @@ public class InnStripViewTests
 
     private static InnStripModel Strip(InnAdvice advice, string? problem = null) => InnStripView.Build(advice, Text, problem);
 
+    private static IReadOnlyList<InnBannerModel> Banners(InnAdvice advice) => InnCallView.Of(advice.Calls, Text);
+
+    /// <summary>The banners for an advice made up by a test: the calls as a session would first show them.</summary>
+    private static IReadOnlyList<InnBannerModel> Banners(DispatchAdvice dispatch, FullBlazeAdvice? blaze = null) =>
+        InnCallView.Of(new InnCallHold().Update(dispatch, blaze, new InnKitchenView((_, _) => 0, _ => true, (_, _) => NotSooner)), Text);
+
+    /// <summary>For a made-up advice: no kitchen has a dish out sooner than the advice says (it chose its kitchens).</summary>
+    private const double NotSooner = 1000;
+
     private static string Kitchen(int n) => Text($"Inn.Kitchen.{n}");
 
-    private static string QueueLabel(int n) => Format("Inn.Queue", Kitchen(n));
+    private static string Queue(int kitchen, string dish) => Format("Inn.Call.Queue", Kitchen(kitchen), Dish(dish).Zh);
+
+    private static string CookAhead(int kitchen, string dish) => Format("Inn.Call.CookAhead", Kitchen(kitchen), Dish(dish).Zh);
+
+    private static string LastCall(string dish, int table) => Format("Inn.Call.LastCall", Dish(dish).Zh, table);
 
     private static InnSession Prepared(params int[] kitchens)
     {
@@ -35,7 +49,7 @@ public class InnStripViewTests
 
     private static DispatchAdvice Kitchens(params KitchenAdvice[] kitchens) => new(kitchens, [], [], []);
 
-    /// <summary>Every dish or drink named on the strip comes with its picture (C14).</summary>
+    /// <summary>Every dish or drink named on the panel comes with its picture (C14).</summary>
     private static void AssertPictureBesideEveryName(InnStripModel strip)
     {
         var names = Inn.Dishes.Select(d => (d.Zh, d.Id)).Concat(Inn.Drinks.Select(d => (d.Zh, d.Id))).ToDictionary(x => x.Zh, x => x.Id);
@@ -43,105 +57,124 @@ public class InnStripViewTests
             if (names.TryGetValue(segment.Text, out var id)) Assert.Equal(id, segment.PictureId);
     }
 
+    // ---- The panel: the gourmands only ----
+
     [Fact]
-    public void At_the_sessions_start_every_kitchens_line_is_already_filled_with_dishes_to_cook_ahead()
+    public void Without_a_gourmand_the_panel_is_empty_whatever_the_kitchens_do()
+    {
+        var session = Prepared(1, 2);
+        session.Update(Session(10, tables: Tables(Order(3, A, null), Order(4, B)), fire: new FireMeter(100, 10, Ready: true)));
+        var advice = session.Advice(S(10))!;
+
+        Assert.NotEmpty(Banners(advice)); // the kitchens' calls are there, as banners
+        Assert.Empty(Strip(advice).Lines);
+    }
+
+    [Fact]
+    public void No_kitchen_or_dispatch_line_ever_appears_in_the_panel()
+    {
+        var session = Prepared(1, 2);
+        var (request, _) = DishRequestMetBy(A, B, C, D, E);
+        session.Update(Session(10, tables: Tables(Order(1, A), Order(2, B), new TableCard(6, TableState.GourmandOrder, [], [])),
+            fire: new FireMeter(90, 10, false), bubble: new GourmandBubble(request.Text, [request.Text])));
+
+        var lines = Strip(session.Advice(S(10))!).Lines;
+
+        Assert.Equal(Format("Inn.Gourmand.Title", 6), lines[0].Text); // the gourmand's card, and nothing before it
+        string[] calls = [Text("Inn.Blaze.StartNow"), Text("Inn.Blaze.GetReady"), "收尾", .. Enumerable.Range(1, 3).Select(Kitchen)];
+        Assert.DoesNotContain(lines, l => calls.Any(c => l.Text.StartsWith(c, StringComparison.Ordinal)));
+    }
+
+    // ---- The banners ----
+
+    [Fact]
+    public void At_the_sessions_start_every_kitchen_has_a_banner_with_a_dish_to_cook_ahead()
     {
         var session = Prepared();
         session.Update(Session(10, left: 300));
 
-        var strip = Strip(session.Advice(S(10))!);
+        var banners = Banners(session.Advice(S(10))!);
 
-        Assert.Equal([QueueLabel(1), QueueLabel(2), QueueLabel(3)], strip.Lines.Select(l => l.Segments[0].Text));
-        foreach (var line in strip.Lines)
+        Assert.Equal(3, banners.Count);
+        foreach (var (banner, kitchen) in banners.Select((b, i) => (b, i + 1)))
         {
-            var dishes = line.Segments.Select((s, i) => (s, i)).Where(x => x.s.PictureId is not null).ToList();
-            Assert.NotEmpty(dishes);
-            Assert.All(dishes, d => Assert.Equal(Text("Inn.CookAhead"), line.Segments[d.i - 1].Text));
+            Assert.Equal(CookAhead(kitchen, banner.PictureId!), banner.Title);
+            Assert.Equal(Text("Inn.Call.CookAheadCaption"), banner.Caption);
         }
-        AssertPictureBesideEveryName(strip);
     }
 
     [Fact]
-    public void An_ordered_dish_is_listed_for_its_kitchen_and_an_idle_kitchen_cooks_ahead_marked_as_such()
+    public void An_ordered_dish_is_its_kitchens_banner_and_an_idle_kitchen_cooks_ahead()
     {
         var session = Prepared(1, 2);
         session.Update(Session(10, tables: Tables(Order(3, A, Juice))));
 
-        var strip = Strip(session.Advice(S(10))!);
+        var banners = Banners(session.Advice(S(10))!);
 
-        Assert.Equal(QueueLabel(1) + Dish(A).Zh, strip.Lines[0].Text);
-        Assert.Equal([A], strip.Lines[0].Segments.Select(s => s.PictureId).OfType<string>());
-        Assert.StartsWith(QueueLabel(2) + Text("Inn.CookAhead"), strip.Lines[1].Text);
-        Assert.Equal(2, strip.Lines.Count);
-        AssertPictureBesideEveryName(strip);
+        Assert.Equal(2, banners.Count);
+        Assert.Equal(Queue(1, A), banners[0].Title);
+        Assert.Equal("厨房一：白瓜肉丸汤", banners[0].Title); // as the owner worded it
+        Assert.Equal(Format("Inn.Call.ForTable", 3), banners[0].Caption);
+        Assert.Equal(A, banners[0].PictureId);
+        Assert.StartsWith(Format("Inn.Call.CookAhead", Kitchen(2), ""), banners[1].Title);
     }
 
     [Fact]
-    public void Two_dishes_for_one_kitchen_are_listed_in_order()
+    public void A_kitchens_banner_is_its_next_dish_only_and_a_kitchen_with_nothing_to_queue_has_none()
     {
-        var strip = Strip(Advice(Kitchens(new KitchenAdvice(1, [new QueueAdvice(Dish(B), 3, 40), new QueueAdvice(Dish(A), 5, 80)], []))));
+        var banners = Banners(Kitchens(new KitchenAdvice(1, [new QueueAdvice(Dish(B), 3, 40), new QueueAdvice(Dish(A), 5, 80)], []), new KitchenAdvice(2, [], [])));
 
-        Assert.Equal(QueueLabel(1) + Dish(B).Zh + Text("Inn.Between") + Dish(A).Zh, strip.Lines[0].Text);
-        Assert.Equal([B, A], strip.Lines[0].Segments.Select(s => s.PictureId).OfType<string>());
+        var banner = Assert.Single(banners);
+        Assert.Equal(Queue(1, B), banner.Title);
+        Assert.Equal(B, banner.PictureId);
     }
 
     [Fact]
-    public void A_kitchen_with_nothing_to_queue_says_so_with_a_dash()
-    {
-        var strip = Strip(Advice(Kitchens(new KitchenAdvice(1, [new QueueAdvice(Dish(A), 2, 40)], []), new KitchenAdvice(2, [], []))));
-
-        Assert.Equal(QueueLabel(2) + Text("Inn.Nothing"), strip.Lines[1].Text);
-        Assert.Equal("—", Text("Inn.Nothing"));
-    }
-
-    [Fact]
-    public void A_swap_replaces_the_kitchens_line_and_names_the_dish_to_take_out_and_the_order_to_put_in()
+    public void A_swap_names_the_dish_to_take_out_and_the_order_to_put_in()
     {
         var swap = new ReplaceAdvice(1, Slot: 1, Remove: Dish(D), Put: Dish(A), Table: 3, ReadyIn: 40, OtherwiseIn: 75);
-        var strip = Strip(Advice(Kitchens(new KitchenAdvice(1, [new QueueAdvice(Dish(E), null, 55)], [swap]), new KitchenAdvice(2, [], []))));
+        var banners = Banners(Kitchens(new KitchenAdvice(1, [new QueueAdvice(Dish(E), null, 55)], [swap]), new KitchenAdvice(2, [], [])));
 
-        var line = strip.Lines[0];
-        Assert.Equal(Format("Inn.Replace", Kitchen(1)) + Text("Inn.CookAhead") + Dish(D).Zh + Text("Inn.ReplaceArrow") + Dish(A).Zh + Format("Inn.ForTable", 3), line.Text);
-        Assert.Equal([D, A], line.Segments.Select(s => s.PictureId).OfType<string>());
-        Assert.DoesNotContain(strip.Lines, l => l.Text.StartsWith(QueueLabel(1)));
-        Assert.Equal(" → ", Text("Inn.ReplaceArrow")); // spaces kept around the arrow
+        var banner = Assert.Single(banners);
+        Assert.Equal("厨房一 换：雪绵豆沙 → 白瓜肉丸汤", banner.Title);
+        Assert.Equal(Format("Inn.Call.Swap", Kitchen(1), Dish(D).Zh, Dish(A).Zh), banner.Title);
+        Assert.Equal(Format("Inn.Call.ForTable", 3), banner.Caption);
+        Assert.Equal(A, banner.PictureId);
     }
 
     [Theory]
     [InlineData(FullBlazeAdvice.StartNow, "Inn.Blaze.StartNow")]
     [InlineData(FullBlazeAdvice.GetReady, "Inn.Blaze.GetReady")]
-    public void The_full_blaze_reminder_is_one_line_above_the_kitchens_in_the_accent_colour(FullBlazeAdvice blaze, string key)
+    public void The_full_blaze_banner_goes_above_the_kitchens(FullBlazeAdvice blaze, string key)
     {
-        var strip = Strip(Advice(Kitchens(new KitchenAdvice(1, [], [])), blaze));
+        var banners = Banners(Kitchens(new KitchenAdvice(1, [new QueueAdvice(Dish(A), 2, 40)], [])), blaze);
 
-        Assert.Equal(InnLineStyle.Accent, strip.Lines[0].Style);
-        Assert.Equal(Text(key), strip.Lines[0].Text);
-        Assert.Equal(QueueLabel(1) + Text("Inn.Nothing"), strip.Lines[1].Text);
+        Assert.Equal(Text(key), banners[0].Title);
+        Assert.Null(banners[0].PictureId);
+        Assert.Equal(Queue(1, A), banners[1].Title);
     }
 
     [Fact]
-    public void The_full_blaze_lines_read_as_the_owner_worded_them()
+    public void The_full_blaze_banners_read_as_the_owner_worded_them()
     {
         // Owner, 2026-10-19: the ready line names the button and its key; "nearly full" stays from fire 80.
-        Assert.Equal("开启满堂彩（R）", Strip(Advice(Kitchens(), FullBlazeAdvice.StartNow)).Lines[0].Text);
-        Assert.Equal("满堂彩快满了：先把厨房排满", Strip(Advice(Kitchens(), FullBlazeAdvice.GetReady)).Lines[0].Text);
+        Assert.Equal("开启满堂彩（R）", Banners(Kitchens(), FullBlazeAdvice.StartNow)[0].Title);
+        Assert.Equal("满堂彩快满了：先把厨房排满", Banners(Kitchens(), FullBlazeAdvice.GetReady)[0].Title);
     }
 
     /// <summary>
-    /// The last call (owner, 2026-10-19): once the inn has closed, a line per dish to hand out, above
-    /// the kitchens, the right dish first; a wrong one says it still earns money.
+    /// The last call (owner, 2026-10-19): a banner per dish to hand out, below the kitchens, by table; a wrong one
+    /// says it still earns money.
     /// </summary>
     [Fact]
-    public void At_the_last_call_each_leftover_has_a_line_saying_which_table_to_give_it_to()
+    public void At_the_last_call_each_leftover_has_a_banner_saying_which_table_to_give_it_to()
     {
-        var advice = Advice(new DispatchAdvice([new KitchenAdvice(1, [], [])], [], [],
+        var banners = Banners(new DispatchAdvice([new KitchenAdvice(1, [new QueueAdvice(Dish(E), 4, 15)], [])], [], [],
             [new LeftoverAdvice(Dish(A), 2, Dish(A)), new LeftoverAdvice(Dish(B), 3, Dish(C))]));
 
-        var strip = Strip(advice);
-
-        Assert.Equal(["收尾：把剩下的白瓜肉丸汤 端给桌2", "收尾：把剩下的茄果鳞肉汤 端给桌3（不对也有钱）"], strip.Lines.Take(2).Select(l => l.Text));
-        Assert.Equal([A, B], strip.Lines.Take(2).Select(l => l.Segments.Single(s => s.PictureId is not null).PictureId));
-        Assert.Equal(QueueLabel(1) + Text("Inn.Nothing"), strip.Lines[2].Text);
+        Assert.Equal([Queue(1, E), "收尾：白瓜肉丸汤 → 桌2", "收尾：茄果鳞肉汤 → 桌3"], banners.Select(b => b.Title));
+        Assert.Equal([Text("Inn.Call.LastCallCaption"), Text("Inn.Call.LastCallWrong")], banners.Skip(1).Select(b => b.Caption));
+        Assert.Equal([A, B], banners.Skip(1).Select(b => b.PictureId));
     }
 
     /// <summary>
@@ -157,10 +190,10 @@ public class InnStripViewTests
         session.Update(Session(30, left: 1, tables: Tables(Order(4, new OrderItem(A, Served: true)))));
         session.Update(Session(32, left: 0, tables: Tables(Order(4, new OrderItem(A, Served: true)), Order(3, B))));
 
-        var strip = Strip(session.Advice(S(32))!);
+        var banners = Banners(session.Advice(S(32))!);
 
-        Assert.Contains("收尾：把剩下的肉包子 端给桌3（不对也有钱）", strip.Lines.Select(l => l.Text));
-        Assert.DoesNotContain(strip.Lines, l => l.Segments.Any(s => s.PictureId == B) && l.Text.StartsWith(QueueLabel(1)));
+        Assert.Contains(banners, b => b.Title == LastCall(E, 3) && b.Caption == Text("Inn.Call.LastCallWrong"));
+        Assert.DoesNotContain(banners, b => b.Title == Queue(1, B));
     }
 
     /// <summary>
@@ -177,13 +210,13 @@ public class InnStripViewTests
         session.Update(Session(30, left: 2));
         session.Update(Session(32, left: 0, tables: Tables(Order(3, E))));
 
-        var justClosed = Strip(session.Advice(S(32))!);
+        var justClosed = Banners(session.Advice(S(32))!);
         session.Update(Session(36, left: 0, tables: Tables(Order(3, E))));
-        var later = Strip(session.Advice(S(36))!);
+        var later = Banners(session.Advice(S(36))!);
 
-        Assert.DoesNotContain(justClosed.Lines, l => l.Text.StartsWith(Text("Inn.Leftover.Give")));
-        Assert.Contains(justClosed.Lines, l => l.Text.StartsWith(QueueLabel(1)) && l.Segments.Any(s => s.PictureId == E));
-        Assert.Contains($"{Text("Inn.Leftover.Give")}{Dish(D).Zh}{Format("Inn.Leftover.ToTable", 3)}{Text("Inn.Leftover.Wrong")}", later.Lines.Select(l => l.Text));
+        Assert.DoesNotContain(justClosed, b => b.Title.StartsWith("收尾", StringComparison.Ordinal));
+        Assert.Contains(justClosed, b => b.Title == Queue(1, E));
+        Assert.Contains(later, b => b.Title == LastCall(D, 3) && b.Caption == Text("Inn.Call.LastCallWrong"));
     }
 
     /// <summary>
@@ -198,9 +231,7 @@ public class InnStripViewTests
         session.Update(Session(5, left: 25, panel: Panel(1, 1, Menu[..5], (E, 14))));
         session.Update(Session(20, left: 10, tables: Tables(Order(3, A))));
 
-        var strip = Strip(session.Advice(S(20))!);
-
-        Assert.Contains($"{Text("Inn.Leftover.Give")}{Dish(E).Zh}{Format("Inn.Leftover.ToTable", 3)}{Text("Inn.Leftover.Wrong")}", strip.Lines.Select(l => l.Text));
+        Assert.Contains(Banners(session.Advice(S(20))!), b => b.Title == LastCall(E, 3));
     }
 
     /// <summary>Owner, 2026-10-19: a table waiting only for a drink is never handed a dish; it won't be served.</summary>
@@ -212,9 +243,7 @@ public class InnStripViewTests
         session.Update(Session(20, left: 10, tables: Tables(Order(3, Juice), Order(5, new OrderItem(A, Served: true), new OrderItem(Tea, Served: false)))));
         session.Update(Session(30, left: 0, tables: Tables(Order(3, Juice), Order(5, new OrderItem(A, Served: true), new OrderItem(Tea, Served: false)))));
 
-        var strip = Strip(session.Advice(S(40))!);
-
-        Assert.DoesNotContain(strip.Lines, l => l.Text.StartsWith(Text("Inn.Leftover.Give")));
+        Assert.DoesNotContain(Banners(session.Advice(S(40))!), b => b.Title.StartsWith("收尾", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -226,12 +255,12 @@ public class InnStripViewTests
     {
         var session = Prepared(1);
         session.Update(Session(10, left: 30));
-        var at30 = Strip(session.Advice(S(10))!);
+        var at30 = Banners(session.Advice(S(10))!);
         session.Update(Session(19, left: 21));
-        var at21 = Strip(session.Advice(S(19))!);
+        var at21 = Banners(session.Advice(S(19))!);
 
-        Assert.Contains(at30.Lines, l => l.Text.StartsWith(QueueLabel(1) + Text("Inn.CookAhead")));
-        Assert.DoesNotContain(at21.Lines, l => l.Text.Contains(Text("Inn.CookAhead")));
+        Assert.Contains(at30, b => b.Caption == Text("Inn.Call.CookAheadCaption"));
+        Assert.DoesNotContain(at21, b => b.Caption == Text("Inn.Call.CookAheadCaption"));
     }
 
     [Fact]
@@ -240,55 +269,47 @@ public class InnStripViewTests
         var session = Prepared(1, 2);
         var tables = Tables(Order(1, A));
         session.Update(Session(10, left: 200, tables: tables, fire: new FireMeter(100, 10, Ready: true)));
-        Assert.Equal(Text("Inn.Blaze.StartNow"), Strip(session.Advice(S(10))!).Lines[0].Text);
+        Assert.Equal(Text("Inn.Blaze.StartNow"), Banners(session.Advice(S(10))!)[0].Title);
 
         session.Update(Session(12, left: 198, tables: tables, fire: new FireMeter(0, 10, false)));
 
-        var strip = Strip(session.Advice(S(12))!);
-        Assert.DoesNotContain(strip.Lines, l => l.Style == InnLineStyle.Accent);
-        Assert.All(strip.Lines, l => Assert.Equal(KitchenQueue.Slots, l.Segments.Count(s => s.PictureId is not null)));
+        var advice = session.Advice(S(12))!;
+        Assert.DoesNotContain(Banners(advice), b => b.PictureId is null);
+        Assert.All(advice.Dispatch!.Kitchens, k => Assert.Equal(KitchenQueue.Slots, k.Queue.Count));
     }
 
+    /// <summary>An order that can't be read is never guessed: no banner for it, nothing in the panel; the log says so, once.</summary>
     [Fact]
-    public void An_unreadable_order_is_one_line_below_the_kitchens_and_never_guessed()
+    public void An_unreadable_order_is_logged_once_and_never_guessed()
     {
-        var session = Prepared(1, 2);
+        var logged = new List<string>();
+        var session = new InnSession(Inn, Library.Operators, ReadAllAlong, log: logged.Add, warn: _ => { });
+        session.Update(SetupScreen(0, 1, 2));
+        session.Update(MenuScreen(1, Menu));
         session.Update(Session(10, tables: Tables(Order(3, A, null))));
 
-        var strip = Strip(session.Advice(S(10))!);
+        var advice = session.Advice(S(10))!;
+        session.Advice(S(10.5));
 
-        Assert.Equal(Format("Inn.Unreadable", 3), strip.Lines[^1].Text);
-        Assert.Equal(InnLineStyle.Note, strip.Lines[^1].Style);
-        Assert.DoesNotContain(strip.Lines, l => l.Text.Contains(Format("Inn.ForTable", 3)));
+        Assert.Empty(Strip(advice).Lines);
+        Assert.DoesNotContain(advice.Calls, c => c.Table == 3);
+        Assert.Single(logged, l => l.Contains("table 3", StringComparison.Ordinal));
     }
 
     [Fact]
-    public void Dishes_no_kitchen_has_room_for_and_dishes_out_of_stock_are_said()
-    {
-        var advice = Advice(new DispatchAdvice([new KitchenAdvice(1, [], [])], [new OrderedDish(2, Dish(B))], [new OrderedDish(4, Dish(C))], []));
-
-        var strip = Strip(advice);
-
-        Assert.Contains(strip.Lines, l => l.Text == Text("Inn.Waiting") + Dish(B).Zh + Format("Inn.ForTable", 2));
-        Assert.Contains(strip.Lines, l => l.Text == Text("Inn.OutOfStock") + Dish(C).Zh + Format("Inn.ForTable", 4));
-    }
-
-    [Fact]
-    public void One_kitchen_one_line()
+    public void One_kitchen_one_banner()
     {
         var session = Prepared(1);
         session.Update(Session(10, tables: TablesAsRead(Order(1, A, Tea), Order(2, C))));
 
-        var strip = Strip(session.Advice(S(10))!);
-
-        var line = Assert.Single(strip.Lines);
-        Assert.Equal(QueueLabel(1) + Dish(A).Zh + Text("Inn.Between") + Dish(C).Zh, line.Text);
+        var banner = Assert.Single(Banners(session.Advice(S(10))!));
+        Assert.Equal(Queue(1, A), banner.Title);
     }
 
     [Theory]
     [InlineData(true, "Inn.Gap.NoKitchens")]
     [InlineData(false, "Inn.Gap.NoMenu")]
-    public void What_is_missing_is_said_in_place_of_the_kitchens(bool noKitchens, string key)
+    public void What_is_missing_is_said_in_the_panel_since_no_banner_can_show(bool noKitchens, string key)
     {
         var strip = Strip(new InnAdvice(null, noKitchens ? InnGap.NoKitchens : InnGap.NoMenu, null, false, [], [], new HashSet<int>(), true));
 
@@ -296,7 +317,7 @@ public class InnStripViewTests
     }
 
     [Fact]
-    public void Without_text_recognition_the_strip_says_what_to_install()
+    public void Without_text_recognition_the_panel_says_what_to_install()
     {
         var strip = Strip(new InnAdvice(null, InnGap.NoKitchens, null, false, [], [], new HashSet<int>(), true), "Inn.Problem.NoTextRecognition");
 
@@ -404,13 +425,19 @@ public class InnStripViewTests
         Assert.Equal(Text("Inn.Gourmand.Serve") + Dish(A).Zh + Text("Inn.ReplaceArrow") + Drink(Milk).Zh, lines[^1].Text);
     }
 
+
     [Fact]
-    public void The_sample_shown_while_placing_the_strip_looks_like_a_session_of_three_kitchens()
+    public void The_samples_shown_while_placing_them_are_a_gourmands_card_and_a_banner()
     {
         var strip = InnStripView.Sample(Inn, Text);
 
         Assert.Equal(Text("Inn.Sample"), strip.Lines[0].Text);
-        Assert.Equal([QueueLabel(1), QueueLabel(2), QueueLabel(3)], strip.Lines.Skip(1).Select(l => l.Segments[0].Text));
+        Assert.Equal(Format("Inn.Gourmand.Title", 3), strip.Lines[1].Text);
+        Assert.Contains(strip.Lines, l => l.Segments.Any(s => s.PictureId is not null));
         AssertPictureBesideEveryName(strip);
+
+        var banner = InnCallView.Sample(Inn, Text);
+        Assert.Equal(Text("Inn.Call.Sample"), banner.Title);
+        Assert.NotNull(banner.PictureId);
     }
 }

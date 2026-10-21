@@ -123,6 +123,17 @@ internal sealed class HudConfig
     public const double MinInnStripOpacity = 0.2, MaxInnStripOpacity = 1;
 
     /// <summary>
+    /// During an inn session, show each kitchen's next dish to queue, the last call and Full Blaze as banners like
+    /// the combo-ready hint (the "派单提示横幅" switch in the inn helper's card). On by default, like every feature.
+    /// </summary>
+    public bool InnCallsEnabled { get; set; } = true;
+
+    /// <summary>Where the inn's banners sit (their top-left corner), as a fraction of the game window; by default where the combo-ready hint does (it isn't shown in the inn).</summary>
+    public double InnCallX { get; set; } = DefaultComboHintX;
+
+    public double InnCallY { get; set; } = DefaultComboHintY;
+
+    /// <summary>
     /// How far the menu and the debug panel have been dragged from their usual spots (the menu
     /// centred, the debug panel at the left), as a fraction of the game window's width and height.
     /// </summary>
@@ -232,6 +243,8 @@ internal static class ConfigStore
         // A place off the window would leave the strip where nobody can drag it back.
         config.InnStripX = double.IsFinite(config.InnStripX) ? Math.Clamp(config.InnStripX, 0, 1) : HudConfig.DefaultInnStripX;
         config.InnStripY = double.IsFinite(config.InnStripY) ? Math.Clamp(config.InnStripY, 0, 1) : HudConfig.DefaultInnStripY;
+        config.InnCallX = double.IsFinite(config.InnCallX) ? Math.Clamp(config.InnCallX, 0, 1) : HudConfig.DefaultComboHintX;
+        config.InnCallY = double.IsFinite(config.InnCallY) ? Math.Clamp(config.InnCallY, 0, 1) : HudConfig.DefaultComboHintY;
         return config;
     }
 

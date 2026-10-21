@@ -54,11 +54,13 @@ internal sealed record InnStripModel(IReadOnlyList<InnLine> Lines)
 }
 
 /// <summary>
-/// The inn strip's words (plan S7, C3, C4, C13–C17): the advice of one moment of a session, put
-/// as the player reads it, every string from i18n/zh-CN.xaml. A vertical list, one line per
-/// kitchen with the dishes to queue there in order (ordered ones first, then those to cook ahead,
-/// marked), each with its picture; the Full Blaze reminder above the kitchens, and once the inn has
-/// closed, what's left to hand out to which table; then what can't be read, and a card per gourmand: what they asked for in plain words and what on the menu meets it.
+/// The inn panel's words during a session: only the gourmands (owner, live 2026-10-20: "remove all hints from the
+/// current panel, use the combo instead. the current panel has the requirements of the gourmands"). A card per
+/// gourmand: what they asked for in plain words and what on the menu meets it, with where it is. Every other call
+/// (the next dish per kitchen, a swap, the last call, Full Blaze) is a banner (<see cref="InnCallView"/>). With no
+/// gourmand the panel is empty and put away; it says only why the helper can't advise at all, when it can't (the
+/// kitchens or the menu not seen yet, the text recognition missing), since then no banner shows either.
+/// Every string from i18n/zh-CN.xaml.
 /// </summary>
 internal static class InnStripView
 {
@@ -71,78 +73,20 @@ internal static class InnStripView
     {
         string T(string key) => text(key);
         string F(string key, params object[] args) => string.Format(text(key), args);
-        var lines = new List<InnLine>();
 
         // Nothing but the timer can be read: what to install is the only useful line.
         if (problemKey is not null) return new InnStripModel([InnLine.Of(InnLineStyle.Note, new InnSegment(T(problemKey)))]);
 
-        switch (advice.Blaze)
-        {
-            case FullBlazeAdvice.StartNow:
-                lines.Add(InnLine.Of(InnLineStyle.Accent, new InnSegment(T("Inn.Blaze.StartNow"))));
-                break;
-            case FullBlazeAdvice.GetReady:
-                lines.Add(InnLine.Of(InnLineStyle.Accent, new InnSegment(T("Inn.Blaze.GetReady"))));
-                break;
-        }
-
+        var lines = new List<InnLine>();
         if (advice.Gap is { } gap)
-        {
             lines.Add(InnLine.Of(InnLineStyle.Note, new InnSegment(T(gap == InnGap.NoKitchens ? "Inn.Gap.NoKitchens" : "Inn.Gap.NoMenu"))));
-        }
-        else if (advice.Dispatch is { } dispatch)
-        {
-            // The last call: what's left goes out first, the right dishes before the wrong ones.
-            foreach (var leftover in dispatch.Leftovers)
-            {
-                var segments = new List<InnSegment> { new InnSegment(T("Inn.Leftover.Give")).Kept(), Dish(leftover.Dish).Kept(), new InnSegment(F("Inn.Leftover.ToTable", leftover.Table)) };
-                if (!leftover.Matches) segments.Add(new InnSegment(T("Inn.Leftover.Wrong")));
-                lines.Add(new InnLine(InnLineStyle.Accent, segments));
-            }
-            foreach (var kitchen in dispatch.Kitchens) lines.AddRange(KitchenLines(kitchen, T, F));
-            foreach (var order in dispatch.Waiting)
-                lines.Add(InnLine.Of(InnLineStyle.Note, new InnSegment(T("Inn.Waiting")).Kept(), Dish(order.Dish).Kept(), new InnSegment(F("Inn.ForTable", order.Table))));
-            foreach (var order in dispatch.OutOfStock)
-                lines.Add(InnLine.Of(InnLineStyle.Note, new InnSegment(T("Inn.OutOfStock")).Kept(), Dish(order.Dish).Kept(), new InnSegment(F("Inn.ForTable", order.Table))));
-        }
-
-        foreach (int table in advice.UnreadableTables.Order())
-            lines.Add(InnLine.Of(InnLineStyle.Note, new InnSegment(F("Inn.Unreadable", table))));
-
         foreach (var note in advice.Gourmands.OrderBy(g => g.Table)) lines.AddRange(GourmandLines(note, advice.ExactKitchens, T, F));
-
         return new InnStripModel(lines);
     }
 
     private static InnSegment Dish(Dish dish) => new(dish.Zh, dish.Id);
 
     private static string KitchenName(int number, Func<string, string> T) => T($"Inn.Kitchen.{number}");
-
-    /// <summary>
-    /// A kitchen's line: "kitchen one, queue:" and the dishes in order, those to cook ahead marked;
-    /// a dash when there's nothing to queue. A swap replaces the line until the queue changes.
-    /// </summary>
-    private static IEnumerable<InnLine> KitchenLines(KitchenAdvice kitchen, Func<string, string> T, Func<string, object[], string> F)
-    {
-        string name = KitchenName(kitchen.Kitchen, T);
-        if (kitchen.Replaces.Count > 0)
-        {
-            foreach (var swap in kitchen.Replaces)
-                yield return InnLine.Of(InnLineStyle.Normal,
-                    new InnSegment(F("Inn.Replace", [name])).Kept(), new InnSegment(T("Inn.CookAhead")).Kept(), Dish(swap.Remove),
-                    new InnSegment(T("Inn.ReplaceArrow")).Kept(), Dish(swap.Put).Kept(), new InnSegment(F("Inn.ForTable", [swap.Table])));
-            yield break;
-        }
-        var segments = new List<InnSegment> { new InnSegment(F("Inn.Queue", [name])).Kept() };
-        if (kitchen.Queue.Count == 0) segments.Add(new InnSegment(T("Inn.Nothing")));
-        for (int i = 0; i < kitchen.Queue.Count; i++)
-        {
-            if (i > 0) segments.Add(new InnSegment(T("Inn.Between")));
-            if (kitchen.Queue[i].CookAhead) segments.Add(new InnSegment(T("Inn.CookAhead")).Kept());
-            segments.Add(Dish(kitchen.Queue[i].Dish));
-        }
-        yield return new InnLine(InnLineStyle.Normal, segments);
-    }
 
     /// <summary>
     /// A gourmand's card: "gourmand (table 6)", each request in plain words, and what meets it best first
@@ -207,26 +151,30 @@ internal static class InnStripView
     }
 
     /// <summary>
-    /// What to drag, size and see through while the menu is open out of the inn: three kitchens' lines
-    /// of the inn's own dishes, the size a real session's strip is.
+    /// What to drag, size and see through while the menu is open out of the inn: a gourmand's card of the inn's own
+    /// data (a request and two dishes that meet it), the size a real one is.
     /// </summary>
     public static InnStripModel Sample(InnData? data, Func<string, string> text)
     {
         string T(string key) => text(key);
         string F(string key, params object[] args) => string.Format(text(key), args);
-        var dishes = data?.Dishes.Take(3).ToList() ?? [];
         var lines = new List<InnLine> { InnLine.Of(InnLineStyle.Heading, new InnSegment(T("Inn.Sample"))) };
-        for (int k = 1; k <= KitchenMath.MaxKitchens; k++)
+        if (data is null) return new InnStripModel(lines);
+        var example = data.Gourmands.SelectMany(g => g.Requests)
+            .Select(r => GourmandCondition.Parse(r.When, data))
+            .Select(c => (Condition: c, Dishes: c.ForDrink ? [] : data.Dishes.Where(c.MetBy).Take(2).ToList()))
+            .FirstOrDefault(x => x.Dishes.Count > 0);
+        if (example.Condition is null) return new InnStripModel(lines);
+        lines.Add(InnLine.Of(InnLineStyle.Heading, new InnSegment(F("Inn.Gourmand.Title", 3))));
+        lines.Add(InnLine.Of(InnLineStyle.Normal, new InnSegment(F("Inn.Gourmand.Wants", example.Condition.Describe()))));
+        var segments = new List<InnSegment> { new InnSegment(T("Inn.Gourmand.Options")).Kept() };
+        for (int i = 0; i < example.Dishes.Count; i++)
         {
-            var segments = new List<InnSegment> { new(F("Inn.Queue", KitchenName(k, T))) };
-            if (k - 1 < dishes.Count)
-            {
-                if (k == KitchenMath.MaxKitchens) segments.Add(new InnSegment(T("Inn.CookAhead")));
-                segments.Add(Dish(dishes[k - 1]));
-            }
-            else segments.Add(new InnSegment(T("Inn.Nothing")));
-            lines.Add(new InnLine(InnLineStyle.Normal, segments));
+            if (i > 0) segments.Add(new InnSegment(T("Inn.Between")));
+            segments.Add(Dish(example.Dishes[i]).Kept());
+            segments.Add(new InnSegment(F("Inn.Where.Wrap", T("Inn.Where.Counter"))));
         }
+        lines.Add(new InnLine(InnLineStyle.Normal, segments));
         return new InnStripModel(lines);
     }
 }

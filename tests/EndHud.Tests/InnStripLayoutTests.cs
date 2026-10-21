@@ -10,9 +10,10 @@ using static EndHud.Tests.InnTestKit;
 namespace EndHud.Tests;
 
 /// <summary>
-/// The inn strip as drawn (<see cref="InnStrip"/>), measured off screen: the busiest strip a session
-/// can show fits from its default place to the window's edge at 1080p, 1440p and 4K, and every dish
-/// and drink has its picture beside its name, or its name alone when the package has no picture.
+/// The inn panel and the inn's banners as drawn (<see cref="InnStrip"/>, <see cref="ComboBanner"/>), measured off
+/// screen: the busiest gourmand panel a session can show, and the fullest stack of banners, each fit from its
+/// default place to the window's edge at 1080p, 1440p and 4K; every dish and drink has its picture beside its name,
+/// or its name alone when the package has no picture.
 /// </summary>
 [Collection(WpfCollection.Name)]
 public class InnStripLayoutTests
@@ -50,26 +51,26 @@ public class InnStripLayoutTests
     }
 
     /// <summary>
-    /// The most a session's strip shows: the Full Blaze line, three full kitchens of the longest
-    /// names each cooked ahead (the widest line there is), a swap, what can't be done, two
-    /// unreadable tables, and a gourmand with two requests and three options each.
+    /// The most the panel shows: two gourmands at once, each with two requests and three options per request, the
+    /// longest names (the kitchens' calls are banners, never in the panel).
     /// </summary>
     private static InnStripModel Busiest()
     {
         var longest = Inn.Dishes.OrderByDescending(d => d.Zh.Length).ThenBy(d => d.Id).Take(9).ToList();
         var drinks = Inn.Drinks.OrderByDescending(d => d.Zh.Length).Take(3).ToList();
-        var kitchens = Enumerable.Range(1, 3).Select(k =>
-            new KitchenAdvice(k, [.. longest.Skip((k - 1) * 3).Take(3).Select(d => new QueueAdvice(d, null, 40))], [])).ToList();
-        kitchens[1] = kitchens[1] with { Replaces = [new ReplaceAdvice(2, 1, longest[3], longest[4], 6, 30, 70)] };
         var request = new GourmandRequest("said", "x");
-        var dishOptions = longest.Take(3).Select((d, i) => new GourmandOption(d, null, GourmandSource.ToCook, 2, 35 + i)).ToList();
-        var drinkOptions = drinks.Select(d => new GourmandOption(null, d, GourmandSource.DrinkBar, null, 0)).ToList();
-        var gourmand = new InnGourmandNote(6, new GourmandAdvice(
-            [new GourmandRequestAdvice(request, GourmandCondition.Parse(Inn.Gourmands[0].Requests[0].When, Inn).Describe(), dishOptions),
-             new GourmandRequestAdvice(request, GourmandCondition.Parse(Inn.Gourmands[0].Requests[0].When, Inn).Describe(), drinkOptions)],
-            [dishOptions[0], drinkOptions[0]]), null, false);
-        var advice = new InnAdvice(new DispatchAdvice(kitchens, [new OrderedDish(5, longest[5])], [new OrderedDish(4, longest[6])], []), null,
-            FullBlazeAdvice.StartNow, false, [gourmand], [2, 3], new HashSet<int>(), false);
+        string said = GourmandCondition.Parse(Inn.Gourmands[0].Requests[0].When, Inn).Describe();
+        InnGourmandNote Gourmand(int table)
+        {
+            var dishOptions = longest.Take(3).Select((d, i) => new GourmandOption(d, null, GourmandSource.ToCook, 2, 35 + i)).ToList();
+            var drinkOptions = drinks.Select(d => new GourmandOption(null, d, GourmandSource.DrinkBar, null, 0)).ToList();
+            return new InnGourmandNote(table, new GourmandAdvice(
+                [new GourmandRequestAdvice(request, said, dishOptions), new GourmandRequestAdvice(request, said, drinkOptions)],
+                [dishOptions[0], drinkOptions[0]]), null, false);
+        }
+        var kitchens = Enumerable.Range(1, 3).Select(k => new KitchenAdvice(k, [new QueueAdvice(longest[k], k, 40)], [])).ToList();
+        var advice = new InnAdvice(new DispatchAdvice(kitchens, [], [], []), null, FullBlazeAdvice.StartNow, false, [Gourmand(5), Gourmand(6)], [2],
+            new HashSet<int>(), false);
         return InnStripView.Build(advice, Text);
     }
 
@@ -97,27 +98,44 @@ public class InnStripLayoutTests
     }
 
     /// <summary>
-    /// The last call at its fullest: the Full Blaze line, a full counter (eight dishes, the longest
-    /// names) each handed to a table as a wrong dish, and three kitchens each sending an order.
+    /// The fullest stack of banners (<see cref="InnCallView.MostBanners"/>): Full Blaze, three kitchens swapping the
+    /// dishes with the longest names (the widest banner there is), and last calls with the longest names, at the
+    /// player's default size, from the banners' default place (where the combo-ready hint is).
     /// </summary>
     [Theory]
     [InlineData(1920, 1080)]
     [InlineData(2560, 1440)]
     [InlineData(3840, 2160)]
-    public void The_last_calls_strip_fits_from_its_default_place_to_the_windows_edge(int width, int height)
+    public void The_fullest_banner_stack_fits_from_its_default_place_to_the_windows_edge(int width, int height)
     {
         var longest = Inn.Dishes.OrderByDescending(d => d.Zh.Length).ThenBy(d => d.Id).Take(9).ToList();
-        var leftovers = Enumerable.Range(0, InnCounter.Capacity).Select(i => new LeftoverAdvice(longest[i], i % 6 + 1, longest[8])).ToList();
-        var kitchens = Enumerable.Range(1, 3).Select(k => new KitchenAdvice(k, [new QueueAdvice(longest[k], k, 40)], [])).ToList();
-        var advice = new InnAdvice(new DispatchAdvice(kitchens, [], [], leftovers), null, FullBlazeAdvice.StartNow, false, [], [], new HashSet<int>(), false);
-        var size = Measure(InnStripView.Build(advice, Text), PackagePicture);
+        var kitchens = Enumerable.Range(1, 3).Select(k => new KitchenAdvice(k, [], [new ReplaceAdvice(k, 1, longest[k], longest[k + 3], k, 30, 70)])).ToList();
+        var leftovers = Enumerable.Range(0, 6).Select(i => new LeftoverAdvice(longest[i], i + 1, longest[8])).ToList();
+        var calls = new InnCallHold().Update(new DispatchAdvice(kitchens, [], [], leftovers), FullBlazeAdvice.GetReady,
+            new InnKitchenView((_, _) => 0, _ => true, (_, _) => 1000));
+        var banners = InnCallView.Of(calls, Text);
+        Assert.Equal(InnCallView.MostBanners, banners.Count);
+
+        var (bannerWidth, label) = OnSta(() =>
+        {
+            double widest = banners.Max(b =>
+            {
+                var element = ComboBanner.Create(ComboBanner.Content(null, b.PictureId is { } id ? PackagePicture(id) : null, b.Title, b.Caption));
+                element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                return element.DesiredSize.Width;
+            });
+            var drag = new TextBlock { Text = Text("Inn.Call.Drag"), Margin = new Thickness(0, 0, 0, 4) };
+            drag.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            return (widest, drag.DesiredSize.Height);
+        });
         double scale = ComboHintLayout.Scale(height, dpiScale: 1);
+        double stack = banners.Count * (ComboBanner.Height + ComboBanner.Gap) + label;
 
-        double right = HudConfig.DefaultInnStripX * width + (size.Width + Frame) * scale;
-        double bottom = HudConfig.DefaultInnStripY * height + (size.Height + Frame) * scale;
+        double right = HudConfig.DefaultComboHintX * width + (bannerWidth + Frame) * scale;
+        double bottom = HudConfig.DefaultComboHintY * height + (stack + Frame) * scale;
 
-        Assert.True(right <= width, $"right edge {right:F0} of {width} ({size.Width:F0} units wide at scale {scale:F2})");
-        Assert.True(bottom <= height, $"bottom edge {bottom:F0} of {height} ({size.Height:F0} units tall at scale {scale:F2})");
+        Assert.True(right <= width, $"right edge {right:F0} of {width} ({bannerWidth:F0} units wide at scale {scale:F2})");
+        Assert.True(bottom <= height, $"bottom edge {bottom:F0} of {height} ({stack:F0} units tall at scale {scale:F2})");
     }
 
     [Fact]
@@ -133,7 +151,7 @@ public class InnStripLayoutTests
     }
 
     [Fact]
-    public void A_long_kitchen_line_wraps_between_dishes_not_off_the_strip()
+    public void A_long_gourmand_line_wraps_between_dishes_not_off_the_panel()
     {
         var size = Measure(Busiest(), PackagePicture);
 

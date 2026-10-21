@@ -305,25 +305,27 @@
     <sys:String x:Key="Tray.Started">EndHud 已在系统托盘中运行。切换到游戏后会自动显示，按 Ctrl+Shift+M 或 Ctrl+F9 打开菜单，右键托盘图标可更改设置。</sys:String>
     <sys:String x:Key="Tray.Started.Manual">EndHud 已在系统托盘中运行。按 Ctrl+Shift+H 或 Ctrl+F10 显示 HUD，右键托盘图标可更改设置。</sys:String>
 
-    <!-- The inn helper: the session strip, the gourmand card, its menu card and tray item. -->
+    <!-- The inn helper: the session's banners (Inn.Call.*), the gourmand panel, its menu card and tray item. -->
     <sys:String x:Key="Inn.Kitchen.1">厨房一</sys:String>
     <sys:String x:Key="Inn.Kitchen.2">厨房二</sys:String>
     <sys:String x:Key="Inn.Kitchen.3">厨房三</sys:String>
-    <sys:String x:Key="Inn.Queue">{0} 建议排：</sys:String>
-    <sys:String x:Key="Inn.Nothing">—</sys:String>
     <sys:String x:Key="Inn.Between">　</sys:String>
-    <sys:String x:Key="Inn.CookAhead">（预做）</sys:String>
-    <sys:String x:Key="Inn.Replace">{0} 换：</sys:String>
     <sys:String x:Key="Inn.ReplaceArrow" xml:space="preserve"> → </sys:String>
-    <sys:String x:Key="Inn.ForTable">（桌{0}）</sys:String>
     <sys:String x:Key="Inn.Blaze.StartNow">开启满堂彩（R）</sys:String>
     <sys:String x:Key="Inn.Blaze.GetReady">满堂彩快满了：先把厨房排满</sys:String>
-    <sys:String x:Key="Inn.Leftover.Give">收尾：把剩下的</sys:String>
-    <sys:String x:Key="Inn.Leftover.ToTable" xml:space="preserve"> 端给桌{0}</sys:String>
-    <sys:String x:Key="Inn.Leftover.Wrong">（不对也有钱）</sys:String>
-    <sys:String x:Key="Inn.Waiting">厨房都排满了，等有空位再排：</sys:String>
-    <sys:String x:Key="Inn.OutOfStock">没有库存了，做不了：</sys:String>
-    <sys:String x:Key="Inn.Unreadable">桌{0} 的点单看不清</sys:String>
+    <sys:String x:Key="Inn.Call.Queue">{0}：{1}</sys:String>
+    <sys:String x:Key="Inn.Call.ForTable">桌{0} 点的</sys:String>
+    <sys:String x:Key="Inn.Call.CookAhead">{0} 预做：{1}</sys:String>
+    <sys:String x:Key="Inn.Call.CookAheadCaption">还没人点，先做好等客人点</sys:String>
+    <sys:String x:Key="Inn.Call.Swap">{0} 换：{1} → {2}</sys:String>
+    <sys:String x:Key="Inn.Call.LastCall">收尾：{0} → 桌{1}</sys:String>
+    <sys:String x:Key="Inn.Call.LastCallCaption">把剩下的端过去</sys:String>
+    <sys:String x:Key="Inn.Call.LastCallWrong">不是点的菜，端过去也有钱</sys:String>
+    <sys:String x:Key="Inn.Call.BlazeNowCaption">满堂彩已经满了</sys:String>
+    <sys:String x:Key="Inn.Call.BlazeSoonCaption">满了就按 R 开启</sys:String>
+    <sys:String x:Key="Inn.Call.Sample">派单提示示例</sys:String>
+    <sys:String x:Key="Inn.Call.SampleCaption">营业时，该排什么菜会这样提示</sys:String>
+    <sys:String x:Key="Inn.Call.Drag">按住拖动，调整派单提示位置</sys:String>
     <sys:String x:Key="Inn.Gap.NoKitchens">还没看到厨房：打开「派单」看一眼，就能按厨房给出建议</sys:String>
     <sys:String x:Key="Inn.Gap.NoMenu">还没看到菜单：打开「派单」看一眼，就能知道菜单上有哪些菜</sys:String>
     <sys:String x:Key="Inn.Problem.NoTextRecognition">缘缘庄助手需要 Windows 的简体中文文字识别：设置 → 时间和语言 → 语言和区域 → 添加“中文(简体，中国)”，然后重启 EndHud</sys:String>
@@ -366,8 +368,9 @@
     <sys:String x:Key="Inn.Setup.Gap.NoSetup">还没看到主题：打开「营业设定」</sys:String>
     <sys:String x:Key="Inn.Setup.Gap.NoKitchens">还没看到厨房：回到「营业设定」看一眼厨房</sys:String>
     <sys:String x:Key="Menu.Inn">缘缘庄助手</sys:String>
-    <sys:String x:Key="Menu.Inn.Hint">营业前：在营业设定里，每个厨房下方推荐该厨房的干员（已排的保留）；安排干员时显示这个厨房的推荐；设定菜单时，按现在排好的厨师推荐菜单和饮品。没有的换「可换」里的。营业时，按厨房列出该排的菜（带图片）、提醒开启满堂彩、解读老饕的要求。只给建议，不会替你操作。营业前的推荐跟着游戏画面摆放；营业时的列表在菜单打开时显示示例，可直接拖动调整位置。大小和不透明度在下方调整。</sys:String>
+    <sys:String x:Key="Menu.Inn.Hint">营业前：在营业设定里，每个厨房下方推荐该厨房的干员（已排的保留）；安排干员时显示这个厨房的推荐；设定菜单时，按现在排好的厨师推荐菜单和饮品。没有的换「可换」里的。营业时，每个厨房下一道该排的菜、提醒开启满堂彩、收尾该端给哪桌，都用和连携技提示一样的横幅显示，排好了就收起；旁边的面板只解读老饕的要求。只给建议，不会替你操作。菜单打开时显示示例，可直接拖动调整位置。大小和不透明度在下方调整。</sys:String>
     <sys:String x:Key="Menu.Inn.ResetPosition">恢复默认位置</sys:String>
+    <sys:String x:Key="Menu.Inn.Calls">派单提示横幅</sys:String>
     <sys:String x:Key="Tray.InnHelper">缘缘庄助手</sys:String>
 
 </ResourceDictionary>

@@ -101,6 +101,17 @@
                 <ContentControl x:Name="InnContent" />
             </StackPanel>
         </Border>
+        <!-- The inn session's banners (each kitchen's next dish, the last call, Full Blaze), styled like the
+             combo-ready hints; top-left corner at config InnCallX/InnCallY, draggable while the menu is open. -->
+        <Border x:Name="InnCallFrame" BorderThickness="2" Padding="6" CornerRadius="4" Background="Transparent"
+                MouseLeftButtonDown="InnCall_MouseDown" MouseMove="InnCall_MouseMove"
+                MouseLeftButtonUp="InnCall_MouseUp">
+            <StackPanel>
+                <TextBlock x:Name="InnCallDragLabel" Visibility="Collapsed" Text="{DynamicResource Inn.Call.Drag}"
+                           Foreground="{StaticResource Accent}" Margin="0,0,0,4" />
+                <StackPanel x:Name="InnCallStack" />
+            </StackPanel>
+        </Border>
         <!-- The gauges, centred on config GaugesCenterX, standing on GaugesBottomY. -->
         <Border x:Name="GaugeFrame" BorderThickness="2" Padding="6" CornerRadius="4" Background="Transparent"
                 Visibility="Collapsed" SizeChanged="GaugeFrame_SizeChanged"
@@ -346,6 +357,9 @@
                     </DockPanel>
                     <TextBlock Text="{DynamicResource Menu.Inn.Hint}" Foreground="#99FFFFFF" FontSize="11"
                                TextWrapping="Wrap" Margin="0,4,0,4" />
+                    <CheckBox x:Name="InnCallsCheckBox" Click="InnCallsCheckBox_Click" Margin="0,4,0,0">
+                        <TextBlock Text="{DynamicResource Menu.Inn.Calls}" />
+                    </CheckBox>
                     <DockPanel x:Name="InnSizeRow" Margin="0,4,0,0">
                         <TextBlock Text="{DynamicResource Menu.Gauges.Size}" VerticalAlignment="Center" Margin="0,0,8,0" />
                         <TextBlock x:Name="InnSizeText" DockPanel.Dock="Right" Width="44" TextAlignment="Right"

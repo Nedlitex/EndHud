@@ -59,6 +59,7 @@ public partial class OverlayWindow
     {
         _loadingInnSettings = true;
         InnCheckBox.IsChecked = _config.InnHelperEnabled;
+        InnCallsCheckBox.IsChecked = _config.InnCallsEnabled;
         InnSizeSlider.Value = _config.InnStripScale;
         InnSizeText.Text = Loc.Format("Menu.Gauges.SizeValue", _config.InnStripScale * 100);
         InnOpacitySlider.Value = _config.InnStripOpacity;
@@ -71,6 +72,7 @@ public partial class OverlayWindow
     private void ApplyInnSettings()
     {
         InnResetButton.IsEnabled = _config.InnHelperEnabled;
+        InnCallsCheckBox.IsEnabled = _config.InnHelperEnabled;
         InnSizeRow.IsEnabled = _config.InnHelperEnabled;
         InnOpacityRow.IsEnabled = _config.InnHelperEnabled;
     }
@@ -123,14 +125,20 @@ public partial class OverlayWindow
     {
         RenderInnSetup();
         InnStripModel? model = null;
+        IReadOnlyList<InnCall> calls = [];
         if (_config.InnHelperEnabled)
         {
             if (_innOnScreen && AdviceNow() is { } advice)
-                model = InnStripView.Build(advice, Loc.Get, _party.InnProblem);
+            {
+                // The panel: the gourmands only (and why there's no advice at all, when there's none); empty, it's put away.
+                model = InnStripView.Build(advice, Loc.Get, _party.InnProblem) is { Lines.Count: > 0 } built ? built : null;
+                calls = _party.InnProblem is null ? advice.Calls : [];
+            }
             else if (_menuOpen && !_innOnScreen)
                 // Something to drag, size and see through while the menu is open, out of the inn.
                 model = InnStripView.Sample(_party.Identifier?.Library.Inn, Loc.Get);
         }
+        RenderInnCalls(calls);
         string? key = model?.Key;
         if (key == _innKey) return;
         _innKey = key;
@@ -261,6 +269,7 @@ public partial class OverlayWindow
         _config.InnStripOpacity = Math.Clamp(Math.Round(e.NewValue, 2), HudConfig.MinInnStripOpacity, HudConfig.MaxInnStripOpacity);
         InnOpacityText.Text = Loc.Format("Menu.Gauges.SizeValue", _config.InnStripOpacity * 100);
         InnContent.Opacity = _config.InnStripOpacity;
+        InnCallStack.Opacity = _config.InnStripOpacity;
         foreach (var frame in _innAdviceFrames.Values) frame.Opacity = _config.InnStripOpacity;
         ConfigStore.Save(_config);
     }
@@ -269,8 +278,11 @@ public partial class OverlayWindow
     {
         _config.InnStripX = HudConfig.DefaultInnStripX;
         _config.InnStripY = HudConfig.DefaultInnStripY;
+        _config.InnCallX = HudConfig.DefaultComboHintX;
+        _config.InnCallY = HudConfig.DefaultComboHintY;
         ConfigStore.Save(_config);
         PlaceInnFromConfig();
+        PlaceInnCallsFromConfig();
     }
 
     // ---- Placing the strip ----
@@ -280,6 +292,7 @@ public partial class OverlayWindow
         InnFrame.BorderBrush = editing ? (Brush)FindResource("Accent") : Brushes.Transparent;
         InnDragLabel.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
         InnFrame.Cursor = editing ? Cursors.SizeAll : null;
+        SetInnCallEditing(editing);
         _innKey = "";
         RenderInn();
     }
@@ -291,6 +304,7 @@ public partial class OverlayWindow
         double size = scale * _config.InnStripScale;
         InnFrame.LayoutTransform = new ScaleTransform(size, size);
         PlaceInnFromConfig();
+        ScaleInnCalls(size);
         // The advice panels follow the game's layout and the size: drawn again.
         RenderInnSetup();
     }
