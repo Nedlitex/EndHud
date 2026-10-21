@@ -33,10 +33,10 @@ public class InnSteadyTests
 
     /// <summary>
     /// Read closed on a frame or a few while open (48 single frames and a dozen runs of 2–5 on the recording): the banners
-    /// stay down and the marks stay, until no frame has read the panel for <see cref="InnSession.PanelClosedAfter"/>.
+    /// stay down until no frame has read the panel for <see cref="InnSession.PanelClosedAfter"/> (the marks don't: below).
     /// </summary>
     [Fact]
-    public void A_panel_read_closed_for_a_moment_keeps_the_banners_down_and_its_marks()
+    public void A_panel_read_closed_for_a_moment_keeps_the_banners_down()
     {
         var session = Prepared();
         session.Update(Session(10, panel: KitchenOne()));
@@ -53,6 +53,41 @@ public class InnSteadyTests
         var closed = session.Advice(S(10.3 + InnSession.PanelClosedAfter.TotalSeconds))!;
         Assert.NotEmpty(closed.BannerCalls);
         Assert.Null(closed.Panel);
+    }
+
+    /// <summary>
+    /// The panel closed (owner, live 2026-10-21: "the recommendation leaks after the kitchen is closed", the card mark
+    /// "排这个（桌1）" over the dining room): its marks go on the first frame that shows it closed for sure (the Full Blaze
+    /// meter it covers read), through the overlay's own display, while the banners stay down for
+    /// <see cref="InnSession.PanelClosedAfter"/> as before. A frame that merely misses the panel (its tabs misread while
+    /// it's open, the meter still covered) keeps them: that is the 2026-10-20 flashing.
+    /// </summary>
+    [Fact]
+    public void A_panel_seen_closed_takes_its_marks_away_at_once()
+    {
+        var session = Prepared();
+        var display = new InnDisplay();
+        display.Show(session, Session(10, panel: KitchenOne()), S(10));
+        display.Show(session, Session(10.3, panel: KitchenOne()), S(10.3));
+        Assert.NotEmpty(display.Views(session, S(10.3), callsEnabled: true, Text).Marks);
+
+        // Missed for a frame, nothing it covers seen: still open as far as anyone can tell.
+        display.Show(session, Session(10.6), S(10.6));
+        Assert.NotEmpty(display.Views(session, S(10.6), callsEnabled: true, Text).Marks);
+
+        // The meter it covers read: it's closed. No mark, at once; the banners still held down a moment.
+        display.Show(session, Session(10.9, fire: new FireMeter(14, 6, Ready: false)), S(10.9));
+        var closed = display.Views(session, S(10.9), callsEnabled: true, Text);
+        Assert.Empty(closed.Marks);
+        Assert.Empty(closed.Calls);
+        // A tick later, and a frame missing the meter: still no mark.
+        Assert.Empty(display.Views(session, S(11.1), callsEnabled: true, Text).Marks);
+        display.Show(session, Session(11.2), S(11.2));
+        Assert.Empty(display.Views(session, S(11.2), callsEnabled: true, Text).Marks);
+
+        // Read open again: the marks are back with it.
+        display.Show(session, Session(11.4, panel: KitchenOne()), S(11.4));
+        Assert.NotEmpty(display.Views(session, S(11.4), callsEnabled: true, Text).Marks);
     }
 
     /// <summary>Read open on one frame only (26 times on the recording): the banners stay up.</summary>

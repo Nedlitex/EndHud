@@ -75,6 +75,7 @@ public class InnReplayTests(ITestOutputHelper output)
     {
         var replay = InnReplay.Run(InnReplay.Load(Path.Combine(AppContext.BaseDirectory, "Fixtures", "inn-replay", "test-yuanyuan3-readings.jsonl.gz")));
         foreach (var (display, rate) in replay.PerMinute()) output.WriteLine($"{display}: {rate:F1} changes/min");
+        if (Environment.GetEnvironmentVariable("ENDHUD_REPLAY_DUMP") is { Length: > 0 } dump) File.WriteAllText(dump, replay.Report());
 
         var banners = Flashes(replay, "banner");
         var marks = Flashes(replay, "mark");
@@ -86,7 +87,11 @@ public class InnReplayTests(ITestOutputHelper output)
         Assert.Equal(0, banners.HiddenUnderASecond);
         Assert.True(banners.UpUnderHalfASecond <= 5, $"{banners.UpUnderHalfASecond} banners up under half a second");
         Assert.True(replay.PerMinute()["banner"] <= 30, $"{replay.PerMinute()["banner"]:F1} banner changes a minute");
-        Assert.True(marks.HiddenUnderASecond <= 8, $"{marks.HiddenUnderASecond} marks hidden under a second");
+        // The marks go the moment a frame shows the panel closed for sure (owner, live 2026-10-21: a mark left over the dining
+        // room); on this recording that is 11 times for under a second, each a frame reading the Full Blaze meter the open
+        // panel covers (closing and opening it again, or its slide) between frames reading it open. Was at most 8 with
+        // the marks held as long as the banners (1.5 s).
+        Assert.True(marks.HiddenUnderASecond <= 11, $"{marks.HiddenUnderASecond} marks hidden under a second");
         Assert.Equal((0, 0), (circles.HiddenUnderASecond, circles.UpUnderHalfASecond));
     }
 

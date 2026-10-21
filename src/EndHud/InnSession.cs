@@ -53,6 +53,14 @@ internal sealed record InnAdvice(DispatchAdvice? Dispatch, InnGap? Gap, FullBlaz
     /// 2026-10-20: banners must not cover the dispatch panel); the panel's marks take over (<see cref="InnPanelMarks"/>).
     /// </summary>
     public IReadOnlyList<InnCall> BannerCalls => Panel is null ? Calls : [];
+
+    /// <summary>
+    /// The panel the marks go on (<see cref="InnPanelMarks"/>): <see cref="Panel"/> only while the last fresh session frame
+    /// read it; null the moment a frame reads it closed (owner, live 2026-10-21: a mark over a closed panel floated over the
+    /// dining room). The banners' hold (<see cref="InnSession.PanelClosedAfter"/>) is another decision: a banner coming back
+    /// over an open panel covers it, a mark left over a closed one points at nothing.
+    /// </summary>
+    public DispatchPanel? MarkedPanel { get; init; }
 }
 
 /// <summary>
@@ -134,6 +142,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     private DispatchPanel? _panelOpen; // the dispatch panel as shown: open once PanelFramesToOpen frames read it, until none has for PanelClosedAfter
     private int _panelOpening; // fresh session frames in a row that read the panel while it's shown closed
     private TimeSpan _panelReadAt; // the last fresh frame that read the panel
+    private TimeSpan? _panelSeenClosedAt; // the last fresh frame that showed the panel closed for sure (PanelOnScreen)
 
     private sealed class KitchenMemory(int number)
     {
@@ -218,7 +227,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         if (reading.Clock is not null) _clock = reading.Clock;
         if (reading.Clock is { Closed: true } && _closedAt is null) _closedAt = reading.At;
         if (reading.Panel is { } panel) TakePanel(panel);
-        TakePanelOpen(reading.Panel, reading.At);
+        TakePanelOpen(reading.Panel, reading.At, closedForSure: reading.Panel is null && reading.Fire is not null);
         if (reading.TableCards.Count > 0) TakeTables(reading.TableCards, reading.At);
         if (reading.Fire is { } fire) _fire = fire.Ready ? FullBlazeAdvisor.Full : fire.Fire ?? _fire;
         _blaze.Update(reading.At, reading.Fire?.Ready, inSession: true);
@@ -279,6 +288,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         _ordersSeen = false;
         _panelOpen = null;
         _panelOpening = 0;
+        _panelSeenClosedAt = null;
         _calls.Clear();
         _unreadableLogged.Clear();
         _gapsLogged.Clear();
@@ -315,8 +325,10 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// The dispatch panel shown as open or closed (<see cref="PanelFramesToOpen"/>, <see cref="PanelClosedAfter"/>): while
     /// open, the latest reading of it, or the last one while frames read it closed.
     /// </summary>
-    private void TakePanelOpen(DispatchPanel? panel, TimeSpan at)
+    /// <param name="closedForSure">The frame shows what the open panel covers: the Full Blaze meter was read.</param>
+    private void TakePanelOpen(DispatchPanel? panel, TimeSpan at, bool closedForSure)
     {
+        if (closedForSure) _panelSeenClosedAt = at;
         if (panel is not null)
         {
             _panelReadAt = at;
@@ -331,6 +343,14 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         _panelOpening = 0;
         if (_panelOpen is not null && at - _panelReadAt >= PanelClosedAfter) _panelOpen = null;
     }
+
+    /// <summary>
+    /// The panel shown as open is on screen now, for its marks (<see cref="InnAdvice.MarkedPanel"/>): no fresh frame since
+    /// it was last read has shown it closed for sure, i.e. read the Full Blaze meter it covers (owner, live 2026-10-21:
+    /// a mark left over the dining room). A frame merely missing it (its tabs misread for a frame while it's open: 48
+    /// times on the 2026-10-20 recording) doesn't take the marks away; a frame showing the meter does, at once.
+    /// </summary>
+    private bool PanelOnScreen() => _panelOpen is not null && !(_panelSeenClosedAt > _panelReadAt);
 
     /// <summary>The panel as shown, each dish's card as read on it before when this reading missed it (<see cref="KitchenMemory.Cards"/>).</summary>
     private DispatchPanel? PanelShown()
@@ -666,6 +686,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         {
             Calls = _calls.Update(dispatch, blaze, view, now),
             Panel = PanelShown(),
+            MarkedPanel = PanelOnScreen() ? PanelShown() : null,
         };
     }
 }

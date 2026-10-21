@@ -85,7 +85,8 @@ internal sealed class InnDisplay
         return new InnViews(
             // The banners, except over the open dispatch panel, where its marks take over.
             advice.BannerCalls,
-            callsEnabled ? InnPanelMarks.Of(advice.Panel, advice.Calls, text) : [],
+            // The marks only while the panel is on screen: gone the moment a frame reads it closed.
+            callsEnabled ? InnPanelMarks.Of(advice.MarkedPanel, advice.Calls, text) : [],
             // What each gourmand wants, as glowing circles, while their order is open, held steady.
             _wants.Update(advice, text));
     }
