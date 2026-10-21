@@ -10,15 +10,13 @@ using static EndHud.Tests.InnTestKit;
 namespace EndHud.Tests;
 
 /// <summary>
-/// The inn panel and the inn's banners as drawn (<see cref="InnStrip"/>, <see cref="ComboBanner"/>), measured off
-/// screen: the busiest gourmand panel a session can show, and the fullest stack of banners, each fit from its
-/// default place to the window's edge at 1080p, 1440p and 4K; every dish and drink has its picture beside its name,
-/// or its name alone when the package has no picture.
+/// The inn's banners as drawn (<see cref="ComboBanner"/>), measured off screen: the fullest stack of banners fits from
+/// its default place to the window's edge at 1080p, 1440p and 4K, and a banner's dish picture is large.
 /// </summary>
 [Collection(WpfCollection.Name)]
 public class InnStripLayoutTests
 {
-    /// <summary>The overlay's frame around the strip: its padding and border (OverlayWindow.xaml).</summary>
+    /// <summary>The overlay's frame around the banners: its padding and border (OverlayWindow.xaml).</summary>
     private const double Frame = 2 * (6 + 2);
 
     private static T OnSta<T>(Func<T> work)
@@ -48,53 +46,6 @@ public class InnStripLayoutTests
         image.EndInit();
         image.Freeze();
         return image;
-    }
-
-    /// <summary>
-    /// The most the panel shows: two gourmands at once, each with two requests and three options per request, the
-    /// longest names (the kitchens' calls are banners, never in the panel).
-    /// </summary>
-    private static InnStripModel Busiest()
-    {
-        var longest = Inn.Dishes.OrderByDescending(d => d.Zh.Length).ThenBy(d => d.Id).Take(9).ToList();
-        var drinks = Inn.Drinks.OrderByDescending(d => d.Zh.Length).Take(3).ToList();
-        var request = new GourmandRequest("said", "x");
-        string said = GourmandCondition.Parse(Inn.Gourmands[0].Requests[0].When, Inn).Describe();
-        InnGourmandNote Gourmand(int table)
-        {
-            var dishOptions = longest.Take(3).Select((d, i) => new GourmandOption(d, null, GourmandSource.ToCook, 2, 35 + i)).ToList();
-            var drinkOptions = drinks.Select(d => new GourmandOption(null, d, GourmandSource.DrinkBar, null, 0)).ToList();
-            return new InnGourmandNote(table, new GourmandAdvice(
-                [new GourmandRequestAdvice(request, said, dishOptions), new GourmandRequestAdvice(request, said, drinkOptions)],
-                [dishOptions[0], drinkOptions[0]]), null, false);
-        }
-        var kitchens = Enumerable.Range(1, 3).Select(k => new KitchenAdvice(k, [new QueueAdvice(longest[k], k, 40)], [])).ToList();
-        var advice = new InnAdvice(new DispatchAdvice(kitchens, [], [], []), null, FullBlazeAdvice.StartNow, false, [Gourmand(5), Gourmand(6)], [2],
-            new HashSet<int>(), false);
-        return InnStripView.Build(advice, Text);
-    }
-
-    private static Size Measure(InnStripModel model, Func<string, BitmapSource?> picture) => OnSta(() =>
-    {
-        var element = InnStrip.Build(model, picture, InnStrip.LineWidth, InnStripLook.Gourmands);
-        element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        return element.DesiredSize;
-    });
-
-    [Theory]
-    [InlineData(1920, 1080)]
-    [InlineData(2560, 1440)]
-    [InlineData(3840, 2160)]
-    public void The_busiest_strip_fits_from_its_default_place_to_the_windows_edge(int width, int height)
-    {
-        var size = Measure(Busiest(), PackagePicture);
-        double scale = ComboHintLayout.Scale(height, dpiScale: 1);
-
-        double right = HudConfig.DefaultInnStripX * width + (size.Width + Frame) * scale;
-        double bottom = HudConfig.DefaultInnStripY * height + (size.Height + Frame) * scale;
-
-        Assert.True(right <= width, $"right edge {right:F0} of {width} ({size.Width:F0} units wide at scale {scale:F2})");
-        Assert.True(bottom <= height, $"bottom edge {bottom:F0} of {height} ({size.Height:F0} units tall at scale {scale:F2})");
     }
 
     /// <summary>
@@ -159,57 +110,6 @@ public class InnStripLayoutTests
 
         Assert.True(picture >= 72, $"the dish's picture is {picture:F0} units tall");
         Assert.True(picture >= 0.85 * height, $"the picture is {picture:F0} of the banner's {height:F0} units");
-    }
-
-    /// <summary>
-    /// Owner, live 2026-10-20: "老饕's panel's picture is also TOO small for human to read, make that panel bigger". At
-    /// 1080p the gourmand panel's pictures are 48 px (were 28) and its words 20 px (were 16).
-    /// </summary>
-    [Fact]
-    public void The_gourmand_panels_pictures_and_words_are_large()
-    {
-        var (pictures, words) = OnSta(() =>
-        {
-            var element = InnStrip.Build(Busiest(), PackagePicture, InnStrip.LineWidth, InnStripLook.Gourmands);
-            element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            element.Arrange(new Rect(element.DesiredSize));
-            var all = Descendants(element).ToList();
-            return (all.OfType<Image>().Select(i => i.ActualHeight).ToList(), all.OfType<TextBlock>().Select(t => t.FontSize).ToList());
-        });
-
-        Assert.NotEmpty(pictures);
-        Assert.All(pictures, h => Assert.True(h >= 48, $"a picture {h:F0} units tall"));
-        Assert.True(words.Min() >= 17, $"the smallest words are {words.Min():F0} units"); // a note's words are a little smaller
-        Assert.True(words.Max() >= 20, $"the largest words are {words.Max():F0} units");
-    }
-
-    [Fact]
-    public void A_long_gourmand_line_wraps_between_dishes_not_off_the_panel()
-    {
-        var size = Measure(Busiest(), PackagePicture);
-
-        Assert.True(size.Width <= InnStrip.LineWidth + 40, $"{size.Width:F0} units wide");
-    }
-
-    [Fact]
-    public void Every_dish_and_drink_has_its_picture_beside_its_name_or_its_name_alone_without_one()
-    {
-        var model = Busiest();
-        string missing = model.Lines.SelectMany(l => l.Segments).First(s => s.PictureId is not null).PictureId!;
-        var named = model.Lines.SelectMany(l => l.Segments).Where(s => s.PictureId is not null).ToList();
-
-        var (images, texts) = OnSta(() =>
-        {
-            var element = InnStrip.Build(model, id => id == missing ? null : PackagePicture(id), InnStrip.LineWidth, InnStripLook.Gourmands);
-            element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            element.Arrange(new Rect(element.DesiredSize));
-            var all = Descendants(element).ToList();
-            return (all.OfType<Image>().Count(i => i.Source is not null), all.OfType<TextBlock>().Select(t => t.Text).ToList());
-        });
-
-        Assert.Equal(named.Count(s => s.PictureId != missing), images);
-        Assert.All(named, s => Assert.Contains(s.Text, texts)); // the name is there, picture or not
-        Assert.True(named.All(s => PackagePicture(s.PictureId!) is not null), "the package has a picture for every dish and drink shown");
     }
 
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)

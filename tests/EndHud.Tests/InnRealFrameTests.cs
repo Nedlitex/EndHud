@@ -67,7 +67,7 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task A_gourmands_order_frame_becomes_a_gourmand_card_with_both_requests()
+    public async Task A_gourmands_order_frame_becomes_a_circle_for_each_of_both_requests()
     {
         var (monitor, raised) = await Monitor();
 
@@ -86,8 +86,9 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
         Assert.Equal(1, note.Table);
         Assert.Equal(2, note.Advice!.Requests.Count);
 
-        var lines = InnStripView.Build(session.Advice(S(0))!, Text).Lines;
-        Assert.Contains(lines, l => l.Text == Format("Inn.Gourmand.Title", 1));
+        var wants = InnWantsView.Of(session.Advice(S(0))!, Text);
+        Assert.Equal(2, wants.Count);
+        Assert.All(wants, w => Assert.Equal(1, w.Table));
     }
 
     /// <summary>

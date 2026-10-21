@@ -10,7 +10,7 @@ namespace EndHud.Tests;
 /// <summary>
 /// What each gourmand wants as glowing circles in the gauges' buff style (<see cref="InnWantsView"/>; owner, live
 /// 2026-10-20: "for 老饕, reuse the buff to show the dish/drink they want to be a lot more visible"), and where they go
-/// (<see cref="InnWantsLayout"/>).
+/// (<see cref="InnWantsLayout"/>: the gauges' place, bottom middle).
 /// </summary>
 [Collection(WpfCollection.Name)]
 public class InnWantsTests
@@ -32,7 +32,7 @@ public class InnWantsTests
     {
         var note = new InnGourmandNote(4, new GourmandAdvice([Request(B, A), Request(Tea, Milk)], null), null, false);
 
-        var wants = InnWantsView.Of(Advice(note));
+        var wants = InnWantsView.Of(Advice(note), Text);
 
         Assert.Equal([(4, B), (4, Tea)], wants.Select(w => (w.Table, w.ItemId)));
         var board = InnWantsView.Board(wants, _ => null, Text);
@@ -51,16 +51,29 @@ public class InnWantsTests
         var serve = new[] { Option(Milk), Option(A) };
         var note = new InnGourmandNote(2, new GourmandAdvice([Request(A, B), Request(Tea, Milk)], serve), null, false);
 
-        Assert.Equal([Milk, A], InnWantsView.Of(Advice(note)).Select(w => w.ItemId));
+        Assert.Equal([Milk, A], InnWantsView.Of(Advice(note), Text).Select(w => w.ItemId));
     }
 
+    /// <summary>
+    /// What the gourmand panel said that matters, now in the circles (owner, live 2026-10-20: "no longer need the older
+    /// panel for gourmand"): a request nothing on the menu meets is a circle saying so; a gourmand not recognised, one
+    /// saying that; a drink request before any drink of the menu was seen, none (it would be wrong).
+    /// </summary>
     [Fact]
-    public void A_request_not_recognised_or_met_by_nothing_has_no_circle()
+    public void A_request_met_by_nothing_or_not_recognised_is_a_circle_saying_so()
     {
         var unknown = new InnGourmandNote(1, null, "read text", false);
         var unmet = new InnGourmandNote(3, new GourmandAdvice([Request(), Request(C)], null), null, false);
+        var drinksUnseen = new InnGourmandNote(5, new GourmandAdvice([Request()], null), null, DrinksUnknown: true);
 
-        Assert.Equal([(3, C)], InnWantsView.Of(Advice(unknown, unmet)).Select(w => (w.Table, w.ItemId)));
+        var wants = InnWantsView.Of(Advice(unknown, unmet, drinksUnseen), Text);
+
+        Assert.Equal([(1, null, "没认出要求"), (3, null, "没有合适的"), (3, C, Dish(C).Zh)], wants.Select(w => (w.Table, w.ItemId, w.Name)));
+        var asked = new List<string>();
+        var board = InnWantsView.Board(wants, id => { asked.Add(id); return null; }, Text);
+        Assert.Equal([C], asked); // no picture is asked for a circle without an item
+        Assert.Equal(["桌1", "桌3", "桌3"], board.Gauges.Select(g => g.Label));
+        Assert.Null(board.Gauges[0].Avatar);
     }
 
     /// <summary>The circles are the session's gourmands: kept while the order is open, through the open dispatch panel, gone once fulfilled.</summary>
@@ -74,41 +87,46 @@ public class InnWantsTests
             .First(x => !x.Item2.ForDrink && new[] { A, B, C, D, E }.Any(id => x.Item2.MetBy(Dish(id))));
         var gourmand = Tables(new TableCard(4, TableState.GourmandOrder, [], []));
         session.Update(Session(10, tables: gourmand, bubble: new GourmandBubble(request.Text, [request.Text])));
-        Assert.Equal(4, Assert.Single(InnWantsView.Of(session.Advice(S(10))!)).Table);
+        Assert.Equal(4, Assert.Single(InnWantsView.Of(session.Advice(S(10))!, Text)).Table);
 
         session.Update(Session(11, tables: Tables(), panel: Panel(1, 1, [A, B, C])));
-        Assert.Single(InnWantsView.Of(session.Advice(S(11))!));
+        Assert.Single(InnWantsView.Of(session.Advice(S(11))!, Text));
 
         session.Update(Session(12, tables: Tables(new TableCard(4, TableState.GourmandEating, [], []))));
-        Assert.Empty(InnWantsView.Of(session.Advice(S(12))!));
+        Assert.Empty(InnWantsView.Of(session.Advice(S(12))!, Text));
     }
 
     /// <summary>
-    /// The most circles, with the longest names, from their place right of the table cards: clear of table 6's card, of
-    /// the status at the top right and of the dispatch panel's top edge, in a 16:9 window at 1080p, 1440p and 4K.
+    /// Owner, live 2026-10-20: "the circle should be at where the buff is (middle bottom)". The most circles, with the
+    /// longest names, centred where the gauges are (the player's place, bottom middle by default) and standing on their
+    /// bottom line, inside a 16:9 window at 1080p, 1440p and 4K; a place dragged to the window's edge keeps them inside.
     /// </summary>
     [Theory]
     [InlineData(1920, 1080)]
     [InlineData(2560, 1440)]
     [InlineData(3840, 2160)]
-    public void The_most_circles_fit_right_of_the_table_cards_above_the_dispatch_panel(int width, int height)
+    public void The_most_circles_stand_at_the_gauges_place_bottom_middle_inside_the_window(int width, int height)
     {
         var longest = Inn.Dishes.OrderByDescending(d => d.Zh.Length).Take(InnWantsView.MostCircles).ToList();
-        var wants = longest.Select((d, i) => new InnWant(i < 2 ? 5 : 6, d.Id, d.Zh)).ToList();
-        double scale = ComboHintLayout.Scale(height, dpiScale: 1), toWindow = width / 3840.0;
+        var wants = longest.Select((d, i) => new InnWant(i / 2 + 1, d.Id, d.Zh)).ToList();
+        double scale = ComboHintLayout.Scale(height, dpiScale: 1);
 
         var size = OnSta(() =>
         {
             var element = (FrameworkElement)Gauges.Build(InnWantsView.Board(wants, _ => null, Text));
             element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            return element.DesiredSize;
+            return new Size(element.DesiredSize.Width * scale, element.DesiredSize.Height * scale);
         });
-        var at = InnWantsLayout.TopLeft(width, height);
+        var at = InnWantsLayout.TopLeft(width, height, size, HudConfig.DefaultGaugesCenterX, HudConfig.DefaultGaugesBottomY);
 
-        Assert.True(at.X >= 2258 * toWindow, "left of table 6's card's right edge");
-        Assert.True(at.X + size.Width * scale <= InnWantsLayout.Right4K * toWindow, $"right edge {at.X + size.Width * scale:F0} past the status at {InnWantsLayout.Right4K * toWindow:F0}");
-        Assert.True(at.Y + size.Height * scale <= InnWantsLayout.Bottom4K * toWindow, $"bottom {at.Y + size.Height * scale:F0} over the dispatch panel's top at {InnWantsLayout.Bottom4K * toWindow:F0}");
+        Assert.Equal(width / 2.0, at.X + size.Width / 2, 1);
+        Assert.Equal(HudConfig.DefaultGaugesBottomY * height, at.Y + size.Height, 1);
+        Assert.True(at.X >= 0 && at.X + size.Width <= width, $"{at.X:F0}..{at.X + size.Width:F0} of {width}");
+        Assert.True(at.Y >= 0, "inside the window");
         Assert.True(Gauges.Size * scale >= 90, "each circle is large");
+
+        var atEdge = InnWantsLayout.TopLeft(width, height, size, 0.98, 1);
+        Assert.True(atEdge.X + size.Width <= width + 0.5 && atEdge.Y + size.Height <= height + 0.5, "kept inside from a place at the edge");
     }
 
     [Fact]

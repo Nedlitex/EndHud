@@ -146,7 +146,7 @@ public class InnSetupLayoutTests(Xunit.Abstractions.ITestOutputHelper output)
             var mine = model.Lines.SelectMany(l => l.Segments).Where(s => s.PictureId is not null).ToList();
             var (images, texts) = OnSta(() =>
             {
-                var element = InnStrip.Build(model, id => id == missing ? null : PackagePicture(id), InnStrip.LineWidth);
+                var element = InnStrip.Build(model, id => id == missing ? null : PackagePicture(id), lineWidth: 520);
                 element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
                 element.Arrange(new Rect(element.DesiredSize));
                 var all = Descendants(element).ToList();
