@@ -40,13 +40,11 @@ public class InnSetupCostTests(ITestOutputHelper output)
         var screens = await Screens.Value;
         var setup = await Load("setup-chefs-placed.jpg");
         var menu = await Load("menu-dishes.jpg");
-        var picker = await Load("chef-picker.jpg");
 
         await Time("detect (setup screen)", () => screens.DetectAsync(setup));
         await Time("setup screen (theme, kitchens, chefs)", () => screens.ReadSetupAsync(setup));
         await Time("menu screen (cards, counters)", () => screens.ReadMenuAsync(menu));
         await Time("menu requirements", () => screens.ReadMenuRequirementsAsync(menu));
-        await Time("chef picker's kitchen", () => screens.ReadPickerKitchenAsync(picker));
     }
 
     [Fact]
@@ -70,7 +68,6 @@ public class InnSetupCostTests(ITestOutputHelper output)
         {
             ("all kitchens empty", empty.SetupInputs().Input!),
             ("chefs placed, chefs' advice", placed.SetupInputs().Input!),
-            ("chefs placed, menu advice", placed.MenuInputs().Input!),
         })
         {
             planner.PlanByModel(input); // warm

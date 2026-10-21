@@ -19,15 +19,9 @@ internal enum InnSetupGap
 /// <summary>What a piece of setup advice works from: the planner's input, or what's missing.</summary>
 /// <param name="Input">Null when anything is missing (<paramref name="Gaps"/>): no plan from half a reading.</param>
 /// <param name="Key">Changes when the input does: the plan is worked out again only then.</param>
-/// <param name="RulesNotUnderstood">Menu requirement lines (as read) the planner couldn't take in: the plan ignores them, and the advice says so.</param>
+/// <param name="RulesNotUnderstood">Menu requirement lines (as read) the planner couldn't take in: the plan ignores them, and the log says so.</param>
 internal sealed record InnSetupInputs(IReadOnlyList<InnSetupGap> Gaps, InnPlanInput? Input, string Key, IReadOnlyList<string> RulesNotUnderstood)
 {
-    /// <summary>
-    /// For the menu: no chef is placed in any kitchen yet, so the plan picks the chefs as well as the
-    /// menu (and the menu advice says so). Always false for the chefs' advice, which picks them anyway.
-    /// </summary>
-    public bool ChefsPlanned { get; init; }
-
     /// <summary>
     /// When the menu screen last showed a card not seen before (on <see cref="InnClock"/>): the player is
     /// scrolling the list while this is recent (<see cref="InnSetupPlanning.ScrollSettle"/>). Null when none was.
@@ -41,9 +35,9 @@ internal sealed record InnSetupInputs(IReadOnlyList<InnSetupGap> Gaps, InnPlanIn
 /// memory only. The durable-store checklist:
 /// <list type="bullet">
 /// <item><b>Create:</b> from readings: the setup screen gives the theme (name, rules, hot types, objective) and
-/// the kitchens with their places and placed chefs; the chef picker its kitchen; the menu screen each card
+/// the kitchens with their places and placed chefs; the menu screen each card
 /// seen (on the menu or not, its stock), the counters and the menu requirements.</item>
-/// <item><b>Read:</b> the setup advice (<see cref="ForSetup"/>, <see cref="ForMenu"/>) and the session's
+/// <item><b>Read:</b> the setup advice (<see cref="ForSetup"/>) and the session's
 /// kitchens and menu (<see cref="InnSession"/>). A part never read is a gap, never a guess.</item>
 /// <item><b>Correct:</b> a newer clear reading of a part replaces it (a card by its id, the kitchens as
 /// a whole, the requirements number by number). A reading that fails changes nothing: a page
@@ -67,10 +61,7 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
     /// <summary>The dishes and drinks on the menu (the menu screen's red frames), by id.</summary>
     public IReadOnlyDictionary<string, MenuCard> Menu => _menu;
 
-    /// <summary>The kitchen whose chef picker was last read (kitchen one = 1); null when none.</summary>
-    public int? PickerKitchen { get; private set; }
-
-    /// <summary>Takes in a reading of a setup screen (the setup screen, a chef picker, the menu screen).</summary>
+    /// <summary>Takes in a reading of a setup screen (the setup screen, the menu screen; a chef picker says nothing).</summary>
     public void Take(InnReading reading)
     {
         // The theme is unreadable only while the setup screen showing it is; elsewhere the last clear reading stands.
@@ -80,11 +71,6 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
             case InnScreenKind.Setup:
                 if (reading.Fresh) _setupUnreadable = reading.Setup is null;
                 if (reading.Setup is { } setup) Setup = Merge(Setup, setup);
-                break;
-            case InnScreenKind.ChefPicker:
-                // Read on this frame: its kitchen, or none when the title couldn't be read (never the
-                // last picker's, whose advice would be another kitchen's). Between reads it stands.
-                if (reading.Fresh) PickerKitchen = reading.PickerKitchen;
                 break;
             case InnScreenKind.Menu:
                 foreach (var read in reading.Menu?.Cards ?? [])
@@ -115,7 +101,6 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
         _requirements = null;
         _dishCounter = _drinkCounter = null;
         _setupUnreadable = false;
-        PickerKitchen = null;
         _newCardAt = null;
     }
 
@@ -225,19 +210,6 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
         var kitchens = SetupKitchens();
         if (kitchens.Count == 0) return new InnSetupInputs([InnSetupGap.NoKitchens], null, "no-kitchens", []);
         return Inputs(kitchens, "chefs");
-    }
-
-    /// <summary>
-    /// What the menu advice works from (the menu screen): as <see cref="ForSetup"/>, but for the chefs actually
-    /// placed: only kitchens with a chef, each exactly as it is. With no chef placed anywhere, the
-    /// chefs are planned too (<see cref="InnSetupInputs.ChefsPlanned"/>).
-    /// </summary>
-    public InnSetupInputs ForMenu()
-    {
-        var setup = ForSetup();
-        if (setup.Input is not { } input) return setup;
-        var staffed = input.Kitchens.Where(k => k.Placed.Count > 0).Select(k => k with { Places = k.Placed.Count }).ToList();
-        return staffed.Count == 0 ? setup with { Key = "menu+" + setup.Key, ChefsPlanned = true } : Inputs(staffed, "menu");
     }
 
     private InnSetupInputs Inputs(IReadOnlyList<PlanKitchen> kitchens, string purpose)

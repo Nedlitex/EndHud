@@ -28,16 +28,10 @@ internal sealed record InnReading(InnScreenKind Screen, TimeSpan At, SessionCloc
 {
     public IReadOnlyList<TableCard?> TableCards => Tables ?? [];
 
-    /// <summary>On a chef picker: the kitchen it's for (kitchen one = 1), read off its title; null when unread or between reads.</summary>
-    public int? PickerKitchen { get; init; }
-
-    /// <summary>On a chef picker: the grid's cards in view and who each is (<see cref="ChefPickerReader"/>); null between reads.</summary>
-    public IReadOnlyList<ChefCard>? PickerCards { get; init; }
-
     /// <summary>A session frame (with or without the dispatch panel over it).</summary>
     public bool InSession => Screen is InnScreenKind.Session or InnScreenKind.DispatchPanel;
 
-    /// <summary>A screen before the session with advice on it: the setup screen, a chef picker, the menu (not the theme list).</summary>
+    /// <summary>A screen before the session that's read for the setup: the setup screen, a chef picker, the menu (not the theme list).</summary>
     public bool OnSetupScreens => Screen is InnScreenKind.Setup or InnScreenKind.ChefPicker or InnScreenKind.Menu;
 }
 
@@ -61,12 +55,6 @@ internal interface IInnScreens
 
     Task<InnSetup?> ReadSetupAsync(Frame frame);
 
-    /// <summary>The kitchen a chef picker is for, off its title (kitchen one = 1); null when unread.</summary>
-    Task<int?> ReadPickerKitchenAsync(Frame frame);
-
-    /// <summary>A chef picker's grid cards in view, each named only when sure (<see cref="ChefPickerReader"/>).</summary>
-    IReadOnlyList<ChefCard> ReadPickerCards(Frame frame);
-
     Task<InnMenu?> ReadMenuAsync(Frame frame);
 
     /// <summary>The menu screen's 菜单要求 panel.</summary>
@@ -83,7 +71,6 @@ internal sealed class InnScreens(InnText text, InnPictures pictures, InnData dat
     private readonly SetupReader _setup = new(text, data, library.Operators);
     private readonly MenuReader _menu = new(text, data);
     private readonly MenuRequirementsReader _requirements = new(text, data);
-    private readonly ChefPickerReader _picker = new(data, new PortraitMatcher(library));
 
     public Task<InnScreenKind?> DetectAsync(Frame frame) => InnScreen.DetectAsync(text, frame);
 
@@ -98,10 +85,6 @@ internal sealed class InnScreens(InnText text, InnPictures pictures, InnData dat
     public Task<GourmandBubble?> ReadBubbleAsync(Frame frame) => _bubble.ReadAsync(frame);
 
     public Task<InnSetup?> ReadSetupAsync(Frame frame) => _setup.ReadAsync(frame, InnScreenKind.Setup);
-
-    public Task<int?> ReadPickerKitchenAsync(Frame frame) => InnScreen.ReadPickerKitchenAsync(text, frame);
-
-    public IReadOnlyList<ChefCard> ReadPickerCards(Frame frame) => _picker.Read(frame);
 
     public Task<InnMenu?> ReadMenuAsync(Frame frame) => _menu.ReadAsync(frame);
 
@@ -129,10 +112,6 @@ internal sealed class ClockOnlyScreens : IInnScreens
 
     public Task<InnSetup?> ReadSetupAsync(Frame frame) => Task.FromResult<InnSetup?>(null);
 
-    public Task<int?> ReadPickerKitchenAsync(Frame frame) => Task.FromResult<int?>(null);
-
-    public IReadOnlyList<ChefCard> ReadPickerCards(Frame frame) => [];
-
     public Task<InnMenu?> ReadMenuAsync(Frame frame) => Task.FromResult<InnMenu?>(null);
 
     public Task<MenuRequirements?> ReadMenuRequirementsAsync(Frame frame) => Task.FromResult<MenuRequirements?>(null);
@@ -151,8 +130,7 @@ internal sealed class ClockOnlyScreens : IInnScreens
 /// (pixels, no OCR) rather than the titles; a frame with neither is looked at in full again.</item>
 /// <item>The setup and menu screens change only when the player clicks or scrolls: read at once when
 /// one opens (another than the last seen, a missed frame between not counting), then at most every
-/// <see cref="SetupEvery"/>. Of a chef picker its title (which kitchen) and its grid's cards (who
-/// each is, to mark the recommended chefs); the theme list is only told apart (it shows no advice). The gourmand's bubble only
+/// <see cref="SetupEvery"/>. A chef picker and the theme list are only told apart (they show no advice). The gourmand's bubble only
 /// while a gourmand is at a table.</item>
 /// </list>
 /// </summary>
@@ -164,8 +142,8 @@ internal sealed class InnFrameReader(IInnScreens screens)
     /// <summary>
     /// How often the setup and menu screens are read again while they stay open, so the advice follows
     /// a click within about this long (owner, live 2026-10-19: "the page refreshes too slowly", at 2 s).
-    /// Measured at 4K (InnSetupCostTests): the setup screen ~300 ms of OCR, the menu ~120 ms, a picker's
-    /// title ~1 ms, all on the capture loop's worker, never the UI thread.
+    /// Measured at 4K (InnSetupCostTests): the setup screen ~300 ms of OCR, the menu ~120 ms, all on the
+    /// capture loop's worker, never the UI thread.
     /// </summary>
     public static readonly TimeSpan SetupEvery = TimeSpan.FromSeconds(0.5);
 
@@ -253,7 +231,7 @@ internal sealed class InnFrameReader(IInnScreens screens)
                     InnScreenKind.Setup => new InnReading(screen, now, Setup: await screens.ReadSetupAsync(frame)),
                     InnScreenKind.Menu => new InnReading(screen, now, Menu: await screens.ReadMenuAsync(frame),
                         Requirements: await screens.ReadMenuRequirementsAsync(frame)),
-                    _ => new InnReading(screen, now) { PickerKitchen = await screens.ReadPickerKitchenAsync(frame), PickerCards = screens.ReadPickerCards(frame) },
+                    _ => new InnReading(screen, now),
                 };
             }
             default:

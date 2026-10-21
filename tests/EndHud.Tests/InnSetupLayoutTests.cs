@@ -74,14 +74,14 @@ public class InnSetupLayoutTests(Xunit.Abstractions.ITestOutputHelper output)
         var plan = new InnPlan([.. kitchens.Select(k => new PlannedKitchen(k.Number, k.Chefs))], menu, drinks.Take(MenuRules.MostSeen).ToList(), null,
             InnPlanScore.Zero, RulesMet: false, []);
         var inputs = new InnSetupInputs([], new InnPlanInput([], 4, 0, 6, [new PlanKitchen(1, 2), new PlanKitchen(2, 2), new PlanKitchen(3, 2)], [], [], [],
-            new MenuRules(6, 8, 3, 8, 3, [])) { Preferred = [] }, "k", ["至少有2道带有[某种没见过的]特性的菜品"]) { ChefsPlanned = true };
+            new MenuRules(6, 8, 3, 8, 3, [])) { Preferred = [] }, "k", ["至少有2道带有[某种没见过的]特性的菜品"]);
         return (inputs, new InnSetupAdvice(plan, suggestions), [.. menu.Select(d => d.Dish.Id), .. drinks.Select(d => d.Drink.Id)]);
     }
 
     private static IReadOnlyList<InnAdvicePanel> Panels()
     {
         var (inputs, advice, onMenu) = Fullest();
-        return [.. InnSetupView.Setup(inputs, advice, Inn, Text), .. InnSetupView.Picker(1, inputs, advice, Inn, Text), .. InnSetupView.Menu(inputs, advice, onMenu, Inn, Text)];
+        return InnSetupView.Setup(inputs, advice, Inn, Text);
     }
 
     private static Size Measure(InnStripModel model, double lineWidth, InnStripLook look) => OnSta(() =>
@@ -99,12 +99,12 @@ public class InnSetupLayoutTests(Xunit.Abstractions.ITestOutputHelper output)
     {
         double scale = ComboHintLayout.Scale(height, dpiScale: 1);
         var panels = Panels();
-        Assert.Equal([InnAdviceSpot.Kitchen1, InnAdviceSpot.Kitchen2, InnAdviceSpot.Kitchen3, InnAdviceSpot.Picker, InnAdviceSpot.Menu], panels.Select(p => p.Spot));
+        Assert.Equal([InnAdviceSpot.Kitchen1, InnAdviceSpot.Kitchen2, InnAdviceSpot.Kitchen3], panels.Select(p => p.Spot));
 
         foreach (var panel in panels)
         {
             var spot = InnAdviceLayout.Place(panel.Spot, width, height);
-            var size = Measure(panel.Model, InnAdviceLayout.LineWidth(panel.Spot, width, height, scale), InnAdviceLayout.Look(panel.Spot));
+            var size = Measure(panel.Model, InnAdviceLayout.LineWidth(panel.Spot, width, height, scale), InnStripLook.Normal);
             output.WriteLine($"{panel.Spot} at {width}x{height}: {size.Width * scale:F0}x{size.Height * scale:F0} in {spot.Width:F0}x{spot.Height:F0}");
             Assert.True(size.Width * scale <= spot.Width + 0.5, $"{panel.Spot}: {size.Width * scale:F0} wide in a spot {spot.Width:F0} wide");
             Assert.True(size.Height * scale <= spot.Height + 0.5, $"{panel.Spot}: {size.Height * scale:F0} tall in a spot {spot.Height:F0} tall");
@@ -124,10 +124,6 @@ public class InnSetupLayoutTests(Xunit.Abstractions.ITestOutputHelper output)
             Assert.InRange(spot.Top, 0.655, 0.7);
             Assert.InRange(spot.Top + spot.Height, 0.8, 0.865);
         }
-        var menu = InnAdviceLayout.Of(InnAdviceSpot.Menu);
-        Assert.True(menu.Left >= 0.05 && menu.Left + menu.Width <= 0.39 && menu.Top >= 0.6 && menu.Top + menu.Height <= 0.835);
-        var picker = InnAdviceLayout.Of(InnAdviceSpot.Picker);
-        Assert.True(picker.Left >= 0.33 && picker.Left + picker.Width <= 0.97 && picker.Top >= 0.68 && picker.Top + picker.Height <= 0.86);
 
         // A window wider than 16:9: the game's area is centred, and the spots with it.
         var wide = InnAdviceLayout.Place(InnAdviceSpot.Kitchen1, 2560, 1080);

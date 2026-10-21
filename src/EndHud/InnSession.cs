@@ -183,14 +183,8 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// <summary>The dishes and drinks on the menu, as the menu screen last showed them.</summary>
     public IReadOnlyCollection<string> OnMenu => [.. _memory.Menu.Keys];
 
-    /// <summary>The kitchen whose chef picker was last read; null when none.</summary>
-    public int? PickerKitchen => _memory.PickerKitchen;
-
     /// <summary>What the chefs' advice works from (<see cref="InnSetupMemory.ForSetup"/>).</summary>
     public InnSetupInputs SetupInputs() => _memory.ForSetup();
-
-    /// <summary>What the menu advice works from (<see cref="InnSetupMemory.ForMenu"/>).</summary>
-    public InnSetupInputs MenuInputs() => _memory.ForMenu();
 
     /// <summary>What the last <see cref="Advice"/> changed of the calls shown, and why (<see cref="InnCallHold.Changes"/>).</summary>
     public IReadOnlyList<string> CallChanges => _calls.Changes;

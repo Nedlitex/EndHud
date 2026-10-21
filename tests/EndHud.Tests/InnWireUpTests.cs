@@ -21,7 +21,7 @@ public class InnWireUpTests
         public InnScreenKind? Kind { get; set; }
         public DispatchPanel? Panel { get; set; }
         public IReadOnlyList<TableCard?> Tables { get; set; } = [.. Enumerable.Range(1, 6).Select(n => (TableCard?)new TableCard(n, TableState.Empty, [], []))];
-        public int Detections, BubbleReads, PanelReads, SetupReads, PickerReads;
+        public int Detections, BubbleReads, PanelReads, SetupReads;
 
         public Task<InnScreenKind?> DetectAsync(Frame frame)
         {
@@ -55,18 +55,6 @@ public class InnWireUpTests
             SetupReads++;
             return Task.FromResult<InnSetup?>(null);
         }
-
-        public int? PickerKitchen { get; set; }
-
-        public Task<int?> ReadPickerKitchenAsync(Frame frame)
-        {
-            PickerReads++;
-            return Task.FromResult(PickerKitchen);
-        }
-
-        public IReadOnlyList<ChefCard> PickerCards { get; set; } = [];
-
-        public IReadOnlyList<ChefCard> ReadPickerCards(Frame frame) => PickerCards;
 
         public Task<InnMenu?> ReadMenuAsync(Frame frame) => Task.FromResult<InnMenu?>(null);
 
@@ -183,7 +171,7 @@ public class InnWireUpTests
         var (monitor, screens, raised) = Monitor();
         screens.Kind = screen;
         Assert.True(await monitor.TryInnAsync(AnyFrame, S(0), false));
-        int reads = screens.SetupReads + screens.PickerReads;
+        int reads = screens.SetupReads;
 
         screens.Kind = null;
         Assert.False(await monitor.TryInnAsync(AnyFrame, S(0.1), false));
@@ -193,7 +181,7 @@ public class InnWireUpTests
         Assert.DoesNotContain(null, raised);
         Assert.Equal([screen, screen, screen], raised.Select(r => r!.Screen));
         Assert.False(raised[1]!.Fresh); // the held frame carries nothing new
-        Assert.Equal(reads, screens.SetupReads + screens.PickerReads); // the same screen: not read again before its time
+        Assert.Equal(reads, screens.SetupReads); // the same screen: not read again before its time
     }
 
     [Fact]
@@ -344,24 +332,22 @@ public class InnWireUpTests
     }
 
     /// <summary>
-    /// Of the chef picker only its title is read, for its kitchen (the advice there is that kitchen's;
-    /// owner, 2026-10-19: never require reading the picker's grid), at once when it opens, then every half second.
+    /// The chef picker is told apart (it keeps the setup remembered) and nothing on it is read: it shows no advice since the
+    /// owner's 2026-10-21 test ("the recommendation in the choose cook or dish menu ... just delete that for now").
     /// </summary>
     [Fact]
-    public async Task Of_the_chef_picker_only_its_kitchen_is_read_at_once_when_it_opens()
+    public async Task Nothing_on_the_chef_picker_is_read()
     {
         var (monitor, screens, raised) = Monitor();
         screens.Kind = InnScreenKind.Setup;
         Assert.True(await monitor.TryInnAsync(AnyFrame, S(0), false));
         screens.Kind = InnScreenKind.ChefPicker;
-        screens.PickerKitchen = 2;
 
         foreach (double t in new[] { 0.25, 0.5, 2.25 }) Assert.True(await monitor.TryInnAsync(AnyFrame, S(t), false));
 
         Assert.Equal(1, screens.SetupReads);
-        Assert.Equal(2, screens.PickerReads);
-        Assert.Equal([2, null, 2], raised.Skip(1).Select(r => r!.PickerKitchen));
         Assert.All(raised, r => Assert.True(r!.OnSetupScreens));
+        Assert.Equal(InnScreenKind.ChefPicker, raised[^1]!.Screen);
     }
 
     /// <summary>The theme list is told apart and nothing on it is read: it shows no advice.</summary>
@@ -373,7 +359,7 @@ public class InnWireUpTests
 
         foreach (double t in new[] { 0, 2.5 }) Assert.True(await monitor.TryInnAsync(AnyFrame, S(t), false));
 
-        Assert.Equal((0, 0), (screens.SetupReads, screens.PickerReads));
+        Assert.Equal(0, screens.SetupReads);
         Assert.All(raised, r => Assert.False(r!.OnSetupScreens));
     }
 
@@ -394,8 +380,6 @@ public class InnWireUpTests
         public Task<DispatchPanel?> ReadPanelAsync(Frame frame) => throw new NotSupportedException();
         public Task<GourmandBubble?> ReadBubbleAsync(Frame frame) => throw new NotSupportedException();
         public Task<InnSetup?> ReadSetupAsync(Frame frame) => throw new NotSupportedException();
-        public Task<int?> ReadPickerKitchenAsync(Frame frame) => throw new NotSupportedException();
-        public IReadOnlyList<ChefCard> ReadPickerCards(Frame frame) => throw new NotSupportedException();
         public Task<InnMenu?> ReadMenuAsync(Frame frame) => throw new NotSupportedException();
         public Task<MenuRequirements?> ReadMenuRequirementsAsync(Frame frame) => throw new NotSupportedException();
     }

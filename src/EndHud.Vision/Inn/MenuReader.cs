@@ -30,14 +30,7 @@ public enum MenuTab
 /// <param name="OnMenu">Chosen for the menu (the card's red frame).</param>
 /// <param name="Unlimited">The stock is ∞ (可烹饪∞, 库存∞).</param>
 /// <param name="Stock">The stock as a number, when one is shown and read.</param>
-public sealed record MenuCard(string? Id, string Name, bool OnMenu, bool Unlimited, int? Stock)
-{
-    /// <summary>
-    /// The card's place at 4K on the window's centred 16:9 area (as <see cref="DispatchPanelReader.CardArea"/>), from
-    /// where its name was read; null when the card isn't wholly in the list's view (scrolled half out).
-    /// </summary>
-    public PixelRect? Area { get; init; }
-}
+public sealed record MenuCard(string? Id, string Name, bool OnMenu, bool Unlimited, int? Stock);
 
 /// <summary>What the menu screen (菜单设定) shows.</summary>
 /// <param name="Tab">The list shown; null when no tab reads as chosen.</param>
@@ -66,8 +59,6 @@ public sealed partial class MenuReader(InnText text, InnData data)
     private const int DishCounterEnd = 700;
     // From a card's name: its left edge, its stock label's row and the stock's place right of the label.
     private const int NameToLeft = 330, NameToFrameY = 170, NameToStockY = 170, StockWidth = 160;
-    // A card's light face from its name's top-left (measured on menu-dishes.jpg: 898 × 257).
-    private const int NameToTop = 32, CardWidth = 898, CardHeight = 257;
 
     /// <summary>The menu screen, or null when no card or counter can be read.</summary>
     public async Task<InnMenu?> ReadAsync(Frame frame)
@@ -107,9 +98,7 @@ public sealed partial class MenuReader(InnText text, InnData data)
             bool onMenu = IsRedFrame(frame, layout, nameX - NameToLeft, nameY + NameToFrameY);
             var (unlimited, stock) = ReadStock(frame, layout, best, place);
             string name = names.First(n => n.Id == id).Zh;
-            var area = new PixelRect((int)Math.Round(nameX - NameToLeft + 1), (int)Math.Round(nameY - NameToTop), CardWidth, CardHeight);
-            bool inView = area.Y >= List.Y - 30 && area.Y + area.Height <= List.Y + List.Height + 40;
-            cards.Add((place, new MenuCard(id, name, onMenu, unlimited, stock) { Area = inView ? area : null }));
+            cards.Add((place, new MenuCard(id, name, onMenu, unlimited, stock)));
         }
         var (dishes, drinks) = Counters(frame, layout);
         if (cards.Count == 0 && dishes is null && drinks is null) return null;

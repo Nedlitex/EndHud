@@ -37,13 +37,25 @@ public class InnSetupRulesTests
         Assert.Empty(inputs.RulesNotUnderstood);
     }
 
+    /// <summary>A rule not understood is kept as read, for the log (the overlay logs it once per change; no panel says it).</summary>
     [Fact]
-    public void A_rule_not_understood_is_said_with_the_menu()
+    public void A_rule_not_understood_is_kept_as_read()
     {
         var inputs = Inputs(["至少有3道很奇怪的菜品"], ["Soup"]);
 
         Assert.Equal(["至少有3道很奇怪的菜品"], inputs.RulesNotUnderstood);
-        var lines = InnSetupView.Menu(inputs, null, [], Inn, Text).Single().Model.Lines.Select(l => l.Text).ToList();
-        Assert.Contains("看不懂菜单要求：至少有3道很奇怪的菜品（推荐没有算上它）", lines);
+    }
+
+    /// <summary>
+    /// A rule whose last character was lost where its line wraps (owner, live 2026-10-21: "至少有2道「[甜品]类菜。", the
+    /// dessert half of the tea-break theme's rule, said as not understood): read all the same, with the half before it.
+    /// </summary>
+    [Fact]
+    public void A_rule_cut_where_its_line_wraps_is_understood()
+    {
+        var inputs = Inputs(["至少有2道「[汤羹]类菜品和2道「[甜品]类菜。"], ["Soup", "Dessert"]);
+
+        Assert.Empty(inputs.RulesNotUnderstood);
+        Assert.Equal(["2:Soup", "2:Dessert"], inputs.Input!.Rules.DishRules.Select(r => $"{r.Count}:{string.Join("/", r.AnyOf)}"));
     }
 }
