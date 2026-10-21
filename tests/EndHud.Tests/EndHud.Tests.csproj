@@ -54,6 +54,14 @@
           CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\inn\menu-soup-theme.jpg')" />
     <None Include="..\data\Fixtures\inn\dispatch-panel-banners.jpg" Link="Fixtures\inn\dispatch-panel-banners.jpg"
           CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\inn\dispatch-panel-banners.jpg')" />
+    <None Include="..\data\Fixtures\inn\menu-soup-dessert-theme.jpg" Link="Fixtures\inn\menu-soup-dessert-theme.jpg"
+          CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\inn\menu-soup-dessert-theme.jpg')" />
+    <None Include="..\data\Fixtures\inn\menu-soup-dessert-theme-scrolled.jpg" Link="Fixtures\inn\menu-soup-dessert-theme-scrolled.jpg"
+          CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\inn\menu-soup-dessert-theme-scrolled.jpg')" />
+    <None Include="..\data\Fixtures\inn\session-panel-closed-mark-table1.jpg" Link="Fixtures\inn\session-panel-closed-mark-table1.jpg"
+          CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\inn\session-panel-closed-mark-table1.jpg')" />
+    <None Include="..\data\Fixtures\inn\session-gourmand-soup-and-drink.jpg" Link="Fixtures\inn\session-gourmand-soup-and-drink.jpg"
+          CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\inn\session-gourmand-soup-and-drink.jpg')" />
   </ItemGroup>
 
 </Project>

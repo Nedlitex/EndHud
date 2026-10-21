@@ -217,6 +217,50 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
         Assert.DoesNotContain(panel.Model.Lines.SelectMany(l => l.Segments), s => s.Text == "✓");
     }
 
+    /// <summary>
+    /// Owner, live 2026-10-21 (test_yuanyuan4, about 1:00): "the recommended menu does not even satisfy the minimum
+    /// requirement of the theme ... it requires 3 different kind of dishes, but the recommended ones only contains 2". The
+    /// tea-break theme (暇时茶点): Rating 4's at least 3 types, 6 dishes and 3 drinks, and its own "at least 2 soups and 2
+    /// desserts", the rule as the setup screen's reading put it then (the old panel said it couldn't read the dessert half:
+    /// "至少有2道「[甜品]类菜。", its 品 lost where the line wraps). The menu screen read through the real readers at the top of
+    /// its list (menu-soup-dessert-theme.jpg) and a little further down (…-scrolled): only soups and desserts in view yet.
+    /// The setup screen's advice is planned from what's remembered: every rule holds, the dessert rule understood.
+    /// </summary>
+    [Fact]
+    public async Task The_tea_themes_advice_meets_every_rule_with_only_soups_and_desserts_seen_on_the_menu()
+    {
+        var (monitor, raised) = await Monitor();
+        var session = NewSession();
+        var theme = Inn.Themes.Single(t => t.Zh == "暇时茶点");
+        session.Update(new InnReading(InnScreenKind.Setup, S(0), Setup: new InnSetup("暇时茶点", theme, null, ["至少有2道「[汤羹]类菜品和2道「[甜品]类菜。"], [],
+        [
+            new SetupKitchen(1, 2, [null, null], [null, null]) { ChefsPlaced = 0 },
+            new SetupKitchen(2, 2, [null, null], [null, null]) { ChefsPlaced = 0 },
+            new SetupKitchen(3, 2, [null, null], [null, null]) { ChefsPlaced = 0 },
+        ])));
+        foreach (var (fixture, at) in new[] { ("menu-soup-dessert-theme.jpg", 3.0), ("menu-soup-dessert-theme-scrolled.jpg", 4.0) })
+        {
+            Assert.True(await monitor.TryInnAsync(await Load(Path.Combine("inn", fixture)), S(at), squadPanelSeen: false));
+            session.Update(raised[^1]!);
+        }
+
+        var inputs = session.SetupInputs();
+        Assert.Empty(inputs.RulesNotUnderstood);
+        var rules = inputs.Input!.Rules;
+        Assert.Equal((6, 3, 3), (rules.MinDishes, rules.MinDrinks, rules.MinTypes));
+        Assert.Contains(rules.DishRules, r => r.Count == 2 && r.AnyOf.SequenceEqual(["Soup"]));
+        Assert.Contains(rules.DishRules, r => r.Count == 2 && r.AnyOf.SequenceEqual(["Dessert"]));
+
+        var planner = new InnPlanner(Inn);
+        foreach (var advice in new[] { InnSetupAdvice.Fast(planner, inputs.Input), InnSetupAdvice.For(planner, inputs.Input, CancellationToken.None) })
+        {
+            output.WriteLine(string.Join(" ", advice.Plan.Dishes.Select(d => $"{d.Dish.Zh}({d.Dish.Type})")));
+            Assert.True(advice.Plan.RulesMet);
+            Assert.True(advice.Plan.Dishes.Select(d => d.Dish.Type).Distinct().Count() >= 3, "fewer than 3 dish types");
+            Assert.True(planner.MeetsRules(rules, advice.Plan.Dishes, advice.Plan.Drinks));
+        }
+    }
+
     [Fact]
     public async Task A_dispatch_panel_frame_gives_the_kitchens_queue_exactly()
     {

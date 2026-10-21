@@ -219,24 +219,36 @@ public class InnSetupMemoryTests
         new(InnScreenKind.Menu, S(at), Menu: new InnMenu(MenuTab.AllDishes, (0, 8), (0, 8),
             [.. ids.Select(id => new MenuCard(id, id, false, true, null))]));
 
+    /// <summary>
+    /// Once the menu screen shows dishes: those it showed, and every dish the Inn Rating unlocks (reaching the rating
+    /// unlocks it); a dish a theme's stars or a mission unlock only once seen. Never only the cards seen so far (owner, live
+    /// 2026-10-21: the first cards in view were soups and desserts only, and the plan "only contains 2" types). Drinks alike.
+    /// </summary>
     [Fact]
-    public void Once_the_menu_screen_shows_dishes_only_those_are_planned_and_drinks_likewise()
+    public void Once_the_menu_screen_shows_dishes_those_and_the_ratings_are_planned_and_drinks_likewise()
     {
         var session = NewSession();
         session.Update(Setup(0));
         // Before the menu screen: every dish the rating unlocks (the player's own list can't be known yet).
         Assert.Equal(Inn.Dishes.Count, session.SetupInputs().Input!.Dishes.Count);
+        int rating = session.SetupInputs().Input!.Rating;
+        bool ByRating(DishUnlock unlock) => unlock.Rating is { } needs && needs <= rating;
+        string[] Expected(params string[] seen) =>
+            [.. Inn.Dishes.Where(d => ByRating(d.Unlock) || seen.Contains(d.Id)).Select(d => d.Id).Order(StringComparer.Ordinal)];
 
+        // clay-jar-meat (ocean-land's stars) seen; fin-mato-soup and goldfloss-chiffon are Rating 4's anyway.
         session.Update(Cards(2, "fin-mato-soup", "clay-jar-meat", "goldfloss-chiffon"));
-        Assert.Equal(["clay-jar-meat", "fin-mato-soup", "goldfloss-chiffon"], session.MenuInputs().Input!.Dishes.Select(d => d.Dish.Id).Order(StringComparer.Ordinal));
-        Assert.Equal(["clay-jar-meat", "fin-mato-soup", "goldfloss-chiffon"], session.SetupInputs().Input!.Dishes.Select(d => d.Dish.Id).Order(StringComparer.Ordinal));
+        Assert.Equal(Expected("clay-jar-meat"), session.MenuInputs().Input!.Dishes.Select(d => d.Dish.Id).Order(StringComparer.Ordinal));
+        Assert.Equal(Expected("clay-jar-meat"), session.SetupInputs().Input!.Dishes.Select(d => d.Dish.Id).Order(StringComparer.Ordinal));
+        Assert.DoesNotContain(session.SetupInputs().Input!.Dishes, d => d.Dish.Id == "boundary-lung-roll"); // a theme's, not seen
         // No drink card seen yet: the drinks stay the built-in list.
         Assert.Equal(Inn.Drinks.Count, session.MenuInputs().Input!.Drinks.Count);
 
         // Scrolling on: more dishes, and the drinks tab.
         session.Update(Cards(4, "spoon-swimmer", "pre-tide-lungjing", "bottled-milk-a"));
-        Assert.Equal(4, session.MenuInputs().Input!.Dishes.Count);
-        Assert.Equal(["bottled-milk-a", "pre-tide-lungjing"], session.MenuInputs().Input!.Drinks.Select(d => d.Drink.Id).Order(StringComparer.Ordinal));
+        Assert.Equal(Expected("clay-jar-meat", "spoon-swimmer"), session.MenuInputs().Input!.Dishes.Select(d => d.Dish.Id).Order(StringComparer.Ordinal));
+        Assert.Equal([.. Inn.Drinks.Where(d => ByRating(d.Unlock) || d.Id is "pre-tide-lungjing" or "bottled-milk-a").Select(d => d.Id).Order(StringComparer.Ordinal)],
+            session.MenuInputs().Input!.Drinks.Select(d => d.Drink.Id).Order(StringComparer.Ordinal));
     }
 
     // ---- Kept until changed (owner, live: "each kitchen's recommended cook refreshes all the time") ----

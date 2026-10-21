@@ -82,10 +82,12 @@ public sealed partial record DishRule(int Count, IReadOnlyList<string> AnyOf)
         return new DishRulesRead(rules, notUnderstood);
     }
 
-    [GeneratedRegex(@"至少有?(\d+)道带有(.+?)特性的菜品")]
+    // The closing 品 may be lost where the line wraps, the panel putting it alone on the next line (owner, live
+    // 2026-10-21: "至少有2道「[甜品]类菜。" said as not understood, so the plan left the desserts out): "…菜" is enough.
+    [GeneratedRegex(@"至少有?(\d+)道带有(.+?)特性的菜")]
     private static partial Regex TraitRuleText();
 
-    [GeneratedRegex(@"至少有?(\d+)道(.+?)类的?菜品")]
+    [GeneratedRegex(@"至少有?(\d+)道(.+?)类的?菜")]
     private static partial Regex TypeRuleText();
 
     [GeneratedRegex(@"(?=至少)")]

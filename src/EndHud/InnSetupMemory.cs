@@ -248,13 +248,16 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
         // Only operators who can cook and are in the game (InnChefRules.Suggestable: Argent Flow isn't out yet, owner 2026-10-20).
         var chefs = roster.Where(o => data.ChefBonuses.Suggestable(o.Id)).ToList();
         int? Stock(string id) => _offered.TryGetValue(id, out var card) && !card.Unlimited ? card.Stock : null;
-        // What the player has: once the menu screen has shown dishes, those it showed (the player's own list,
-        // owner: "it never even picked any one that I have"); before, every dish the rating unlocks and those a
-        // theme's stars do. Drinks alike, by the drinks seen.
+        // What the player has: every dish the Inn Rating unlocks (reaching the rating unlocks it), and of the others (a
+        // theme's stars, a mission) those the menu screen has shown (the player's own list, owner: "it never even picked
+        // any one that I have"); before the menu screen, those a theme's stars unlock too. Never only the cards seen: the
+        // list shows a few at a time, and the first in view were all soups and desserts, so the plan could not reach 3
+        // types (owner, live 2026-10-21). Drinks alike, by the drinks seen.
         bool dishesSeen = data.Dishes.Any(d => _offered.ContainsKey(d.Id)), drinksSeen = data.Drinks.Any(d => _offered.ContainsKey(d.Id));
-        var dishes = data.Dishes.Where(d => dishesSeen ? _offered.ContainsKey(d.Id) : d.Unlock.Rating is not { } needs || needs <= rating)
+        bool ByRating(DishUnlock unlock) => unlock.Rating is { } needs && needs <= rating;
+        var dishes = data.Dishes.Where(d => ByRating(d.Unlock) || (dishesSeen ? _offered.ContainsKey(d.Id) : d.Unlock.Rating is null))
             .Select(d => new MenuDish(d, Stock(d.Id))).ToList();
-        var drinks = data.Drinks.Where(d => drinksSeen ? _offered.ContainsKey(d.Id) : d.Unlock.Rating is not { } needs || needs <= rating)
+        var drinks = data.Drinks.Where(d => ByRating(d.Unlock) || (drinksSeen ? _offered.ContainsKey(d.Id) : d.Unlock.Rating is null))
             .Select(d => new MenuDrink(d, d.Unlimited ? null : Stock(d.Id))).ToList();
 
         // The theme's rules (a trait's or a dish type's): as the setup screen states them, and as the menu screen does.
