@@ -325,6 +325,10 @@
     <sys:String x:Key="Inn.Call.BlazeSoonCaption">满了就按 R 开启</sys:String>
     <sys:String x:Key="Inn.Call.Sample">派单提示示例</sys:String>
     <sys:String x:Key="Inn.Call.SampleCaption">营业时，该排什么菜会这样提示</sys:String>
+    <sys:String x:Key="Inn.Mark.Queue">排这个（桌{0}）</sys:String>
+    <sys:String x:Key="Inn.Mark.CookAhead">预做这个</sys:String>
+    <sys:String x:Key="Inn.Mark.Swap">先拿掉{0}，再排这个</sys:String>
+    <sys:String x:Key="Inn.Mark.Tab">有菜要排</sys:String>
     <sys:String x:Key="Inn.Call.Drag">按住拖动，调整派单提示位置</sys:String>
     <sys:String x:Key="Inn.Problem.NoTextRecognition">缘缘庄助手需要 Windows 的简体中文文字识别：设置 → 时间和语言 → 语言和区域 → 添加“中文(简体，中国)”，然后重启 EndHud</sys:String>
     <sys:String x:Key="Inn.Gourmand.Title">老饕（桌{0}）</sys:String>

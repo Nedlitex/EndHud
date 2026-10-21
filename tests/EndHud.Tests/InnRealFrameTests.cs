@@ -39,6 +39,33 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
         Assert.Empty(raised);
     }
 
+    /// <summary>
+    /// The owner's 2026-10-20 frame of the dispatch panel (kitchen 2) under EndHud's banners, through the real readers:
+    /// with the panel open no banner shows, and kitchen 2's call is marked on the card its dish was read on.
+    /// </summary>
+    [Fact]
+    public async Task On_the_open_dispatch_panel_the_call_is_a_mark_on_its_dishs_card_not_a_banner()
+    {
+        var (monitor, raised) = await Monitor();
+        Assert.True(await monitor.TryInnAsync(await Load(Path.Combine("inn", "dispatch-panel-banners.jpg")), S(0), squadPanelSeen: false));
+        var reading = Assert.Single(raised)!;
+        var panel = Assert.IsType<DispatchPanel>(reading.Panel);
+        Assert.Equal(2, panel.Kitchen);
+
+        var session = NewSession();
+        session.Update(SetupScreen(-2, 1, 2, 3));
+        session.Update(MenuScreen(-1, [.. panel.Dishes.Select(d => d.DishId).OfType<string>()]));
+        session.Update(reading);
+        var advice = session.Advice(S(0))!;
+
+        Assert.Empty(advice.BannerCalls);
+        var call = advice.Calls.Single(c => c.Kitchen == 2);
+        var marks = InnPanelMarks.Of(advice.Panel, advice.Calls, Text);
+        var card = panel.Dishes.Single(d => d.DishId == call.Dish!.Id).Card;
+        output.WriteLine($"kitchen 2: {call.Kind} {call.Dish!.Id} on card {card}");
+        Assert.Contains(marks, m => m.OnCard && m.Area == DispatchPanelReader.CardArea(card));
+    }
+
     [Fact]
     public async Task A_gourmands_order_frame_becomes_a_gourmand_card_with_both_requests()
     {

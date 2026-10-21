@@ -140,19 +140,23 @@ public partial class OverlayWindow
         RenderInnSetup();
         InnStripModel? model = null;
         IReadOnlyList<InnCall> calls = [];
+        IReadOnlyList<InnPanelMark> marks = [];
         if (_config.InnHelperEnabled)
         {
             if (_innOnScreen && AdviceNow() is { } advice)
             {
                 // The panel: the gourmands only; empty, it's put away.
                 model = InnStripView.Build(advice, Loc.Get) is { Lines.Count: > 0 } built ? built : null;
-                calls = advice.Calls;
+                // The banners, except over the open dispatch panel, where its marks take over.
+                calls = advice.BannerCalls;
+                if (_config.InnCallsEnabled) marks = InnPanelMarks.Of(advice.Panel, advice.Calls, Loc.Get);
             }
             else if (_menuOpen && !_innOnScreen)
                 // Something to drag, size and see through while the menu is open, out of the inn.
                 model = InnStripView.Sample(_party.Identifier?.Library.Inn, Loc.Get);
         }
         RenderInnCalls(calls);
+        RenderInnMarks(marks);
         string? key = model?.Key;
         if (key == _innKey) return;
         _innKey = key;
@@ -285,6 +289,7 @@ public partial class OverlayWindow
         InnContent.Opacity = _config.InnStripOpacity;
         InnCallStack.Opacity = _config.InnStripOpacity;
         foreach (var frame in _innAdviceFrames.Values) frame.Opacity = _config.InnStripOpacity;
+        foreach (var mark in _innMarks) mark.Opacity = _config.InnStripOpacity;
         ConfigStore.Save(_config);
     }
 

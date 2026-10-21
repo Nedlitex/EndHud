@@ -44,6 +44,15 @@ internal sealed record InnAdvice(DispatchAdvice? Dispatch, InnGap? Gap, FullBlaz
     /// (<see cref="InnCallHold"/>): the next dish per kitchen, a swap, the last call, Full Blaze. Shown as banners.
     /// </summary>
     public IReadOnlyList<InnCall> Calls { get; init; } = [];
+
+    /// <summary>The dispatch panel (派单) open on the last session frame read, as read; null when it's closed.</summary>
+    public DispatchPanel? Panel { get; init; }
+
+    /// <summary>
+    /// The calls shown as banners: all of them, except while the dispatch panel is open, when none (owner, live
+    /// 2026-10-20: banners "must not cover the 派单 panel"); the panel's marks take over (<see cref="InnPanelMarks"/>).
+    /// </summary>
+    public IReadOnlyList<InnCall> BannerCalls => Panel is null ? Calls : [];
 }
 
 /// <summary>
@@ -106,7 +115,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     private readonly FullBlazeTracker _blaze = new();
     private int? _fire;
     private bool _ordersSeen;
-    private int? _panelOpen; // the kitchen the dispatch panel shows on the last session frame
+    private DispatchPanel? _panelOpen; // the dispatch panel on the last session frame read, when open
 
     private sealed class KitchenMemory(int number)
     {
@@ -184,7 +193,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         _lastSessionRead = read;
         if (reading.Clock is not null) _clock = reading.Clock;
         if (reading.Clock is { Closed: true } && _closedAt is null) _closedAt = reading.At;
-        _panelOpen = reading.Panel?.Kitchen;
+        _panelOpen = reading.Panel;
         if (reading.Panel is { } panel) TakePanel(panel);
         if (reading.TableCards.Count > 0) TakeTables(reading.TableCards, reading.At);
         if (reading.Fire is { } fire) _fire = fire.Ready ? FullBlazeAdvisor.Full : fire.Fire ?? _fire;
@@ -527,7 +536,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
 
         // Every gourmand whose order isn't fulfilled, seen on this frame or not (TakeGourmandTable).
         var gourmandTables = _gourmands.Keys.Order().ToList();
-        var exact = _panelOpen is { } open ? new HashSet<int> { open } : [];
+        var exact = _panelOpen is { } open ? new HashSet<int> { open.Kitchen } : [];
         var kitchens = Kitchens();
         var menu = MenuDishes();
         InnGap? gap = kitchens is null ? InnGap.NoKitchens : menu.Count == 0 ? InnGap.NoMenu : null;
@@ -573,6 +582,10 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         }
         var view = new InnKitchenView((k, id) => Kitchen(k).Queued(id), k => Kitchen(k).Queue.HasFreeSlot,
             (k, dish) => Kitchen(k).Queue.SecondsUntilEmpty + kitchens.CookSeconds(k, dish));
-        return new InnAdvice(dispatch, null, blaze, _blaze.Running, notes, unreadable, exact, !_ordersSeen) { Calls = _calls.Update(dispatch, blaze, view) };
+        return new InnAdvice(dispatch, null, blaze, _blaze.Running, notes, unreadable, exact, !_ordersSeen)
+        {
+            Calls = _calls.Update(dispatch, blaze, view),
+            Panel = _panelOpen,
+        };
     }
 }
