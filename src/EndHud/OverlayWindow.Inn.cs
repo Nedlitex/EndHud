@@ -24,8 +24,7 @@ public partial class OverlayWindow
 {
     private InnSession? _innSession;
     private OperatorLibrary? _innLibrary; // the library the session was made with
-    private bool _innOnScreen; // the last reading was a session frame
-    private InnScreenKind? _innSetupScreen; // the last reading's screen when it was the setup screen, a chef picker or the menu screen
+    private readonly InnDisplay _innDisplay = new(); // which inn screen shows, and what the session's overlays show
     private string? _innKey, _innSetupKey;
     private InnSetupPlanning? _innChefPlanning, _innMenuPlanning;
     private readonly Dictionary<InnAdviceSpot, Border> _innAdviceFrames = [];
@@ -88,24 +87,13 @@ public partial class OverlayWindow
     /// <summary>A reading of the inn (null: a frame that isn't the inn), on the UI thread.</summary>
     private void ShowInn(InnReading? reading)
     {
-        var now = InnClock.Now;
-        if (reading is null)
-        {
-            _innOnScreen = false;
-            _innSetupScreen = null;
-            _innSession?.Tick(now);
-            RenderInn();
-            return;
-        }
-        if (_party.InnProblem is { } problem && !_innProblemSaid)
+        if (reading is not null && _party.InnProblem is { } problem && !_innProblemSaid)
         {
             _innProblemSaid = true;
             DiagnosticLog.Warn($"inn: on an inn screen, but it can only be partly read ({problem}); the tray says what to install");
             InnProblemFound?.Invoke(Loc.Get(problem));
         }
-        if (Session() is { } session) session.Update(reading);
-        _innOnScreen = reading.InSession;
-        _innSetupScreen = reading.OnSetupScreens ? reading.Screen : null;
+        _innDisplay.Show(reading is null ? _innSession : Session(), reading, InnClock.Now);
         RenderInn();
     }
 
@@ -132,32 +120,17 @@ public partial class OverlayWindow
     private void TickInn()
     {
         _innSession?.Tick(InnClock.Now);
-        if (_innOnScreen || _innSetupScreen is not null || _innKey is not null || _innSetupKey is not null) RenderInn();
+        if (_innDisplay.OnSession || _innDisplay.SetupScreen is not null || _innKey is not null || _innSetupKey is not null) RenderInn();
     }
 
     private void RenderInn()
     {
         RenderInnSetup();
-        InnStripModel? model = null;
-        IReadOnlyList<InnCall> calls = [];
-        IReadOnlyList<InnPanelMark> marks = [];
-        IReadOnlyList<InnWant> wants = [];
-        if (_config.InnHelperEnabled)
-        {
-            if (_innOnScreen && AdviceNow() is { } advice)
-            {
-                // The panel: the gourmands only; empty, it's put away.
-                model = InnStripView.Build(advice, Loc.Get) is { Lines.Count: > 0 } built ? built : null;
-                // The banners, except over the open dispatch panel, where its marks take over.
-                calls = advice.BannerCalls;
-                if (_config.InnCallsEnabled) marks = InnPanelMarks.Of(advice.Panel, advice.Calls, Loc.Get);
-                // What each gourmand wants, as glowing circles, while their order is open.
-                wants = InnWantsView.Of(advice);
-            }
-            else if (_menuOpen && !_innOnScreen)
-                // Something to drag, size and see through while the menu is open, out of the inn.
-                model = InnStripView.Sample(_party.Identifier?.Library.Inn, Loc.Get);
-        }
+        var views = _config.InnHelperEnabled ? _innDisplay.Views(_innSession, InnClock.Now, _config.InnCallsEnabled, Loc.Get) : InnViews.None;
+        var model = views.Panel;
+        // Something to drag, size and see through while the menu is open, out of the inn.
+        if (_config.InnHelperEnabled && _menuOpen && !_innDisplay.OnSession) model = InnStripView.Sample(_party.Identifier?.Library.Inn, Loc.Get);
+        var (calls, marks, wants) = (views.Calls, views.Marks, views.Wants);
         RenderInnCalls(calls);
         RenderInnMarks(marks);
         RenderInnWants(wants);
@@ -176,7 +149,7 @@ public partial class OverlayWindow
     private void RenderInnSetup()
     {
         IReadOnlyList<InnAdvicePanel> panels = [];
-        if (_config.InnHelperEnabled && _innSetupScreen is { } screen && _innSession is { } session
+        if (_config.InnHelperEnabled && _innDisplay.SetupScreen is { } screen && _innSession is { } session
             && _innChefPlanning is { } chefPlanning && _innMenuPlanning is { } menuPlanning && _innLibrary?.Inn is { } inn)
         {
             InnSetupAdvice? chefs = null, menu = null;
@@ -224,20 +197,6 @@ public partial class OverlayWindow
         Canvas.SetLeft(frame, spot.Left);
         Canvas.SetTop(frame, spot.Top);
         frame.Visibility = Visibility.Visible;
-    }
-
-    /// <summary>The session's advice now; null (and logged) if working it out failed, so the overlay carries on.</summary>
-    private InnAdvice? AdviceNow()
-    {
-        try
-        {
-            return _innSession?.Advice(InnClock.Now);
-        }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or FormatException)
-        {
-            DiagnosticLog.Throttled("inn-advice-" + ex.GetType().Name, TimeSpan.FromSeconds(30), $"inn: working out the advice failed: {ex}", "ERROR");
-            return null;
-        }
     }
 
     /// <summary>A dish's or drink's picture from the operator package, loaded once; null when the package has none.</summary>
