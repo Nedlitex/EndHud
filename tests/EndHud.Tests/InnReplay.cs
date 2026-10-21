@@ -304,10 +304,13 @@ internal sealed class InnReplay
         // The advice stopped altogether (the inn closing: the last call).
         if (step.Open.Count == 0 && !step.CooksAhead && call.Kind is InnCallKind.Queue or InnCallKind.Swap) return true;
         // Its order: its dish out on the counter now, or served (a table's card read with that dish newly served), or the
-        // order gone (its table read eating or paying). An order merely read away (a card misread as the HUD fades: every
-        // card reads empty) is not something done.
+        // order gone (its table read eating or paying), or its dish queued by the player in any kitchen (the order no longer
+        // waits for one), within the grace. An order merely read away (a card misread as the HUD fades: every card reads
+        // empty) is not something done.
+        var grace = step.At - InnCallHold.GraceSeconds - TimeSpan.FromSeconds(0.5);
         if (call.Kind is InnCallKind.Queue or InnCallKind.Swap && !step.Open.Contains((call.Dish!.Id, call.Table!.Value))
-            && (OnCounter(step, call.Dish.Id) || ServedWithin(i, call.Table.Value, call.Dish.Id) || DoneWithin(i, call.Table.Value))) return true;
+            && (OnCounter(step, call.Dish.Id) || ServedWithin(i, call.Table.Value, call.Dish.Id) || DoneWithin(i, call.Table.Value)
+                || QueuedWithin(i, grace, kitchen: null, dish: call.Dish.Id))) return true;
         if (call.Kind == InnCallKind.CookAhead && !step.CooksAhead) return true;
         // Nothing done elsewhere excuses a call going (owner, 2026-10-21: "the recommendation should stay steady"): a dish
         // served to another table or queued in another kitchen leaves this call as possible as it was, so its going is a jump.
@@ -317,8 +320,11 @@ internal sealed class InnReplay
         return QueuedWithin(i, step.At - TimeSpan.FromSeconds(DispatchAdvisor.BarelyStartedSeconds) - InnCallHold.GraceSeconds - TimeSpan.FromSeconds(0.5), kitchen);
     }
 
-    /// <summary>A queue (<paramref name="kitchen"/>'s, or any) added to between <paramref name="since"/> and step <paramref name="i"/>.</summary>
-    private bool QueuedWithin(int i, TimeSpan since, int? kitchen)
+    /// <summary>
+    /// A queue (<paramref name="kitchen"/>'s, or any) added to between <paramref name="since"/> and step <paramref name="i"/>:
+    /// <paramref name="dish"/> put in it, or (null) any dish.
+    /// </summary>
+    private bool QueuedWithin(int i, TimeSpan since, int? kitchen, string? dish = null)
     {
         for (int j = i; j > 0 && Steps[j].At >= since; j--)
         {
@@ -326,7 +332,7 @@ internal sealed class InnReplay
             {
                 var before = QueueOf(Steps[j - 1].Queues, k);
                 var after = QueueOf(Steps[j].Queues, k);
-                if (after.Count > before.Count || after.Except(before).Any()) return true;
+                if (dish is { } id ? after.Count(d => d == id) > before.Count(d => d == id) : after.Count > before.Count || after.Except(before).Any()) return true;
             }
         }
         return false;
