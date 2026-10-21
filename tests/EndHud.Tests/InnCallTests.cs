@@ -105,9 +105,33 @@ public class InnCallTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// Owner, 2026-10-21: "the recommendation should stay steady". An order shown in a kitchen stays there when another
+    /// kitchen becomes 20 s or more sooner (its dish read cooked out): the soonest kitchen decides only when an order is
+    /// first shown. Kitchen 1 cooks a soup with 30 s left, kitchen 2 a side with 25 s left: table 3's soup is called in
+    /// kitchen 2 (out sooner); then kitchen 1 is read empty and would have it out far sooner, and the call stays.
+    /// </summary>
+    [Fact]
+    public void An_order_shown_is_not_moved_when_another_kitchen_becomes_much_sooner()
+    {
+        var session = Prepared();
+        session.Update(Session(10, left: 280, tables: Tables(Order(3, A)), panel: Panel(1, 2, Dishes, (B, 30))));
+        session.Update(Session(10.25, left: 280, tables: Tables(Order(3, A)), panel: Panel(2, 2, Dishes, (C, 25))));
+        var shown = Assert.Single(session.Advice(S(10.25))!.Calls, c => c is { Kind: InnCallKind.Queue, Table: 3 });
+        Assert.Equal(2, shown.Kitchen);
+
+        session.Update(Session(11, left: 279, tables: Tables(Order(3, A)), panel: Panel(1, 2, Dishes)));
+        Assert.True(session.ReadyIn(1, A) + 20 <= session.ReadyIn(2, A), $"kitchen 1 {session.ReadyIn(1, A)} s, kitchen 2 {session.ReadyIn(2, A)} s");
+        for (double t = 11; t <= 16; t += 0.25)
+        {
+            session.Update(Session(t, left: 280 - (t - 10), tables: Tables(Order(3, A)), panel: Panel(1, 2, Dishes)));
+            Assert.Equal([shown.Key], session.Advice(S(t))!.Calls.Where(c => c.Table == 3).Select(c => c.Key));
+        }
+    }
+
+    /// <summary>
     /// A new order the advice puts behind another order in kitchen 1 (one call a kitchen: it can't show there yet) shows at
     /// once in kitchen 2, which shows only a dish to cook ahead, when kitchen 2 has it out no more than
-    /// <see cref="InnCallHold.ClearlyEarlierSeconds"/> later: 40 s against 38 s. Before, only a kitchen with no call took
+    /// <see cref="InnCallHold.ShowElsewhereWithinSeconds"/> later: 40 s against 38 s. Before, only a kitchen with no call took
     /// it, and on test_yuanyuan4 (230.7 s) the order waited 5 s for a call.
     /// </summary>
     [Fact]

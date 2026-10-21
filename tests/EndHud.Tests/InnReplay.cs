@@ -161,7 +161,7 @@ internal sealed class InnReplay
     /// <param name="Sendable">The orders the advice sends to a kitchen now (not waiting for room nor out of stock).</param>
     /// <param name="FreeFor">
     /// Of <paramref name="Sendable"/>, those a kitchen not showing another order could take now: it has a free slot and has
-    /// the dish out no more than <see cref="InnCallHold.ClearlyEarlierSeconds"/> after the kitchen the advice sends it to
+    /// the dish out no more than <see cref="InnCallHold.ShowElsewhereWithinSeconds"/> after the kitchen the advice sends it to
     /// (the hold's rule for a kitchen with no order to show).
     /// </param>
     internal sealed record CallStep(TimeSpan At, IReadOnlyDictionary<int, InnCall> Kitchens, IReadOnlySet<(string Dish, int Table)> Open, string Queues,
@@ -213,7 +213,7 @@ internal sealed class InnReplay
         {
             if (q.Table is not { } table) continue;
             if (advice!.Dispatch!.Kitchens.Any(k => kitchens.GetValueOrDefault(k.Kitchen) is not { Kind: InnCallKind.Queue or InnCallKind.Swap }
-                                                    && _session.ReadyIn(k.Kitchen, q.Dish.Id) is { } readyIn && readyIn <= q.ReadyIn + InnCallHold.ClearlyEarlierSeconds))
+                                                    && _session.ReadyIn(k.Kitchen, q.Dish.Id) is { } readyIn && readyIn <= q.ReadyIn + InnCallHold.ShowElsewhereWithinSeconds))
                 freeFor.Add((q.Dish.Id, table));
         }
         Steps.Add(new CallStep(at, kitchens, open, queues, ahead, why, state[(state.LastIndexOf('[') + 1)..^1]) { Sendable = sendable, FreeFor = freeFor });
@@ -378,7 +378,7 @@ internal sealed class InnReplay
     /// call showed it (null: never, covered or served before); <paramref name="KitchenFree"/>: some kitchen not showing
     /// another order could take it then (<see cref="CallStep.FreeFor"/>; only then can it show at once: one call a kitchen,
     /// and an order shows in another kitchen than the advice's only when that kitchen has it out no more than
-    /// <see cref="InnCallHold.ClearlyEarlierSeconds"/> later).
+    /// <see cref="InnCallHold.ShowElsewhereWithinSeconds"/> later).
     /// </summary>
     internal sealed record NewOrder(TimeSpan At, string Dish, int Table, double? ShownAfter, bool KitchenFree);
 

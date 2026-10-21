@@ -151,14 +151,6 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
     /// </summary>
     public const double NoCookAheadSeconds = 40;
 
-    /// <summary>
-    /// An order shown in a kitchen stays there unless another kitchen has it out at least this much sooner
-    /// (<see cref="KeptCall"/>). 5 s re-decided an order on test_yuanyuan3 (328.5 s: 39 s where shown, 34 s in a kitchen
-    /// whose dish had just come out, nothing done by the player), and the player then had the dish swap kitchens 14 s after
-    /// it was first shown; the one move the replays show after the player's own queueing gained 9 s.
-    /// </summary>
-    public const double KeepWithinSeconds = 8;
-
     public InnKitchens Kitchens { get; } = kitchens;
 
     /// <summary>The advice for <paramref name="state"/>, with nothing shown to the player yet.</summary>
@@ -177,33 +169,25 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
         var outOfStock = new List<OrderedDish>();
         var leftovers = state.ServingSecondsLeft is { } servingLeft ? plan.HandOut(servingLeft, state.Closed) : [];
 
-        // The orders on screen first: each stays in its kitchen while it can be queued there and comes out there less
-        // than KeepWithinSeconds after the soonest kitchen (owner, 2026-10-21: a suggestion "should stay steady"). The
-        // soonest kitchen counts the other orders on screen as queued in theirs: a kitchen whose own call takes it is no
-        // room for this one (test_yuanyuan3, 383.7 s: an order left kitchen 1 for kitchen 2, which was showing another).
+        // The orders on screen first: each stays in its kitchen while it is still possible there (owner, 2026-10-21: "the
+        // recommendation should stay steady"; the soonest kitchen decides only when an order is first shown): still
+        // waiting for a kitchen, in stock, a free slot there, and out there before serving ends. Another kitchen having
+        // it out sooner since is no reason to move it (until 2026-10-21 an order moved when another kitchen had it out 8 s
+        // sooner: 9 of the jumps on the owner's two recorded sessions).
         var pending = plan.Pending.ToList();
-        var onScreen = new List<(int Kitchen, OrderedDish Order)>();
+        var onScreen = new HashSet<int>();
         foreach (var keep in kept.Where(k => k.Table is not null))
         {
             int i = pending.FindIndex(o => o.Table == keep.Table && o.Dish.Id == keep.Dish.Id);
-            if (i < 0 || !plan.InStock(pending[i].Dish) || !plan.CanQueue(keep.Kitchen) || onScreen.Any(s => s.Kitchen == keep.Kitchen)) continue;
-            onScreen.Add((keep.Kitchen, pending[i]));
-            pending.RemoveAt(i);
-        }
-        for (int n = 0; n < onScreen.Count; n++)
-        {
-            var (kitchen, order) = onScreen[n];
-            var taken = onScreen.Skip(n + 1).ToDictionary(s => s.Kitchen, s => s.Order.Dish);
-            if (plan.ReadyIn(kitchen, order.Dish) >= plan.Soonest(order.Dish, taken)!.Value.ReadyIn + KeepWithinSeconds)
+            if (i < 0 || !plan.InStock(pending[i].Dish) || !plan.CanQueue(keep.Kitchen) || !onScreen.Add(keep.Kitchen)) continue;
+            if (state.ServingSecondsLeft is { } left && plan.ReadyIn(keep.Kitchen, keep.Dish) > left)
             {
-                pending.Add(order);
+                onScreen.Remove(keep.Kitchen);
                 continue;
             }
-            plan.Queue(kitchen, order.Dish, order.Table);
+            plan.Queue(keep.Kitchen, pending[i].Dish, pending[i].Table);
+            pending.RemoveAt(i);
         }
-        // Oldest first again (an order on screen that moves is sent among the others).
-        var unsent = pending;
-        pending = [.. plan.Pending.Where(unsent.Remove)];
 
         foreach (var order in pending)
         {
@@ -420,14 +404,11 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
 
         private int Choice(int kitchen, Dish dish) => _advisor.Kitchens.ChoicePercent(kitchen, dish);
 
-        /// <summary>
-        /// Soonest out among kitchens with a free slot; ties to the better choice chance, then the lower number. A kitchen in
-        /// <paramref name="taken"/> counts that dish as queued there too.
-        /// </summary>
-        public (int Kitchen, double ReadyIn)? Soonest(Dish dish, IReadOnlyDictionary<int, Dish>? taken = null) =>
+        /// <summary>Soonest out among kitchens with a free slot; ties to the better choice chance, then the lower number.</summary>
+        public (int Kitchen, double ReadyIn)? Soonest(Dish dish) =>
             _queues.Keys
-                .Where(k => taken?.ContainsKey(k) == true ? _queues[k].Count + 1 < KitchenQueue.Slots : HasFreeSlot(k))
-                .Select(k => (Kitchen: k, ReadyIn: Left(k) + (taken?.TryGetValue(k, out var other) == true ? Cook(k, other) : 0) + Cook(k, dish)))
+                .Where(HasFreeSlot)
+                .Select(k => (Kitchen: k, ReadyIn: Left(k) + Cook(k, dish)))
                 .OrderBy(x => x.ReadyIn).ThenByDescending(x => Choice(x.Kitchen, dish)).ThenBy(x => x.Kitchen)
                 .Select(x => ((int, double)?)x)
                 .FirstOrDefault();

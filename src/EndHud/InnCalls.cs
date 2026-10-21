@@ -62,15 +62,17 @@ internal sealed record InnKitchenView(Func<int, string, int> Queued, Func<int, b
 /// <list type="bullet">
 /// <item><b>done:</b> its dish was put in that kitchen's queue (<see cref="InnKitchenView.Queued"/> went up), or
 /// its order is no longer waiting for a kitchen (queued elsewhere, served, gone);</item>
-/// <item><b>no longer valid:</b> the kitchen has no free slot; for a dish to cook ahead, the advice no longer cooks it
-/// ahead in that kitchen (the advice keeps it there while it can, <see cref="Kept"/>: so no stock, the end rules, an order
-/// sent there); for a swap, neither the swap nor its order stands; the kitchen no longer cooks;</item>
-/// <item><b>clearly beaten:</b> an order (or a swap for one) is called where a dish to cook ahead was; for an
-/// order, the advice now has it out at least <see cref="ClearlyEarlierSeconds"/> sooner in another kitchen (the advice
-/// keeps it where it is otherwise, <see cref="Kept"/>): it moves there at once.</item>
+/// <item><b>impossible:</b> the kitchen has no free slot; for an order, the advice no longer sends it to that kitchen
+/// (it keeps it there while it's possible, <see cref="Kept"/>: so no stock, out too late for serving, the order gone);
+/// for a dish to cook ahead, the advice no longer cooks it ahead in that kitchen (likewise kept while possible: so no
+/// stock, the end rules, an order sent there); for a swap, neither the swap nor its order stands; the kitchen no longer
+/// cooks;</item>
+/// <item><b>an order comes first:</b> an order (or a swap for one) is called where a dish to cook ahead was.</item>
 /// </list>
-/// Anything else keeps the call on screen: ties and near-equal choices keep the current one. One order is
-/// called in one kitchen only. Full Blaze and the last call are the advice's own (it doesn't flicker).
+/// Nothing else takes a call down (owner, 2026-10-21: "the recommendation should stay steady"): the soonest kitchen
+/// decides where an order goes only when it is first shown, and an order shown is never moved to another kitchen that
+/// has it out sooner since, nor replaced by another order. A dish to cook ahead never gives way to another dish to cook
+/// ahead. One order is called in one kitchen only. Full Blaze and the last call are the advice's own (it doesn't flicker).
 /// <para>A call no longer valid stays up for <see cref="GraceSeconds"/> (a dish to cook ahead: <see cref="CookAheadGraceSeconds"/>) first, and stays on if it's valid again by then
 /// (owner, live 2026-10-20: "it is still flashing ... should just stay, not flash all the time"): a reading that drops
 /// an order for a moment (a card misread as the HUD fades, the panel's queue read a frame short) would otherwise take
@@ -78,8 +80,13 @@ internal sealed record InnKitchenView(Func<int, string, int> Queued, Func<int, b
 /// </summary>
 internal sealed class InnCallHold
 {
-    /// <summary>An order moves to another kitchen only when it comes out there at least this much sooner.</summary>
-    public const double ClearlyEarlierSeconds = DispatchAdvisor.KeepWithinSeconds;
+    /// <summary>
+    /// An order not shown yet is called at once in a kitchen with no order to show (none, or a dish to cook ahead) when
+    /// it comes out there no more than this after the kitchen the advice sends it to (whose call is another order's):
+    /// on test_yuanyuan4 at 230.7 s a second order of a dish went behind the first in kitchen 1 and waited 5 s for a call
+    /// while kitchen 2 had it out as soon. Only for a new order: one already shown never moves (<see cref="InnCallHold"/>).
+    /// </summary>
+    public const double ShowElsewhereWithinSeconds = 8;
 
     /// <summary>A call no longer valid is taken down only once it has stayed so this long.</summary>
     public static readonly TimeSpan GraceSeconds = TimeSpan.FromSeconds(1.5);
@@ -165,16 +172,6 @@ internal sealed class InnCallHold
                 _changes.Add($"{held.Call.Key} dropped: done (queued)");
                 continue;
             }
-            // An order the advice now sends to another kitchen: it keeps a shown order where it is unless another kitchen
-            // has it out clearly sooner (KeptCall), so this is that decision, and the order moves at once.
-            if (held.Call is { Kind: InnCallKind.Queue, Dish: { } ordered, Table: { } table } && cooking.TryGetValue(number, out var here)
-                && !here.Queue.Any(q => q.Table == table && q.Dish.Id == ordered.Id)
-                && dispatch.Kitchens.FirstOrDefault(k => k.Kitchen != number && k.Queue.Any(q => q.Table == table && q.Dish.Id == ordered.Id)) is { } there)
-            {
-                _held.Remove(number);
-                _changes.Add($"{held.Call.Key} moved: out clearly sooner in kitchen {there.Kitchen}");
-                continue;
-            }
             string? why = !cooking.TryGetValue(number, out var advice) ? "the kitchen no longer cooks"
                 : !Valid(held.Call, advice, wanted, view) ? (view.HasRoom(number) ? NoLongerAdvised : "the kitchen is full")
                 : !Claim(held.Call) ? "its order is called elsewhere"
@@ -202,10 +199,9 @@ internal sealed class InnCallHold
             if (_held.TryGetValue(advice.Kitchen, out var held))
             {
                 if (candidate is null || candidate.Key == held.Call.Key) continue;
-                // A call kept a moment (no longer valid) gives way to an order at once, else stays as it is: the reading
-                // that dropped it may come right back. A call that stands gives way only when clearly beaten.
-                if (held.InvalidSince is not null ? candidate.Kind is not (InnCallKind.Queue or InnCallKind.Swap) : !Beats(candidate, held.Call, dispatch, view))
-                    continue;
+                // Only an order displaces a call, and only a dish to cook ahead or a call kept a moment (no longer valid:
+                // the reading that dropped it may come right back, so nothing else replaces it meanwhile).
+                if (!IsOrder(candidate) || (held.InvalidSince is null && held.Call.Kind != InnCallKind.CookAhead)) continue;
                 // Only a call that stands claimed its order; one kept a moment claimed nothing to give back.
                 if (held.InvalidSince is null) Release(held.Call);
                 _changes.Add($"{held.Call.Key} beaten by {candidate.Key}");
@@ -216,16 +212,14 @@ internal sealed class InnCallHold
 
         // An order the advice sends to a kitchen whose call stands for something else: a kitchen with no call, one only
         // kept a moment, or one showing a dish to cook ahead (an order comes first) takes it, if it has it out no more than
-        // ClearlyEarlierSeconds later (the advice swapping two kitchens' orders is no reason to move the one shown, and the
-        // new order is called at once all the same: on test_yuanyuan4 at 230.7 s a second order of a dish went behind the
-        // first in kitchen 1 and waited 5 s for a call while kitchen 2, showing a dish to cook ahead, had it out as soon).
+        // ShowElsewhereWithinSeconds later: the new order is called at once all the same.
         foreach (var free in dispatch.Kitchens
                      .Where(k => (!_held.TryGetValue(k.Kitchen, out var h) || h.InvalidSince is not null || h.Call.Kind == InnCallKind.CookAhead) && view.HasRoom(k.Kitchen))
                      .OrderBy(k => k.Kitchen))
         {
             var order = dispatch.Kitchens.Where(k => k.Kitchen != free.Kitchen).SelectMany(k => k.Queue)
                 .Where(q => q.Table is { } table && wanted.GetValueOrDefault((q.Dish.Id, table)) > 0
-                            && view.ReadyIn(free.Kitchen, q.Dish) <= q.ReadyIn + ClearlyEarlierSeconds)
+                            && view.ReadyIn(free.Kitchen, q.Dish) <= q.ReadyIn + ShowElsewhereWithinSeconds)
                 .OrderBy(q => q.ReadyIn).FirstOrDefault();
             if (order is null) continue;
             var call = new InnCall(InnCallKind.Queue, free.Kitchen, order.Dish, order.Table);
@@ -279,7 +273,10 @@ internal sealed class InnCallHold
         int kitchen = advice.Kitchen;
         return call.Kind switch
         {
-            InnCallKind.Queue => view.HasRoom(kitchen) && wanted.GetValueOrDefault((call.Dish!.Id, call.Table!.Value)) > 0,
+            // Still sent to this kitchen: the advice keeps an order shown where it is while that's possible (KeptCall), so
+            // its sending it elsewhere means it no longer is (out too late here, the panel's queue read full).
+            InnCallKind.Queue => view.HasRoom(kitchen) && wanted.GetValueOrDefault((call.Dish!.Id, call.Table!.Value)) > 0
+                                 && advice.Queue.Any(q => q.Table == call.Table && q.Dish.Id == call.Dish.Id),
             // Still this kitchen's dish to cook ahead: the advice keeps it there while that's possible (KeptCall), so its
             // going means it no longer is (no stock, the end, an order sent to this kitchen).
             InnCallKind.CookAhead => view.HasRoom(kitchen) && wanted.GetValueOrDefault((call.Dish!.Id, -kitchen)) > 0,
@@ -289,19 +286,5 @@ internal sealed class InnCallHold
         };
     }
 
-    /// <summary>The kitchen's new first call is clearly better than the one shown (which still stands).</summary>
-    private static bool Beats(InnCall candidate, InnCall held, DispatchAdvice dispatch, InnKitchenView view)
-    {
-        bool candidateOrder = candidate.Kind is InnCallKind.Queue or InnCallKind.Swap;
-        if (held.Kind == InnCallKind.CookAhead) return candidateOrder;
-        if (!candidateOrder) return false;
-        // The order shown: is it now out clearly sooner in another kitchen? Then it moves there, and this kitchen
-        // gets its next call.
-        var dish = held.Dish!;
-        double here = view.ReadyIn(held.Kitchen!.Value, dish);
-        double elsewhere = dispatch.Kitchens.Where(k => k.Kitchen != held.Kitchen)
-            .SelectMany(k => k.Queue.Where(q => q.Table == held.Table && q.Dish.Id == dish.Id).Select(q => q.ReadyIn))
-            .DefaultIfEmpty(double.PositiveInfinity).Min();
-        return elsewhere + ClearlyEarlierSeconds <= here;
-    }
+    private static bool IsOrder(InnCall call) => call.Kind is InnCallKind.Queue or InnCallKind.Swap;
 }

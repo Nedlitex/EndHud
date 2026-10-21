@@ -347,20 +347,41 @@ public class InnSteadyTests
     }
 
     /// <summary>
-    /// An order shown in a kitchen that the advice now sends to another (it keeps a shown order in place unless another
-    /// kitchen has it out clearly sooner) moves there at once: on test_yuanyuan3 at 364.2 s the player queued another
-    /// table's dish elsewhere and kitchen 2 came free, and kitchen 1's banner stayed on for 15 s while the advice said
-    /// kitchen 2, until an unrelated order at 379.2 s switched both at once.
+    /// An order shown in a kitchen stays there while the advice sends it there (it keeps a shown order in place while
+    /// that's possible: <see cref="DispatchAdvisor.Advise(InnState, bool, IReadOnlyList{KeptCall})"/>). The advice sending
+    /// it to another kitchen means it is no longer possible where shown: it is kept <see cref="InnCallHold.GraceSeconds"/>
+    /// (a reading that comes right back), then moves. Until 2026-10-21 it moved at once, for another kitchen clearly sooner.
     /// </summary>
     [Fact]
-    public void An_order_the_advice_moves_to_another_kitchen_moves_at_once()
+    public void An_order_the_advice_can_no_longer_keep_in_its_kitchen_moves_after_the_grace()
     {
         var hold = new InnCallHold();
         var shown = Assert.Single(hold.Update(Advice(Kitchen(1, new QueueAdvice(Dish(A), 5, 45)), Kitchen(2)), null, View(), S(0)));
         Assert.Equal(1, shown.Kitchen);
 
-        var moved = hold.Update(Advice(Kitchen(1), Kitchen(2, new QueueAdvice(Dish(A), 5, 32))), null, View(), S(3));
+        var elsewhere = Advice(Kitchen(1), Kitchen(2, new QueueAdvice(Dish(A), 5, 32)));
+        Assert.Equal([shown], hold.Update(elsewhere, null, View(), S(3)));
+        var moved = hold.Update(elsewhere, null, View(), S(3) + InnCallHold.GraceSeconds);
         Assert.Equal([(2, A, 5)], moved.Select(c => (c.Kitchen!.Value, c.Dish!.Id, c.Table!.Value)));
+    }
+
+    /// <summary>
+    /// An order shown stands whatever order comes first in its kitchen's advice next: it is not replaced by another order
+    /// (owner, 2026-10-21: "the recommendation should stay steady"). Kitchen 1's order for table 3 stays though the advice
+    /// now puts table 5's first there; table 5's shows once table 3's is queued.
+    /// </summary>
+    [Fact]
+    public void An_order_shown_is_not_replaced_by_another_order()
+    {
+        var hold = new InnCallHold();
+        var shown = Assert.Single(hold.Update(Advice(Kitchen(1, new QueueAdvice(Dish(A), 3, 40))), null, View(), S(0)));
+
+        var other = Advice(Kitchen(1, new QueueAdvice(Dish(E), 5, 15), new QueueAdvice(Dish(A), 3, 55)));
+        Assert.Equal([shown], hold.Update(other, null, View(), S(0.5)));
+        Assert.Equal([shown], hold.Update(other, null, View(), S(10)));
+
+        var next = hold.Update(Advice(Kitchen(1, new QueueAdvice(Dish(E), 5, 15))), null, View((k, id) => k == 1 && id == A ? 1 : 0), S(11));
+        Assert.Equal((InnCallKind.Queue, 5, E), (Assert.Single(next).Kind, next[0].Table, next[0].Dish!.Id));
     }
 
     /// <summary>An order is called at once in a kitchen whose call is only kept a moment: real news doesn't wait.</summary>
