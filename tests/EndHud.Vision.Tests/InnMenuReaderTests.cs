@@ -66,4 +66,31 @@ public class InnMenuReaderTests(ITestOutputHelper output)
         Assert.Equal((0, 8), menu?.Drinks);
         Assert.True(menu!.Cards.Count(c => c.Unlimited) >= 6, $"∞ read on {menu.Cards.Count(c => c.Unlimited)} of 8 cards");
     }
+
+    /// <summary>
+    /// Each card's place, for marking the recommended ones (owner, 2026-10-20: "in the choose dish ... menu, show the same
+    /// suggestion"): measured on menu-dishes.jpg at 4K, each card's light face 898 × 257, the columns from x 1667 and 2625,
+    /// the rows' tops at y 412, 729, 1045 and 1362 (their bottoms at 669, 986, 1302, 1619); at 1440p and 1080p the same
+    /// places on the 4K layout.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Screens))]
+    public async Task Each_card_wholly_in_view_has_its_place(string screenName)
+    {
+        var screen = SimulatedScreen.Named(screenName);
+        var frame = await InnScreenTests.Load("menu-dishes");
+        var menu = await (await Reader.Value).ReadAsync(screen == SimulatedScreen.Uhd ? frame : screen.Render(frame));
+        Assert.NotNull(menu);
+        int[] lefts = [1667, 2625], tops = [412, 729, 1045, 1362];
+        for (int i = 0; i < menu.Cards.Count; i++)
+        {
+            var area = menu.Cards[i].Area;
+            output.WriteLine($"{menu.Cards[i].Id}: {area}");
+            Assert.NotNull(area);
+            Assert.InRange(area.Value.X, lefts[i % 2] - 12, lefts[i % 2] + 12);
+            Assert.InRange(area.Value.Y, tops[i / 2] - 12, tops[i / 2] + 12);
+            Assert.InRange(area.Value.Width, 880, 910);
+            Assert.InRange(area.Value.Height, 245, 270);
+        }
+    }
 }
