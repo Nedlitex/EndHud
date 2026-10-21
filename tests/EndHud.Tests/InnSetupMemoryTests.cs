@@ -28,7 +28,7 @@ public class InnSetupMemoryTests
                 new SetupKitchen(3, 2, [null, null], [null, null]) { ChefsPlaced = 0 },
             ]));
 
-    private static InnReading Picker(double at) => new(InnScreenKind.ChefPicker, S(at));
+    private static InnReading Picker(double at, int? kitchen, bool fresh = true) => new(InnScreenKind.ChefPicker, S(at), Fresh: fresh) { PickerKitchen = kitchen };
 
     /// <summary>The menu screen: two soups on the menu, Rating 4's requirements and the soup rule read.</summary>
     private static InnReading Menu(double at) =>
@@ -43,7 +43,7 @@ public class InnSetupMemoryTests
     {
         var session = NewSession();
         session.Update(Setup(0));
-        session.Update(Picker(2));
+        session.Update(Picker(2, 1));
         session.Update(Menu(4));
         return session;
     }
@@ -81,6 +81,7 @@ public class InnSetupMemoryTests
         session.Update(new InnReading(InnScreenKind.ThemeList, S(6)));
 
         Assert.Equal([InnSetupGap.NoSetup], session.SetupInputs().Gaps);
+        Assert.Equal([InnSetupGap.NoSetup], session.MenuInputs().Gaps);
         Assert.Empty(session.OnMenu);
         Assert.False(session.Active);
     }
@@ -111,7 +112,7 @@ public class InnSetupMemoryTests
         var session = NewSession(readingTime: clock.At);
         for (double t = 0; t <= 4; t += 0.25) clock.Frame(S(t));
         session.Update(Setup(0));
-        session.Update(Picker(2));
+        session.Update(Picker(2, 1));
         session.Update(Setup(4));
         clock.Stop(S(4.2)); // another window in front: the reading off
 
@@ -119,8 +120,9 @@ public class InnSetupMemoryTests
         clock.Frame(S(64.2)); // back: the menu screen
         session.Update(Menu(64.2));
 
-        // The kitchens are still known: kitchen 1 with its one chef placed, 2 and 3 empty.
-        Assert.Empty(session.SetupInputs().Gaps);
+        // The menu plans for the kitchens that cook: kitchen 1, its one chef placed (2 and 3 are empty).
+        Assert.Empty(session.MenuInputs().Gaps);
+        Assert.Equal("1:1[Chen_Qianyu]", Kitchens(session.MenuInputs()));
         Assert.Equal("1:2[Chen_Qianyu] 2:2[] 3:2[]", Kitchens(session.SetupInputs()));
     }
 
@@ -136,7 +138,7 @@ public class InnSetupMemoryTests
 
         session.Tick(S(31));
 
-        Assert.Equal([InnSetupGap.NoSetup], session.SetupInputs().Gaps);
+        Assert.Equal([InnSetupGap.NoSetup], session.MenuInputs().Gaps);
     }
 
     [Fact]
@@ -144,7 +146,7 @@ public class InnSetupMemoryTests
     {
         var session = Walked();
 
-        session.Update(Picker(4 + InnSession.ForgetAfter.TotalSeconds + 1));
+        session.Update(Picker(4 + InnSession.ForgetAfter.TotalSeconds + 1, 2));
 
         Assert.Equal([InnSetupGap.NoSetup], session.SetupInputs().Gaps);
     }
@@ -162,12 +164,52 @@ public class InnSetupMemoryTests
     }
 
     [Fact]
+    public void The_chef_picker_remembers_its_kitchen_until_it_is_read_again()
+    {
+        var session = Walked();
+        Assert.Equal(1, session.PickerKitchen);
+
+        session.Update(Picker(6, 2));
+        session.Update(Picker(7, null, fresh: false)); // between reads
+        Assert.Equal(2, session.PickerKitchen);
+
+        // A picker read whose title couldn't be read: not the last picker's kitchen (that advice would be another kitchen's).
+        session.Update(Picker(9, null));
+        Assert.Null(session.PickerKitchen);
+    }
+
+    [Fact]
     public void A_place_seen_taken_by_a_chef_not_named_is_kept_as_taken()
     {
         var session = NewSession();
         session.Update(Setup(0, new SetupKitchen(1, 2, [null, null], [null, null]) { ChefsPlaced = 1 }, new SetupKitchen(2, 2, [null, null], [null, null]) { ChefsPlaced = 0 }));
 
         Assert.Equal("1:2[?] 2:2[]", Kitchens(session.SetupInputs()));
+    }
+
+    /// <summary>The menu is planned for the chefs actually placed: only those kitchens, each with exactly its chefs.</summary>
+    [Fact]
+    public void The_menu_is_planned_for_the_chefs_placed()
+    {
+        var inputs = Walked().MenuInputs();
+
+        Assert.Empty(inputs.Gaps);
+        Assert.False(inputs.ChefsPlanned);
+        Assert.Equal("1:1[Chen_Qianyu]", Kitchens(inputs));
+        Assert.NotEqual(Walked().SetupInputs().Key, inputs.Key);
+    }
+
+    /// <summary>No chef placed anywhere: the menu is planned with the chefs the plan would pick, and says so.</summary>
+    [Fact]
+    public void With_no_chef_placed_the_menu_is_planned_with_chefs_too()
+    {
+        var session = NewSession();
+        session.Update(Setup(0, new SetupKitchen(1, 2, [null, null], [null, null]) { ChefsPlaced = 0 }, new SetupKitchen(2, 2, [null, null], [null, null]) { ChefsPlaced = 0 }));
+
+        var inputs = session.MenuInputs();
+
+        Assert.True(inputs.ChefsPlanned);
+        Assert.Equal("1:2[] 2:2[]", Kitchens(inputs));
     }
 
     // ---- What the player has (owner, live 2026-10-19: "it never even picked any one that I have") ----
@@ -196,17 +238,17 @@ public class InnSetupMemoryTests
 
         // clay-jar-meat (ocean-land's stars) seen; fin-mato-soup and goldfloss-chiffon are Rating 4's anyway.
         session.Update(Cards(2, "fin-mato-soup", "clay-jar-meat", "goldfloss-chiffon"));
-        Assert.Equal(Expected("clay-jar-meat"), session.SetupInputs().Input!.Dishes.Select(d => d.Dish.Id).Order(StringComparer.Ordinal));
+        Assert.Equal(Expected("clay-jar-meat"), session.MenuInputs().Input!.Dishes.Select(d => d.Dish.Id).Order(StringComparer.Ordinal));
         Assert.Equal(Expected("clay-jar-meat"), session.SetupInputs().Input!.Dishes.Select(d => d.Dish.Id).Order(StringComparer.Ordinal));
         Assert.DoesNotContain(session.SetupInputs().Input!.Dishes, d => d.Dish.Id == "boundary-lung-roll"); // a theme's, not seen
         // No drink card seen yet: the drinks stay the built-in list.
-        Assert.Equal(Inn.Drinks.Count, session.SetupInputs().Input!.Drinks.Count);
+        Assert.Equal(Inn.Drinks.Count, session.MenuInputs().Input!.Drinks.Count);
 
         // Scrolling on: more dishes, and the drinks tab.
         session.Update(Cards(4, "spoon-swimmer", "pre-tide-lungjing", "bottled-milk-a"));
-        Assert.Equal(Expected("clay-jar-meat", "spoon-swimmer"), session.SetupInputs().Input!.Dishes.Select(d => d.Dish.Id).Order(StringComparer.Ordinal));
+        Assert.Equal(Expected("clay-jar-meat", "spoon-swimmer"), session.MenuInputs().Input!.Dishes.Select(d => d.Dish.Id).Order(StringComparer.Ordinal));
         Assert.Equal([.. Inn.Drinks.Where(d => ByRating(d.Unlock) || d.Id is "pre-tide-lungjing" or "bottled-milk-a").Select(d => d.Id).Order(StringComparer.Ordinal)],
-            session.SetupInputs().Input!.Drinks.Select(d => d.Drink.Id).Order(StringComparer.Ordinal));
+            session.MenuInputs().Input!.Drinks.Select(d => d.Drink.Id).Order(StringComparer.Ordinal));
     }
 
     // ---- Kept until changed (owner, live: "each kitchen's recommended cook refreshes all the time") ----
@@ -223,7 +265,7 @@ public class InnSetupMemoryTests
         session.Update(Setup(0));
         session.Update(new InnReading(InnScreenKind.Menu, S(1), Menu: new InnMenu(MenuTab.AllDishes, (0, 8), (0, 8),
             [new MenuCard("fin-mato-soup", "茄果鳞肉汤", false, false, 12), new MenuCard("clay-jar-meat", "坛子肉", false, true, null)])));
-        string setupKey = session.SetupInputs().Key, menuKey = session.SetupInputs().Key;
+        string setupKey = session.SetupInputs().Key, menuKey = session.MenuInputs().Key;
 
         var full = Setup(2).Setup!;
         InnSetup[] jittered =
@@ -239,13 +281,13 @@ public class InnSetupMemoryTests
         {
             session.Update(new InnReading(InnScreenKind.Setup, S(at++), Setup: setup));
             Assert.Equal(setupKey, session.SetupInputs().Key);
-            Assert.Equal(menuKey, session.SetupInputs().Key);
+            Assert.Equal(menuKey, session.MenuInputs().Key);
         }
         // A card read again with its stock unread keeps the stock read before.
         session.Update(new InnReading(InnScreenKind.Menu, S(at++), Menu: new InnMenu(MenuTab.AllDishes, null, null,
             [new MenuCard("fin-mato-soup", "茄果鳞肉汤", false, false, null)])));
-        Assert.Equal(menuKey, session.SetupInputs().Key);
-        Assert.Equal(12, session.SetupInputs().Input!.Dishes.Single(d => d.Dish.Id == "fin-mato-soup").Stock);
+        Assert.Equal(menuKey, session.MenuInputs().Key);
+        Assert.Equal(12, session.MenuInputs().Input!.Dishes.Single(d => d.Dish.Id == "fin-mato-soup").Stock);
     }
 
     /// <summary>What does change on screen changes the inputs: a chef placed, another theme.</summary>

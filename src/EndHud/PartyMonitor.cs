@@ -291,6 +291,7 @@ internal sealed class PartyMonitor : IDisposable
         $"fire {(r.Fire is { } f ? (f.Ready ? "ready" : f.Fire?.ToString() ?? "?") : "-")}" +
         (r.Panel is { } p ? $", panel kitchen {p.Kitchen}/{p.Kitchens} queue {string.Join("+", p.Queue.Where(q => q.Filled).Select(q => q.DishId ?? "?"))}" : "") +
         (r.Bubble is { } b ? $", bubble \"{b.Text}\"" : "") +
+        (r.Screen == InnScreenKind.ChefPicker && r.Fresh ? $", picker kitchen {r.PickerKitchen?.ToString() ?? "?"}" : "") +
         (r.Setup is { } s ? $", theme {s.ThemeName}, kitchens {string.Join(" ", (s.Kitchens ?? []).Select(k => $"{k.Number}:{k.ChefsPlaced?.ToString() ?? "?"}/{k.ChefSlots?.ToString() ?? "?"}"))}" : "") +
         (r.Requirements is { } q ? $", menu rules: rating {q.Rating?.ToString() ?? "?"}, types {q.MinTypes?.ToString() ?? "?"}, dishes {q.MinDishes?.ToString() ?? "?"}, drinks {q.MinDrinks?.ToString() ?? "?"}" : "");
 

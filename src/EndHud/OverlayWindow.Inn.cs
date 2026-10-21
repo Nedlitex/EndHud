@@ -13,9 +13,11 @@ namespace EndHud;
 /// The inn helper's overlays. During an inn session (<see cref="InnSession"/>), shown only on the session's frames
 /// (never in a fight): banners for which dishes to queue in each kitchen and when to start Full Blaze
 /// (<see cref="InnCallView"/>), the marks on the open dispatch panel, and the gourmands' banners on the right
-/// (<see cref="InnGourmandView"/>); the two stacks shown as samples and draggable while the menu is open out of the inn. The setup advice: small panels under each kitchen's card on the setup screen
-/// (<see cref="InnSetupView"/>, placed by <see cref="InnAdviceLayout"/>); nothing on the theme list, the chef picker or
-/// the menu screen. Its plan is worked out off the UI thread (<see cref="InnSetupPlanning"/>).
+/// (<see cref="InnGourmandView"/>); the two stacks shown as samples and draggable while the menu is open out of the inn.
+/// The setup advice: small panels where the game shows the choice they're about (<see cref="InnSetupView"/>, placed by
+/// <see cref="InnAdviceLayout"/>): under each kitchen's card on the setup screen, in a chef picker, on the menu screen;
+/// nothing on the theme list, and no mark on the setup screens' cards. Their plans are worked out off the UI thread
+/// (<see cref="InnSetupPlanning"/>), one for the chefs and one for the menu.
 /// They follow the game's layout, so they aren't dragged. All share one size and opacity; text only.
 /// </summary>
 public partial class OverlayWindow
@@ -25,7 +27,7 @@ public partial class OverlayWindow
     private readonly InnDisplay _innDisplay = new(); // which inn screen shows, and what the session's overlays show
     private IReadOnlyList<InnPanelMark> _innSessionMarks = []; // the marks on the dispatch panel
     private string? _innSetupKey;
-    private InnSetupPlanning? _innChefPlanning;
+    private InnSetupPlanning? _innChefPlanning, _innMenuPlanning;
     private string? _innRulesLogged; // the rules not understood, as last logged
     private readonly Dictionary<InnAdviceSpot, Border> _innAdviceFrames = [];
     private double _innWindowScale = 1;
@@ -54,7 +56,7 @@ public partial class OverlayWindow
         {
             // Nothing is kept while it's off.
             _innSession = null;
-            _innChefPlanning = null;
+            _innChefPlanning = _innMenuPlanning = null;
         }
         ApplyInnSettings();
         RenderInn();
@@ -109,6 +111,7 @@ public partial class OverlayWindow
             // A plan on screen stays until it no longer fits or another is clearly better (InnPlanJudge).
             var judge = new InnPlanJudge(planner);
             _innChefPlanning = new InnSetupPlanning(judge, input => InnSetupAdvice.Fast(planner, input), (input, cancel) => InnSetupAdvice.For(planner, input, cancel));
+            _innMenuPlanning = new InnSetupPlanning(judge, input => InnSetupAdvice.Fast(planner, input), (input, cancel) => InnSetupAdvice.For(planner, input, cancel));
         }
         return _innSession;
     }
@@ -131,20 +134,32 @@ public partial class OverlayWindow
     }
 
     /// <summary>
-    /// The setup advice: on the setup screen, a panel under each kitchen's card, from the plan for what's remembered of
-    /// the setup (asked for off the UI thread when its inputs change; drawn again when ready); nothing on any other
-    /// screen (the chef picker's and the menu screen's went, owner, live 2026-10-21). A rule the plan couldn't take in is
-    /// logged once per change, not shown.
+    /// The setup advice: on the setup screen, a chef picker and the menu screen, the panels for that screen, from the
+    /// plans for what's remembered of the setup (asked for off the UI thread when their inputs change; drawn again when
+    /// ready); nothing on any other screen. A rule the plan couldn't take in is said on the menu screen's panel and logged
+    /// once per change.
     /// </summary>
     private void RenderInnSetup()
     {
         IReadOnlyList<InnAdvicePanel> panels = [];
-        if (_config.InnHelperEnabled && _innDisplay.SetupScreen == InnScreenKind.Setup && _innSession is { } session
-            && _innChefPlanning is { } chefPlanning && _innLibrary?.Inn is { } inn)
+        if (_config.InnHelperEnabled && _innDisplay.SetupScreen is { } screen && _innSession is { } session
+            && _innChefPlanning is { } chefPlanning && _innMenuPlanning is { } menuPlanning && _innLibrary?.Inn is { } inn)
         {
-            var inputs = session.SetupInputs();
-            chefPlanning.Request(inputs, InnClock.Now, () => Dispatcher.BeginInvoke(RenderInnSetup));
-            panels = InnSetupView.ForScreen(InnScreenKind.Setup, session, chefPlanning.Showable(inputs), inn, Loc.Get);
+            InnSetupAdvice? chefs = null, menu = null;
+            InnSetupInputs inputs;
+            if (screen == InnScreenKind.Menu)
+            {
+                inputs = session.MenuInputs();
+                menuPlanning.Request(inputs, InnClock.Now, () => Dispatcher.BeginInvoke(RenderInnSetup));
+                menu = menuPlanning.Showable(inputs);
+            }
+            else
+            {
+                inputs = session.SetupInputs();
+                chefPlanning.Request(inputs, InnClock.Now, () => Dispatcher.BeginInvoke(RenderInnSetup));
+                chefs = chefPlanning.Showable(inputs);
+            }
+            panels = InnSetupView.ForScreen(screen, session, chefs, menu, inn, Loc.Get);
             string rules = string.Join(" | ", inputs.RulesNotUnderstood);
             if (rules.Length > 0 && rules != _innRulesLogged)
                 DiagnosticLog.Warn($"inn: menu rules not understood, the setup advice leaves them out: {rules}");
@@ -176,7 +191,7 @@ public partial class OverlayWindow
         var spot = InnAdviceLayout.Place(panel.Spot, width, height);
         frame.LayoutTransform = new ScaleTransform(scale, scale);
         frame.Opacity = _config.InnStripOpacity;
-        frame.Child = InnStrip.Build(panel.Model, InnPicture, InnAdviceLayout.LineWidth(panel.Spot, width, height, scale));
+        frame.Child = InnStrip.Build(panel.Model, InnPicture, InnAdviceLayout.LineWidth(panel.Spot, width, height, scale), InnAdviceLayout.Look(panel.Spot));
         Canvas.SetLeft(frame, spot.Left);
         Canvas.SetTop(frame, spot.Top);
         frame.Visibility = Visibility.Visible;

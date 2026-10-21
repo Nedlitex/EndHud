@@ -12,6 +12,10 @@ namespace EndHud;
 /// cards stand at x 0.418–0.588, 0.594–0.764 and 0.771–0.941; under a card's chef bonus rows (or under
 /// the place-a-chef button of an empty card, at y 0.53) the card is blank from y ≈ 0.66 to its bottom edge at
 /// 0.865. The spot is y 0.665–0.855, inset from the card's sides.</item>
+/// <item><b>The chef picker</b> (chef-picker.jpg): right of the grid, under the chef bonus overview, blank from
+/// y ≈ 0.68 (below the most bonus rows two chefs can have) to the bottom bar at 0.86; x 0.33–0.97.</item>
+/// <item><b>The menu screen</b> (menu-soup-theme.jpg, menu-dishes.jpg): the left column under the theme bonus,
+/// blank from y ≈ 0.60 to the menu bar at 0.835; x 0.06–0.38.</item>
 /// </list>
 /// </summary>
 internal static class InnAdviceLayout
@@ -25,6 +29,8 @@ internal static class InnAdviceLayout
         InnAdviceSpot.Kitchen1 => new(0.424, 0.665, 0.158, 0.19),
         InnAdviceSpot.Kitchen2 => new(0.600, 0.665, 0.158, 0.19),
         InnAdviceSpot.Kitchen3 => new(0.777, 0.665, 0.158, 0.19),
+        InnAdviceSpot.Picker => new(0.335, 0.69, 0.62, 0.16),
+        InnAdviceSpot.Menu => new(0.06, 0.605, 0.32, 0.225),
         _ => throw new ArgumentOutOfRangeException(nameof(spot), spot, null),
     };
 
@@ -38,10 +44,13 @@ internal static class InnAdviceLayout
         return new Rect(left + f.Left * areaWidth, top + f.Top * areaHeight, f.Width * areaWidth, f.Height * areaHeight);
     }
 
+    /// <summary>How a spot's panel is drawn: the menu's compact, so a full menu fits the blank column; the others as the strip.</summary>
+    public static InnStripLook Look(InnAdviceSpot spot) => spot == InnAdviceSpot.Menu ? InnStripLook.Compact : InnStripLook.Normal;
+
     /// <summary>
     /// The width of a panel's lines (<see cref="InnStrip"/>, in its 1080p units) so that the panel,
     /// drawn at <paramref name="scale"/>, is as wide as its spot at most.
     /// </summary>
     public static double LineWidth(InnAdviceSpot spot, double width, double height, double scale) =>
-        Math.Max(InnStrip.PictureSize * 3, Place(spot, width, height).Width / scale - InnStripLook.Normal.ChromeWidth);
+        Math.Max(InnStrip.PictureSize * 3, Place(spot, width, height).Width / scale - Look(spot).ChromeWidth);
 }

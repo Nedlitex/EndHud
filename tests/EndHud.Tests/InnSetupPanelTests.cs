@@ -129,13 +129,13 @@ public class InnSetupPanelTests
     // Each spot's words: see InnSetupViewTests.
 
     [Fact]
-    public void Nothing_seen_shows_no_panel()
+    public void Nothing_seen_shows_no_menu_panel()
     {
         var session = NewSession();
-        session.Update(new InnReading(InnScreenKind.Setup, S(0), Fresh: false));
+        session.Update(new InnReading(InnScreenKind.Menu, S(0), Fresh: false));
 
-        Assert.Equal([InnSetupGap.NoSetup], session.SetupInputs().Gaps);
-        Assert.Empty(InnSetupView.ForScreen(InnScreenKind.Setup, session, null, Inn, Text));
+        Assert.Equal([InnSetupGap.NoSetup], session.MenuInputs().Gaps);
+        Assert.Empty(InnSetupView.Menu(session.MenuInputs(), null, session.OnMenu, Inn, Text));
     }
 
     [Fact]

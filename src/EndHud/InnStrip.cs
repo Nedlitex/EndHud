@@ -92,7 +92,7 @@ internal static class InnStrip
 
     /// <param name="picture">A dish's or drink's picture by id; null when there's none.</param>
     /// <param name="lineWidth">How wide the lines may be, at 1080p: the spot's width (<see cref="InnAdviceLayout.LineWidth"/>).</param>
-    /// <param name="look">Its text and pictures' size: <see cref="InnStripLook.Normal"/> by default.</param>
+    /// <param name="look">Its text and pictures' size: <see cref="InnStripLook.Normal"/>, or <see cref="InnStripLook.Compact"/> where a full panel must fit a small blank of the game's screen.</param>
     public static FrameworkElement Build(InnStripModel model, Func<string, BitmapSource?> picture, double lineWidth, InnStripLook? look = null)
     {
         look ??= InnStripLook.Normal;
@@ -195,6 +195,9 @@ internal sealed record InnStripLook(double FontSize, double PictureSize, double 
 {
     /// <summary>The chefs' advice.</summary>
     public static readonly InnStripLook Normal = new(16, InnStrip.PictureSize, 2, new Thickness(12, 8, 14, 8));
+
+    /// <summary>The menu's advice: a full menu (eight dishes, eight drinks, their substitutes) in the menu screen's blank column.</summary>
+    public static readonly InnStripLook Compact = new(13, 20, 1, new Thickness(10, 6, 10, 6));
 
     /// <summary>The card's own width around its lines: the accent bar and the padding.</summary>
     public double ChromeWidth => InnStrip.AccentBar + Padding.Left + Padding.Right;

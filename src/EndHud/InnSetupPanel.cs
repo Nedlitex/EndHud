@@ -349,38 +349,56 @@ internal sealed class InnSetupPlanning(IInnPlanJudge judge, Func<InnPlanInput, I
     }
 }
 
-/// <summary>Where a piece of setup advice is shown: under a kitchen's card on the setup screen.</summary>
+/// <summary>Where a piece of setup advice is shown: under a kitchen's card on the setup screen, in the chef picker, on the menu screen.</summary>
 internal enum InnAdviceSpot
 {
     Kitchen1 = 1,
     Kitchen2 = 2,
     Kitchen3 = 3,
+    Picker,
+    Menu,
 }
 
 /// <summary>One piece of setup advice and where it goes.</summary>
 internal sealed record InnAdvicePanel(InnAdviceSpot Spot, InnStripModel Model);
 
 /// <summary>
-/// The setup advice's words (owner, live test 2026-10-19), every string from i18n/zh-CN.xaml, as small panels under
-/// each kitchen's card on the setup screen (<see cref="InnAdviceLayout"/> places them): that kitchen's advice only, the
-/// dish types it will cook, a "recommended" row with the chefs for its empty places, each with their avatar, and a
-/// "substitutes" row for one the player lacks. The chefs already placed are kept and never named (nor suggested
-/// anywhere else); a full kitchen says only that it's set.
-/// Nothing anywhere else: not on the theme list, the chef picker or the menu screen (owner, live 2026-10-21: the
-/// recommendation there "refreshes too slowly and it is often out of sync, just delete that for now"), not in a
-/// session. What hasn't been read (the theme, the kitchens) shows no panel at all, never a guess and never a "not
-/// seen yet" line (owner, live 2026-10-20: "half of the time it is wrong and it is disturbing").
+/// The setup advice's words (owner, live test 2026-10-19), every string from i18n/zh-CN.xaml, as small
+/// panels where the game shows the choice they're about (<see cref="InnAdviceLayout"/> places them):
+/// <list type="bullet">
+/// <item><b>The setup screen:</b> under each kitchen's card, that kitchen's advice only: the dish types it will
+/// cook, a "recommended" row with the chefs for its empty places, each with their avatar, and a "substitutes" row for
+/// one the player lacks. The chefs already placed are kept and never named (nor suggested anywhere
+/// else); a full kitchen says only that it's set.</item>
+/// <item><b>A chef picker:</b> the same advice for its kitchen, under a heading naming the kitchen.</item>
+/// <item><b>The menu screen:</b> the menu for the chefs actually placed (or, with none placed, for the chefs the
+/// plan would pick, and it says so): a dishes row, a tick before those already on the menu, and
+/// a drinks row, each with a short substitutes row under it.</item>
+/// </list>
+/// Nothing anywhere else: not on the theme list, not in a session. What hasn't been read (the theme, the kitchens,
+/// a picker's kitchen) shows no panel at all, never a guess and never a "not seen yet" line (owner, live 2026-10-20:
+/// "half of the time it is wrong and it is disturbing").
 /// </summary>
 internal static class InnSetupView
 {
     /// <summary>Prefix of an operator's picture id: their avatar, not a dish's picture.</summary>
     public const string OperatorPicture = "op:";
 
-    /// <summary>The panels for <paramref name="screen"/>: per kitchen on the setup screen; none on any other screen or off the inn (null).</summary>
+    /// <summary>
+    /// The panels for <paramref name="screen"/>: per kitchen on the setup screen, one in a chef picker, one on
+    /// the menu screen; none on any other screen (the theme list, the session) or off the inn (null).
+    /// </summary>
     /// <param name="chefs">The plan for <see cref="InnSession.SetupInputs"/> (<see cref="InnSetupPlanning.Showable"/>); null while it's worked out.</param>
+    /// <param name="menu">The plan for <see cref="InnSession.MenuInputs"/>; null while it's worked out.</param>
     /// <param name="text">The i18n lookup (<see cref="Loc.Get"/>; the tests pass zh-CN.xaml's strings).</param>
-    public static IReadOnlyList<InnAdvicePanel> ForScreen(InnScreenKind? screen, InnSession session, InnSetupAdvice? chefs, InnData data, Func<string, string> text) =>
-        screen == InnScreenKind.Setup ? Setup(session.SetupInputs(), chefs, data, text) : [];
+    public static IReadOnlyList<InnAdvicePanel> ForScreen(InnScreenKind? screen, InnSession session, InnSetupAdvice? chefs, InnSetupAdvice? menu,
+        InnData data, Func<string, string> text) => screen switch
+    {
+        InnScreenKind.Setup => Setup(session.SetupInputs(), chefs, data, text),
+        InnScreenKind.ChefPicker => Picker(session.PickerKitchen, session.SetupInputs(), chefs, data, text),
+        InnScreenKind.Menu => Menu(session.MenuInputs(), menu, session.OnMenu, data, text),
+        _ => [],
+    };
 
     /// <summary>The setup screen: a panel under each kitchen's card.</summary>
     public static IReadOnlyList<InnAdvicePanel> Setup(InnSetupInputs inputs, InnSetupAdvice? advice, InnData data, Func<string, string> text)
@@ -392,6 +410,46 @@ internal static class InnSetupView
                 : [Working(text)])))];
     }
 
+    /// <summary>A chef picker: its kitchen's advice under a heading naming the kitchen.</summary>
+    /// <param name="kitchen">The kitchen the picker is for (<see cref="InnSession.PickerKitchen"/>); null when its title wasn't read.</param>
+    public static IReadOnlyList<InnAdvicePanel> Picker(int? kitchen, InnSetupInputs inputs, InnSetupAdvice? advice, InnData data, Func<string, string> text)
+    {
+        if (inputs.Input is null || kitchen is not { } number || !inputs.Input.Kitchens.Any(k => k.Number == number)) return [];
+        var lines = new List<InnLine> { InnLine.Of(InnLineStyle.Heading, new InnSegment(string.Format(text("Inn.Setup.PickerTitle"), text($"Inn.Kitchen.{number}")))) };
+        lines.AddRange(advice?.Suggestions.Kitchens.FirstOrDefault(s => s.Number == number) is { } suggestion
+            ? KitchenLines(suggestion, data, text)
+            : [Working(text)]);
+        return [new InnAdvicePanel(InnAdviceSpot.Picker, new InnStripModel(lines))];
+    }
+
+    /// <summary>The menu screen: the menu for the chefs placed, with what's on it already marked.</summary>
+    /// <param name="onMenu">The dishes and drinks on the menu now (<see cref="InnSession.OnMenu"/>).</param>
+    public static IReadOnlyList<InnAdvicePanel> Menu(InnSetupInputs inputs, InnSetupAdvice? advice, IReadOnlyCollection<string> onMenu, InnData data,
+        Func<string, string> text)
+    {
+        if (inputs.Input is null) return [];
+        var lines = new List<InnLine>();
+        // A rule the planner couldn't take in: the plan ignores it, so the player must know.
+        lines.AddRange(inputs.RulesNotUnderstood.Select(r => InnLine.Of(InnLineStyle.Note, new InnSegment(string.Format(text("Inn.Setup.RuleNotUnderstood"), r)))));
+        if (advice is null)
+        {
+            lines.Add(Working(text));
+            return [new InnAdvicePanel(InnAdviceSpot.Menu, new InnStripModel(lines))];
+        }
+        lines.Insert(0, InnLine.Of(InnLineStyle.Heading, new InnSegment(text(inputs.ChefsPlanned ? "Inn.Setup.MenuTitleChefsPicked" : "Inn.Setup.MenuTitle"))));
+        var suggestions = advice.Suggestions;
+        string mark = text("Inn.Setup.OnMenu");
+        IReadOnlyList<InnSegment> Marked(InnSegment item) => onMenu.Contains(item.PictureId!) ? [new InnSegment(mark).Kept(), item] : [item];
+        var dishSubstitutes = suggestions.Kitchens.SelectMany(k => k.DishSubstitutes).DistinctBy(d => d.Dish.Id).Take(InnSuggester.MaxSubstitutes);
+        lines.AddRange(Rows(text("Inn.Setup.Dishes"), advice.Plan.Dishes.Select(d => Marked(Dish(d.Dish))), dishSubstitutes.Select(d => One(Dish(d.Dish))), text));
+        lines.AddRange(Rows(text("Inn.Setup.Drinks"), advice.Plan.Drinks.Select(d => Marked(Drink(d.Drink))), suggestions.DrinkSubstitutes.Select(d => One(Drink(d.Drink))), text));
+        if (!advice.Plan.RulesMet) lines.Add(InnLine.Of(InnLineStyle.Note, new InnSegment(text("Inn.Setup.RulesUnmet"))));
+        // The theme's "sell N choice dishes" out of reach with these chefs: said, so the player isn't surprised.
+        if (inputs.Input.ChoiceDishTarget is { } target && advice.Plan.Reasons.FirstOrDefault(r => r.Kind == PlanReasonKind.ChoiceTargetUnreached) is { } unreached)
+            lines.Add(InnLine.Of(InnLineStyle.Note, new InnSegment(string.Format(text("Inn.Setup.ChoiceTargetUnreached"), Math.Round(unreached.Value), target))));
+        return [new InnAdvicePanel(InnAdviceSpot.Menu, new InnStripModel(lines))];
+    }
+
     /// <summary>A kitchen's advice: the dish types it cooks, then its chefs and their substitutes, or that it's set.</summary>
     private static List<InnLine> KitchenLines(KitchenSuggestion kitchen, InnData data, Func<string, string> text)
     {
@@ -401,7 +459,7 @@ internal static class InnSetupView
             lines.Add(InnLine.Of(InnLineStyle.Subheading, new InnSegment(string.Format(text("Inn.Setup.Cooks"), string.Join(text("Inn.Setup.TypeSeparator"), types)))));
         if (kitchen.Full) lines.Add(InnLine.Of(InnLineStyle.Dim, new InnSegment(text("Inn.Setup.Full"))));
         else if (kitchen.Unused) lines.Add(InnLine.Of(InnLineStyle.Dim, new InnSegment(text("Inn.Setup.KitchenUnused"))));
-        else lines.AddRange(Rows(text("Inn.Setup.Recommend"), kitchen.Chefs.Select(Chef), kitchen.ChefSubstitutes.Select(Chef), text));
+        else lines.AddRange(Rows(text("Inn.Setup.Recommend"), kitchen.Chefs.Select(c => One(Chef(c))), kitchen.ChefSubstitutes.Select(c => One(Chef(c))), text));
         return lines;
     }
 
@@ -409,8 +467,14 @@ internal static class InnSetupView
 
     private static InnSegment Chef(OperatorInfo chef) => new(chef.NameZh, OperatorPicture + chef.Id);
 
+    private static InnSegment Dish(Dish dish) => new(dish.Zh, dish.Id);
+
+    private static InnSegment Drink(InnDrink drink) => new(drink.Zh, drink.Id);
+
+    private static IReadOnlyList<InnSegment> One(InnSegment item) => [item];
+
     /// <summary>"label a b c" and under it "可换：d e"; nothing for no names, no 可换 row for no substitutes.</summary>
-    private static IEnumerable<InnLine> Rows(string label, IEnumerable<InnSegment> names, IEnumerable<InnSegment> substitutes, Func<string, string> text)
+    private static IEnumerable<InnLine> Rows(string label, IEnumerable<IReadOnlyList<InnSegment>> names, IEnumerable<IReadOnlyList<InnSegment>> substitutes, Func<string, string> text)
     {
         var main = names.ToList();
         if (main.Count == 0) yield break;
@@ -419,18 +483,20 @@ internal static class InnSetupView
         if (others.Count > 0) yield return Row(text("Inn.Setup.Substitutes"), others, text);
     }
 
-    /// <summary>A labelled row of names: each kept with the space after it, so the row wraps between names.</summary>
-    private static InnLine Row(string label, IReadOnlyList<InnSegment> names, Func<string, string> text)
+    /// <summary>A labelled row of names (a name may carry a mark before it): each kept with the space after it, so the row wraps between names.</summary>
+    private static InnLine Row(string label, IReadOnlyList<IReadOnlyList<InnSegment>> names, Func<string, string> text)
     {
         var segments = new List<InnSegment> { new(label) };
         for (int i = 0; i < names.Count; i++)
         {
+            var unit = names[i];
+            segments.AddRange(unit.Take(unit.Count - 1));
             if (i == names.Count - 1)
             {
-                segments.Add(names[i]);
+                segments.Add(unit[^1]);
                 break;
             }
-            segments.Add(names[i].Kept());
+            segments.Add(unit[^1].Kept());
             segments.Add(new InnSegment(text("Inn.Between")));
         }
         return new InnLine(InnLineStyle.Normal, segments) { Hanging = true };

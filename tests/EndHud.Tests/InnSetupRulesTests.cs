@@ -37,13 +37,14 @@ public class InnSetupRulesTests
         Assert.Empty(inputs.RulesNotUnderstood);
     }
 
-    /// <summary>A rule not understood is kept as read, for the log (the overlay logs it once per change; no panel says it).</summary>
     [Fact]
-    public void A_rule_not_understood_is_kept_as_read()
+    public void A_rule_not_understood_is_said_with_the_menu()
     {
         var inputs = Inputs(["至少有3道很奇怪的菜品"], ["Soup"]);
 
         Assert.Equal(["至少有3道很奇怪的菜品"], inputs.RulesNotUnderstood);
+        var lines = InnSetupView.Menu(inputs, null, [], Inn, Text).Single().Model.Lines.Select(l => l.Text).ToList();
+        Assert.Contains("看不懂菜单要求：至少有3道很奇怪的菜品（推荐没有算上它）", lines);
     }
 
     /// <summary>

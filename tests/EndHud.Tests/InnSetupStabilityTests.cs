@@ -58,7 +58,7 @@ public class InnSetupStabilityTests(ITestOutputHelper output)
         int steps = 0;
         async Task Ask(double at)
         {
-            if (planning.Request(session.SetupInputs(), settle ? S(at) : Settled) is { } work) await work;
+            if (planning.Request(session.MenuInputs(), settle ? S(at) : Settled) is { } work) await work;
         }
         async Task Step(InnReading reading)
         {
@@ -79,7 +79,7 @@ public class InnSetupStabilityTests(ITestOutputHelper output)
         t += InnSetupPlanning.ScrollSettle.TotalSeconds + 0.5;
         await Ask(t);
         // The player follows the advice: each dish it names goes on the menu, the card read with its red frame.
-        var advice = planning.Showable(session.SetupInputs())!;
+        var advice = planning.Showable(session.MenuInputs())!;
         foreach (var dish in advice.Plan.Dishes)
         {
             onMenu.Add(dish.Dish.Id);
@@ -116,14 +116,14 @@ public class InnSetupStabilityTests(ITestOutputHelper output)
         session.Update(MenuShowing(1, drinks, new HashSet<string>()));
         session.Update(MenuShowing(2, dishes, new HashSet<string>()));
         var planning = new InnSetupPlanning(Judge, input => InnSetupAdvice.Fast(Planner, input), note: _ => { });
-        await planning.Request(session.SetupInputs(), Settled)!;
-        var shown = planning.Showable(session.SetupInputs())!;
+        await planning.Request(session.MenuInputs(), Settled)!;
+        var shown = planning.Showable(session.MenuInputs())!;
 
         var recommended = shown.Plan.Dishes[0].Dish.Id;
         session.Update(MenuShowing(3, [recommended], new HashSet<string> { recommended }));
 
-        Assert.Null(planning.Request(session.SetupInputs(), Settled)); // the inputs are the same: nothing to plan
-        Assert.Same(shown, planning.Showable(session.SetupInputs()));
+        Assert.Null(planning.Request(session.MenuInputs(), Settled)); // the inputs are the same: nothing to plan
+        Assert.Same(shown, planning.Showable(session.MenuInputs()));
         Assert.Contains(recommended, session.OnMenu); // only the tick changes
     }
 
@@ -135,7 +135,7 @@ public class InnSetupStabilityTests(ITestOutputHelper output)
         session.Update(Wholesome(0));
         session.Update(MenuShowing(1, drinks, new HashSet<string>()));
         session.Update(MenuShowing(2, dishes, new HashSet<string>()));
-        var input = session.SetupInputs().Input!;
+        var input = session.MenuInputs().Input!;
         return (input, InnSetupAdvice.Fast(Planner, input));
     }
 
@@ -151,7 +151,7 @@ public class InnSetupStabilityTests(ITestOutputHelper output)
         session.Update(Wholesome(0));
         session.Update(MenuShowing(1, drinks, new HashSet<string>()));
         session.Update(MenuShowing(2, dishes, new HashSet<string>()));
-        var first = InnSetupAdvice.Fast(Planner, session.SetupInputs().Input!);
+        var first = InnSetupAdvice.Fast(Planner, session.MenuInputs().Input!);
         var noBetter = first with { Plan = first.Plan with { Dishes = [.. first.Plan.Dishes.Reverse()] } };
         int asked = 0;
         var planning = new InnSetupPlanning(Judge, _ => Interlocked.Increment(ref asked) == 1 ? first : noBetter, (_, _) =>
@@ -160,14 +160,14 @@ public class InnSetupStabilityTests(ITestOutputHelper output)
             return noBetter;
         }, note: _ => { });
 
-        await planning.Request(session.SetupInputs(), Settled)!;
-        Assert.Same(first, planning.Showable(session.SetupInputs())); // the refinement, no better, didn't replace it
+        await planning.Request(session.MenuInputs(), Settled)!;
+        Assert.Same(first, planning.Showable(session.MenuInputs())); // the refinement, no better, didn't replace it
 
         // Newer inputs the plan still fits (a stock read): their plan is no better, the shown one stays.
         session.Update(new InnReading(InnScreenKind.Menu, S(3), Menu: new InnMenu(MenuTab.AllDishes, null, null,
             [new MenuCard(dishes[^1], dishes[^1], OnMenu: false, Unlimited: false, Stock: 9)])));
-        await planning.Request(session.SetupInputs(), Settled)!;
-        Assert.Same(first, planning.Showable(session.SetupInputs()));
+        await planning.Request(session.MenuInputs(), Settled)!;
+        Assert.Same(first, planning.Showable(session.MenuInputs()));
         Assert.Equal(1, planning.Changes);
     }
 
