@@ -61,7 +61,7 @@ public sealed partial class MenuRequirementsReader(InnText text, InnData data)
     internal const string TrendHeading = "流行趋势";
 
     /// <summary>The requirements in the panel's lines (top to bottom).</summary>
-    internal static MenuRequirements Parse(IReadOnlyList<string> lines, InnData data)
+    public static MenuRequirements Parse(IReadOnlyList<string> lines, InnData data)
     {
         int? rating = null, types = null, dishes = null, drinks = null;
         var rules = new List<DishRule>();

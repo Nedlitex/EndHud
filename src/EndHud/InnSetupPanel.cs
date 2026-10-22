@@ -494,8 +494,10 @@ internal static class InnSetupView
     {
         if (inputs.Input is null) return [];
         var lines = new List<InnLine>();
-        // A rule the planner couldn't take in: the plan ignores it, so the player must know.
-        lines.AddRange(inputs.RulesNotUnderstood.Select(r => InnLine.Of(InnLineStyle.Note, new InnSegment(string.Format(text("Inn.Setup.RuleNotUnderstood"), r)))));
+        // A rule the planner couldn't take in: the plan ignores it, so the player must know. One plain sentence naming where
+        // it stands, never OCR's reading of it (owner, test_yuanyuan8: "看不懂菜单要求：至少有1道@13小时39分钟0流行趋势", "what is
+        // the @13小时 crap"); what was read goes to the log (OverlayWindow.RenderInnSetup).
+        if (inputs.RulesNotUnderstood.Count > 0) lines.Add(InnLine.Of(InnLineStyle.Note, new InnSegment(text("Inn.Setup.RuleNotUnderstood"))));
         if (advice is null)
         {
             lines.Add(Working(text));

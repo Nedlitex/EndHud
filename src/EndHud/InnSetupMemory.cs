@@ -265,7 +265,11 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
         var dishRules = setupRules.Rules.Concat(r?.DishRules ?? [])
             .DistinctBy(t => $"{t.Count}:{string.Join("/", t.AnyOf)}").ToList();
         var known = MenuRules.OfRating(rating, dishRules);
-        int minDishes = r?.MinDishes ?? known?.MinDishes ?? 1, minDrinks = r?.MinDrinks ?? known?.MinDrinks ?? 0, minTypes = r?.MinTypes ?? known?.MinTypes ?? 1;
+        // The setup screen's 菜单要求 can state the counts too ("至少需要8道菜品和6种饮品", test_yuanyuan8's gourmand theme): before
+        // the menu screen is read they are the theme's, not the rating's.
+        var stated = MenuRequirementsReader.Parse(setup.MenuRules, data);
+        int minDishes = r?.MinDishes ?? stated.MinDishes ?? known?.MinDishes ?? 1, minDrinks = r?.MinDrinks ?? stated.MinDrinks ?? known?.MinDrinks ?? 0,
+            minTypes = r?.MinTypes ?? stated.MinTypes ?? known?.MinTypes ?? 1;
         // The counters' "N/8" give the most allowed; unread, the rating's (8 of each at Rating 4).
         int maxDishes = _dishCounter?.Allowed ?? known?.MaxDishes ?? MenuRules.MostSeen, maxDrinks = _drinkCounter?.Allowed ?? known?.MaxDrinks ?? MenuRules.MostSeen;
         var rules = new MenuRules(minDishes, Math.Max(minDishes, maxDishes), minDrinks, Math.Max(minDrinks, maxDrinks), minTypes, dishRules);
