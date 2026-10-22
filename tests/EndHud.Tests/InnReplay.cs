@@ -229,8 +229,11 @@ internal sealed class InnReplay
 
     public List<DrawStep> Draws { get; } = [];
 
-    /// <summary>The kitchens' circles are on screen: above the tray, or below the open panel (until 2026-10-21 hidden while it was open).</summary>
-    private static bool CirclesDrawn(InnViews views) => views.Circles is InnCirclePlace.AboveTray or InnCirclePlace.BelowPanel;
+    /// <summary>
+    /// The kitchens' circles are on screen: always during a session, at their one place (InnKitchenCircleLayout; until
+    /// 2026-10-21 hidden while the panel was open, until 2026-10-22 moved below it).
+    /// </summary>
+    private static bool CirclesDrawn(InnViews views) => views.Session;
 
     private void TakeDraw(TimeSpan at, InnViews views)
     {
@@ -239,7 +242,7 @@ internal sealed class InnReplay
         var tabs = views.Marks.Where(m => !m.OnCard)
             .Select(m => Enumerable.Range(1, KitchenMath.MaxKitchens).FirstOrDefault(k => DispatchPanelReader.TabArea(k) == m.Area)).Where(k => k > 0).ToHashSet();
         Draws.Add(new DrawStep(at, _display.LastAdvice?.MarkedPanel?.Kitchen, calls, tabs, views.Marks.Any(m => m.OnCard), CirclesDrawn(views),
-            views.Wants.Select(w => w.Table).ToHashSet(), false /* never hidden: each tile at its table's fixed spot, the panel open or not (InnGourmandLayout) */, [.. _cards.Select(c => c?.State)])
+            views.Wants.Select(w => w.Table).ToHashSet(), views.Away /* put away in place over the open panel: their spots are over its dish cards (InnGourmandLayout) */, [.. _cards.Select(c => c?.State)])
         {
             Resolved = [.. Enumerable.Range(0, TableCardReader.Tables).Select(i => _cards[i] is { State: TableState.GourmandOrder } c && c.Served.Count > 0 && _pipsResolved[i].Count >= c.Served.Count)],
         });

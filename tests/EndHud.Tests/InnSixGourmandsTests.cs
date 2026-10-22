@@ -70,10 +70,10 @@ public class InnSixGourmandsTests(ITestOutputHelper output)
         Rect Of(Rect r) => new(r.X * width, r.Y * height, r.Width * width, r.Height * height);
         var avoid = new List<(string What, Rect Where)>
         {
-            ("the circles above the tray", InnKitchenCircleLayout.Place(width, height, scale, InnKitchenCircleLayout.DefaultCenterX, InnKitchenCircleLayout.DefaultBottomY)),
-            ("the circles below the panel", InnKitchenCircleLayout.BelowPanel(width, height, scale)),
+            ("the circles", InnKitchenCircleLayout.Place(width, height, scale)),
+            ("the inn's banners", InnScreenAreas.Of(InnScreenAreas.Banners, width, height)),
             ("the UID", Of(UidArea)), ("the table cards", Of(new Rect(0.14, 0, 0.47, 0.135))), ("the HUD at the top left", Of(TopLeftHud)),
-            ("the status at the top right", Of(TopRightHud)), ("the open panel", Of(PanelArea)), ("the Full Blaze meter", Of(Meter)),
+            ("the status at the top right", Of(TopRightHud)), ("the Full Blaze meter", Of(Meter)),
             ("the held-dishes tray", Of(Tray)),
         };
         var spots = new List<Rect>();
@@ -127,9 +127,10 @@ public class InnSixGourmandsTests(ITestOutputHelper output)
             Assert.True(places.Distinct().Count() == 1, $"table {all[i].Table} moves: {string.Join(" ", places.Distinct())}");
             at.Add(places[0]);
         }
-        Assert.All(at.Take(3), p => Assert.True(p.X < width / 2.0, "tables 1-3 on the left"));
-        Assert.All(at.Skip(3), p => Assert.True(p.X > width / 2.0, "tables 4-6 on the right"));
-        Assert.True(at[0].Y < at[1].Y && at[1].Y < at[2].Y && at[3].Y < at[4].Y && at[4].Y < at[5].Y, "top to bottom");
+        // Two rows of three in the middle: tables 1-3 on top, 4-6 under them, each row left to right.
+        Assert.True(at[0].Y == at[1].Y && at[1].Y == at[2].Y && at[3].Y == at[4].Y && at[4].Y == at[5].Y && at[0].Y < at[3].Y, "two rows");
+        Assert.True(at[0].X < at[1].X && at[1].X < at[2].X && at[3].X < at[4].X && at[4].X < at[5].X, "left to right");
+        Assert.All(at, p => Assert.True(p.X >= 0.2 * width && p.X + InnGourmandLayout.SpotWidth * height / 1080 <= 0.8 * width, $"not in the middle: {p}"));
     }
 
     /// <summary>The player's size makes the tiles smaller, never larger than their spot (a larger one would cover the game's HUD or the panel).</summary>

@@ -62,7 +62,7 @@ public class InnKitchenCircleTests(ITestOutputHelper output)
 
         Assert.Equal((Text("Inn.Kitchen.1"), Dish(A).Zh, Format("Inn.Call.ForTable", 4), A), (order.Label, order.Dish, order.Reason, order.PictureId));
         Assert.Equal((Text("Inn.Kitchen.2"), Dish(D).Zh, Text("Inn.Circle.CookAheadReason")), (ahead.Label, ahead.Dish, ahead.Reason));
-        Assert.Equal((Text("Inn.Kitchen.3"), Dish(B).Zh, Format("Inn.Circle.SwapReason", Dish(D).Zh, 5), B), (swap.Label, swap.Dish, swap.Reason, swap.PictureId));
+        Assert.Equal((Text("Inn.Kitchen.3"), Dish(B).Zh, Dish(D).Zh, B, true), (swap.Label, swap.Dish, swap.Reason, swap.PictureId, swap.ReasonStruck));
         Assert.Equal([InnCircleKind.Order, InnCircleKind.CookAhead, InnCircleKind.Swap], new[] { order.Kind, ahead.Kind, swap.Kind });
         Assert.Equal(3, new[] { order.KindWord, ahead.KindWord, swap.KindWord }.Distinct().Count());
         Assert.Equal(3, new[] { InnCircleKind.Order, InnCircleKind.CookAhead, InnCircleKind.Swap }.Select(InnKitchenCircleView.ColorOf).Distinct().Count());
@@ -146,90 +146,22 @@ public class InnKitchenCircleTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// From their default place, at the player's default size: the row centred on the window, above the held-dishes tray
-    /// (its slots from y 0.855 of a 16:9 window, the 4K fixtures), below the middle of the screen, inside the window.
-    /// </summary>
-    [Theory]
-    [InlineData(1920, 1080)]
-    [InlineData(2560, 1440)]
-    [InlineData(3840, 2160)]
-    public void The_circles_stand_centred_just_above_the_held_dishes_tray(int width, int height)
-    {
-        double scale = ComboHintLayout.Scale(height, dpiScale: 1);
-        var row = InnKitchenCircleLayout.Place(width, height, scale, InnKitchenCircleLayout.DefaultCenterX, InnKitchenCircleLayout.DefaultBottomY);
-        output.WriteLine($"{width}x{height}: x {row.Left / width:F3}–{row.Right / width:F3}, y {row.Top / height:F3}–{row.Bottom / height:F3}");
-
-        Assert.Equal(width / 2.0, row.Left + row.Width / 2, 1);
-        Assert.True(row.Bottom <= 0.855 * height, $"bottom {row.Bottom / height:F3} of the window, the tray from 0.855");
-        Assert.True(row.Bottom >= 0.80 * height, $"bottom {row.Bottom / height:F3}: right above the tray");
-        Assert.True(row.Top >= 0.55 * height, $"top {row.Top / height:F3}");
-        Assert.True(row.Left >= 0 && row.Right <= width);
-        // The row is what's drawn: three slots and the frame, at that scale.
-        Assert.Equal((InnKitchenCircleView.Slots * InnKitchenCircleView.SlotWidth + Frame) * scale, row.Width, 3);
-    }
-
-    // ---- Below the open dispatch panel ----
-
-    /// <summary>
-    /// While the panel is open the circles stand in a row just below it (owner, 2026-10-21, test_yuanyuan6 at 6:10: "the
-    /// kitchen shows 有菜要排, BUT there is no circle under"): the panel spans y 0.194–0.853 of a 16:9 window on the 4K
-    /// frames and covers the tray, the floor below it is free. The row is centred, under the panel's bottom, inside the
-    /// window, and right of the UID in the lower-left corner (x up to 0.26 from y 0.94).
-    /// </summary>
-    [Theory]
-    [InlineData(1920, 1080)]
-    [InlineData(2560, 1440)]
-    [InlineData(3840, 2160)]
-    public void Below_the_open_panel_the_circles_stand_under_it_inside_the_window(int width, int height)
-    {
-        double scale = ComboHintLayout.Scale(height, dpiScale: 1);
-        var row = InnKitchenCircleLayout.BelowPanel(width, height, scale);
-        output.WriteLine($"{width}x{height}: x {row.Left / width:F3}–{row.Right / width:F3}, y {row.Top / height:F3}–{row.Bottom / height:F3}");
-
-        Assert.Equal(width / 2.0, row.Left + row.Width / 2, 1);
-        Assert.True(row.Top >= 0.853 * height, $"top {row.Top / height:F3}, the panel down to 0.853");
-        Assert.True(row.Bottom <= height, $"bottom {row.Bottom / height:F3}");
-        Assert.True(row.Left >= 0.26 * width, $"left {row.Left / width:F3}, the UID up to 0.26");
-        Assert.Equal((InnKitchenCircleView.Slots * InnKitchenCircleView.PanelSlotWidth + Frame) * scale, row.Width, 3);
-    }
-
-    /// <summary>The circle below the panel: the same picture (112) and words (20–22) beside it, inside its slot.</summary>
-    [Fact]
-    public void A_circle_below_the_panel_keeps_its_picture_and_words_and_fits_its_slot()
-    {
-        var swap = InnKitchenCircleView.Of(Swap(3, LongestDish(0), LongestDish(1), 5), Text);
-        var (picture, fonts, size) = OnSta(() =>
-        {
-            var element = InnKitchenCircleView.PanelCircle(swap, PackagePicture);
-            element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            element.Arrange(new Rect(element.DesiredSize));
-            var image = Descendants(element).OfType<Image>().Single();
-            return (image.ActualHeight, Descendants(element).OfType<TextBlock>().Select(t => t.FontSize).ToList(), element.DesiredSize);
-        });
-        output.WriteLine($"picture {picture:F0}, fonts {string.Join(",", fonts)}, circle {size.Width:F0}x{size.Height:F0}");
-        Assert.Equal(InnKitchenCircleView.PictureSize, picture);
-        Assert.All(fonts, f => Assert.True(f >= 20, $"a word {f} units tall"));
-        Assert.True(size.Width <= InnKitchenCircleView.PanelSlotWidth, $"{size.Width:F0} wide");
-        Assert.True(size.Height <= InnKitchenCircleView.PanelRowHeight, $"{size.Height:F0} tall");
-    }
-
-    /// <summary>
-    /// The views while the panel is open: the circles below it, the selected tab's kitchen emphasised, the same calls the
+    /// The views while the panel is open: the circles where they always are, the selected tab's kitchen emphasised, the same calls the
     /// tabs and the card are marked from (one picture).
     /// </summary>
     [Fact]
-    public void While_the_panel_is_open_the_circles_move_below_it_with_its_kitchen_emphasised()
+    public void While_the_panel_is_open_the_circles_stay_with_its_kitchen_emphasised()
     {
         var session = Prepared();
         var display = new InnDisplay();
         var tables = Tables(InnTestKit.Order(3, A));
         display.Show(session, Session(10, tables: tables), S(10));
         var closed = display.Views(session, S(10), callsEnabled: true, Text);
-        Assert.Equal((InnCirclePlace.AboveTray, (int?)null), (closed.Circles, closed.SelectedKitchen));
+        Assert.Null(closed.SelectedKitchen);
 
         display.Show(session, Session(10.3, tables: tables, panel: Panel(2, 2, Menu)), S(10.3));
         var open = display.Views(session, S(10.3), callsEnabled: true, Text);
-        Assert.Equal((InnCirclePlace.BelowPanel, (int?)2), (open.Circles, open.SelectedKitchen));
+        Assert.Equal(2, open.SelectedKitchen);
         Assert.Equal(closed.Calls.Select(c => c.Key), open.Calls.Select(c => c.Key));
     }
 
@@ -338,7 +270,7 @@ public class InnKitchenCircleTests(ITestOutputHelper output)
     {
         string frame = Path.Combine(AppContext.BaseDirectory, "Fixtures", "inn", frameName);
         if (!File.Exists(frame)) return; // the test data submodule isn't there
-        string saved = Path.Combine(RepositoryRoot(), ".tracking", "changes", $"2026-10-21-inn-y8-{(panelOpen ? "panel" : "session")}-{gourmands}-gourmands.png");
+        string saved = Path.Combine(RepositoryRoot(), ".tracking", "changes", $"2026-10-22-inn-circles-fixed-AFTER-{(panelOpen ? "panel" : "session")}-{gourmands}-gourmands.png");
         var circles = InnKitchenCircleView.Of([Order(1, A, 4), Ahead(2, D), Swap(3, D, B, 5)], Text);
         int[] tables = gourmands switch { 1 => [5], 3 => [1, 4, 6], _ => [1, 2, 3, 4, 5, 6] };
         int single = gourmands switch { 1 => 0, 3 => 4, _ => 2 };
@@ -351,20 +283,21 @@ public class InnKitchenCircleTests(ITestOutputHelper output)
             double scale = ComboHintLayout.Scale(h, dpiScale: 1);
             var canvas = new Canvas { Width = w, Height = h, Background = new ImageBrush(background) };
 
-            var place = panelOpen ? InnKitchenCircleLayout.BelowPanel(w, h, scale)
-                : InnKitchenCircleLayout.Place(w, h, scale, InnKitchenCircleLayout.DefaultCenterX, InnKitchenCircleLayout.DefaultBottomY);
-            var grid = panelOpen ? InnCircleRow.PanelShape(new Grid()) : InnCircleRow.NewGrid();
-            var row = new InnCircleRow(grid, m => panelOpen ? InnKitchenCircleView.PanelCircle(m, PackagePicture) : InnKitchenCircleView.Circle(m, PackagePicture));
+            var place = InnKitchenCircleLayout.Place(w, h, scale);
+            double circleScale = InnKitchenCircleLayout.Scale(w, h, scale);
+            var grid = InnCircleRow.NewGrid();
+            var row = new InnCircleRow(grid, m => InnKitchenCircleView.Circle(m, PackagePicture));
             row.Update(circles);
             row.Settle();
             if (panelOpen) row.Emphasise(1);
-            var circleFrame = new Border { Padding = new Thickness(6), BorderThickness = new Thickness(2), Child = grid, LayoutTransform = new ScaleTransform(scale, scale) };
+            var circleFrame = new Border { Child = grid, LayoutTransform = new ScaleTransform(circleScale, circleScale) };
             Canvas.SetLeft(circleFrame, place.Left);
             Canvas.SetTop(circleFrame, place.Top);
             canvas.Children.Add(circleFrame);
 
             var arrangement = InnGourmandLayout.Arrange(tiles, w, h, scale);
-            for (int i = 0; i < tiles.Count; i++)
+            // Put away in place while the panel is open (their spots are over its dish cards).
+            for (int i = 0; i < (panelOpen ? 0 : tiles.Count); i++)
             {
                 var tile = InnGourmandView.Tile(tiles[i], PackagePicture);
                 tile.LayoutTransform = new ScaleTransform(arrangement.Scale, arrangement.Scale);

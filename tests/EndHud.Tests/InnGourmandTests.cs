@@ -169,8 +169,8 @@ public class InnGourmandTests(ITestOutputHelper output)
         });
         output.WriteLine($"{requests}: pictures {string.Join(",", pictures)}, fonts {string.Join(",", fonts)}, tile {size.Width:F0}x{size.Height:F0}");
         Assert.Equal(requests, pictures.Count);
-        Assert.All(pictures, p => Assert.Equal(requests == 1 ? InnKitchenCircleView.PictureSize : InnGourmandView.PairPictureSize, p));
-        Assert.All(fonts, f => Assert.True(f >= 16, $"a word {f} units tall"));
+        Assert.All(pictures, p => Assert.Equal(InnKitchenCircleView.PictureSize, p));
+        Assert.All(fonts, f => Assert.True(f >= 20, $"a word {f} units tall"));
         Assert.Equal((InnGourmandView.Width(requests), InnGourmandView.Height(requests)), (size.Width, size.Height));
         Assert.True(size.Width <= InnGourmandLayout.SpotWidth && size.Height <= InnGourmandLayout.SpotHeight);
     }
