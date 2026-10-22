@@ -36,11 +36,15 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      # The typed version reaches the script as an environment variable, never pasted into its text (a quote in it would
+      # otherwise end the string and run the rest as PowerShell). FastReleaseWorkflowTests runs this step's script.
       - name: Version
         id: version
         shell: pwsh
+        env:
+          VERSION_INPUT: ${{ inputs.version }}
         run: |
-          $version = "${{ inputs.version }}".Trim().TrimStart('v')
+          $version = "$env:VERSION_INPUT".Trim().TrimStart('v')
           if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Versions look like 1.2.0 (three numbers); got '$version'." }
           if ([version]$version -le [version]'0.0.1') { throw "Release versions must be above 0.0.1." }
           "VERSION=$version" >> $env:GITHUB_ENV
