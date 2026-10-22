@@ -248,6 +248,50 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
     }
 
     /// <summary>
+    /// Owner, live 2026-10-21 (test_yuanyuan8 at 2:00): "why it shows cannot understand theme requirement, also what is the
+    /// @13小时 crap". The gourmand theme (食有老饕) asks for at least 8 dishes and 6 drinks and a dish of each of the four types;
+    /// the rule ran on into the 流行趋势 bar's countdown, was said as not understood, and the plan had no 菜肴. Through the real
+    /// readers: the setup screen (setup-gourmand-theme.jpg) alone gives every rule, understood, with its 8 dishes and 6 drinks;
+    /// then the menu screen (menu-gourmand-theme.jpg): the menu planned meets them all, a 菜肴 among its dishes.
+    /// </summary>
+    [Fact]
+    public async Task The_gourmand_themes_rule_is_read_whole_and_the_menu_has_every_type()
+    {
+        var (monitor, raised) = await Monitor();
+        var session = NewSession();
+        Assert.True(await monitor.TryInnAsync(await Load(Path.Combine("inn", "setup-gourmand-theme.jpg")), S(0), squadPanelSeen: false));
+        Assert.Equal(InnScreenKind.Setup, raised[^1]!.Screen);
+        session.Update(raised[^1]!);
+        output.WriteLine("setup rules: " + string.Join(" | ", raised[^1]!.Setup!.MenuRules));
+
+        var setupInputs = session.SetupInputs();
+        Assert.Empty(setupInputs.RulesNotUnderstood);
+        string Rules(MenuRules r) => $"{r.MinDishes} dishes, {r.MinDrinks} drinks; " + string.Join(" ", r.DishRules.Select(d => $"{d.Count}:{string.Join("/", d.AnyOf)}"));
+        Assert.Equal("8 dishes, 6 drinks; 1:Dessert 1:Entree 1:Side 1:Soup", Sorted(Rules(setupInputs.Input!.Rules)));
+
+        Assert.True(await monitor.TryInnAsync(await Load(Path.Combine("inn", "menu-gourmand-theme.jpg")), S(3), squadPanelSeen: false));
+        Assert.Equal(InnScreenKind.Menu, raised[^1]!.Screen);
+        session.Update(raised[^1]!);
+        var inputs = session.MenuInputs();
+        Assert.Empty(inputs.RulesNotUnderstood);
+        var rules = inputs.Input!.Rules;
+        Assert.Equal("8 dishes, 6 drinks; 1:Dessert 1:Entree 1:Side 1:Soup", Sorted(Rules(rules)));
+
+        var planner = new InnPlanner(Inn);
+        foreach (var advice in new[] { InnSetupAdvice.Fast(planner, inputs.Input), InnSetupAdvice.For(planner, inputs.Input, CancellationToken.None) })
+        {
+            output.WriteLine(string.Join(" ", advice.Plan.Dishes.Select(d => $"{d.Dish.Id}({d.Dish.Type})")));
+            Assert.True(advice.Plan.RulesMet);
+            Assert.True(planner.MeetsRules(rules, advice.Plan.Dishes, advice.Plan.Drinks));
+            Assert.Equal([DishType.Entree, DishType.Side, DishType.Soup, DishType.Dessert], advice.Plan.Dishes.Select(d => d.Dish.Type).Distinct().Order());
+            var panel = Assert.Single(InnSetupView.ForScreen(InnScreenKind.Menu, session, null, advice, Inn, Text));
+            Assert.DoesNotContain(panel.Model.Lines, l => l.Text.Contains("看不懂") || l.Text.Contains("小时"));
+        }
+
+        static string Sorted(string s) => s[..(s.IndexOf(';') + 2)] + string.Join(" ", s[(s.IndexOf(';') + 2)..].Split(' ').Order(StringComparer.Ordinal));
+    }
+
+    /// <summary>
     /// Owner, live 2026-10-21 (test_yuanyuan4, 4:20): table 4's gourmand asks 「清爽无油的汤羹，有吗？」 and 「来杯喝的，谨记，我滴酒
     /// 不沾。」. Through the real readers and the session to the banner for table 4: (1) the soup without seed oil → 白瓜肉丸汤
     /// (茄果鳞肉汤 has seed oil), (2) a drink without alcohol → a drink that has none (陈酿葡萄露 is on the menu and never named).

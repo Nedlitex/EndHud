@@ -44,7 +44,10 @@ public class InnSetupRulesTests
 
         Assert.Equal(["至少有3道很奇怪的菜品"], inputs.RulesNotUnderstood);
         var lines = InnSetupView.Menu(inputs, null, [], Inn, Text).Single().Model.Lines.Select(l => l.Text).ToList();
-        Assert.Contains("看不懂菜单要求：至少有3道很奇怪的菜品（推荐没有算上它）", lines);
+        // One plain sentence naming the section, never the text as read (owner, test_yuanyuan8: "看不懂菜单要求：至少有1道@13小时39分钟0流行趋势"
+        // was OCR's reading put in front of the player); the text as read goes to the log.
+        Assert.Contains("营业设定的菜单要求有一条没读懂，推荐没有算上它", lines);
+        Assert.DoesNotContain(lines, l => l.Contains("很奇怪"));
     }
 
     /// <summary>
