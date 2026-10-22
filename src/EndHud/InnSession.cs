@@ -889,6 +889,13 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         return KitchenMath.MaxRating;
     }
 
+    /// <summary>
+    /// What the theme seen on the setup screen favours (<see cref="InnPlanner.ThemeItems"/>: its hot items and its text's
+    /// guest preference), as the setup's plan counts it; empty when no theme was seen (nothing guessed).
+    /// </summary>
+    private IReadOnlyCollection<string> ThemeItems() => _memory.Setup is not { } setup ? []
+        : [.. InnPlanner.HotTraitsOf(setup.HotTraits, setup.Theme).Union(InnPlanner.PreferenceOf(setup.Description, setup.HotTraits, setup.Theme, data))];
+
     private IReadOnlyList<MenuDish> MenuDishes()
     {
         var ids = _memory.Menu.Keys.Where(id => DishOf(id) is not null).Concat(_dishesSeen).Distinct().ToList();
@@ -993,7 +1000,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         var counter = outForOrders.Concat(_spares.Where(s => s.Value > 0).SelectMany(s => Enumerable.Repeat(DishOf(s.Key)!, s.Value))).ToList();
         // In hand: what the tray shows (a dish in hand covers an order of it first, DispatchAdvisor's Cover).
         var carried = _carried.Select(id => DishOf(id)!).ToList();
-        var state = new InnState(queues, counter, outForOrders, carried, outstanding, menu, ServingLeft(now), asCalled);
+        var state = new InnState(queues, counter, outForOrders, carried, outstanding, menu, ServingLeft(now), asCalled, ThemeItems());
 
         var left = _clock?.Left ?? TimeSpan.FromMinutes(5);
         var nextOut = queues.Where(q => q.Dishes.Count > 0).Select(q => (TimeSpan?)TimeSpan.FromSeconds(q.Dishes[0].SecondsLeft)).Min();

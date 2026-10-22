@@ -116,9 +116,11 @@ public sealed class InnSimulator
     private HashSet<int> _cooking = [];
     private readonly Dictionary<string, int?> _stock;
 
+    /// <param name="themeItems">What the theme favours (<see cref="InnState.ThemeItems"/>): the advice cooks those dishes ahead first.</param>
     /// <param name="step">Seconds per step; the policy is asked once a step.</param>
-    public InnSimulator(InnKitchens kitchens, IReadOnlyList<MenuDish> menu, double step = 0.5)
+    public InnSimulator(InnKitchens kitchens, IReadOnlyList<MenuDish> menu, IReadOnlyCollection<string> themeItems, double step = 0.5)
     {
+        ThemeItems = themeItems;
         Kitchens = kitchens;
         Menu = menu;
         Step = step;
@@ -128,6 +130,7 @@ public sealed class InnSimulator
 
     public InnKitchens Kitchens { get; }
     public IReadOnlyList<MenuDish> Menu { get; }
+    public IReadOnlyCollection<string> ThemeItems { get; }
     public double Step { get; }
 
     /// <summary>Seconds since the session started.</summary>
@@ -145,7 +148,7 @@ public sealed class InnSimulator
     /// when the player acts: the counter's dishes were all cooked ahead.
     /// </summary>
     public InnState State => new(Queues, Counter.Dishes, OutForOrders: [], Carried: [], _outstanding,
-        [.. Menu.Select(m => m with { Stock = _stock[m.Dish.Id] })], Math.Max(0, SessionSeconds + _servingAfterClose - Now), QueuedAsCalled: []);
+        [.. Menu.Select(m => m with { Stock = _stock[m.Dish.Id] })], Math.Max(0, SessionSeconds + _servingAfterClose - Now), QueuedAsCalled: [], ThemeItems);
 
     /// <summary>
     /// Plays <paramref name="orders"/> with <paramref name="policy"/> until every order is served, or

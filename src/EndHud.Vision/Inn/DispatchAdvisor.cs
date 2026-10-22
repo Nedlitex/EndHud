@@ -35,8 +35,14 @@ public sealed record OrderedDish(int Table, Dish Dish);
 /// 2026-10-21, test_yuanyuan5 at 04:15: "厨房二 预做：界龙肉卷" followed, then 10 s later "先拿掉界龙肉卷，再排这个"). No default:
 /// a caller says what it knows (none, where nothing is shown to a player).
 /// </param>
+/// <param name="ThemeItems">
+/// What the session's theme favours (<see cref="InnPlanner.ThemeItems"/>: its hot traits and dish types and its text's guest
+/// preference): cooking ahead picks the dishes matching it first (owner, 2026-10-20: "always prefer the matching ones").
+/// No default: a caller says what it knows (empty when no theme was seen).
+/// </param>
 public sealed record InnState(IReadOnlyList<KitchenQueue> Queues, IReadOnlyList<Dish> Counter, IReadOnlyList<Dish> OutForOrders, IReadOnlyList<Dish> Carried,
-    IReadOnlyList<OrderedDish> Outstanding, IReadOnlyList<MenuDish> Menu, double? ServingSecondsLeft, IReadOnlyList<QueuedAsCalled> QueuedAsCalled)
+    IReadOnlyList<OrderedDish> Outstanding, IReadOnlyList<MenuDish> Menu, double? ServingSecondsLeft, IReadOnlyList<QueuedAsCalled> QueuedAsCalled,
+    IReadOnlyCollection<string> ThemeItems)
 {
     /// <summary>The timer has reached 00:00: no new guests, the seated ones served for what's left of the 18 s.</summary>
     public bool Closed => ServingSecondsLeft <= ServingAfterCloseSeconds;
@@ -114,9 +120,10 @@ public sealed record DispatchAdvice(IReadOnlyList<KitchenAdvice> Kitchens, IRead
 /// a free slot; on a tie, the one with the better choice-dish chance. A dish cooked ahead taken to be on
 /// the counter doesn't stop it, nor does the counter being full (owner, 2026-10-21: the counter is only
 /// estimated, and the estimate drifting to "full" on test_yuanyuan4 hid real orders).</item>
-/// <item><b>Cook ahead:</b> the menu dishes that save the most waiting: guests pick at random, so
-/// dishes not yet cooked ahead come before a second of one that is (spread over the menu), then the
-/// slowest. Each goes, like an order, to the kitchen where it is out first. Never one with no stock.
+/// <item><b>Cook ahead:</b> the dishes matching the theme first (<see cref="InnState.ThemeItems"/>, two matches
+/// before one; owner, 2026-10-20: "always prefer the matching ones"), then dishes not yet cooked ahead before a second of one that
+/// is (spread over the menu), then those whose type the kitchen's chefs speed up (owner, 2026-10-21: a 主食 kitchen in a
+/// 主食/汤羹 theme was told to cook 金丝小贝, a dessert, ahead, test_yuanyuan6 201 s), then the slowest. Each goes, like an order, to the kitchen where it is out first. Never one with no stock.
 /// No counter cap (owner, 2026-10-21: a dish not used gives its ingredients back, so cooking ahead is
 /// never a waste). Normally only kitchens nothing was ordered for, filled to all but one slot, so a
 /// new order never waits behind three dishes; at the session's start and when Full Blaze is near,
@@ -229,9 +236,10 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
     private IEnumerable<Kitchen> Cooking => Kitchens.Kitchens.Where(KitchenMath.Cooks).OrderBy(k => k.Number);
 
     /// <summary>The opening (C16): what to cook ahead in every kitchen before the first guest orders.</summary>
-    public DispatchAdvice Opening(IReadOnlyList<MenuDish> menu) =>
+    /// <param name="themeItems">What the theme favours (<see cref="InnState.ThemeItems"/>).</param>
+    public DispatchAdvice Opening(IReadOnlyList<MenuDish> menu, IReadOnlyCollection<string> themeItems) =>
         Advise(new InnState([.. Cooking.Select(k => new KitchenQueue(k.Number))], Counter: [], OutForOrders: [], Carried: [], Outstanding: [], menu,
-            InnState.ServingLeft(InnSimulator.SessionSeconds), QueuedAsCalled: []), fillEverySlot: true);
+            InnState.ServingLeft(InnSimulator.SessionSeconds), QueuedAsCalled: [], themeItems), fillEverySlot: true);
 
     /// <summary>
     /// The kitchen that would have <paramref name="dish"/> out soonest if queued now, and in how
@@ -499,8 +507,10 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
         /// Dishes cooked ahead into the kitchens open to them, with no counter cap (owner, 2026-10-21):
         /// with <paramref name="everySlot"/> every free slot of every kitchen; otherwise kitchens nothing
         /// was ordered for this time, up to all but one slot (a new order never waits behind three).
-        /// The dish: the one cooked ahead least so far (spread over the menu: guests pick at random),
-        /// then the slowest, which saves the most waiting. Its kitchen: where it is out first
+        /// The dish: one matching the theme (the more matches the better), then the one cooked ahead least so far (spread
+        /// over the menu: guests pick at random), then one whose type the kitchen's chefs speed up, then the slowest.
+        /// Until 2026-10-21 the theme and the kitchen's bonuses weren't asked, and "the slowest" put the dishes a kitchen
+        /// is NOT set up for first: 金丝小贝 (a dessert, 35 s) in a kitchen speeding 主食 by 40 %, whose 主食 dishes took 18-25 s. Its kitchen: where it is out first
         /// (<see cref="FirstOut"/>), as for an order (owner, 2026-10-19), not where it cooks fastest
         /// in an empty kitchen nor the lowest-numbered one: a busy kitchen is never stacked while
         /// another would have the dish out sooner.
@@ -527,7 +537,9 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
                     .Where(m => InStock(m.Dish))
                     .Select(m => (m.Dish, Kitchen: FirstOut(open, m.Dish)))
                     .Where(p => p.Kitchen is not null)
-                    .OrderBy(p => spares.GetValueOrDefault(p.Dish.Id))
+                    .OrderByDescending(p => InnPlanner.ThemeMatches(_state.ThemeItems, p.Dish))
+                    .ThenBy(p => spares.GetValueOrDefault(p.Dish.Id))
+                    .ThenByDescending(p => _advisor.Kitchens.SpeedsType(p.Kitchen!.Value, p.Dish))
                     .ThenByDescending(p => Cook(p.Kitchen!.Value, p.Dish))
                     .ThenBy(p => p.Dish.Id, StringComparer.Ordinal)
                     .FirstOrDefault();

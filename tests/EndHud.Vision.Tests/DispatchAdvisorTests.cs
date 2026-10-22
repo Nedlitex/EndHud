@@ -22,9 +22,9 @@ public class DispatchAdvisorTests
     /// <param name="servingLeft">Until the inn stops serving (the timer + <see cref="InnState.ServingAfterCloseSeconds"/>); by default mid-session, far from the end.</param>
     private static InnState State(IReadOnlyList<KitchenQueue> queues, IReadOnlyList<OrderedDish>? outstanding = null,
         IReadOnlyList<string>? counter = null, IReadOnlyList<string>? carried = null, IReadOnlyList<MenuDish>? menu = null, double? servingLeft = 200,
-        IReadOnlyList<string>? outForOrders = null, IReadOnlyList<QueuedAsCalled>? asCalled = null) =>
+        IReadOnlyList<string>? outForOrders = null, IReadOnlyList<QueuedAsCalled>? asCalled = null, IReadOnlyCollection<string>? theme = null) =>
         new(queues, [.. (counter ?? []).Concat(outForOrders ?? []).Select(Dish)], [.. (outForOrders ?? []).Select(Dish)], [.. (carried ?? []).Select(Dish)],
-            outstanding ?? [], menu ?? InnSimulatorTests.RecordedMenu, servingLeft, asCalled ?? []);
+            outstanding ?? [], menu ?? InnSimulatorTests.RecordedMenu, servingLeft, asCalled ?? [], theme ?? []);
 
     private static OrderedDish Order(int table, string dish) => new(table, Dish(dish));
 
@@ -55,7 +55,7 @@ public class DispatchAdvisorTests
 
         // Kitchen 1 has 20 s of 果味沙拉 to go: an empty kitchen 2 would have 坛子肉 out sooner, were it cooking.
         var advice = advisor.Advise(State([Queue(1, ("果味沙拉", 20)), Queue(2)], [Order(1, "坛子肉")]));
-        var opening = advisor.Opening(InnSimulatorTests.RecordedMenu);
+        var opening = advisor.Opening(InnSimulatorTests.RecordedMenu, themeItems: []);
 
         Assert.Equal([1], advice.Kitchens.Select(k => k.Kitchen));
         Assert.Equal(1, Assert.Single(Sent(advice)).Kitchen);
@@ -294,7 +294,7 @@ public class DispatchAdvisorTests
             var dish = menu[random.Next(menu.Count)];
             outstanding.Add(new OrderedDish(6, dish));
 
-            var advice = advisor.Advise(new InnState(queues, [], [], [], outstanding, InnSimulatorTests.RecordedMenu, ServingSecondsLeft: 200, QueuedAsCalled: []));
+            var advice = advisor.Advise(new InnState(queues, [], [], [], outstanding, InnSimulatorTests.RecordedMenu, ServingSecondsLeft: 200, QueuedAsCalled: [], ThemeItems: []));
 
             var options = queues.Where(q => q.HasFreeSlot)
                 .Select(q => (q.Kitchen, ReadyIn: q.SecondsUntilEmpty + kitchens.CookSeconds(q.Kitchen, dish), Choice: kitchens.ChoicePercent(q.Kitchen, dish)))
@@ -321,8 +321,8 @@ public class DispatchAdvisorTests
         Assert.All(ahead, a => Assert.True(a.Advice.CookAhead));
         Assert.All(advice.Kitchens, k => Assert.Equal(KitchenQueue.Slots - 1, k.Queue.Count));
         Assert.Equal(6, ahead.Select(a => a.Advice.Dish.Id).Distinct().Count());
-        // Kitchen 1's first: one of the dishes slowest there (40 s).
-        Assert.Contains(advice.For(1).Queue[0].Dish.Zh, new[] { "白瓜肉丸汤", "茄果鳞肉汤" });
+        // Kitchen 1's first: a dish of the type its chefs speed up (菜肴 +20 %), the slowest of those there (果味沙拉, 30 s).
+        Assert.Equal("果味沙拉", advice.For(1).Queue[0].Dish.Zh);
         // The quick 15 s dishes come last: not among six of eight.
         Assert.DoesNotContain(ahead, a => a.Advice.Dish.CookSeconds == 15);
     }
@@ -440,7 +440,7 @@ public class DispatchAdvisorTests
     {
         var advisor = Advisor(kitchens);
 
-        var advice = advisor.Opening(InnSimulatorTests.RecordedMenu);
+        var advice = advisor.Opening(InnSimulatorTests.RecordedMenu, themeItems: []);
 
         var ahead = All(advice).ToList();
         Assert.Equal(expected, ahead.Count);
@@ -448,15 +448,16 @@ public class DispatchAdvisorTests
         Assert.Equal(Math.Min(expected, InnSimulatorTests.RecordedMenu.Count), ahead.Select(a => a.Advice.Dish.Id).Distinct().Count());
         if (kitchens == 3)
         {
-            // Slowest first, each in the kitchen where it is out first (ties: the better 珍馐 chance,
-            // then the lower number): the 40 s soup in 1 (40 s everywhere), 莓果甜汤 in 2 (40 s; 1 would
-            // have it out at 77), 白瓜肉丸汤 in 3 (40 s); then 果味沙拉 (30 s in 1: out at 70), 坛子肉 in 2
-            // (75, over 1's 97), “勺里游” in 3 (75, over 2's 107), and the 15 s dishes where they're out at 85 and 90.
-            // The ninth, every dish now cooked ahead once, the slowest again in the one slot left: a 40 s soup in 3, out at 115.
-            Assert.Equal(["茄果鳞肉汤", "果味沙拉", "肉包子"], advice.For(1).Queue.Select(q => q.Dish.Zh));
-            Assert.Equal(["莓果甜汤", "坛子肉", "缘缘菜饭"], advice.For(2).Queue.Select(q => q.Dish.Zh));
-            Assert.Equal(["白瓜肉丸汤", "“勺里游”", "莓果甜汤"], advice.For(3).Queue.Select(q => q.Dish.Zh));
-            Assert.Equal([85.0, 90, 115], advice.Kitchens.Select(k => k.Queue[^1].ReadyIn));
+            // No theme here. Each dish once before any twice; among those, a type the kitchen's chefs speed up first, then the
+            // slowest, each in the kitchen where it is out first (ties: the better 珍馐 chance, then the lower number). Kitchen
+            // 1 (菜肴 +20 %) takes its 菜肴 dishes, 果味沙拉 (30 s) then 坛子肉 (27 s, out at 57); the 40 s soups go to 2 and 3,
+            // 白瓜肉丸汤 to 2 (37 s there, out at 77), “勺里游” to 3 (out at 75), the 15 s dishes where they're out at 72 and 90.
+            // The ninth, every dish now cooked ahead once, the slowest again in the one slot left: a 40 s soup in 2, out at 117.
+            // (Before 2026-10-21, "the slowest" alone: kitchen 1 began with a 40 s soup it has no bonus for.)
+            Assert.Equal(["果味沙拉", "坛子肉", "肉包子"], advice.For(1).Queue.Select(q => q.Dish.Zh));
+            Assert.Equal(["莓果甜汤", "白瓜肉丸汤", "莓果甜汤"], advice.For(2).Queue.Select(q => q.Dish.Zh));
+            Assert.Equal(["茄果鳞肉汤", "“勺里游”", "缘缘菜饭"], advice.For(3).Queue.Select(q => q.Dish.Zh));
+            Assert.Equal([72.0, 117, 90], advice.Kitchens.Select(k => k.Queue[^1].ReadyIn));
         }
     }
 
@@ -647,5 +648,36 @@ public class DispatchAdvisorTests
 
         Assert.Equal(((int, double)?)(2, 37.0), Advisor().SoonestOut(state, Dish("白瓜肉丸汤")));
         Assert.Null(Advisor(1).SoonestOut(State([Queue(1, ("坛子肉", 1), ("坛子肉", 27), ("坛子肉", 27))]), Dish("坛子肉")));
+    }
+
+    /// <summary>
+    /// test_yuanyuan6 at 201 s (timer 04:54; owner: "the first kitchen has all the bonus for 主食, but the precook suggest a
+    /// 甜点, which completely wasted the bonus"): theme 一汤一饭 (its hot types 主食 and 汤羹), kitchen 1 = 秋栗 + 昼雪 (主食
+    /// +40 %, 鲜/辣 +5 %), the menu 界龙肉卷, 至臻鳞肉卷, 豌杂拌面 (主食), 莓果甜汤, 茄果鳞肉汤 (汤羹) and 金丝小贝 (甜品). With
+    /// one of each matching dish already cooked ahead, "the dish cooked ahead least, then the slowest" picked 金丝小贝, the one
+    /// dish neither the theme nor the kitchen favours. Owner decision: theme-matching dishes first; the kitchen's own bonuses
+    /// matter.
+    /// </summary>
+    [Fact]
+    public void Cooking_ahead_in_a_main_dish_kitchen_of_a_main_and_soup_theme_picks_a_main_dish()
+    {
+        var kitchens = new InnKitchens(InnTestData.Inn, [InnTestData.Kitchen(1, "Akekuri", "Snowshine")], 4, 0);
+        string[] mains = ["界龙肉卷", "至臻鳞肉卷", "豌杂拌面"], soups = ["莓果甜汤", "茄果鳞肉汤"];
+        var menu = mains.Concat(soups).Append("金丝小贝").Select(zh => new MenuDish(Dish(zh), 100)).ToList();
+        string[] theme = [nameof(DishType.Entree), nameof(DishType.Soup)];
+        Assert.All(mains, zh => Assert.Equal(DishType.Entree, Dish(zh).Type));
+        Assert.All(soups, zh => Assert.Equal(DishType.Soup, Dish(zh).Type));
+
+        var spread = new DispatchAdvisor(kitchens).Advise(State([Queue(1)], counter: [.. mains, .. soups], menu: menu, theme: theme));
+        var empty = new DispatchAdvisor(kitchens).Advise(State([Queue(1)], menu: menu, theme: theme));
+        // No theme read and nothing cooked ahead yet: the kitchen's bonus puts a 主食 before the slower soups and dessert.
+        var noTheme = new DispatchAdvisor(kitchens).Advise(State([Queue(1)], menu: menu, theme: []));
+
+        foreach (var advice in new[] { spread, empty, noTheme })
+        {
+            var ahead = advice.For(1).Queue.Where(q => q.CookAhead).ToList();
+            Assert.NotEmpty(ahead);
+            Assert.All(ahead, q => Assert.Contains(q.Dish.Zh, mains));
+        }
     }
 }

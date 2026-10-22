@@ -60,6 +60,13 @@ public static class KitchenMath
         return percent;
     }
 
+    /// <summary>
+    /// The kitchen's chefs speed up <paramref name="dish"/>'s type (a hobby's +10 % for one dish type): the dishes the
+    /// kitchen was set up to cook. Flavor bonuses don't count: they're small and come with any chef's element.
+    /// </summary>
+    public static bool SpeedsType(InnData inn, Kitchen kitchen, Dish dish) =>
+        Bonuses(inn, kitchen).Any(b => b is { Kind: ChefBonusKind.DishSpeed } && b.DishType == dish.Type);
+
     /// <summary>Seconds <paramref name="dish"/> takes in <paramref name="kitchen"/>: base ÷ (1 + bonus), rounded up, as the game shows.</summary>
     public static int CookSeconds(InnData inn, Kitchen kitchen, Dish dish, int rating)
     {
@@ -141,6 +148,9 @@ public sealed class InnKitchens
             _seconds[(kitchen, dish.Id)] = seconds = KitchenMath.CookSeconds(Inn, this[kitchen], dish, Rating);
         return seconds;
     }
+
+    /// <summary>The kitchen's chefs speed up <paramref name="dish"/>'s type (<see cref="KitchenMath.SpeedsType"/>).</summary>
+    public bool SpeedsType(int kitchen, Dish dish) => KitchenMath.SpeedsType(Inn, this[kitchen], dish);
 
     public int ChoicePercent(int kitchen, Dish dish)
     {

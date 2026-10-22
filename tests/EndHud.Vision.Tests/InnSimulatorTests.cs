@@ -136,7 +136,7 @@ public class InnSimulatorTests(ITestOutputHelper output)
     public void The_simulator_refuses_a_fourth_dish_and_a_dish_out_of_stock()
     {
         var menu = new[] { new MenuDish(Dish("肉包子"), 1), new MenuDish(Dish("坛子肉"), null) };
-        var inn = new InnSimulator(Kitchens(1), menu);
+        var inn = new InnSimulator(Kitchens(1), menu, themeItems: []);
         int asked = 0;
 
         var run = inn.Run([new InnOrder(0, 1, [Dish("坛子肉")])], _ => asked++ > 0 ? [] :
@@ -161,8 +161,8 @@ public class InnSimulatorTests(ITestOutputHelper output)
     {
         var orders = RecordedOrderTimes(seed);
 
-        var advised = new InnSimulator(Kitchens(kitchens), RecordedMenu).Run(orders, InnSimulator.Following(new DispatchAdvisor(Kitchens(kitchens))), servingAfterClose: LongRun);
-        var naive = new InnSimulator(Kitchens(kitchens), RecordedMenu).Run(orders, FirstFreeKitchen, servingAfterClose: LongRun);
+        var advised = new InnSimulator(Kitchens(kitchens), RecordedMenu, themeItems: []).Run(orders, InnSimulator.Following(new DispatchAdvisor(Kitchens(kitchens))), servingAfterClose: LongRun);
+        var naive = new InnSimulator(Kitchens(kitchens), RecordedMenu, themeItems: []).Run(orders, FirstFreeKitchen, servingAfterClose: LongRun);
 
         Assert.Equal(orders.Count, advised.Served);
         Assert.Empty(advised.Refused);
@@ -180,7 +180,7 @@ public class InnSimulatorTests(ITestOutputHelper output)
     {
         var orders = RecordedOrderTimes(1, tables);
 
-        var run = new InnSimulator(Kitchens(), RecordedMenu).Run(orders, InnSimulator.Following(new DispatchAdvisor(Kitchens())), servingAfterClose: LongRun);
+        var run = new InnSimulator(Kitchens(), RecordedMenu, themeItems: []).Run(orders, InnSimulator.Following(new DispatchAdvisor(Kitchens())), servingAfterClose: LongRun);
 
         Assert.Equal(orders.Count, run.Served);
         Assert.Empty(run.Refused);
@@ -193,7 +193,7 @@ public class InnSimulatorTests(ITestOutputHelper output)
     [Fact]
     public void The_simulated_inn_serves_18_seconds_after_the_timer_then_stops()
     {
-        var inn = new InnSimulator(Kitchens(1), RecordedMenu);
+        var inn = new InnSimulator(Kitchens(1), RecordedMenu, themeItems: []);
         var seen = new List<(double Now, double? ServingLeft)>();
 
         var run = inn.Run([new InnOrder(0, 1, [Dish("坛子肉")])], sim =>
@@ -220,7 +220,7 @@ public class InnSimulatorTests(ITestOutputHelper output)
         var menu = new[] { new MenuDish(Dish("肉包子"), 8) };
         var kitchens = Kitchens(1);
 
-        var run = new InnSimulator(kitchens, menu).Run([new InnOrder(285, 1, [Dish("果味沙拉")]), new InnOrder(295, 2, [Dish("坛子肉")])],
+        var run = new InnSimulator(kitchens, menu, themeItems: []).Run([new InnOrder(285, 1, [Dish("果味沙拉")]), new InnOrder(295, 2, [Dish("坛子肉")])],
             InnSimulator.Following(new DispatchAdvisor(kitchens)));
 
         Assert.InRange(run.Orders[0].ServedAt!.Value, 314, 318);
@@ -271,9 +271,10 @@ public class InnSimulatorTests(ITestOutputHelper output)
     [Fact]
     public void Following_the_advice_keeps_the_kitchens_busy()
     {
+        double waits = 0;
         double Idle(InnKitchens kitchens, IReadOnlyList<MenuDish> menu, int seed, double actEvery, out double waited)
         {
-            var run = new InnSimulator(kitchens, menu).Run(RecordedOrderTimes(seed, menu: menu), InnSimulator.Following(new DispatchAdvisor(kitchens), actEvery: actEvery), servingAfterClose: LongRun);
+            var run = new InnSimulator(kitchens, menu, themeItems: []).Run(RecordedOrderTimes(seed, menu: menu), InnSimulator.Following(new DispatchAdvisor(kitchens), actEvery: actEvery), servingAfterClose: LongRun);
             waited = run.Orders.Average(o => o.Waited ?? 999);
             return run.IdleKitchenSeconds;
         }
@@ -289,14 +290,19 @@ public class InnSimulatorTests(ITestOutputHelper output)
                     waited += wait;
                 }
                 total += idle;
+                waits += waited / Seeds;
                 output.WriteLine($"{name} kitchens, acting every {every} s, {Seeds} seeds: idle {idle:F1} kitchen-seconds in all, average wait {waited / Seeds:F2} s");
             }
         }
         output.WriteLine($"total idle {total:F1} kitchen-seconds");
         // Before dishes cooked ahead went where they're out first: 193.0 (all of it the recorded
         // kitchens with a player acting every 20 s); after: 104.0. With no counter cap on cooking ahead
-        // (owner, 2026-10-21): 107.0.
-        Assert.True(total <= 107, $"{total:F1} kitchen-seconds idle");
+        // (owner, 2026-10-21): 107.0. Cooking ahead the theme's dishes and the kitchen's own types before the slowest
+        // (2026-10-21, test_yuanyuan6): 209.0, the dishes cooked ahead being quicker ones, so a player acting every 20 s
+        // finds a kitchen empty more often; every average wait went down (recorded kitchens 29.09/29.61/32.70 s ->
+        // 28.79/25.97/27.36 s acting at once/every 10 s/every 20 s; live 40.13/40.69/40.50 -> 38.82/37.88/39.35 s).
+        Assert.True(total <= 209, $"{total:F1} kitchen-seconds idle");
+        Assert.True(waits / 6 <= 33.1, $"{waits / 6:F2} s average wait");
     }
 
     /// <summary>
@@ -317,7 +323,7 @@ public class InnSimulatorTests(ITestOutputHelper output)
                 double idle = 0, waited = 0;
                 for (int seed = 1; seed <= Seeds; seed++)
                 {
-                    var run = new InnSimulator(kitchens, menu).Run(RecordedOrderTimes(seed, menu: menu), FollowingTheCallsShown(new DispatchAdvisor(kitchens), every), servingAfterClose: LongRun);
+                    var run = new InnSimulator(kitchens, menu, themeItems: []).Run(RecordedOrderTimes(seed, menu: menu), FollowingTheCallsShown(new DispatchAdvisor(kitchens), every), servingAfterClose: LongRun);
                     idle += run.IdleKitchenSeconds;
                     waited += run.Orders.Average(o => o.Waited ?? 999);
                 }
@@ -331,8 +337,10 @@ public class InnSimulatorTests(ITestOutputHelper output)
         // kitchens acting every 20 s), average wait 35.34 s. Moving it when another kitchen had it out 8 s sooner (until
         // 2026-10-21): 132.0 and 35.33 s. (More idle than the player above, 107.0, who queues the whole advice: a dish to
         // cook ahead shown is kept in its kitchen too.)
-        Assert.True(total <= 132, $"{total:F1} kitchen-seconds idle");
-        Assert.True(waits / 6 <= 35.5, $"{waits / 6:F2} s average wait");
+        // Cooking ahead the theme's dishes and the kitchen's own types before the slowest (2026-10-21, test_yuanyuan6): 197.0
+        // kitchen-seconds idle (quicker dishes cooked ahead), average wait 35.34 -> 34.88 s.
+        Assert.True(total <= 197, $"{total:F1} kitchen-seconds idle");
+        Assert.True(waits / 6 <= 34.9, $"{waits / 6:F2} s average wait");
     }
 
     /// <summary>The player following the calls shown (<see cref="Following_the_calls_shown_keeps_the_kitchens_busy"/>).</summary>
@@ -373,7 +381,7 @@ public class InnSimulatorTests(ITestOutputHelper output)
         var kitchens = Kitchens(2);
         var menu = new[] { new MenuDish(Dish("肉包子"), null) };
 
-        var run = new InnSimulator(kitchens, menu).RunGuests(new InnGuests(InnState.MaxTables), Guests(60, "肉包子"),
+        var run = new InnSimulator(kitchens, menu, themeItems: []).RunGuests(new InnGuests(InnState.MaxTables), Guests(60, "肉包子"),
             InnSimulator.Following(new DispatchAdvisor(kitchens)));
 
         Assert.Equal(16, run.Orders[0].Order.At, 0);
@@ -392,7 +400,7 @@ public class InnSimulatorTests(ITestOutputHelper output)
         var kitchens = Kitchens(1);
         var menu = new[] { new MenuDish(Dish("酸辣汤"), null) };
 
-        var run = new InnSimulator(kitchens, menu).RunGuests(new InnGuests(1), Guests(60, "酸辣汤"), InnSimulator.Following(new DispatchAdvisor(kitchens)));
+        var run = new InnSimulator(kitchens, menu, themeItems: []).RunGuests(new InnGuests(1), Guests(60, "酸辣汤"), InnSimulator.Following(new DispatchAdvisor(kitchens)));
 
         // Each turn at least: ordering 9 s + eating 12.5 + paying 9 + the next guest 4.5 (the soup cooked ahead).
         Assert.InRange(run.Orders.Count, 2, (int)(InnSimulator.SessionSeconds / InnGuests.TableTurnSeconds) + 1);

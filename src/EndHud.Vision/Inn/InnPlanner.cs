@@ -708,7 +708,7 @@ public sealed class InnPlanner(InnData inn)
         var cooking = finalKitchens.Where(Cooks).ToList();
         var opening = cooking.Count == 0 || dishes.Count == 0
             ? null
-            : new DispatchAdvisor(new InnKitchens(Inn, cooking, input.Rating, input.SiQualityPercent)).Opening(dishes);
+            : new DispatchAdvisor(new InnKitchens(Inn, cooking, input.Rating, input.SiQualityPercent)).Opening(dishes, ThemeItems(input));
         bool rulesMet = MeetsRules(input.Rules, dishes, drinkList);
         return new InnPlan([.. finalKitchens.Select(k => new PlannedKitchen(k.Number, k.Chefs))], dishes, drinkList, opening, finalScore, rulesMet,
             Reasons(input, hot, finalKitchens, dishes, drinkList, finalScore, rulesMet, search));
@@ -771,7 +771,7 @@ public sealed class InnPlanner(InnData inn)
             for (int g = 0; g < wanted.Count; g++)
                 if (draws[g][0] < 0.75 && drinks.Count > 0) drinkOf[wanted[g]] = Pick(drinks, drinkMix, draws[g][3]);
 
-            var run = new InnSimulator(inn, dishes).RunGuests(guests, wanted, InnSimulator.Following(new DispatchAdvisor(inn)));
+            var run = new InnSimulator(inn, dishes, ThemeItems(input)).RunGuests(guests, wanted, InnSimulator.Following(new DispatchAdvisor(inn)));
             var servedOrders = run.Orders.Where(o => o.ServedAt is not null).Select(o => o.Order).ToHashSet();
             orders += servedOrders.Count;
             foreach (var delivered in run.Delivered.Where(d => d.AsOrdered && servedOrders.Contains(d.Order)))
