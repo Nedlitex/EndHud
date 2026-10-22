@@ -11,7 +11,8 @@ namespace EndHud.Vision.Tests;
 /// </summary>
 public class ReactionLevelTests
 {
-    private sealed record Label(string File, int Position, string? Status, int? Level);
+    /// <param name="Hard">An effect or a dim badge: the level may read as unknown, but never wrong.</param>
+    private sealed record Label(string File, int Position, string? Status, int? Level, bool Hard = false);
 
     private static readonly Label[] Labels = JsonSerializer.Deserialize<Label[]>(
         File.ReadAllText(CombatFrameTests.Fixture(Path.Combine("reactions", "labels.json"))),
@@ -38,7 +39,10 @@ public class ReactionLevelTests
     {
         var label = Labels.Single(l => l.File == file && l.Position == position);
 
-        Assert.Equal(label.Level, await ReadAsync(file, position));
+        int? level = await ReadAsync(file, position);
+
+        if (label.Hard) Assert.True(level is null || level == label.Level, $"{file} position {position}: {level}, labelled {label.Level}");
+        else Assert.Equal(label.Level, level);
     }
 
     [Fact]
