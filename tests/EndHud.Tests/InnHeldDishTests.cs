@@ -106,6 +106,29 @@ public class InnHeldDishTests
         Assert.False(Sent(session.Advice(S(70))!, A, 5), "table 5's soup is on the counter");
     }
 
+    /// <summary>
+    /// The tray drawn a few frames after the card: served on the card, still in the tray for three more readings. It is the
+    /// same dish, not a second one picked up: the counter's soup stays, and covers table 5.
+    /// </summary>
+    [Fact]
+    public void A_tray_a_few_frames_late_after_serving_takes_nothing_off_the_counter()
+    {
+        var session = Prepared(1);
+        var tables = Tables(Order(2, A), Order(5, A));
+        session.Update(Session(9.7, tables: tables, panel: Panel(1, 1, Menu[..5], (A, 5), (A, null))));
+        session.Update(Session(10, tables: tables, panel: Panel(1, 1, Menu[..5], (A, 5), (A, null))));
+        session.Update(Frame(60, tables, Tray()));
+        session.Update(Frame(61, tables, Tray(A)));
+        session.Update(Frame(61.3, tables, Tray(A)));
+
+        var served = Tables(Order(2, new OrderItem(A, Served: true)), Order(5, A));
+        foreach (double t in new[] { 62, 62.3, 62.6 }) session.Update(Frame(t, served, Tray(A)));
+        foreach (double t in new[] { 62.9, 63.2, 70 }) session.Update(Frame(t, served, Tray()));
+
+        Assert.Equal($"{A}x1", session.CounterSignature());
+        Assert.False(Sent(session.Advice(S(70))!, A, 5), "table 5's soup is on the counter");
+    }
+
     [Fact]
     public void A_dish_put_down_with_no_table_served_is_back_on_the_counter()
     {

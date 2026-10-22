@@ -163,7 +163,8 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     private List<string>? _trayChange;
     // Dishes in a kitchen's queue the player put there because a call said so (InnState.QueuedAsCalled), by kitchen and dish.
     private readonly Dictionary<(int Kitchen, string Id), int> _asCalled = [];
-    private readonly List<(string Id, TimeSpan At)> _leftHand = [], _servedFromHand = [];
+    // _lateTray: dishes the tray still showed after they were read served (a tray a few frames late).
+    private readonly List<(string Id, TimeSpan At)> _leftHand = [], _servedFromHand = [], _lateTray = [];
     private readonly Dictionary<int, GourmandMemory> _gourmands = [];
     private readonly Dictionary<int, TimeSpan> _gourmandLeaving = []; // a gourmand's table read in another state since then
     private readonly List<(IReadOnlyList<GourmandRequest> Requests, TimeSpan At)> _gourmandsDone = []; // served gourmands' words, and when (TakeBubble)
@@ -361,6 +362,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         _trayChange = null;
         _leftHand.Clear();
         _servedFromHand.Clear();
+        _lateTray.Clear();
         _asCalled.Clear();
         _gourmands.Clear();
         _gourmandLeaving.Clear();
@@ -698,7 +700,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     {
         if (slots.Any(s => s is { Id: null })) return;
         var held = slots.OfType<HeldDish>().Select(h => h.Id!).Where(id => DishOf(id) is not null).Order(StringComparer.Ordinal).ToList();
-        if (held.SequenceEqual(_carried.Order(StringComparer.Ordinal)))
+        if (held.SequenceEqual(Shown()))
         {
             _trayChange = null;
             return;
@@ -709,24 +711,43 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             return;
         }
         _trayChange = null;
-        foreach (string id in held.Union(_carried).Distinct().ToList())
+        var shown = Shown();
+        foreach (string id in held.Union(shown).Distinct().ToList())
         {
-            int more = held.Count(h => h == id) - _carried.Count(c => c == id);
+            int more = held.Count(h => h == id) - shown.Count(c => c == id);
             for (int n = 0; n < more; n++)
             {
+                // The dish just read served while the tray still showed it, the tray a few frames late: the same dish, not
+                // one in hand (it covers no order).
+                int served = _servedFromHand.FindIndex(s => s.Id == id);
+                if (served >= 0)
+                {
+                    _servedFromHand.RemoveAt(served);
+                    _lateTray.Add((id, at));
+                    continue;
+                }
                 // Picked up: off the counter, or out of a kitchen the estimate still has it cooking in.
                 if (!TakeOffCounter(id)) TakeOutOfQueue(id);
+                _carried.Add(id);
             }
             for (int n = 0; n < -more; n++)
             {
+                int late = _lateTray.FindIndex(s => s.Id == id);
+                if (late >= 0)
+                {
+                    _lateTray.RemoveAt(late);
+                    continue;
+                }
+                _carried.Remove(id);
                 int served = _servedFromHand.FindIndex(s => s.Id == id);
                 if (served >= 0) _servedFromHand.RemoveAt(served);
                 else _leftHand.Add((id, at));
             }
         }
-        _carried.Clear();
-        _carried.AddRange(held);
     }
+
+    /// <summary>What the tray is taken to show: the dishes in hand, and those it still shows a moment after they were served.</summary>
+    private List<string> Shown() => [.. _carried.Concat(_lateTray.Select(l => l.Id)).Order(StringComparer.Ordinal)];
 
     /// <summary>
     /// A dish that left the hand with no table read served with it for <see cref="HandSettlesAfter"/> was put back on the
@@ -740,6 +761,13 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             PutOnCounter(id);
         }
         _servedFromHand.RemoveAll(s => at - s.At >= HandSettlesAfter);
+        // A dish the tray kept showing after it was read served, for longer than a late frame: a second one, picked up.
+        foreach (var (id, since) in _lateTray.Where(h => at - h.At >= HandSettlesAfter).ToList())
+        {
+            _lateTray.Remove((id, since));
+            if (!TakeOffCounter(id)) TakeOutOfQueue(id);
+            _carried.Add(id);
+        }
     }
 
     private static IEnumerable<OrderItem> Unserved(TableCard card) => card.Items.Where(i => !i.Served);
