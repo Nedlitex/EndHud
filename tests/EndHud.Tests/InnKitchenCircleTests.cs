@@ -121,6 +121,27 @@ public class InnKitchenCircleTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// An empty row draws nothing: its dark backing shows only under circles (the owner's screenshot, 2026-10-22: a dark
+    /// box left on the floor out of a session).
+    /// </summary>
+    [Fact]
+    public void The_rows_backing_shows_only_while_a_circle_is_up()
+    {
+        OnSta(() =>
+        {
+            var grid = InnCircleRow.NewGrid();
+            var row = new InnCircleRow(grid, m => InnKitchenCircleView.Circle(m, _ => null));
+            Border Backing() => grid.Children.OfType<Border>().Single(b => b.Background is SolidColorBrush { Color.A: 0xC8 });
+            Assert.Equal(Visibility.Collapsed, Backing().Visibility);
+            row.Update([InnKitchenCircleView.Of(Order(1, A, 4), Text), null, null]);
+            Assert.Equal(Visibility.Visible, Backing().Visibility);
+            row.Update([null, null, null]);
+            Assert.Equal(Visibility.Collapsed, Backing().Visibility);
+            return 0;
+        });
+    }
+
+    /// <summary>
     /// Readable at a glance: the dish's picture clearly bigger than the banner's (<see cref="InnCallView.PictureSize"/>), and
     /// no word smaller than the banner's title (20). The drawn circle fits its slot.
     /// </summary>

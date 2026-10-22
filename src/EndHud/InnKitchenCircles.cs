@@ -231,6 +231,7 @@ internal sealed class InnCircleRow(Grid row, Func<InnCircleModel, FrameworkEleme
     private static readonly TimeSpan InTime = TimeSpan.FromMilliseconds(300), OutTime = TimeSpan.FromMilliseconds(180);
     private static readonly IEasingFunction Pop = Frozen(new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.4 });
     private static readonly Brush Backing = Frozen(new SolidColorBrush(Color.FromArgb(0xC8, 0x12, 0x14, 0x18)));
+    private const string BackingTag = "circle-row-backing";
     private static readonly Brush MarkFill = Frozen(new SolidColorBrush(Color.FromArgb(0x38, 0xFF, 0xC8, 0x3C)));
 
     private readonly (string Key, FrameworkElement Element)?[] _shown = new (string, FrameworkElement)?[InnKitchenCircleView.Slots];
@@ -252,7 +253,8 @@ internal sealed class InnCircleRow(Grid row, Func<InnCircleModel, FrameworkEleme
         grid.ColumnDefinitions.Clear();
         for (int i = 0; i < InnKitchenCircleView.Slots; i++) grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(InnKitchenCircleView.SlotWidth) });
         // A dark backing under the whole row: the words stay readable over the floor and over the open panel's bonus column.
-        var backing = new Border { Background = Backing, CornerRadius = new CornerRadius(14), IsHitTestVisible = false };
+        // Hidden while no circle is up (Update): an empty row draws nothing, out of a session above all.
+        var backing = new Border { Background = Backing, CornerRadius = new CornerRadius(14), IsHitTestVisible = false, Tag = BackingTag, Visibility = Visibility.Collapsed };
         Grid.SetColumnSpan(backing, InnKitchenCircleView.Slots);
         Panel.SetZIndex(backing, -2);
         grid.Children.Add(backing);
@@ -322,6 +324,9 @@ internal sealed class InnCircleRow(Grid row, Func<InnCircleModel, FrameworkEleme
             ((ScaleTransform)element.RenderTransform).BeginAnimation(ScaleTransform.ScaleXProperty, grow);
             ((ScaleTransform)element.RenderTransform).BeginAnimation(ScaleTransform.ScaleYProperty, grow);
         }
+        // The backing only under circles: with none up, nothing of the row is drawn.
+        foreach (var backing in row.Children.OfType<Border>().Where(b => Equals(b.Tag, BackingTag)))
+            backing.Visibility = Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>Ends every animation as it would end (the tests' pictures): leaving circles gone, the others fully in.</summary>
