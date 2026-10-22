@@ -16,8 +16,10 @@ namespace EndHud.Vision.Rotations;
 /// </list>
 /// <para>EndHud can't see which button the player pressed, so this doesn't follow the steps inside
 /// a phase (the strip shows them all alike).</para>
+/// <para>It counts how many times each phase has come onto the strip this fight, for "phase shown"
+/// conditions (<see cref="PhaseShownCondition"/>); <see cref="EndFight"/> forgets them.</para>
 /// </summary>
-public sealed class PhaseSelector(Rotation rotation)
+public sealed class PhaseSelector(Rotation rotation) : IPhaseHistory
 {
     private readonly IReadOnlyList<PlayedStep> _played = rotation.Played();
     private readonly AllCondition?[] _conditions = rotation.Phases.Select(p => p.Gated ? new AllCondition(p.When) : null).ToArray();
@@ -26,15 +28,23 @@ public sealed class PhaseSelector(Rotation rotation)
 
     public Rotation Rotation => rotation;
 
+    // STUB for the RED run of PhaseSelectorTests (C3): counts nothing.
+    public int? TimesShown(string phaseId) => rotation.Phases.Any(p => p.Id == phaseId) ? 0 : null;
+
+    public void EndFight() { }
+
     /// <summary>Take a reading; where the strip is now (the first step of the phase that applies).</summary>
     public RotationPosition Update(PartyState state)
     {
+        // The conditions see the counts as they were before this reading's switch, so a gate on
+        // another phase's count opens on the reading after that phase first shows.
+        int? before = _current;
         int? holding = null;
         bool unknown = false;
         for (int i = 0; i < _conditions.Length; i++)
         {
             if (_conditions[i] is not { } condition) continue;
-            switch (RotationTracker.Evaluate(condition, state))
+            switch (RotationTracker.Evaluate(condition, state, this))
             {
                 case true:
                     holding = i;

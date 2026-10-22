@@ -17,24 +17,24 @@ public class UltimateChargeConditionTests
     [Fact]
     public void Holds_at_or_above_the_charge_and_when_ready()
     {
-        Assert.True(RotationTracker.Evaluate(AtLeast80, Reading(new UltimateReading(false, 0.85))));
-        Assert.True(RotationTracker.Evaluate(AtLeast80, Reading(new UltimateReading(false, 0.80))));
-        Assert.True(RotationTracker.Evaluate(AtLeast80, Reading(new UltimateReading(true, 1))));
-        Assert.False(RotationTracker.Evaluate(AtLeast80, Reading(new UltimateReading(false, 0.5))));
+        Assert.True(RotationTracker.Evaluate(AtLeast80, Reading(new UltimateReading(false, 0.85)), PhaseHistory.None));
+        Assert.True(RotationTracker.Evaluate(AtLeast80, Reading(new UltimateReading(false, 0.80)), PhaseHistory.None));
+        Assert.True(RotationTracker.Evaluate(AtLeast80, Reading(new UltimateReading(true, 1)), PhaseHistory.None));
+        Assert.False(RotationTracker.Evaluate(AtLeast80, Reading(new UltimateReading(false, 0.5)), PhaseHistory.None));
     }
 
     [Fact]
     public void Unknown_when_the_ultimate_cant_be_read()
     {
-        Assert.Null(RotationTracker.Evaluate(AtLeast80, Reading(null)));
+        Assert.Null(RotationTracker.Evaluate(AtLeast80, Reading(null), PhaseHistory.None));
     }
 
     [Fact]
     public void Below_a_charge_too()
     {
         var below = new UltimateChargeCondition("Arcane", Comparison.AtMost, 79);
-        Assert.True(RotationTracker.Evaluate(below, Reading(new UltimateReading(false, 0.5))));
-        Assert.False(RotationTracker.Evaluate(below, Reading(new UltimateReading(false, 0.9))));
+        Assert.True(RotationTracker.Evaluate(below, Reading(new UltimateReading(false, 0.5)), PhaseHistory.None));
+        Assert.False(RotationTracker.Evaluate(below, Reading(new UltimateReading(false, 0.9)), PhaseHistory.None));
     }
 
     [Fact]

@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace EndHud.Vision.Rotations;
 
-/// <summary>What a step does: only these three are tracked (basic and heavy attacks aren't).</summary>
+/// <summary>What a step does: the three skills are tracked; a basic attack is only drawn (heavy attacks aren't offered).</summary>
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum StepAction
 {
@@ -14,6 +14,12 @@ public enum StepAction
 
     /// <summary>Ultimate (终结技).</summary>
     Ultimate,
+
+    /// <summary>
+    /// Basic attack (普攻): drawn only. EndHud doesn't detect basic attacks, so it's never "used" and
+    /// its availability is unknown; the phase's entry condition says when it shows. Format 4.
+    /// </summary>
+    BasicAttack,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
@@ -22,6 +28,12 @@ public enum Comparison
     AtLeast,
     AtMost,
     Exactly,
+
+    /// <summary>Strictly less ("技力 小于 2": 1.95 counts, 2 doesn't). Format 4.</summary>
+    Below,
+
+    /// <summary>Strictly more. Format 4.</summary>
+    Above,
 }
 
 /// <summary>
@@ -42,6 +54,7 @@ public enum Comparison
 [JsonDerivedType(typeof(AnyCondition), "any")]
 [JsonDerivedType(typeof(NotCondition), "not")]
 [JsonDerivedType(typeof(UltimateActiveCondition), "ultimateActive")]
+[JsonDerivedType(typeof(PhaseShownCondition), "phaseShown")]
 public abstract record StateCondition;
 
 /// <summary>The team's skill points (技力), 0–3; a part-filled segment counts as a fraction.</summary>
@@ -94,6 +107,30 @@ public sealed record UltimateActiveCondition(string OperatorId, bool Active) : S
 
 /// <summary>This doesn't hold (not), e.g. "not: Laevatain's ultimate charged to at most 50%". Unknown stays unknown. Format 3.</summary>
 public sealed record NotCondition(StateCondition Of) : StateCondition;
+
+/// <summary>
+/// The phase <paramref name="PhaseId"/> has come onto the strip <paramref name="Is"/>
+/// <paramref name="Times"/> times in this fight (counted when it comes on; back to 0 when the fight
+/// ends). Only whatever shows the phases knows the count (<see cref="IPhaseHistory"/>). Format 4.
+/// </summary>
+public sealed record PhaseShownCondition(string PhaseId, Comparison Is, int Times) : StateCondition;
+
+/// <summary>How many times each phase has been shown this fight; null for a phase it doesn't know.</summary>
+public interface IPhaseHistory
+{
+    int? TimesShown(string phaseId);
+}
+
+/// <summary>For checks made outside a phase selector (alerts, explanations): "phase shown" is unknown there.</summary>
+public static class PhaseHistory
+{
+    public static IPhaseHistory None { get; } = new NoHistory();
+
+    private sealed class NoHistory : IPhaseHistory
+    {
+        public int? TimesShown(string phaseId) => null;
+    }
+}
 
 /// <summary>One step of a rotation.</summary>
 /// <param name="Expect">What the game should look like when it's time for this step (all must hold).
@@ -152,24 +189,24 @@ public sealed record Rotation(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool LastMatchWins = false)
 {
     /// <summary>
-    /// 3: "not" and "ultimate active" conditions, and <see cref="LastMatchWins"/>. 2: phases with entry conditions, all/any
+    /// 4: basic-attack steps, "phase shown" conditions, the 小于/大于 (<see cref="Comparison.Below"/>,
+    /// <see cref="Comparison.Above"/>) comparisons. 3: "not" and "ultimate active" conditions, and <see cref="LastMatchWins"/>. 2: phases with entry conditions, all/any
     /// groups. 1 (read, converted): a fixed sequence. A rotation is saved in the lowest format that
     /// holds it (<see cref="FormatNeeded"/>), so one that uses nothing new stays readable by builds
     /// from before format 3.
     /// </summary>
-    public const int CurrentFormat = 3;
+    public const int CurrentFormat = 4;
 
     /// <summary>The lowest format that holds these phases and options.</summary>
-    public static int FormatNeeded(IEnumerable<RotationPhase> phases, bool lastMatchWins) =>
-        lastMatchWins || phases.Any(p => p.When.Concat(p.Steps.SelectMany(s => s.Expect)).Any(NeedsFormat3)) ? 3 : 2;
-
-    private static bool NeedsFormat3(StateCondition condition) => condition switch
+    public static int FormatNeeded(IEnumerable<RotationPhase> phases, bool lastMatchWins)
     {
-        NotCondition or UltimateActiveCondition => true,
-        AllCondition all => all.Of.Any(NeedsFormat3),
-        AnyCondition any => any.Of.Any(NeedsFormat3),
-        _ => false,
-    };
+        var list = phases.ToList();
+        var conditions = ConditionWalk.Of(list).ToList();
+        if (list.Any(p => p.Steps.Any(s => s.Action == StepAction.BasicAttack))
+            || conditions.Any(c => c is PhaseShownCondition || ConditionWalk.ComparisonOf(c) is Comparison.Below or Comparison.Above))
+            return 4;
+        return lastMatchWins || conditions.Any(c => c is NotCondition or UltimateActiveCondition) ? 3 : 2;
+    }
 
     /// <summary>Is this rotation for this squad: the same four operators, in any order?</summary>
     public bool IsFor(IEnumerable<string?> squad)
@@ -238,20 +275,22 @@ public sealed record Rotation(
                 problems.Add(new RotationProblem(RotationProblemKind.PhaseHasNoSteps, phase.Name));
             else if (phase.Steps[0].WithPrevious)
                 problems.Add(new RotationProblem(RotationProblemKind.FirstStepWithPrevious, phase.Name, 1));
-            CheckConditions(phase.When, phase.Name, null, problems);
+            CheckConditions(phase.When, phase, null, problems);
             for (int i = 0; i < phase.Steps.Count; i++)
             {
                 var step = phase.Steps[i];
                 if (!Squad.Contains(step.OperatorId))
                     problems.Add(new RotationProblem(RotationProblemKind.StepOperatorNotInSquad, phase.Name, i + 1));
-                CheckConditions(step.Expect, phase.Name, i + 1, problems);
+                CheckConditions(step.Expect, phase, i + 1, problems);
             }
         }
         return problems;
     }
 
-    private void CheckConditions(IEnumerable<StateCondition> conditions, string phase, int? step, List<RotationProblem> problems)
+    /// <param name="step">From 1; null for the phase's entry condition.</param>
+    private void CheckConditions(IEnumerable<StateCondition> conditions, RotationPhase owner, int? step, List<RotationProblem> problems)
     {
+        string phase = owner.Name;
         foreach (var condition in conditions)
         {
             switch (condition)
@@ -260,13 +299,21 @@ public sealed record Rotation(
                     problems.Add(new RotationProblem(RotationProblemKind.EmptyConditionGroup, phase, step));
                     break;
                 case AllCondition all:
-                    CheckConditions(all.Of, phase, step, problems);
+                    CheckConditions(all.Of, owner, step, problems);
                     break;
                 case AnyCondition any:
-                    CheckConditions(any.Of, phase, step, problems);
+                    CheckConditions(any.Of, owner, step, problems);
                     break;
                 case NotCondition not:
-                    CheckConditions([not.Of], phase, step, problems);
+                    CheckConditions([not.Of], owner, step, problems);
+                    break;
+                case PhaseShownCondition shown when Phase(shown.PhaseId) is null:
+                    problems.Add(new RotationProblem(RotationProblemKind.PhaseShownMissingPhase, phase, step));
+                    break;
+                // Counted when it comes onto the strip, a phase's own count changes the moment it shows:
+                // its entry condition would flip on the very reading that shows it.
+                case PhaseShownCondition shown when step is null && shown.PhaseId == owner.Id:
+                    problems.Add(new RotationProblem(RotationProblemKind.PhaseShownOwnGate, phase, step));
                     break;
                 default:
                     string? who = condition switch
@@ -309,6 +356,12 @@ public enum RotationProblemKind
     /// <summary>A condition names an operator not in the squad (Step is null for a phase's entry condition).</summary>
     ConditionOperatorNotInSquad,
     EmptyConditionGroup,
+
+    /// <summary>A phase's entry condition counts the phase's own showings (it would flip the moment the phase shows).</summary>
+    PhaseShownOwnGate,
+
+    /// <summary>A "phase shown" condition names a phase that isn't in the rotation (deleted).</summary>
+    PhaseShownMissingPhase,
 }
 
 /// <param name="Phase">The phase concerned (its name), if any.</param>

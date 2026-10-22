@@ -19,23 +19,23 @@ public class CooldownConditionTests
     public void Combo_charge_compares_the_bar_and_ready_is_100()
     {
         var atLeast = new ComboChargeCondition("Liino", Comparison.AtLeast, 70);
-        Assert.True(RotationTracker.Evaluate(atLeast, Reading(new ComboReading(0.75, false))));
-        Assert.True(RotationTracker.Evaluate(atLeast, Reading(new ComboReading(1, true))));
-        Assert.False(RotationTracker.Evaluate(atLeast, Reading(new ComboReading(0.4, false))));
-        Assert.Null(RotationTracker.Evaluate(atLeast, Reading()));
+        Assert.True(RotationTracker.Evaluate(atLeast, Reading(new ComboReading(0.75, false)), PhaseHistory.None));
+        Assert.True(RotationTracker.Evaluate(atLeast, Reading(new ComboReading(1, true)), PhaseHistory.None));
+        Assert.False(RotationTracker.Evaluate(atLeast, Reading(new ComboReading(0.4, false)), PhaseHistory.None));
+        Assert.Null(RotationTracker.Evaluate(atLeast, Reading(), PhaseHistory.None));
 
         var below = new ComboChargeCondition("Liino", Comparison.AtMost, 50);
-        Assert.True(RotationTracker.Evaluate(below, Reading(new ComboReading(0.4, false))));
-        Assert.False(RotationTracker.Evaluate(below, Reading(new ComboReading(1, true))));
+        Assert.True(RotationTracker.Evaluate(below, Reading(new ComboReading(0.4, false)), PhaseHistory.None));
+        Assert.False(RotationTracker.Evaluate(below, Reading(new ComboReading(1, true)), PhaseHistory.None));
     }
 
     [Fact]
     public void Battle_skill_ready_or_cooling()
     {
-        Assert.True(RotationTracker.Evaluate(new BattleSkillCondition("Liino", true), Reading(skill: BattleSkillState.Available)));
-        Assert.False(RotationTracker.Evaluate(new BattleSkillCondition("Liino", true), Reading(skill: BattleSkillState.Cooling)));
-        Assert.True(RotationTracker.Evaluate(new BattleSkillCondition("Liino", false), Reading(skill: BattleSkillState.Cooling)));
-        Assert.Null(RotationTracker.Evaluate(new BattleSkillCondition("Liino", true), Reading()));
+        Assert.True(RotationTracker.Evaluate(new BattleSkillCondition("Liino", true), Reading(skill: BattleSkillState.Available), PhaseHistory.None));
+        Assert.False(RotationTracker.Evaluate(new BattleSkillCondition("Liino", true), Reading(skill: BattleSkillState.Cooling), PhaseHistory.None));
+        Assert.True(RotationTracker.Evaluate(new BattleSkillCondition("Liino", false), Reading(skill: BattleSkillState.Cooling), PhaseHistory.None));
+        Assert.Null(RotationTracker.Evaluate(new BattleSkillCondition("Liino", true), Reading(), PhaseHistory.None));
     }
 
     [Fact]

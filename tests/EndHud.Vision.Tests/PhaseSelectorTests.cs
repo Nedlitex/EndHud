@@ -178,10 +178,10 @@ public class PhaseSelectorTests
         StateCondition atMostHalf = new UltimateChargeCondition("Arcane", Comparison.AtMost, 50);
         var notAtMostHalf = new NotCondition(atMostHalf);
 
-        Assert.Equal(true, RotationTracker.Evaluate(notAtMostHalf, Reading(4, 4, arcane: 0.7, liino: 0.5)));
-        Assert.Equal(false, RotationTracker.Evaluate(notAtMostHalf, Reading(4, 4, arcane: 0.3, liino: 0.5)));
+        Assert.Equal(true, RotationTracker.Evaluate(notAtMostHalf, Reading(4, 4, arcane: 0.7, liino: 0.5), PhaseHistory.None));
+        Assert.Equal(false, RotationTracker.Evaluate(notAtMostHalf, Reading(4, 4, arcane: 0.3, liino: 0.5), PhaseHistory.None));
         Assert.Null(RotationTracker.Evaluate(new NotCondition(new CounterCondition("Typhoeus", OperatorCounters.HuntingArrow.Id, Comparison.AtLeast, 2)),
-            Reading(arrows: null, signs: 0, arcane: 0.5, liino: 0.5)));
+            Reading(arrows: null, signs: 0, arcane: 0.5, liino: 0.5), PhaseHistory.None));
     }
 
     /// <summary>"At most 0%": the ultimate just used.</summary>
@@ -190,8 +190,8 @@ public class PhaseSelectorTests
     {
         StateCondition justUsed = new UltimateChargeCondition("Arcane", Comparison.AtMost, 0);
 
-        Assert.Equal(true, RotationTracker.Evaluate(justUsed, Reading(4, 4, arcane: 0, liino: 0.5)));
-        Assert.Equal(false, RotationTracker.Evaluate(justUsed, Reading(4, 4, arcane: 0.04, liino: 0.5)));
+        Assert.Equal(true, RotationTracker.Evaluate(justUsed, Reading(4, 4, arcane: 0, liino: 0.5), PhaseHistory.None));
+        Assert.Equal(false, RotationTracker.Evaluate(justUsed, Reading(4, 4, arcane: 0.04, liino: 0.5), PhaseHistory.None));
     }
 
     /// <summary>
@@ -205,10 +205,10 @@ public class PhaseSelectorTests
         PartyState With(int controlled, double? left, double? skillPoints = 1.5) =>
             Reading(4, 4, arcane: 0, liino: 0.5) with { ActiveSlot = controlled, UltimateTimeLeft = left, SkillPoints = skillPoints };
 
-        Assert.Equal(true, RotationTracker.Evaluate(arcaneActive, With(controlled: 2, left: 0.7)));
-        Assert.Equal(false, RotationTracker.Evaluate(arcaneActive, With(controlled: 2, left: null)));
-        Assert.Equal(false, RotationTracker.Evaluate(arcaneActive, With(controlled: 1, left: 0.7))); // Typhoeus's bar
-        Assert.Null(RotationTracker.Evaluate(arcaneActive, With(controlled: 2, left: null, skillPoints: null)));
-        Assert.Equal(true, RotationTracker.Evaluate(new UltimateActiveCondition("Arcane", false), With(controlled: 2, left: null)));
+        Assert.Equal(true, RotationTracker.Evaluate(arcaneActive, With(controlled: 2, left: 0.7), PhaseHistory.None));
+        Assert.Equal(false, RotationTracker.Evaluate(arcaneActive, With(controlled: 2, left: null), PhaseHistory.None));
+        Assert.Equal(false, RotationTracker.Evaluate(arcaneActive, With(controlled: 1, left: 0.7), PhaseHistory.None)); // Typhoeus's bar
+        Assert.Null(RotationTracker.Evaluate(arcaneActive, With(controlled: 2, left: null, skillPoints: null), PhaseHistory.None));
+        Assert.Equal(true, RotationTracker.Evaluate(new UltimateActiveCondition("Arcane", false), With(controlled: 2, left: null), PhaseHistory.None));
     }
 }

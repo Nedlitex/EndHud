@@ -156,7 +156,8 @@ public sealed class RotationTracker(Rotation rotation)
         {
             var phase = rotation.Phases[p];
             if (!phase.Gated || phase.Steps.Count == 0) continue;
-            bool? now = HoldsAll(phase.When, state, slots);
+            // This step tracker isn't what the overlay shows phases with (PhaseSelector is), so it counts nothing.
+            bool? now = HoldsAll(phase.When, state, slots, PhaseHistory.None);
             if (now is null) continue; // unseen: neither opens nor closes it
             bool turnedTrue = now == true && _gateSeen[p] != true;
             _gateSeen[p] = now;
@@ -213,6 +214,8 @@ public sealed class RotationTracker(Rotation rotation)
                 StepAction.Combo => ComboUsed(was, @is),
                 StepAction.Ultimate => was.Ultimate?.Ready == true && @is.Ultimate is { Ready: false },
                 StepAction.BattleSkill => was.BattleSkill != BattleSkillState.Cooling && @is.BattleSkill == BattleSkillState.Cooling,
+                // Display-only: EndHud can't see a basic attack, so it's never seen "used".
+                StepAction.BasicAttack => false,
                 _ => false,
             };
             if (used) yield return i;
@@ -246,7 +249,7 @@ public sealed class RotationTracker(Rotation rotation)
         var checks = new List<ConditionCheck> { new(CheckKind.OwnAbility, null, AbilityAvailable(step, state, slots)) };
         if (StepBefore(index) is { } previous && !ReferenceEquals(previous, step))
             checks.Add(new ConditionCheck(CheckKind.PreviousStepUsed, null, AbilityUsed(previous, slots)));
-        foreach (var condition in step.Expect) checks.Add(new ConditionCheck(CheckKind.Expected, condition, Holds(condition, state, slots)));
+        foreach (var condition in step.Expect) checks.Add(new ConditionCheck(CheckKind.Expected, condition, Holds(condition, state, slots, PhaseHistory.None)));
 
         // The share that hold, smoothed so more checks seen counts for more: one check out of one
         // (0.75) loses to three out of three (0.875); nothing seen is 0.5.
@@ -295,20 +298,25 @@ public sealed class RotationTracker(Rotation rotation)
             StepAction.Ultimate => s.Ultimate?.Ready,
             StepAction.BattleSkill => s.BattleSkill == BattleSkillState.Cooling ? false
                 : state.SkillPoints is { } sp ? sp >= 1 : null,
+            // Display-only: whether a basic attack is "available" can't be seen.
+            StepAction.BasicAttack => null,
             _ => null,
         };
     }
 
-    /// <summary>Does the condition hold in this reading? Null when it can't be seen (for explaining a step that isn't ready).</summary>
-    public static bool? Evaluate(StateCondition condition, PartyState state) => Holds(condition, state, SlotsByOperator(state));
+    /// <summary>Does the condition hold in this reading? Null when it can't be seen.</summary>
+    /// <param name="history">How often each phase has been shown this fight: the phase selector passes
+    /// itself; anything outside one passes <see cref="PhaseHistory.None"/> ("phase shown" is unknown).</param>
+    public static bool? Evaluate(StateCondition condition, PartyState state, IPhaseHistory history) =>
+        Holds(condition, state, SlotsByOperator(state), history);
 
     /// <summary>All of them hold: false if any is false, else unknown if any can't be seen, else true.</summary>
-    private static bool? HoldsAll(IEnumerable<StateCondition> conditions, PartyState state, IReadOnlyDictionary<string, int> slots)
+    private static bool? HoldsAll(IEnumerable<StateCondition> conditions, PartyState state, IReadOnlyDictionary<string, int> slots, IPhaseHistory history)
     {
         bool unknown = false;
         foreach (var condition in conditions)
         {
-            switch (Holds(condition, state, slots))
+            switch (Holds(condition, state, slots, history))
             {
                 case false: return false;
                 case null: unknown = true; break;
@@ -318,12 +326,12 @@ public sealed class RotationTracker(Rotation rotation)
     }
 
     /// <summary>One of them holds: true if any is true, else unknown if any can't be seen, else false.</summary>
-    private static bool? HoldsAny(IEnumerable<StateCondition> conditions, PartyState state, IReadOnlyDictionary<string, int> slots)
+    private static bool? HoldsAny(IEnumerable<StateCondition> conditions, PartyState state, IReadOnlyDictionary<string, int> slots, IPhaseHistory history)
     {
         bool unknown = false;
         foreach (var condition in conditions)
         {
-            switch (Holds(condition, state, slots))
+            switch (Holds(condition, state, slots, history))
             {
                 case true: return true;
                 case null: unknown = true; break;
@@ -333,16 +341,18 @@ public sealed class RotationTracker(Rotation rotation)
     }
 
     /// <summary>Does the condition hold in this reading? Null when it can't be seen.</summary>
-    internal static bool? Holds(StateCondition condition, PartyState state, IReadOnlyDictionary<string, int> slots)
+    internal static bool? Holds(StateCondition condition, PartyState state, IReadOnlyDictionary<string, int> slots, IPhaseHistory history)
     {
         switch (condition)
         {
             case AllCondition all:
-                return HoldsAll(all.Of, state, slots);
+                return HoldsAll(all.Of, state, slots, history);
             case AnyCondition any:
-                return HoldsAny(any.Of, state, slots);
+                return HoldsAny(any.Of, state, slots, history);
             case NotCondition not:
-                return !Holds(not.Of, state, slots);
+                return !Holds(not.Of, state, slots, history);
+            case PhaseShownCondition c:
+                return history.TimesShown(c.PhaseId) is { } shown ? Compare(shown, c.Is, c.Times) : null;
             case SkillPointsCondition c:
                 return state.SkillPoints is { } sp ? Compare(sp, c.Is, c.Value) : null;
             case ComboCondition c:
@@ -386,6 +396,8 @@ public sealed class RotationTracker(Rotation rotation)
     {
         Comparison.AtLeast => value >= target - 1e-6,
         Comparison.AtMost => value <= target + 1e-6,
+        Comparison.Below => value < target - 1e-6,
+        Comparison.Above => value > target + 1e-6,
         _ => Math.Abs(value - target) < 0.05,
     };
 
