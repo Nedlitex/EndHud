@@ -111,6 +111,58 @@ public class InnSetupLayoutTests(Xunit.Abstractions.ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// Owner, live 2026-10-21 (test_yuanyuan8 at 2:00): the menu panel's words ran off its right edge. A panel's measured
+    /// size is clamped to its lines' width, so the test above can't see a piece drawn past it: here every word and picture,
+    /// as laid out, lies inside the card, for every spot's fullest panel at 1080p, 1440p and 4K and at the player's smallest
+    /// and largest size.
+    /// </summary>
+    [Theory]
+    [InlineData(1920, 1080, 1.0)]
+    [InlineData(2560, 1440, 1.0)]
+    [InlineData(3840, 2160, 1.0)]
+    [InlineData(1920, 1080, 0.6)]
+    [InlineData(1920, 1080, 1.5)]
+    [InlineData(3840, 2160, 2.0)]
+    public void Nothing_in_a_panel_is_drawn_past_its_edge(int width, int height, double size)
+    {
+        double scale = ComboHintLayout.Scale(height, dpiScale: 1) * size;
+        foreach (var panel in Panels())
+        {
+            var outside = OnSta(() =>
+            {
+                double lineWidth = InnAdviceLayout.LineWidth(panel.Spot, width, height, scale);
+                var element = InnStrip.Build(panel.Model, PackagePicture, lineWidth, InnAdviceLayout.Look(panel.Spot));
+                element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                element.Arrange(new Rect(element.DesiredSize));
+                element.UpdateLayout();
+                var card = new Rect(element.RenderSize);
+                var found = new List<string>();
+                void Walk(DependencyObject node)
+                {
+                    for (int i = 0; i < VisualTreeHelper.GetChildrenCount(node); i++)
+                    {
+                        var child = VisualTreeHelper.GetChild(node, i);
+                        if (child is TextBlock or Image)
+                        {
+                            var leaf = (FrameworkElement)child;
+                            var bounds = leaf.TransformToAncestor(element).TransformBounds(new Rect(leaf.RenderSize));
+                            // A word cut by its own width (wrapped to fit) shows as a narrower block than it wants.
+                            leaf.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                            bool cut = leaf is TextBlock { TextWrapping: TextWrapping.NoWrap } && leaf.DesiredSize.Width > leaf.RenderSize.Width + 0.5;
+                            if (bounds.Right > card.Right + 0.5 || bounds.Bottom > card.Bottom + 0.5 || cut)
+                                found.Add($"{(leaf as TextBlock)?.Text ?? "picture"} at {bounds.Left:F0}–{bounds.Right:F0} in {card.Width:F0}");
+                        }
+                        else Walk(child);
+                    }
+                }
+                Walk(element);
+                return found;
+            });
+            Assert.True(outside.Count == 0, $"{panel.Spot} at {width}x{height} size {size}: {string.Join("; ", outside)}");
+        }
+    }
+
     /// <summary>The spots stay on the game's 16:9 area, and the kitchens' each under its own card (setup-chefs-placed.jpg).</summary>
     [Fact]
     public void The_spots_sit_in_the_games_blank_areas()
