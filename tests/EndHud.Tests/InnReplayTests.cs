@@ -87,6 +87,7 @@ public class InnReplayTests(ITestOutputHelper output)
     [InlineData("test-yuanyuan3-readings.jsonl.gz")]
     [InlineData("test-yuanyuan4-readings.jsonl.gz")]
     [InlineData("test-yuanyuan5-readings.jsonl.gz")]
+    [InlineData("test-yuanyuan6-readings.jsonl.gz")]
     public void Over_the_owners_recorded_sessions_nothing_flashes_or_jumps(string fixture)
     {
         var replay = InnReplay.Run(InnReplay.Load(Path.Combine(AppContext.BaseDirectory, "Fixtures", "inn-replay", fixture)));
@@ -105,13 +106,14 @@ public class InnReplayTests(ITestOutputHelper output)
         foreach (var u in flashes) output.WriteLine($"flash {u.At.TotalSeconds:F1} s kitchen {u.Kitchen}: {u.What} <= {u.Why}");
         foreach (var u in jumps) output.WriteLine($"jump {u.At.TotalSeconds:F1} s kitchen {u.Kitchen}: {u.What} <= {u.Why}");
         output.WriteLine(replay.Consistency());
-        var (tabNoCircle, callNoCard, switchNoCard, _) = replay.Agreement();
+        var (tabNoCircle, callNoCard, switchNoCard, _, aheadHidden) = replay.Agreement();
         // One picture (owner, 2026-10-21, test_yuanyuan6): a tab marked 有菜要排 always has its kitchen's circle on screen
         // (below the open panel), and a kitchen with a call shown on the panel has its card marked. Before: y3 14 (111.3 s),
         // y4 9 (68.4 s), y5 17 (79.8 s) tabs marked with the circles hidden under the panel.
         Assert.Equal(0, tabNoCircle.Count);
         Assert.Equal(0, callNoCard.Count);
-        Assert.Equal(0, switchNoCard);
+        Assert.Empty(switchNoCard);
+        Assert.Equal(0, aheadHidden.Count);
 
         Assert.True(replay.SessionSpan > TimeSpan.FromMinutes(5), "the whole session was replayed");
         // The kitchens' calls: none gone and back, none switched with nothing done to it.
@@ -135,6 +137,24 @@ public class InnReplayTests(ITestOutputHelper output)
         // ahead no longer wait on the counter.
         Assert.True(marks.HiddenUnderASecond <= 14, $"{marks.HiddenUnderASecond} marks hidden under a second");
         Assert.Equal((0, 0), (gourmands.HiddenUnderASecond, gourmands.UpUnderHalfASecond));
+    }
+
+    /// <summary>
+    /// test_yuanyuan6 (2026-10-21, theme 一汤一饭: 主食 and 汤羹 hot; kitchen 1 = 秋栗 + 昼雪, 主食 +40 %): the owner at 201 s,
+    /// "the first kitchen has all the bonus for 主食, but the precook suggest a 甜点". Over the replay, before: kitchen 1 was
+    /// told to cook 金丝小贝 (a dessert) ahead from 197.7 s to 221.7 s and again from 210.9 s; now no dish outside the theme is
+    /// called to cook ahead in any kitchen while one matching it is in stock.
+    /// </summary>
+    [Fact]
+    public void Over_test_yuanyuan6_cooking_ahead_keeps_to_the_theme()
+    {
+        var replay = InnReplay.Run(InnReplay.Load(Path.Combine(AppContext.BaseDirectory, "Fixtures", "inn-replay", "test-yuanyuan6-readings.jsonl.gz")));
+        var ahead = replay.Steps.SelectMany(s => s.Kitchens.Values).Where(c => c.Kind == InnCallKind.CookAhead).Select(c => $"{c.Kitchen}:{c.Dish!.Zh}").Distinct().ToList();
+        output.WriteLine(string.Join(", ", ahead));
+        Assert.NotEmpty(ahead);
+        Assert.All(replay.Steps.SelectMany(s => s.Kitchens.Values).Where(c => c.Kind == InnCallKind.CookAhead),
+            c => Assert.Contains(c.Dish!.Type, new[] { DishType.Entree, DishType.Soup }));
+        Assert.DoesNotContain(replay.Steps, s => s.Kitchens.TryGetValue(1, out var call) && call is { Kind: InnCallKind.CookAhead, Dish.Zh: "金丝小贝" });
     }
 
     /// <summary>How often a display's item went and came back within a second, and came and went within half a second.</summary>
