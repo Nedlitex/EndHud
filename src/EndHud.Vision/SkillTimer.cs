@@ -21,7 +21,7 @@ public sealed class SkillTimer(TimeSpan duration)
     {
         switch (reading?.Icon)
         {
-            case SkillIcon.Changed:
+            case SkillButtonIcon.Changed:
                 if (reading.LeftShare is { } left)
                 {
                     _startedAt = now - (1 - left) * Duration; // the ring is the better clock
@@ -30,7 +30,7 @@ public sealed class SkillTimer(TimeSpan duration)
                 _startedAt ??= now;                            // first sight of the swirl
                 double share = 1 - (now - _startedAt.Value) / Duration;
                 return share > 0 ? new SkillTimerView(share, share * Duration.TotalSeconds, Estimated: true) : null;
-            case SkillIcon.Original or SkillIcon.Cooling:
+            case SkillButtonIcon.Original or SkillButtonIcon.Cooling:
                 _startedAt = null;                             // it ended
                 return null;
             default:

@@ -11,7 +11,7 @@ internal static class SiFixtures
     /// <param name="Icon">Her battle-skill button's icon (skill-* only).</param>
     /// <param name="DrainedDegrees">How much of the grey ring is gone, clockwise from 12 o'clock.</param>
     /// <param name="RingHidden">The ring can't be told from what's around it.</param>
-    internal sealed record Label(string File, int? Stacks, SkillIcon? Icon, double? DrainedDegrees, double? SecondsLeft, bool RingHidden);
+    internal sealed record Label(string File, int? Stacks, SkillButtonIcon? Icon, double? DrainedDegrees, double? SecondsLeft, bool RingHidden);
 
     internal static readonly Label[] Labels = JsonSerializer.Deserialize<Label[]>(
         File.ReadAllText(CombatFrameTests.Fixture(Path.Combine("si", "labels.json"))),

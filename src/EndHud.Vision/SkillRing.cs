@@ -1,7 +1,7 @@
 namespace EndHud.Vision;
 
 /// <summary>What a lasting battle skill's button shows.</summary>
-public enum SkillIcon
+public enum SkillButtonIcon
 {
     /// <summary>The skill's own icon: not running (Si: the butterfly).</summary>
     Original,
@@ -18,7 +18,7 @@ public enum SkillIcon
 
 /// <param name="OperatorId">Whose battle skill (Si).</param>
 /// <param name="LeftShare">The grey ring's part not yet drained, 0–1; null when it can't be read.</param>
-public sealed record SkillRingReading(string OperatorId, SkillIcon Icon, double? LeftShare);
+public sealed record SkillRingReading(string OperatorId, SkillButtonIcon Icon, double? LeftShare);
 
 /// <summary>
 /// Battle skills whose button changes while they last. Si's: from the first use the button's
@@ -49,18 +49,18 @@ public static class SkillRing
     /// <param name="button">The battle-skill button, 0 = leftmost of four (a smaller squad's are drawn from the right).</param>
     internal static SkillRingReading ReadSi(Frame frame, int button)
     {
-        if (BattleSkillButton.Measure(frame, button) == BattleSkillState.Cooling) return new("Si", SkillIcon.Cooling, null);
+        if (BattleSkillButton.Measure(frame, button) == BattleSkillState.Cooling) return new("Si", SkillButtonIcon.Cooling, null);
         var icon = Icon(frame, button);
-        return new("Si", icon, icon == SkillIcon.Changed ? Left(frame, button) : null);
+        return new("Si", icon, icon == SkillButtonIcon.Changed ? Left(frame, button) : null);
     }
 
     /// <summary>The butterfly or the swirl, by the icon's white shape; unknown when it's clearly neither.</summary>
-    internal static SkillIcon Icon(Frame frame, int button)
+    internal static SkillButtonIcon Icon(Frame frame, int button)
     {
-        if (IconGlyph(frame, button) is not { } glyph) return SkillIcon.Unknown;
+        if (IconGlyph(frame, button) is not { } glyph) return SkillButtonIcon.Unknown;
         double butterfly = Overlap(glyph, ButterflyMask), swirl = Overlap(glyph, SwirlMask);
-        if (Math.Max(butterfly, swirl) < IconMatchAt || Math.Abs(butterfly - swirl) < IconMinLead) return SkillIcon.Unknown;
-        return butterfly > swirl ? SkillIcon.Original : SkillIcon.Changed;
+        if (Math.Max(butterfly, swirl) < IconMatchAt || Math.Abs(butterfly - swirl) < IconMinLead) return SkillButtonIcon.Unknown;
+        return butterfly > swirl ? SkillButtonIcon.Original : SkillButtonIcon.Changed;
     }
 
     /// <summary>

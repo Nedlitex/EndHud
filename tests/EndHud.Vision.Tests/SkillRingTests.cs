@@ -13,16 +13,16 @@ public class SkillRingTests(ITestOutputHelper output)
     private static SkillRingReading Read(Frame frame) => SkillRing.ReadSi(frame, button: 0);
 
     public static TheoryData<string> Running() =>
-        [.. SiFixtures.SkillFrames.Where(l => l.Icon == SkillIcon.Changed && !l.RingHidden).Select(l => l.File)];
+        [.. SiFixtures.SkillFrames.Where(l => l.Icon == SkillButtonIcon.Changed && !l.RingHidden).Select(l => l.File)];
 
-    public static TheoryData<string> Ended() => [.. SiFixtures.SkillFrames.Where(l => l.Icon == SkillIcon.Original).Select(l => l.File)];
+    public static TheoryData<string> Ended() => [.. SiFixtures.SkillFrames.Where(l => l.Icon == SkillButtonIcon.Original).Select(l => l.File)];
 
     [Fact]
     public async Task Before_the_cast_the_icon_is_the_original()
     {
         var reading = Read(await SiFixtures.LoadAsync("skill-12s.jpg"));
 
-        Assert.Equal(SkillIcon.Original, reading.Icon);
+        Assert.Equal(SkillButtonIcon.Original, reading.Icon);
         Assert.Null(reading.LeftShare);
     }
 
@@ -34,7 +34,7 @@ public class SkillRingTests(ITestOutputHelper output)
 
         var reading = Read(await SiFixtures.LoadAsync(file));
 
-        Assert.Equal(SkillIcon.Changed, reading.Icon);
+        Assert.Equal(SkillButtonIcon.Changed, reading.Icon);
         Assert.NotNull(reading.LeftShare);
         double expected = 1 - label.DrainedDegrees!.Value / 360;
         output.WriteLine($"{file}: left {reading.LeftShare:F3}, by eye {expected:F3}");
@@ -47,7 +47,7 @@ public class SkillRingTests(ITestOutputHelper output)
     {
         var reading = Read(await SiFixtures.LoadAsync(file));
 
-        Assert.Equal(SkillIcon.Original, reading.Icon);
+        Assert.Equal(SkillButtonIcon.Original, reading.Icon);
         Assert.Null(reading.LeftShare);
     }
 
@@ -58,7 +58,7 @@ public class SkillRingTests(ITestOutputHelper output)
         foreach (var label in SiFixtures.SkillFrames.Where(l => l.RingHidden))
         {
             var reading = Read(await SiFixtures.LoadAsync(label.File));
-            Assert.NotEqual(SkillIcon.Original, reading.Icon);
+            Assert.NotEqual(SkillButtonIcon.Original, reading.Icon);
             Assert.Null(reading.LeftShare);
         }
     }
@@ -78,8 +78,8 @@ public class SkillRingTests(ITestOutputHelper output)
         var frame = await SiFixtures.LoadAsync("skill-24_5s.jpg");
 
         var reading = Assert.Single(SkillRing.Read(frame, Squad(frame, siSlot: 1)));
-        Assert.Equal(("Si", SkillIcon.Changed), (reading.OperatorId, reading.Icon));
-        Assert.NotEqual(SkillIcon.Changed, Assert.Single(SkillRing.Read(frame, Squad(frame, siSlot: 2))).Icon); // button 2 is another operator's
+        Assert.Equal(("Si", SkillButtonIcon.Changed), (reading.OperatorId, reading.Icon));
+        Assert.NotEqual(SkillButtonIcon.Changed, Assert.Single(SkillRing.Read(frame, Squad(frame, siSlot: 2))).Icon); // button 2 is another operator's
         Assert.Empty(SkillRing.Read(frame, Squad(frame, siSlot: 0)));
         Assert.Empty(SkillRing.Read(frame, Squad(frame, siSlot: 1, HudLayout.Controller)));
         Assert.Empty(SkillRing.Read(frame, Squad(frame, siSlot: 1, readingsSinceSeen: 1)));
@@ -88,7 +88,7 @@ public class SkillRingTests(ITestOutputHelper output)
     [Fact]
     public void The_fixtures_cover_before_during_hidden_and_after()
     {
-        Assert.Contains(SiFixtures.SkillFrames, l => l.Icon == SkillIcon.Original && l.File == "skill-12s.jpg");
+        Assert.Contains(SiFixtures.SkillFrames, l => l.Icon == SkillButtonIcon.Original && l.File == "skill-12s.jpg");
         Assert.True(Running().Count >= 10);
         Assert.Contains(SiFixtures.SkillFrames, l => l.RingHidden);
         Assert.True(Ended().Count >= 3);
@@ -106,7 +106,7 @@ public class SkillRingTests(ITestOutputHelper output)
         foreach (var label in SiFixtures.SkillFrames)
         {
             var reading = Read(screen.Render(await SiFixtures.LoadAsync(label.File)));
-            Assert.True(reading.Icon == label.Icon || reading.Icon == SkillIcon.Unknown, $"{label.File}: {reading.Icon}, expected {label.Icon}");
+            Assert.True(reading.Icon == label.Icon || reading.Icon == SkillButtonIcon.Unknown, $"{label.File}: {reading.Icon}, expected {label.Icon}");
             if (reading.Icon == label.Icon) icons++;
             if (label.DrainedDegrees is { } drained)
             {

@@ -11,11 +11,11 @@ public class SkillTimerTests
 {
     private static readonly TimeSpan Duration = TimeSpan.FromSeconds(22);
 
-    private static SkillRingReading Original => new("Si", SkillIcon.Original, null);
+    private static SkillRingReading Original => new("Si", SkillButtonIcon.Original, null);
 
-    private static SkillRingReading Unknown => new("Si", SkillIcon.Unknown, null);
+    private static SkillRingReading Unknown => new("Si", SkillButtonIcon.Unknown, null);
 
-    private static SkillRingReading Changed(double? left = null) => new("Si", SkillIcon.Changed, left);
+    private static SkillRingReading Changed(double? left = null) => new("Si", SkillButtonIcon.Changed, left);
 
     private static TimeSpan At(double seconds) => TimeSpan.FromSeconds(seconds);
 
@@ -96,7 +96,7 @@ public class SkillTimerTests
         var timer = new SkillTimer(Duration);
         timer.Update(Changed(0.5), At(0));
 
-        Assert.Null(timer.Update(new SkillRingReading("Si", SkillIcon.Cooling, null), At(1)));
+        Assert.Null(timer.Update(new SkillRingReading("Si", SkillButtonIcon.Cooling, null), At(1)));
         Assert.Equal(22, timer.Update(Changed(), At(2))!.SecondsLeft, 2);
     }
 
@@ -119,7 +119,7 @@ public class SkillTimerTests
         foreach (var label in SiFixtures.SkillFrames.OrderBy(l => Seconds(l.File)))
         {
             var view = timer.Update(SkillRing.ReadSi(await SiFixtures.LoadAsync(label.File), 0), At(Seconds(label.File)));
-            if (label.Icon != SkillIcon.Changed)
+            if (label.Icon != SkillButtonIcon.Changed)
             {
                 Assert.Null(view);
                 continue;
