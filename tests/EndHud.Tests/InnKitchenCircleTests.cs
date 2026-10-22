@@ -321,10 +321,11 @@ public class InnKitchenCircleTests(ITestOutputHelper output)
 
     /// <summary>
     /// The circles and the gourmands' tiles drawn where they go over a real 4K frame (the UID corner masked), saved as a
-    /// picture for a person to look at (.tracking/changes/2026-10-21-inn-y6-…png, local only; nothing is asserted of it but
-    /// that it was drawn): a session (session-two-dishes.jpg, the circles above the tray, the tiles on the right) and the
-    /// open dispatch panel (dispatch-panel-queue.jpg, the circles below it with kitchen 1's emphasised, the tiles beside
-    /// it), with 1, 3 and 6 gourmands.
+    /// picture for a person to look at (.tracking/changes/2026-10-21-inn-y8-…png, local only; nothing is asserted of it but
+    /// that it was drawn): a session (session-two-dishes.jpg, the circles above the tray) and the open dispatch panel
+    /// (dispatch-panel-queue.jpg, the circles below it with kitchen 1's emphasised), with 1, 3 and 6 gourmands, each tile at
+    /// its table's fixed spot (one gourmand: table 5; three: tables 1, 4 and 6, table 4 with one request; six: table 2 with
+    /// one request).
     /// </summary>
     [Theory]
     [InlineData("session-two-dishes.jpg", false, 1)]
@@ -337,9 +338,11 @@ public class InnKitchenCircleTests(ITestOutputHelper output)
     {
         string frame = Path.Combine(AppContext.BaseDirectory, "Fixtures", "inn", frameName);
         if (!File.Exists(frame)) return; // the test data submodule isn't there
-        string saved = Path.Combine(RepositoryRoot(), ".tracking", "changes", $"2026-10-21-inn-y6-{(panelOpen ? "panel" : "session")}-{gourmands}-gourmands.png");
+        string saved = Path.Combine(RepositoryRoot(), ".tracking", "changes", $"2026-10-21-inn-y8-{(panelOpen ? "panel" : "session")}-{gourmands}-gourmands.png");
         var circles = InnKitchenCircleView.Of([Order(1, A, 4), Ahead(2, D), Swap(3, D, B, 5)], Text);
-        var tiles = InnGourmandView.Banners([.. SixGourmandsWants().Where(w => w.Table <= gourmands)], Text);
+        int[] tables = gourmands switch { 1 => [5], 3 => [1, 4, 6], _ => [1, 2, 3, 4, 5, 6] };
+        int single = gourmands switch { 1 => 0, 3 => 4, _ => 2 };
+        var tiles = InnGourmandView.Banners([.. SixGourmandsWants().Where(w => tables.Contains(w.Table) && !(w.Table == single && w.Request > 0))], Text);
 
         OnSta(() =>
         {
@@ -360,10 +363,10 @@ public class InnKitchenCircleTests(ITestOutputHelper output)
             Canvas.SetTop(circleFrame, place.Top);
             canvas.Children.Add(circleFrame);
 
-            var arrangement = InnGourmandLayout.Arrange(tiles, w, h, scale, HudConfig.DefaultInnGourmandRight, HudConfig.DefaultInnGourmandTop, panelOpen, place);
+            var arrangement = InnGourmandLayout.Arrange(tiles, w, h, scale);
             for (int i = 0; i < tiles.Count; i++)
             {
-                var tile = InnGourmandView.Tile(tiles[i], PackagePicture, arrangement.Shape);
+                var tile = InnGourmandView.Tile(tiles[i], PackagePicture);
                 tile.LayoutTransform = new ScaleTransform(arrangement.Scale, arrangement.Scale);
                 Canvas.SetLeft(tile, arrangement.Places[i].X);
                 Canvas.SetTop(tile, arrangement.Places[i].Y);

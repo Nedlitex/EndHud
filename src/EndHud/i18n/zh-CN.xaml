@@ -336,10 +336,6 @@
     <sys:String x:Key="Inn.Gourmand.Drink">{0}饮品</sys:String>
     <sys:String x:Key="Inn.Gourmand.None">没有合适的</sys:String>
     <sys:String x:Key="Inn.Gourmand.Unknown">没认出要求</sys:String>
-    <sys:String x:Key="Inn.Gourmand.Sample">老饕提示示例</sys:String>
-    <sys:String x:Key="Inn.Gourmand.SampleDish">老饕要的菜</sys:String>
-    <sys:String x:Key="Inn.Gourmand.SampleDrink">老饕要的</sys:String>
-    <sys:String x:Key="Inn.Gourmand.Drag">按住拖动，调整老饕提示位置</sys:String>
     <sys:String x:Key="Inn.Mark.Queue">排这个（桌{0}）</sys:String>
     <sys:String x:Key="Inn.Mark.CookAhead">预做这个</sys:String>
     <sys:String x:Key="Inn.Mark.Swap">先拿掉{0}，再排这个</sys:String>

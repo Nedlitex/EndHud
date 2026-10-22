@@ -163,7 +163,7 @@ internal sealed class InnReplay
         var tabs = views.Marks.Where(m => !m.OnCard)
             .Select(m => Enumerable.Range(1, KitchenMath.MaxKitchens).FirstOrDefault(k => DispatchPanelReader.TabArea(k) == m.Area)).Where(k => k > 0).ToHashSet();
         Draws.Add(new DrawStep(at, _display.LastAdvice?.MarkedPanel?.Kitchen, calls, tabs, views.Marks.Any(m => m.OnCard), CirclesDrawn(views),
-            views.Wants.Select(w => w.Table).ToHashSet(), views.Away && !views.GourmandsBesidePanel, [.. _cards.Select(c => c?.State)]));
+            views.Wants.Select(w => w.Table).ToHashSet(), false /* never hidden: each tile at its table's fixed spot, the panel open or not (InnGourmandLayout) */, [.. _cards.Select(c => c?.State)]));
     }
 
     /// <summary>

@@ -254,7 +254,7 @@ public partial class OverlayWindow
         InnCircleSlots.Opacity = _config.InnStripOpacity;
         foreach (var frame in _innAdviceFrames.Values) frame.Opacity = _config.InnStripOpacity;
         foreach (var mark in _innMarks) mark.Opacity = _config.InnStripOpacity;
-        InnGourmandStack.Opacity = _config.InnStripOpacity;
+        InnGourmandTiles.Opacity = _config.InnStripOpacity;
         ConfigStore.Save(_config);
     }
 
@@ -262,14 +262,11 @@ public partial class OverlayWindow
     {
         _config.InnCallX = HudConfig.DefaultComboHintX;
         _config.InnCallY = HudConfig.DefaultComboHintY;
-        _config.InnGourmandRight = HudConfig.DefaultInnGourmandRight;
-        _config.InnGourmandTop = HudConfig.DefaultInnGourmandTop;
         _config.InnCircleX = InnKitchenCircleLayout.DefaultCenterX;
         _config.InnCircleY = InnKitchenCircleLayout.DefaultBottomY;
         ConfigStore.Save(_config);
         PlaceInnCirclesFromConfig();
         PlaceInnCallsFromConfig();
-        PlaceInnGourmandsFromConfig();
     }
 
     // ---- Placing ----
@@ -278,7 +275,6 @@ public partial class OverlayWindow
     {
         SetInnCircleEditing(editing);
         SetInnCallEditing(editing);
-        SetInnGourmandEditing(editing);
         RenderInn();
     }
 
@@ -288,7 +284,7 @@ public partial class OverlayWindow
         _innWindowScale = scale;
         ScaleInnCircles(scale * _config.InnStripScale);
         ScaleInnCalls(scale * _config.InnStripScale);
-        ScaleInnGourmands(scale * _config.InnStripScale);
+        ScaleInnGourmands();
         // The advice panels and the marks follow the game's layout and the size: drawn again.
         RenderInn();
     }

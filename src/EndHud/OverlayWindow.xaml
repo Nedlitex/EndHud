@@ -119,21 +119,10 @@
                 <StackPanel x:Name="InnCallStack" />
             </StackPanel>
         </Border>
-        <!-- The gourmands' tiles (one per gourmand: each request's item, its picture as large as a kitchen circle's), placed
-             in the window by InnGourmandLayout.Arrange: in two columns whose right edge and top are config
-             InnGourmandRight/InnGourmandTop (around the Full Blaze meter, the tray and the circles), or beside the open
-             dispatch panel. Never hit-tested. -->
+        <!-- The gourmands' tiles (one per gourmand: each request's item and its picture), each at its table's fixed spot
+             (InnGourmandLayout: tables 1-3 down the left edge, 4-6 down the right), panel open or closed. Never hit-tested,
+             never dragged. -->
         <Canvas x:Name="InnGourmandTiles" IsHitTestVisible="False" />
-        <!-- The frame dragged while the menu is open to place the gourmands' columns (a sample tile in it). -->
-        <Border x:Name="InnGourmandFrame" BorderThickness="2" Padding="6" CornerRadius="4" Background="Transparent"
-                MouseLeftButtonDown="InnGourmand_MouseDown" MouseMove="InnGourmand_MouseMove"
-                MouseLeftButtonUp="InnGourmand_MouseUp">
-            <StackPanel>
-                <TextBlock x:Name="InnGourmandDragLabel" Visibility="Collapsed" Text="{DynamicResource Inn.Gourmand.Drag}"
-                           Foreground="{StaticResource Accent}" Margin="0,0,0,4" HorizontalAlignment="Right" />
-                <Canvas x:Name="InnGourmandStack" HorizontalAlignment="Right" />
-            </StackPanel>
-        </Border>
         <!-- The gauges, centred on config GaugesCenterX, standing on GaugesBottomY. -->
         <Border x:Name="GaugeFrame" BorderThickness="2" Padding="6" CornerRadius="4" Background="Transparent"
                 Visibility="Collapsed" SizeChanged="GaugeFrame_SizeChanged"

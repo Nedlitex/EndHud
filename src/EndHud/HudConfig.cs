@@ -145,13 +145,6 @@ internal sealed class HudConfig
 
     public double InnCircleY { get; set; } = InnKitchenCircleLayout.DefaultBottomY;
 
-    /// <summary>Where the gourmands' banners sit: their stack's right edge and top, as fractions of the game window (by default at the right, below the status at the top right).</summary>
-    public double InnGourmandRight { get; set; } = DefaultInnGourmandRight;
-
-    public double InnGourmandTop { get; set; } = DefaultInnGourmandTop;
-
-    public const double DefaultInnGourmandRight = 0.985, DefaultInnGourmandTop = 0.2;
-
     /// <summary>
     /// How far the menu and the debug panel have been dragged from their usual spots (the menu
     /// centred, the debug panel at the left), as a fraction of the game window's width and height.
@@ -257,8 +250,6 @@ internal static class ConfigStore
         // A place off the window would leave the banners where nobody can drag them back.
         config.InnCallX = double.IsFinite(config.InnCallX) ? Math.Clamp(config.InnCallX, 0, 1) : HudConfig.DefaultComboHintX;
         config.InnCallY = double.IsFinite(config.InnCallY) ? Math.Clamp(config.InnCallY, 0, 1) : HudConfig.DefaultComboHintY;
-        config.InnGourmandRight = double.IsFinite(config.InnGourmandRight) ? Math.Clamp(config.InnGourmandRight, 0, 1) : HudConfig.DefaultInnGourmandRight;
-        config.InnGourmandTop = double.IsFinite(config.InnGourmandTop) ? Math.Clamp(config.InnGourmandTop, 0, 1) : HudConfig.DefaultInnGourmandTop;
         config.InnCircleX = double.IsFinite(config.InnCircleX) ? Math.Clamp(config.InnCircleX, 0, 1) : InnKitchenCircleLayout.DefaultCenterX;
         config.InnCircleY = double.IsFinite(config.InnCircleY) ? Math.Clamp(config.InnCircleY, 0, 1) : InnKitchenCircleLayout.DefaultBottomY;
         return config;
