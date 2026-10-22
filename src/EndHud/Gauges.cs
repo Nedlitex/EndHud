@@ -17,6 +17,9 @@ internal enum GaugeKind
 
     /// <summary>A team buff (Link): its icon in the middle; a full glowing ring while it's active.</summary>
     Buff,
+
+    /// <summary>A lasting battle skill running (Si's).</summary>
+    SkillTimer,
 }
 
 /// <summary>One round gauge: the operator's avatar (or the buff's icon) in the middle, the ring around it.</summary>

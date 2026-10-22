@@ -23,8 +23,96 @@ public class GaugesTests
 
     private static RememberedCounter Counter(string id, CounterDefinition counter, int? value, bool live = true) => new(id, counter, value, live);
 
-    private static GaugeBoard Build(PartyState state, IReadOnlyList<RememberedCounter>? counters = null, IReadOnlyList<string>? buffsSeen = null) =>
-        GaugesView.Build(state, counters ?? [], buffsSeen ?? [], (_, _) => null, _ => null, _ => null);
+    private static GaugeBoard Build(PartyState state, IReadOnlyList<RememberedCounter>? counters = null, IReadOnlyList<string>? buffsSeen = null,
+        IReadOnlyDictionary<string, SkillTimerView>? timers = null) =>
+        GaugesView.Build(state, counters ?? [], buffsSeen ?? [], timers ?? new Dictionary<string, SkillTimerView>(), (_, _) => null, _ => null, _ => null);
+
+    private static PartyState SiSquad() => new([Slot(1, "Si", new UltimateReading(false, 0.3)), Slot(2, "Arcane")], PanelMarks: 8);
+
+    /// <summary>Si's damage stacks have no maximum (owner): a plain number, never a share of segments, never capped.</summary>
+    [Fact]
+    public void Si_stacks_are_a_plain_number_never_a_share_of_a_maximum()
+    {
+        foreach (int stacks in new[] { 0, 21, 45, 150 })
+        {
+            var gauges = Build(SiSquad(), [Counter("Si", OperatorCounters.SiStacks, stacks)]).Gauges;
+
+            var counter = Assert.Single(gauges, g => g.Kind == GaugeKind.Counter);
+            Assert.Equal((OperatorCounters.SiStacks.NameZh, stacks.ToString(), 0, null, false),
+                (counter.Label, counter.Number, counter.Segments, counter.Fill, counter.Ready));
+        }
+    }
+
+    /// <summary>The timer circle is there while there's something to show (the swirl seen), and only then.</summary>
+    [Fact]
+    public void Si_timer_gauge_shows_only_while_a_view_exists()
+    {
+        var running = new Dictionary<string, SkillTimerView> { ["Si"] = new(0.5, 11, Estimated: false) };
+
+        var with = Build(SiSquad(), timers: running).Gauges;
+        var without = Build(SiSquad()).Gauges;
+
+        var timer = Assert.Single(with, g => g.Kind == GaugeKind.SkillTimer);
+        Assert.Equal((Loc.Get("Gauge.SkillRunning"), 0.5, true), (timer.Label, timer.Fill, timer.Running));
+        Assert.Same(timer, with[1]); // right after her ultimate
+        Assert.DoesNotContain(without, g => g.Kind == GaugeKind.SkillTimer);
+        Assert.NotEqual(GaugesView.Key(new GaugeBoard(without)), GaugesView.Key(new GaugeBoard(with)));
+    }
+
+    /// <summary>The seconds left, rounded up; "≈" in front when estimated (the ring couldn't be read).</summary>
+    [Fact]
+    public void Si_timer_gauge_shows_seconds_and_marks_an_estimate()
+    {
+        string Number(double seconds, bool estimated) => Build(SiSquad(),
+            timers: new Dictionary<string, SkillTimerView> { ["Si"] = new(seconds / 22, seconds, estimated) }).Gauges.Single(g => g.Kind == GaugeKind.SkillTimer).Number!;
+
+        Assert.Equal("11", Number(11, false));
+        Assert.Equal("11", Number(10.2, false));
+        Assert.Equal("≈11", Number(11, true));
+        Assert.Equal("1", Number(0.3, false));
+    }
+
+    /// <summary>Every text in a drawn gauge, with its size, and how many ring arcs it has.</summary>
+    private static (List<(string Text, double Size)> Texts, int Arcs) Parts(Gauge gauge) => OnSta(() =>
+    {
+        var texts = new List<(string, double)>();
+        int arcs = 0;
+        void Walk(object node)
+        {
+            if (node is System.Windows.Controls.TextBlock t) texts.Add((t.Text, t.FontSize));
+            if (node is System.Windows.Shapes.Path) arcs++;
+            if (node is DependencyObject d) foreach (object child in LogicalTreeHelper.GetChildren(d)) Walk(child);
+        }
+        Walk(Gauges.Build(new GaugeBoard([gauge])));
+        return (texts, arcs);
+    });
+
+    [Fact]
+    public void Si_stacks_draw_as_a_number_without_segments()
+    {
+        var (texts, arcs) = Parts(new Gauge(GaugeKind.Counter, null, null, "stacks", null, false) { Number = "21", Segments = 0 });
+        var (segmentedTexts, segmentedArcs) = Parts(new Gauge(GaugeKind.Counter, null, null, "arrows", 0.5, false) { Number = "2", Segments = 4 });
+
+        Assert.Contains(("21", 34.0), texts);           // large, in the middle
+        Assert.Equal(0, arcs);                          // no segments
+        Assert.Equal(2, segmentedArcs);                 // a segmented counter still has its two lit segments
+        Assert.Contains(("2", 25.0), segmentedTexts);   // and its count in the corner badge
+    }
+
+    private static bool Grey(byte r, byte g, byte b) => r is > 160 and < 210 && g is > 175 and < 220 && b is > 190 and < 230 && b > r;
+
+    /// <summary>The game's grey-white, glowing, draining like a running ultimate; the seconds in the corner.</summary>
+    [Fact]
+    public void Si_timer_is_a_grey_ring_that_drains()
+    {
+        Rendered Timer(double left) => Render(new Gauge(GaugeKind.SkillTimer, null, null, "timer", left, false) { Running = true, Number = "11" });
+
+        int full = Timer(1).Count(Grey), half = Timer(0.5).Count(Grey), nearlyOut = Timer(0.1).Count(Grey);
+        Assert.True(full > 900, $"{full} grey pixels when full");
+        Assert.True(half < full * 0.75 && nearlyOut < half / 2, $"{full}, {half}, {nearlyOut}");
+        Assert.Equal(0, Timer(0.5).Count(Violet));
+        Assert.Contains(("11", 25.0), Parts(new Gauge(GaugeKind.SkillTimer, null, null, "timer", 0.5, false) { Running = true, Number = "11" }).Texts);
+    }
 
     [Fact]
     public void Each_recognised_operator_gets_their_ultimate_then_their_own_counters_in_slot_order()

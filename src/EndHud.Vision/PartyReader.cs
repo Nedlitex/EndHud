@@ -72,6 +72,10 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
     /// null when not read this time (it's read less often than the rest).</summary>
     public IReadOnlyList<BossStatusReading>? BossStatuses { get; init; }
 
+    /// <summary>Lasting battle skills' buttons (Si's, see <see cref="SkillRing"/>), read once the squad
+    /// is named; empty when none.</summary>
+    public IReadOnlyList<SkillRingReading> SkillRings { get; init; } = [];
+
     /// <summary>
     /// False when the squad panel isn't on screen (menus, map, cutscenes). Mainly the HP-bar
     /// marks, which show in every state; the level text (exploration) and combo bars (combat)

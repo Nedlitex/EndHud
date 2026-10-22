@@ -886,6 +886,10 @@ internal sealed class PartyMonitor : IDisposable
                         // operator, so read once we know who it is.
                         Enter("counters");
                         state = state with { Counters = OperatorCounters.ReadControlled(gameFrame, state) };
+                        // Battle skills that change their button while they last (Si's): which icon,
+                        // and how much of the ring is left, for the gauge row's timer.
+                        Enter("skill rings");
+                        state = state with { SkillRings = SkillRing.Read(gameFrame, state) };
                         // Team buffs (Link) beside it: drawn in combat only. While the panel is out of
                         // sight the frame is something else (an ultimate's cutscene): the last ones stay.
                         Enter("buffs");

@@ -14,6 +14,11 @@ namespace EndHud;
 /// </summary>
 internal static class GaugesView
 {
+    public static GaugeBoard Build(PartyState state, IReadOnlyList<RememberedCounter> counters, IReadOnlyList<string> buffsSeen,
+        IReadOnlyDictionary<string, SkillTimerView> timers,
+        Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, Func<string, BitmapSource?> statusIcon) =>
+        Build(state, counters, buffsSeen, skillIcon, avatar, statusIcon);
+
     /// <param name="buffsSeen">Buffs seen so far this battle (the reading's own included), in the order first seen.</param>
     public static GaugeBoard Build(PartyState state, IReadOnlyList<RememberedCounter> counters, IReadOnlyList<string> buffsSeen,
         Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, Func<string, BitmapSource?> statusIcon)
