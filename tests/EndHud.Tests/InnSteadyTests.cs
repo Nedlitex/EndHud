@@ -76,7 +76,7 @@ public class InnSteadyTests
         Assert.NotEmpty(display.Views(session, S(10.6), callsEnabled: true, Text).Marks);
 
         // The meter it covers read: it's closed. No mark, at once; the banners still held down a moment.
-        display.Show(session, Session(10.9, fire: new FireMeter(14, 6, Ready: false)), S(10.9));
+        display.Show(session, Session(10.9, fire: new FireMeter(14, 6, Ready: false, BlazeLeft: null)), S(10.9));
         var closed = display.Views(session, S(10.9), callsEnabled: true, Text);
         Assert.Empty(closed.Marks);
         Assert.True(closed.Away); // the banners still put away a moment

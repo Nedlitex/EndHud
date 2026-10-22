@@ -288,7 +288,7 @@ internal sealed class PartyMonitor : IDisposable
     internal static string DescribeInn(InnReading r) =>
         $"inn {r.Screen}, time left {r.Clock?.Left.ToString(@"m\:ss") ?? "-"}, " +
         $"tables {string.Join(" ", r.TableCards.Select(t => t is null ? "?" : $"{t.State}{(t.Items.Count > 0 ? ":" + string.Join("+", t.Items.Select(i => (i.Id ?? "?") + (i.Served ? " served" : ""))) : "")}"))}, " +
-        $"fire {(r.Fire is { } f ? (f.Ready ? "ready" : f.Fire?.ToString() ?? "?") : "-")}" +
+        $"fire {(r.Fire is { } f ? (f.BlazeLeft is { } blaze ? $"blaze {blaze.TotalSeconds:F0} s left" : f.Ready ? "ready" : f.Fire?.ToString() ?? "?") : "-")}" +
         (r.Panel is { } p ? $", panel kitchen {p.Kitchen}/{p.Kitchens} queue {string.Join("+", p.Queue.Where(q => q.Filled).Select(q => q.DishId ?? "?"))}" : "") +
         (r.Bubble is { } b ? $", bubble \"{b.Text}\"" : "") +
         (r.Screen == InnScreenKind.ChefPicker && r.Fresh ? $", picker kitchen {r.PickerKitchen?.ToString() ?? "?"}" : "") +

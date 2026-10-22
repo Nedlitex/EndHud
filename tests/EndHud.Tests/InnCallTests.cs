@@ -181,7 +181,7 @@ public class InnCallTests(ITestOutputHelper output)
     public void Calls_stack_by_kitchen_number_then_full_blaze()
     {
         var session = Prepared();
-        session.Update(Session(10, tables: Tables(Order(1, A), Order(2, B)), fire: new FireMeter(90, 4, false)));
+        session.Update(Session(10, tables: Tables(Order(1, A), Order(2, B)), fire: new FireMeter(90, 4, false, BlazeLeft: null)));
         var calls = session.Advice(S(10))!.Calls;
 
         var kitchens = calls.Where(c => c.Kitchen is not null).Select(c => c.Kitchen!.Value).ToList();

@@ -54,24 +54,24 @@ public class FullBlazeTests
     {
         var tracker = new FullBlazeTracker();
 
-        tracker.Update(S(100), false, true);
+        tracker.Update(S(100), false, null, true);
         Assert.False(tracker.Running);
-        tracker.Update(S(110), true, true);
-        tracker.Update(S(114), true, true);
+        tracker.Update(S(110), true, null, true);
+        tracker.Update(S(114), true, null, true);
         Assert.Equal(S(4), tracker.FullFor);
         Assert.False(tracker.Running);
 
-        tracker.Update(S(115), null, true); // an unreadable frame changes nothing
+        tracker.Update(S(115), null, null, true); // an unreadable frame changes nothing
         Assert.Equal(S(5), tracker.FullFor);
 
-        tracker.Update(S(116), false, true);
+        tracker.Update(S(116), false, null, true);
         Assert.True(tracker.Running);
         Assert.Equal(S(60), tracker.RunningLeft);
         Assert.Equal(TimeSpan.Zero, tracker.FullFor);
 
-        tracker.Update(S(175.5), false, true);
+        tracker.Update(S(175.5), false, null, true);
         Assert.True(tracker.Running);
-        tracker.Update(S(176), false, true);
+        tracker.Update(S(176), false, null, true);
         Assert.False(tracker.Running);
     }
 
@@ -80,12 +80,12 @@ public class FullBlazeTests
     public void The_session_ending_is_not_full_blaze()
     {
         var tracker = new FullBlazeTracker();
-        tracker.Update(S(10), true, true);
+        tracker.Update(S(10), true, null, true);
 
-        tracker.Update(S(11), false, false);
+        tracker.Update(S(11), false, null, false);
 
         Assert.False(tracker.Running);
-        tracker.Update(S(12), false, true);
+        tracker.Update(S(12), false, null, true);
         Assert.False(tracker.Running);
     }
 
@@ -101,7 +101,7 @@ public class FullBlazeTests
         for (double t = 318; t <= 340; t += 0.5)
         {
             bool full = t >= 324;
-            tracker.Update(S(t), full, true);
+            tracker.Update(S(t), full, null, true);
             int fire = full ? FullBlazeAdvisor.Full : 92;
             said.Add(FullBlazeAdvisor.Advise(fire, tracker.Running, S(450 - t), 2, S(12), tracker.FullFor));
         }

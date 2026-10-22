@@ -52,9 +52,11 @@ public static class FullBlazeAdvisor
 }
 
 /// <summary>
-/// Whether Full Blaze is on, and how long the fire has been full. Running isn't read off the screen:
-/// pressing R is the only way the ready button goes while the session continues, so from the frame it
-/// disappears Full Blaze counts as running for <see cref="Lasts"/>.
+/// Whether Full Blaze is on, and how long the fire has been full. Running is read off the screen: while it runs the
+/// meter's button is a red circle counting down what's left (<see cref="FireMeter.BlazeLeft"/>, test_yuanyuan5). Until
+/// that countdown is read, the ready button going while the session continues (pressing R is the only way it goes)
+/// counts as running for <see cref="Lasts"/>. While it runs, a frame read as ready is not taken: the game's
+/// "满堂生彩" line over the red circle was read as the ready label, and kept "开启满堂彩（R）" up all through it.
 /// </summary>
 public sealed class FullBlazeTracker
 {
@@ -64,6 +66,7 @@ public sealed class FullBlazeTracker
     private TimeSpan _now;
     private TimeSpan? _fullSince;
     private TimeSpan? _runningUntil;
+    private bool _countdownSeen; // the running time came from the countdown read off the meter
 
     /// <summary>Full Blaze is on.</summary>
     public bool Running => _runningUntil > _now;
@@ -77,16 +80,28 @@ public sealed class FullBlazeTracker
     /// <summary>One frame's reading.</summary>
     /// <param name="now">A clock that keeps running (not the session timer).</param>
     /// <param name="ready">The ready button shows; null when the meter couldn't be read this frame (nothing changes).</param>
+    /// <param name="blazeLeft">The meter shows Full Blaze running with this long left (<see cref="FireMeter.BlazeLeft"/>); null when it doesn't or wasn't read.</param>
     /// <param name="inSession">A session is on screen; when it isn't, everything is forgotten.</param>
-    public void Update(TimeSpan now, bool? ready, bool inSession)
+    public void Update(TimeSpan now, bool? ready, TimeSpan? blazeLeft, bool inSession)
     {
         _now = now;
         if (!inSession)
         {
             _fullSince = null;
             _runningUntil = null;
+            _countdownSeen = false;
             return;
         }
+        if (blazeLeft is { } left)
+        {
+            _fullSince = null;
+            _runningUntil = now + left;
+            _countdownSeen = true;
+            return;
+        }
+        // A ready read while the countdown shows it running is the game's own line over the red circle, not the button.
+        if (Running && _countdownSeen) return;
+        _countdownSeen = false;
         if (ready is true)
         {
             _fullSince ??= now;

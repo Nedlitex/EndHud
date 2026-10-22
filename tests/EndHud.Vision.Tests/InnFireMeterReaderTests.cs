@@ -50,6 +50,25 @@ public class InnFireMeterReaderTests
         }
     }
 
+    /// <summary>
+    /// Full Blaze on (test_yuanyuan5, owner's live session 2026-10-21): the button is a red circle counting down what's left,
+    /// with the game's own line left of it ("赏钱翻倍，速度提升!" as it starts, then "灶火正旺，满堂生彩!"). Before, the second
+    /// line was read as the ready label, and "开启满堂彩（R）" stayed up all through Full Blaze. At every size.
+    /// </summary>
+    [Theory]
+    [InlineData("session-full-blaze-started", 60, 19)]
+    [InlineData("session-full-blaze-running", 13, 26)]
+    public async Task Full_blaze_running_is_read_as_its_countdown_not_as_ready(string fixture, int secondsLeft, int streak)
+    {
+        foreach (var name in Screens().Select(row => (string)row[0]))
+        {
+            var screen = SimulatedScreen.Named(name);
+            var read = await FireMeterReader.ReadAsync(InnScreenTests.Text, screen.Render(await InnScreenTests.Load(fixture)));
+            Assert.True(read == new FireMeter(null, streak, false, BlazeLeft: TimeSpan.FromSeconds(secondsLeft)),
+                $"{fixture} at {screen.Width}x{screen.Height}: read {read?.ToString() ?? "nothing"}, expected Full Blaze with {secondsLeft} s left, streak {streak}");
+        }
+    }
+
     /// <summary>The session's first frame: the HUD is fading in and the meter can't be read yet. Nothing is guessed.</summary>
     [Fact]
     public async Task A_fading_meter_is_not_read()
@@ -64,6 +83,6 @@ public class InnFireMeterReaderTests
             Assert.True(read is null, $"{what}: read {read} where there's no meter");
             return;
         }
-        Assert.True(read == new FireMeter(fire, streak, ready), $"{what}: read {read?.ToString() ?? "nothing"}, expected fire {fire}, streak {streak}, ready {ready}");
+        Assert.True(read == new FireMeter(fire, streak, ready, BlazeLeft: null), $"{what}: read {read?.ToString() ?? "nothing"}, expected fire {fire}, streak {streak}, ready {ready}");
     }
 }

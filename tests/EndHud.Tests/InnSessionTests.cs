@@ -464,19 +464,19 @@ public class InnSessionTests
     public void Full_blaze_is_called_when_full_readied_for_from_80_and_quiet_while_it_runs()
     {
         var session = Prepared(1, 2);
-        session.Update(Session(10, left: 200, tables: Tables(Order(1, A)), fire: new FireMeter(50, 3, false)));
+        session.Update(Session(10, left: 200, tables: Tables(Order(1, A)), fire: new FireMeter(50, 3, false, BlazeLeft: null)));
         Assert.Null(session.Advice(S(10))!.Blaze);
 
-        session.Update(Session(11, left: 199, tables: Tables(Order(1, A)), fire: new FireMeter(85, 9, false)));
+        session.Update(Session(11, left: 199, tables: Tables(Order(1, A)), fire: new FireMeter(85, 9, false, BlazeLeft: null)));
         var near = session.Advice(S(11))!;
         Assert.Equal(FullBlazeAdvice.GetReady, near.Blaze);
         Assert.All(near.Dispatch!.Kitchens, k => Assert.Equal(KitchenQueue.Slots, k.Queue.Count)); // every slot filled for the rush
 
-        session.Update(Session(12, left: 198, tables: Tables(Order(1, A)), fire: new FireMeter(100, 10, Ready: true)));
+        session.Update(Session(12, left: 198, tables: Tables(Order(1, A)), fire: new FireMeter(100, 10, Ready: true, BlazeLeft: null)));
         Assert.Equal(FullBlazeAdvice.StartNow, session.Advice(S(12))!.Blaze);
 
         // The ready button went while the session goes on: the player pressed R.
-        session.Update(Session(14, left: 196, tables: Tables(Order(1, A)), fire: new FireMeter(0, 10, false)));
+        session.Update(Session(14, left: 196, tables: Tables(Order(1, A)), fire: new FireMeter(0, 10, false, BlazeLeft: null)));
         var running = session.Advice(S(14))!;
         Assert.True(running.BlazeRunning);
         Assert.Null(running.Blaze);

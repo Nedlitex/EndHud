@@ -36,7 +36,7 @@ public class InnWireUpTests
 
         public Task<IReadOnlyList<TableCard?>> ReadTablesAsync(Frame frame) => Task.FromResult(Tables);
 
-        public Task<FireMeter?> ReadFireAsync(Frame frame) => Task.FromResult<FireMeter?>(new FireMeter(30, 4, false));
+        public Task<FireMeter?> ReadFireAsync(Frame frame) => Task.FromResult<FireMeter?>(new FireMeter(30, 4, false, BlazeLeft: null));
 
         public Task<DispatchPanel?> ReadPanelAsync(Frame frame)
         {

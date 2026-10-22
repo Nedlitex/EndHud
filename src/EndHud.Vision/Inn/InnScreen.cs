@@ -59,14 +59,17 @@ public static partial class InnScreen
         foreach (var region in new[] { TimerBelowButton, TimerAtTop })
         {
             if (ReadTime(frame, layout, region) is { } left)
-                return new SessionClock(left, left == TimeSpan.Zero);
+                return new SessionClock(left, left == TimeSpan.Zero) { BelowButton = region == TimerBelowButton };
         }
         return null;
     }
 
-    private static TimeSpan? ReadTime(Frame frame, InnLayout layout, PixelRect region)
+    private static TimeSpan? ReadTime(Frame frame, InnLayout layout, PixelRect region) => ReadTime(frame, layout.TopLeft(region), TimerInk, layout.Scale);
+
+    /// <summary>A time "mm:ss" in the HUD's digits in <paramref name="region"/> (window pixels); null for anything else.</summary>
+    internal static TimeSpan? ReadTime(Frame frame, PixelRect region, InnText.Ink ink, double hudScale)
     {
-        var glyphs = InnDigits.Glyphs(frame, layout.TopLeft(region), TimerInk, layout.Scale);
+        var glyphs = InnDigits.Glyphs(frame, region, ink, hudScale);
         var chars = glyphs.Select(InnDigits.Classify).ToList();
         if (chars.Any(c => c is null)) return null;
         string text = new([.. chars.Select(c => c!.Value)]);

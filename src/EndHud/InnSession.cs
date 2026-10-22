@@ -279,8 +279,10 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         if (panelRead is not null) TakePanel(panelRead, reading.At);
         TakePanelOpen(panelRead, reading.At, closedForSure: reading.Panel is null && reading.Fire is not null);
         if (reading.TableCards.Count > 0) TakeTables(reading.TableCards, reading.At);
-        if (reading.Fire is { } fire) _fire = fire.Ready ? FullBlazeAdvisor.Full : fire.Fire ?? _fire;
-        _blaze.Update(reading.At, reading.Fire?.Ready, inSession: true);
+        // While Full Blaze runs the meter shows its countdown, not the fire: the fire is unknown until read again, never
+        // the full meter from before it was started.
+        if (reading.Fire is { } fire) _fire = fire.BlazeLeft is not null ? null : fire.Ready ? FullBlazeAdvisor.Full : fire.Fire ?? _fire;
+        _blaze.Update(reading.At, reading.Fire?.Ready, reading.Fire?.BlazeLeft, inSession: true);
         if (reading.Bubble is { } bubble) TakeBubble(bubble, reading.At);
     }
 
@@ -336,7 +338,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         _gourmands.Clear();
         _gourmandLeaving.Clear();
         _gourmandsDone.Clear();
-        _blaze.Update(TimeSpan.Zero, null, inSession: false);
+        _blaze.Update(TimeSpan.Zero, null, null, inSession: false);
         _fire = null;
         _ordersSeen = false;
         _panelOpen = null;

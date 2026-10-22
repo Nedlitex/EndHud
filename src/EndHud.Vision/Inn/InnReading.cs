@@ -27,7 +27,15 @@ public enum InnScreenKind
 
 /// <summary>The session's time left (the gold pill at the top left).</summary>
 /// <param name="Closed">The timer reached 0:00: no new guests (those seated are still served).</param>
-public sealed record SessionClock(TimeSpan Left, bool Closed);
+public sealed record SessionClock(TimeSpan Left, bool Closed)
+{
+    /// <summary>
+    /// The timer was read in its pill under the "结束经营" button, where it is only while nothing covers the top left: the
+    /// dispatch panel open moves it to the top (test_yuanyuan5, 252.6 s: the panel just closed, the HUD fading back in and
+    /// the Full Blaze meter not read yet, the timer already under the button). False when read at the top.
+    /// </summary>
+    public bool BelowButton { get; init; }
+}
 
 /// <summary>
 /// The Full Blaze meter (满堂彩, 灶中火) under the round button at the right. Below full it shows the
@@ -36,7 +44,11 @@ public sealed record SessionClock(TimeSpan Left, bool Closed);
 /// <param name="Fire">0–100; 100 when <paramref name="Ready"/>; null when the number couldn't be read.</param>
 /// <param name="Streak">成功连续上餐: orders served in a row; null when it couldn't be read.</param>
 /// <param name="Ready">Full: Full Blaze can be started (R).</param>
-public sealed record FireMeter(int? Fire, int? Streak, bool Ready);
+/// <param name="BlazeLeft">
+/// Full Blaze is on: the round button is a red circle counting down what's left of it ("00:44"), the fire number gone
+/// (test_yuanyuan5 from 333 s); null when the meter shows the fire or the ready button. No default: the reader says which.
+/// </param>
+public sealed record FireMeter(int? Fire, int? Streak, bool Ready, TimeSpan? BlazeLeft);
 
 /// <summary>What a table card at the top of the session shows.</summary>
 public enum TableState

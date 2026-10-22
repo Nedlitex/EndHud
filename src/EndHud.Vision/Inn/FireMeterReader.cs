@@ -20,10 +20,12 @@ public static partial class FireMeterReader
     // The round button's middle, and the ready label left of it.
     internal static readonly PixelRect Button = new(3680, 1175, 80, 80);
     internal static readonly PixelRect ReadyLabel = new(3290, 1235, 240, 60);
+    // While Full Blaze runs: the time it has left ("00:44", white) in the red circle where the button was.
+    internal static readonly PixelRect Countdown = new(3600, 1180, 170, 70);
     // The button is red when ready: at least this share of its middle (the white flame drawn on it is the rest).
     private const double ReadyRedShare = 0.15;
 
-    /// <summary>The meter, or null when neither the fire nor the ready label can be read (hidden, fading in).</summary>
+    /// <summary>The meter, or null when neither the fire, Full Blaze's countdown nor the ready label can be read (hidden, fading in).</summary>
     public static async Task<FireMeter?> ReadAsync(InnText text, Frame frame)
     {
         var layout = new InnLayout(frame);
@@ -32,13 +34,24 @@ public static partial class FireMeterReader
         int? streak = ParseStreak(InnDigits.Read(frame, streakRegion, StreakRed, layout.Scale, minHeightShare: StreakHeightShare))
                       ?? ParseStreak(InnDigits.Read(frame, streakRegion, StreakWhite, layout.Scale, minHeightShare: StreakHeightShare));
         if (ParseFire(InnDigits.Read(frame, layout.TopRight(Fire), InnText.White, layout.Scale, dropUnknownFirst: true)) is { } fire)
-            return new FireMeter(fire, streak, Ready: false);
+            return new FireMeter(fire, streak, Ready: false, BlazeLeft: null);
+        // Full Blaze on: the button is a red circle with the time it has left in white, and the line left of it is the
+        // game's own ("赏钱翻倍，速度提升!", then "灶火正旺，满堂生彩!"), not the ready label (test_yuanyuan5, 333-393 s).
+        if (InnScreen.ReadTime(frame, layout.TopRight(Countdown), InnText.White, layout.Scale) is { } left && left <= FullBlazeTracker.Lasts)
+            return new FireMeter(null, streak, Ready: false, BlazeLeft: left);
         if (RedShare(frame, layout.TopRight(Button)) >= ReadyRedShare
             && await text.ReadAsync(frame, layout.TopRight(ReadyLabel), Yellow, layout.Scale) is { } label
-            && (label.Contains("满堂") || label.Contains("堂彩") || label.Contains("开启")))
-            return new FireMeter(100, streak, Ready: true);
+            && IsReadyLabel(label))
+            return new FireMeter(100, streak, Ready: true, BlazeLeft: null);
         return null;
     }
+
+    /// <summary>
+    /// The ready label "开启满堂彩". Not "满堂" alone: while Full Blaze runs the game's line "灶火正旺，满堂生彩!" stands in the
+    /// same place over the same red circle, and was read as ready (test_yuanyuan5, 341-393 s: "开启满堂彩（R）" up all through
+    /// Full Blaze).
+    /// </summary>
+    internal static bool IsReadyLabel(string label) => label.Contains("堂彩") || label.Contains("开启");
 
     private static int? ParseFire(string? read) =>
         read is not null && FireText().Match(read) is { Success: true } m && int.Parse(m.Groups[1].Value) is var n and <= 100 ? n : null;
