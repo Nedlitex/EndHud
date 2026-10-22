@@ -1,0 +1,95 @@
+<Window x:Class="EndHud.AlertEditor"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{DynamicResource Alerts.Title}"
+        Width="1100" Height="720" MinWidth="900" MinHeight="560"
+        WindowStartupLocation="CenterScreen" Topmost="True"
+        FontFamily="Microsoft YaHei UI, Segoe UI" FontSize="13">
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="10,3" />
+            <Setter Property="Margin" Value="0,0,6,6" />
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="MinWidth" Value="90" />
+        </Style>
+        <Style TargetType="GroupBox">
+            <Setter Property="Padding" Value="6" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="{DynamicResource Alerts.Intro}" TextWrapping="Wrap" Margin="0,0,0,8" />
+        <!-- The file couldn't be read (renamed), is from a newer EndHud, or couldn't be opened. -->
+        <TextBlock Grid.Row="1" x:Name="StoreText" Foreground="#B04030" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,0,0,8" />
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*" MinWidth="240" MaxWidth="360" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="5*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Every rule, in the player's order -->
+            <GroupBox Grid.Column="0" Header="{DynamicResource Alerts.List}">
+                <DockPanel>
+                    <WrapPanel DockPanel.Dock="Bottom" Margin="0,6,0,0">
+                        <Button x:Name="NewButton" Content="{DynamicResource Editor.New}" Click="NewButton_Click" />
+                        <Button x:Name="CopyButton" Content="{DynamicResource Editor.Copy}" Click="CopyButton_Click" ToolTip="{DynamicResource Alerts.CopyHint}" />
+                        <Button x:Name="DeleteButton" Content="{DynamicResource Editor.Delete}" Click="DeleteButton_Click" />
+                    </WrapPanel>
+                    <Grid>
+                        <ListBox x:Name="RuleList" SelectionChanged="RuleList_SelectionChanged" />
+                        <!-- Empty state: what a rule is, with two examples. -->
+                        <TextBlock x:Name="EmptyText" Text="{DynamicResource Alerts.Empty}" Foreground="#666" TextWrapping="Wrap"
+                                   Margin="8" IsHitTestVisible="False" />
+                    </Grid>
+                </DockPanel>
+            </GroupBox>
+
+            <!-- The selected rule -->
+            <GroupBox Grid.Column="2" x:Name="RuleGroup" Header="{DynamicResource Alerts.Selected}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel x:Name="RuleDetails">
+                        <DockPanel Margin="0,0,0,2">
+                            <TextBlock DockPanel.Dock="Left" Text="{DynamicResource Alerts.Message}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBox x:Name="MessageTextBox" MaxLength="40" VerticalAlignment="Center" TextChanged="MessageTextBox_TextChanged" />
+                        </DockPanel>
+                        <TextBlock Text="{DynamicResource Alerts.MessageHint}" Foreground="#888" TextWrapping="Wrap" Margin="0,0,0,10" />
+                        <TextBlock Text="{DynamicResource Alerts.Conditions}" FontWeight="SemiBold" Margin="0,0,0,6" />
+                        <StackPanel x:Name="ConditionRows" />
+                        <Button x:Name="AddConditionButton" Content="{DynamicResource Editor.AddCondition}" HorizontalAlignment="Left"
+                                Margin="0,4,0,0" Click="AddCondition_Click" />
+                    </StackPanel>
+                </ScrollViewer>
+            </GroupBox>
+        </Grid>
+
+        <StackPanel Grid.Row="3" Margin="0,0,0,8">
+            <TextBlock x:Name="ProblemsText" Foreground="#B04030" TextWrapping="Wrap" />
+            <TextBlock x:Name="StatusText" Foreground="#2E7D32" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <DockPanel Grid.Row="4" LastChildFill="False">
+            <WrapPanel DockPanel.Dock="Left" MaxWidth="700">
+                <Button x:Name="PasteCodeButton" Content="{DynamicResource Alerts.PasteCode}" Click="PasteCode_Click" />
+                <Button x:Name="CopySelectedCodeButton" Content="{DynamicResource Alerts.CopySelectedCode}" Click="CopySelectedCode_Click" />
+                <Button x:Name="CopyAllCodeButton" Content="{DynamicResource Alerts.CopyAllCode}" Click="CopyAllCode_Click" />
+                <Button x:Name="ImportFileButton" Content="{DynamicResource Editor.ImportFile}" Click="ImportFile_Click" />
+                <Button x:Name="ExportFileButton" Content="{DynamicResource Editor.ExportFile}" Click="ExportFile_Click" />
+            </WrapPanel>
+            <Button DockPanel.Dock="Right" x:Name="CloseButton" Content="{DynamicResource Editor.Close}" Click="CloseButton_Click" Margin="0,0,0,6" />
+            <Button DockPanel.Dock="Right" x:Name="SaveButton" Content="{DynamicResource Editor.Save}" Click="SaveButton_Click" IsDefault="True" />
+        </DockPanel>
+    </Grid>
+</Window>
