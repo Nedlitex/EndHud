@@ -63,7 +63,7 @@ public class SiStackTests
     }
 
     /// <summary>
-    /// Laevatain's 熔火 flower, Typhoeus's arrows and signs, and Zhuang Fangyi's grid sit where Si's
+    /// Laevatain's Melting Flame flower, Typhoeus's arrows and signs, and Zhuang Fangyi's grid sit where Si's
     /// badge does: on their frames, reading Si's stacks gives nothing.
     /// </summary>
     [Fact]

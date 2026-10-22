@@ -10,7 +10,7 @@ using EndHud.Vision.Rotations;
 namespace EndHud;
 
 /// <summary>
-/// Conditions as rows of pickers: 非, the kind, then what it needs, then ✕; groups ("all of" / "any
+/// Conditions as rows of pickers: the "not" box, the kind, then what it needs, then ✕; groups ("all of" / "any
 /// of") shown indented under their row with their own "add". Everything is picked from lists, never
 /// typed. Used by the rotation editor (a step's expected state, a phase's entry condition) and the
 /// alert editor (a rule's conditions).
@@ -102,7 +102,7 @@ internal sealed class ConditionEditor(
     /// </summary>
     private UIElement Row(List<StateCondition> list, int index, Action<bool> changed)
     {
-        // A "not" is shown as its condition with 非 ticked.
+        // A "not" is shown as its condition with the "not" box ticked.
         var stored = list[index];
         var condition = stored is NotCondition not ? not.Of : stored;
         var row = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
