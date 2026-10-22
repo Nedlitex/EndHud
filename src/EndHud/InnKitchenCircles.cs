@@ -57,14 +57,15 @@ internal static class InnKitchenCircleView
     /// <summary>
     /// The circle, the dish's picture in it, a slot's width and the row's height, and the words' sizes, at 1080p: the
     /// circle with its words beside it, as v0.6.0 drew it under the open panel, which the owner asked back (2026-10-22, with
-    /// their screenshot of that row: "USE the original circle style").
+    /// their screenshot of that row: "USE the original circle style"); the ring and picture at 60 % of v0.6.0's, the words as they were
+    /// (owner, 2026-10-22: "the bottom circle default size should be around 60%", "ONLY ... SHRINK THE CIRCLE").
     /// </summary>
-    public const double CircleSize = 136, PictureSize = 112, SlotWidth = 300, RowHeight = CircleSize, LabelFont = 22, DishFont = 22, ReasonFont = 20;
+    public const double CircleSize = 82, PictureSize = 67, SlotWidth = 300, RowHeight = 100, LabelFont = 22, DishFont = 22, ReasonFont = 20;
 
     /// <summary>The words' column beside the ring.</summary>
     private const double WordsWidth = SlotWidth - CircleSize - 10;
 
-    private const double RingThickness = 8;
+    private const double RingThickness = 6;
 
     // Frozen: shared by every circle drawn.
     internal static readonly Color OrderColor = Color.FromRgb(0xFF, 0xC8, 0x3C);
@@ -387,13 +388,7 @@ internal static class InnKitchenCircleLayout
     public const double CenterX = 0.5, Bottom = 0.845;
 
     /// <summary>The size the row is drawn at: <paramref name="scale"/> (the window's times the player's), at most the 16:9 area's own (its height over 1080).</summary>
-    /// <summary>
-    /// The row's size at the inn's 100 %: 60 % of its drawn size (owner, 2026-10-22: "the bottom circle default size should be
-    /// around 60%, right now it is blocking the bottom menu"); the inn's size setting shrinks it further.
-    /// </summary>
-    public const double DefaultShare = 0.6;
-
-    public static double Scale(double width, double height, double scale) => Math.Min(scale, Area(width, height).Height / 1080) * DefaultShare;
+    public static double Scale(double width, double height, double scale) => Math.Min(scale, Area(width, height).Height / 1080);
 
     /// <summary>The row's size at <paramref name="scale"/>: three slots, the row's height.</summary>
     public static Size Size(double scale) => new(InnKitchenCircleView.Slots * InnKitchenCircleView.SlotWidth * scale, InnKitchenCircleView.RowHeight * scale);
