@@ -12,7 +12,7 @@ namespace EndHud;
 /// are big circles instead (owner, live 2026-10-21: the kitchens' banners were "very hard to read";
 /// <see cref="InnKitchenCircleView"/>). Stacked in a fixed order (Full Blaze, then the last calls by table), hidden in
 /// place while the dispatch panel is open. Only
-/// during a session; in the middle of the screen by default (HudConfig.DefaultInnCallX/Y), draggable while the menu is open (a sample banner shows
+/// during a session; at the combo hint's height, right of table 1's tile, by default (HudConfig.DefaultInnCallX/Y), draggable while the menu is open (a sample banner shows
 /// then); the inn helper's size and opacity apply.
 /// </summary>
 public partial class OverlayWindow

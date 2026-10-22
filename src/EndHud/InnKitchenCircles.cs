@@ -374,9 +374,9 @@ internal sealed class InnCircleRow(Grid row, Func<InnCircleModel, FrameworkEleme
 /// drag.
 /// <para>
 /// The tray's slots start at y 0.853 of the window's centred 16:9 area (x 0.38–0.72, measured on the 4K session frames), so
-/// the row is centred on the area and stands on <see cref="Bottom"/> 0.845: 780 × 240 at 1080p, x 0.297–0.703, y
-/// 0.623–0.845. With the dispatch panel open the same row covers the panel's lower part: the queue strip's right end and
-/// the lower dish cards' middle (the cards' rows end at y 0.80); the owner accepted that rather than another style.
+/// the row is centred on the area and stands on <see cref="Bottom"/> 0.845: 540 × 82 at 1080p, x 0.359–0.641, y
+/// 0.769–0.845. With the dispatch panel open the same row covers the panel's lower part: the queue strip's right end and
+/// the lowest dish cards' bottom line; the owner accepted that rather than another style.
 /// </para>
 /// <para>
 /// The player's size makes the row smaller, never larger. Another aspect ratio: the row stays in the centred 16:9 area, as
