@@ -106,12 +106,12 @@ internal static class InnGourmandView
 
 
     /// <summary>
-    /// A tile's parts at 1080p (scaled with the window, and smaller with the player's size): each item's picture as large as a
-    /// kitchen circle's (<see cref="InnKitchenCircleView.PictureSize"/>, 112; owner, 2026-10-22: the tiles were "too small"),
+    /// A tile's parts at 1080p (scaled with the window, and smaller with the player's size): each item's picture 112, as large as a
+    /// kitchen circle's were (owner, 2026-10-22: the tiles were "too small"; kept when the circles shrank),
     /// two side by side for two requests; the item's name under it on up to two lines of 20; the table and the request's
     /// number as pills of 20 on the picture.
     /// </summary>
-    public const double PictureSize = InnKitchenCircleView.PictureSize, NameFont = 20, NameLineHeight = 24,
+    public const double PictureSize = 112, NameFont = 20, NameLineHeight = 24,
         NameHeight = 2 * NameLineHeight, Padding = 2, ItemGap = 6, BadgeFont = 20;
 
     /// <summary>The most requests a gourmand makes: a tile holds this many items.</summary>
