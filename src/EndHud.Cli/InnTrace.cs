@@ -123,6 +123,41 @@ internal static class InnTrace
         static int Score(InnSetup s) => s.HotTraits.Count + (s.Theme is null ? 0 : 1) + (s.Description is null ? 0 : 1) + s.MenuRules.Count;
     }
 
+    /// <summary>
+    /// <c>read-bubbles</c>: every gourmand's speech bubble on each frame (an image of the inn), as the session's reader reads
+    /// it: where, the lines, where each request starts (the icons) and whether it's resolved, and the requests found.
+    /// </summary>
+    public static async Task<int> ReadBubblesAsync(string[] arguments, string? referenceFolder)
+    {
+        var text = InnText.TryCreate();
+        if (text is null)
+        {
+            Console.Error.WriteLine("the Simplified Chinese OCR language isn't installed (Windows Settings > Language)");
+            return 1;
+        }
+        var data = InnData.Load(referenceFolder ?? RepositoryPackage());
+        if (data is null)
+        {
+            Console.Error.WriteLine("the reference folder has no inn data");
+            return 1;
+        }
+        var reader = new BubbleReader(text);
+        foreach (string path in arguments.Where(a => !a.StartsWith("--", StringComparison.Ordinal) && a != referenceFolder))
+        {
+            var frame = await ImageFile.LoadAsync(path);
+            var bubbles = await reader.ReadAllAsync(frame);
+            Console.WriteLine($"{Path.GetFileName(path)}: {bubbles.Count} bubble(s)");
+            foreach (var bubble in bubbles)
+            {
+                Console.WriteLine($"  at {bubble.Place}: {string.Join(" / ", bubble.Lines)}");
+                Console.WriteLine($"    starts {(bubble.Starts is { } s ? string.Join(",", s) : "-")}, resolved {(bubble.Resolved is { } r ? string.Join(",", r) : "-")}");
+                foreach (var (match, resolved) in bubble.RequestsAndState(data))
+                    Console.WriteLine($"    {match.Gourmand.Pool} {match.Gourmand.Number}: {match.Request.When} (score {match.Score:F2}){(resolved ? " resolved" : "")}");
+            }
+        }
+        return 0;
+    }
+
     private static string F(double v) => v.ToString("F1", Invariant);
 
     private static string Cell(TableCard? card) => card switch

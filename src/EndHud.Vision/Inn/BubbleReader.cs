@@ -45,6 +45,18 @@ public sealed record GourmandBubble(string Text, IReadOnlyList<string> Lines)
     /// </summary>
     public IReadOnlyList<bool>? Resolved { get; init; }
 
+    /// <summary>Where the bubble is on screen (window pixels); null when not read (readings saved before 2026-10-21).</summary>
+    public PixelRect? Place { get; init; }
+
+    /// <summary>The requests the bubble makes (<see cref="Requests"/>), each with whether its icon says it's resolved (false when not read).</summary>
+    public IReadOnlyList<(GourmandRequestMatch Match, bool Resolved)> RequestsAndState(InnData data)
+    {
+        var requests = Requests(data);
+        // The icons' states go with the requests only when the requests were cut by the icons.
+        bool byIcons = Starts is { Count: > 0 } starts && Resolved is { } done && done.Count == starts.Count && requests.Count == starts.Count;
+        return [.. requests.Select((m, i) => (m, byIcons && Resolved![i]))];
+    }
+
     /// <summary>A score this close to whole means the lines are one request (two requests can't both be in one's words).</summary>
     private const double WholeScore = 0.9;
 
@@ -109,9 +121,10 @@ public sealed record GourmandBubble(string Text, IReadOnlyList<string> Lines)
 
 /// <summary>
 /// A gourmand's (老饕) speech bubble: a large cream bubble with dark text, its key words in orange,
-/// wrapping onto several lines, a category icon before each request. Found as the largest patch of
+/// wrapping onto several lines, a category icon before each request. Found as the patches of
 /// the bubble's cream below the table cards (the yellow cards and the small icon bubbles over the
-/// tables are far smaller), then read by OCR line by line. The bubble hangs over the table in the
+/// tables are far smaller), each read by OCR line by line. The icons say where each request starts,
+/// and turn into a face once it's resolved (green, yellow or red). The bubble hangs over the table in the
 /// scene, so its size follows the camera (characters 55 to 75 px tall at 4K in the recordings):
 /// where the text starts, right of the icons, is measured in characters, from a first read.
 /// Measured on two recorded bubbles (Fixtures/inn/session-gourmand-order, session-gourmand-two-lines).
@@ -130,11 +143,33 @@ public sealed class BubbleReader(InnText text)
     // icons' edges, the bubble's rim).
     private const double LeastLineHeight = 0.6;
 
-    /// <summary>The bubble on screen, or null when there's none (or nothing could be read in it).</summary>
-    public async Task<GourmandBubble?> ReadAsync(Frame frame)
+    // The icons' column, in character heights from the bubble's left edge (they end 2.0–2.15 in), and what makes an icon:
+    // rows with ink in it, at most this far apart, at least this tall (both in character heights).
+    private const double IconsFrom = 0.3, IconsTo = 2.25, IconGap = 0.3, LeastIconHeight = 0.5;
+    // A row of the column holds part of an icon when this share of a character's height of its pixels is icon ink.
+    private const double IconRowInk = 0.12;
+    // An icon turned into a face (the request resolved) when this share of its ink is a face's colour.
+    private const double FaceShare = 0.35;
+
+    /// <summary>The largest bubble on screen, or null when there's none (or nothing could be read in it).</summary>
+    public async Task<GourmandBubble?> ReadAsync(Frame frame) => (await ReadAllAsync(frame)).FirstOrDefault();
+
+    /// <summary>
+    /// Every bubble on screen with words read in it, the largest first. In the 食有老饕 mode every guest is a gourmand, and
+    /// test_yuanyuan8 showed up to three bubbles at once, of three tables, at three sizes: reading only the largest left the
+    /// others' requests to be read whenever that one happened to be largest.
+    /// </summary>
+    public async Task<IReadOnlyList<GourmandBubble>> ReadAllAsync(Frame frame)
     {
         var layout = new InnLayout(frame);
-        if (FindBubble(frame, layout) is not { } bubble) return null;
+        var read = new List<GourmandBubble>();
+        foreach (var bubble in FindBubbles(frame, layout))
+            if (await ReadOneAsync(frame, layout, bubble) is { } said) read.Add(said);
+        return read;
+    }
+
+    private async Task<GourmandBubble?> ReadOneAsync(Frame frame, InnLayout layout, PixelRect bubble)
+    {
         double s = layout.Scale;
         int inset = (int)(Inset * s);
         var whole = new PixelRect(bubble.X + inset, bubble.Y + inset, bubble.Width - 2 * inset, bubble.Height - 2 * inset);
@@ -143,16 +178,86 @@ public sealed class BubbleReader(InnText text)
         if (letters.Count < 3) return null;
         // The characters' height: the median of the words read (the icons' marks are few and small).
         int glyph = letters[letters.Count / 2];
-        int left = bubble.X + (int)(TextStartsAt * glyph);
+        // A bubble cut by the screen's left edge has lost its icons (and maybe the start of its lines): read from its edge.
+        bool cut = bubble.X <= Math.Max(2, (int)Math.Round(Step * s));
+        int left = cut ? whole.X : bubble.X + (int)(TextStartsAt * glyph);
         var region = new PixelRect(left, whole.Y, whole.Right - left, whole.Height);
-        var lines = (await text.ReadPlacedLinesAsync(frame, region, Ink, s))
+        var placed = (await text.ReadPlacedLinesAsync(frame, region, Ink, s))
             .Where(l => l.Place.Height >= LeastLineHeight * glyph)
-            .Select(l => l.Text.Replace(" ", ""))
-            .Where(l => l.Length > 0)
+            .Select(l => (Text: l.Text.Replace(" ", ""), l.Place))
+            .Where(l => l.Text.Length > 0)
+            .OrderBy(l => l.Place.Y)
             .ToList();
+        var lines = placed.Select(l => l.Text).ToList();
         string joined = string.Concat(lines);
         if (joined.Count(char.IsLetter) < 3) return null;
-        return new GourmandBubble(joined, lines);
+        var icons = cut ? [] : Icons(frame, bubble, whole, glyph);
+        if (icons.Count == 0) return new GourmandBubble(joined, lines) { Place = bubble };
+        // Each line belongs to the icon nearest it: a request's icon stands level with its lines' middle.
+        var owner = placed.Select(l => icons.Select((icon, i) => (i, d: Math.Abs(icon.Middle - (l.Place.Y + l.Place.Height / 2.0)))).MinBy(x => x.d).i).ToList();
+        var starts = new List<int>();
+        var resolved = new List<bool>();
+        for (int i = 0; i < icons.Count; i++)
+        {
+            int start = owner.IndexOf(i);
+            if (start < 0) continue;
+            starts.Add(start);
+            resolved.Add(icons[i].Face);
+        }
+        return new GourmandBubble(joined, lines) { Place = bubble, Starts = starts, Resolved = resolved };
+    }
+
+    /// <summary>An icon before a request: its middle (window pixels, down) and whether it has turned into a face.</summary>
+    internal readonly record struct BubbleIcon(double Middle, bool Face);
+
+    /// <summary>The icons in the bubble's icon column, top to bottom (plates for a dish, a bottle for a drink, a face once resolved).</summary>
+    internal static List<BubbleIcon> Icons(Frame frame, PixelRect bubble, PixelRect whole, int glyph)
+    {
+        int x0 = Math.Max(0, bubble.X + (int)(IconsFrom * glyph)), x1 = Math.Min(frame.Width, bubble.X + (int)(IconsTo * glyph));
+        int y0 = Math.Max(0, whole.Y), y1 = Math.Min(frame.Height, whole.Bottom);
+        var icons = new List<BubbleIcon>();
+        if (x1 <= x0 || y1 <= y0) return icons;
+        int runFrom = -1, runTo = -1, faces = 0, inks = 0;
+        for (int y = y0; y <= y1; y++)
+        {
+            int ink = 0, face = 0;
+            if (y < y1)
+                for (int x = x0; x < x1; x++)
+                {
+                    var (r, g, b) = frame.GetPixel(x, y);
+                    if (IsFace(r, g, b)) { face++; ink++; }
+                    else if (Math.Max(r, Math.Max(g, b)) <= 120) ink++;
+                }
+            bool row = ink >= Math.Max(2, IconRowInk * glyph);
+            if (row)
+            {
+                if (runFrom < 0 || y - runTo > IconGap * glyph)
+                {
+                    Close();
+                    runFrom = y;
+                    faces = inks = 0;
+                }
+                runTo = y;
+                faces += face;
+                inks += ink;
+            }
+        }
+        Close();
+        return icons;
+
+        void Close()
+        {
+            if (runFrom >= 0 && runTo - runFrom + 1 >= LeastIconHeight * glyph)
+                icons.Add(new BubbleIcon((runFrom + runTo) / 2.0, faces >= FaceShare * inks));
+            runFrom = -1;
+        }
+    }
+
+    /// <summary>A face's colour: bright and strongly coloured (green served, yellow-green imperfect, red failed), unlike the dark icons and the cream.</summary>
+    private static bool IsFace(byte r, byte g, byte b)
+    {
+        int max = Math.Max(r, Math.Max(g, b)), min = Math.Min(r, Math.Min(g, b));
+        return max >= 150 && max - min >= 110;
     }
 
     /// <summary>The bubble's text: dark brown, or the orange of its key words.</summary>
@@ -163,13 +268,13 @@ public sealed class BubbleReader(InnText text)
     private static bool Cream(byte r, byte g, byte b) =>
         r is >= 220 and <= 252 && g is >= 198 and <= 236 && b is >= 135 and <= 178 && r - b is >= 55 and <= 105;
 
-    /// <summary>The largest patch of cream below the cards, in window pixels, or null when none is bubble-sized.</summary>
-    internal static PixelRect? FindBubble(Frame frame, InnLayout layout)
+    /// <summary>Every bubble-sized patch of cream below the cards, in window pixels, the largest first.</summary>
+    internal static IReadOnlyList<PixelRect> FindBubbles(Frame frame, InnLayout layout)
     {
         double s = layout.Scale;
         int step = Math.Max(2, (int)Math.Round(Step * s)), top = (int)(Top * s);
         int cols = frame.Width / step, rows = (frame.Height - top) / step;
-        if (cols <= 0 || rows <= 0) return null;
+        if (cols <= 0 || rows <= 0) return [];
         var cream = new bool[cols * rows];
         for (int y = 0; y < rows; y++)
         for (int x = 0; x < cols; x++)
@@ -179,7 +284,9 @@ public sealed class BubbleReader(InnText text)
         }
         var seen = new bool[cream.Length];
         var stack = new Stack<int>();
-        (int Cells, int L, int T, int R, int B) best = (0, 0, 0, 0, 0);
+        var found = new List<(int Cells, PixelRect Place)>();
+        // Cells are counted at 4K's spacing whatever the window's size.
+        double cellAt4K = (step / s / Step) * (step / s / Step);
         for (int start = 0; start < cream.Length; start++)
         {
             if (!cream[start] || seen[start]) continue;
@@ -203,12 +310,10 @@ public sealed class BubbleReader(InnText text)
                     stack.Push(q);
                 }
             }
-            if (cells > best.Cells) best = (cells, l, t, rr, bb);
+            int width = (rr - l + 1) * step, height = (bb - t + 1) * step;
+            if (cells * cellAt4K < MinCells || width < MinWidth * s || height < MinHeight * s) continue;
+            found.Add((cells, new PixelRect(l * step, top + t * step, width, height)));
         }
-        // Cells are counted at 4K's spacing whatever the window's size.
-        double cellsAt4K = best.Cells * (step / s / Step) * (step / s / Step);
-        int width = (best.R - best.L + 1) * step, height = (best.B - best.T + 1) * step;
-        if (cellsAt4K < MinCells || width < MinWidth * s || height < MinHeight * s) return null;
-        return new PixelRect(best.L * step, top + best.T * step, width, height);
+        return [.. found.OrderByDescending(f => f.Cells).Select(f => f.Place)];
     }
 }

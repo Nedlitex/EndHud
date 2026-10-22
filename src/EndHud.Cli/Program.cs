@@ -39,6 +39,7 @@ return args.FirstOrDefault() switch
     "trace-inn" when args.Length >= 2 => await EndHud.Cli.InnTrace.RunAsync(args[1], double.Parse(Option("--every") ?? "0.5", System.Globalization.CultureInfo.InvariantCulture),
         double.Parse(Option("--from") ?? "0", System.Globalization.CultureInfo.InvariantCulture), Option("--to") is { } innTo ? double.Parse(innTo, System.Globalization.CultureInfo.InvariantCulture) : null,
         double.Parse(Option("--end-margin") ?? "0", System.Globalization.CultureInfo.InvariantCulture), Option("--reference")),
+    "read-bubbles" when args.Length >= 2 => await EndHud.Cli.InnTrace.ReadBubblesAsync(args[1..], Option("--reference")),
     "capture" when args.Length >= 3 => await CaptureAsync(args[1], args[2]),
     "build-portrait-references" when args.Length >= 3 => await BuildReferencesAsync(args[1], args[2]),
     "build-operator-package" when args.Length >= 2 && Option("--inn") is { } inn => await BuildPackageAsync(args[1], inn, args.Contains("--keep-roster")),
@@ -61,6 +62,7 @@ static int Usage()
           endhud-cli identify <screenshot.png> --library <library-dir> [--debug-dir <dir>]
           endhud-cli analyze-video <recording.mp4> [--every <seconds>] [--from <seconds>] [--to <seconds>]
           endhud-cli trace-inn <recording.mp4> [--every <seconds>] [--from <seconds>] [--to <seconds>] [--end-margin <seconds>] [--reference <folder>]
+          endhud-cli read-bubbles <frame.png|jpg>... [--reference <folder>]
           endhud-cli learn <screenshot.png> --library <library-dir> --slots <id1>,<id2>,<id3>,<id4>
           endhud-cli capture <window-title-part> <out.png>
           endhud-cli build-portrait-references <squads.json> <out.json>

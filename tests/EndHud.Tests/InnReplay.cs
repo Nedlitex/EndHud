@@ -133,6 +133,68 @@ internal sealed class InnReplay
         _gourmandContent = drawn.ToDictionary(b => b.Key, b => b.Content);
         _gourmands = gourmands;
         TakeDraw(at, views);
+        TakeGourmandsShown(at, views);
+    }
+
+    // ---- What each gourmand's tile says, against what the gourmands asked (the recordings' ground truth) ----
+
+    /// <summary>At one draw, the requests a gourmand's tile shows (each by the gourmand data's own request), table by table.</summary>
+    internal sealed record GourmandsShown(TimeSpan At, IReadOnlyDictionary<int, IReadOnlySet<GourmandRequest>> Tables);
+
+    public List<GourmandsShown> GourmandDraws { get; } = [];
+
+    private void TakeGourmandsShown(TimeSpan at, InnViews views)
+    {
+        if (!views.Session) return;
+        var notes = _display.LastAdvice?.Gourmands ?? [];
+        var tables = new Dictionary<int, IReadOnlySet<GourmandRequest>>();
+        foreach (var group in views.Wants.Where(w => w.Description is not null).GroupBy(w => w.Table))
+        {
+            var advice = notes.FirstOrDefault(n => n.Table == group.Key)?.Advice;
+            if (advice is null) continue;
+            tables[group.Key] = group.Where(w => w.Request < advice.Requests.Count).Select(w => advice.Requests[w.Request].Request).ToHashSet();
+        }
+        GourmandDraws.Add(new GourmandsShown(at, tables));
+    }
+
+    /// <summary>One request a gourmand made, as read off the recording by eye: their table, when the bubble first said it, and when its
+    /// icon turned into a face (served right, imperfect, or failed).</summary>
+    internal sealed record TruthRequest(string Label, int Table, double From, double Resolved, GourmandRequest Request);
+
+    /// <summary>How one true request fared on the tiles.</summary>
+    /// <param name="ShownAfter">Seconds from the bubble to the request first on its own table's tile; null: never shown there before it was resolved.</param>
+    /// <param name="MissingAfterShown">Seconds, from first shown to resolved, its table's tile didn't show it.</param>
+    /// <param name="ElsewhereSeconds">Seconds, between the bubble and resolved, another table's tile showed it (to a table with no such gourmand then).</param>
+    /// <param name="OthersSeconds">Seconds, between the bubble and resolved, its table's tile showed a request this gourmand didn't make.</param>
+    internal sealed record TruthOutcome(TruthRequest Truth, double? ShownAfter, double MissingAfterShown, double ElsewhereSeconds, double OthersSeconds);
+
+    /// <summary>Each true request against the tiles drawn (<see cref="GourmandDraws"/>), draw by draw, each draw standing until the next.</summary>
+    public List<TruthOutcome> AgainstTruth(IReadOnlyList<TruthRequest> truth)
+    {
+        var outcomes = new List<TruthOutcome>();
+        foreach (var t in truth)
+        {
+            var mine = truth.Where(o => o.Table == t.Table && o.From < t.Resolved && o.Resolved > t.From).Select(o => o.Request).ToHashSet();
+            double? first = null;
+            double missing = 0, elsewhere = 0, others = 0;
+            for (int i = 0; i < GourmandDraws.Count; i++)
+            {
+                var d = GourmandDraws[i];
+                double at = d.At.TotalSeconds;
+                double until = i + 1 < GourmandDraws.Count ? GourmandDraws[i + 1].At.TotalSeconds : at;
+                if (until <= t.From || at >= t.Resolved) continue;
+                double span = Math.Min(until, t.Resolved) - Math.Max(at, t.From);
+                bool shown = d.Tables.TryGetValue(t.Table, out var here) && here.Contains(t.Request);
+                if (shown) first ??= Math.Max(at, t.From) - t.From;
+                else if (first is not null) missing += span;
+                foreach (var (table, requests) in d.Tables)
+                    if (table != t.Table && requests.Contains(t.Request) && !truth.Any(o => o.Table == table && o.Request == t.Request && o.From <= at && o.Resolved > at))
+                        elsewhere += span;
+                if (here is not null && here.Any(r => !mine.Contains(r))) others += span;
+            }
+            outcomes.Add(new TruthOutcome(t, first, missing, elsewhere, others));
+        }
+        return outcomes;
     }
 
     // ---- One picture: the circles, the panel's marks and the gourmands' banners drawn together ----
