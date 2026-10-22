@@ -220,6 +220,13 @@ git tag v1.2.0
 git push origin v1.2.0
 ```
 
+**Fast release, only when there's no time for the normal one:** Actions tab → "Fast release" →
+Run workflow, with the version (1.2.0), on the branch to release.
+[`.github/workflows/fast-release.yml`](.github/workflows/fast-release.yml) builds the same two
+files and publishes them straight away, tagging the commit `v1.2.0`; it skips the tests and the
+clean-machine install, self-test and update checks below. Every other release goes through the
+normal path.
+
 [`.github/workflows/release.yml`](.github/workflows/release.yml) runs the tests, builds the two
 files below, and checks them on a clean Windows machine before publishing anything: it installs
 the MSI, runs the installed EndHud's self-test (unpack the built-in operator package, name the
@@ -1648,7 +1655,7 @@ src/EndHud.Vision/       everything that reads the screen
 src/EndHud.Cli/          endhud-cli developer tool
 tests/EndHud.Vision.Tests/ tests of everything that reads the screen (fixtures, recordings, screen sizes)
 tests/EndHud.Tests/      tests of the tray app (banner layout at any display scaling, windowed capture)
-.github/workflows/       CI: tests on every push (tests.yml); releases from version tags (release.yml)
+.github/workflows/       CI: tests on every push (tests.yml); releases from version tags (release.yml); fast release by hand, no checks (fast-release.yml)
 installer/               the MSI installer (WiX)
 tools/EndHud.ReadmeMedia/ renders the README's animated pictures from a recording
 tools/guide-video/       downloads rotation guide videos (Python, see requirements.txt)

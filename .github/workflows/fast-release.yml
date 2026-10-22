@@ -1,0 +1,93 @@
+name: Fast release
+
+# For when a release can't wait for the full pipeline (release.yml): builds EndHud and the MSI
+# from the chosen commit and publishes them, WITHOUT the test suite, the clean-machine install
+# and self-test, or the update test. Use it only when there's no time for the normal release;
+# a normal release (push a tag like v1.2.0) still goes through all of release.yml.
+#
+# Run it from the Actions tab: "Fast release" -> Run workflow, with the version (1.2.0).
+# It tags that commit v<version> and creates the GitHub Release. The tag is created by this
+# workflow's token, so it does not start release.yml as well.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release, three numbers (e.g. 0.6.0); tagged v<version>'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # The character recognition model is compiled in (Git LFS); the recordings aren't needed.
+      - name: Fetch the character model
+        run: git lfs pull --include "src/EndHud.Vision/Assets/ccip/*"
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Version
+        id: version
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version }}".Trim().TrimStart('v')
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Versions look like 1.2.0 (three numbers); got '$version'." }
+          if ([version]$version -le [version]'0.0.1') { throw "Release versions must be above 0.0.1." }
+          "VERSION=$version" >> $env:GITHUB_ENV
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "EndHud $version (fast release: no tests, no install or update checks)"
+
+      # One EndHud.exe with .NET included, so players don't need to install anything first.
+      - name: Publish EndHud.exe
+        run: >
+          dotnet publish src/EndHud -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true -p:Version=${{ env.VERSION }}
+          -o out/publish
+
+      - name: Build the installer
+        run: |
+          dotnet tool restore
+          dotnet wix build installer/EndHud.wxs -arch x64 -define "Version=${{ env.VERSION }}" -define "PublishDir=${{ github.workspace }}\out\publish" -o "out\EndHud-${{ env.VERSION }}.msi"
+
+      - name: Name the files
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force out/release | Out-Null
+          Move-Item "out/EndHud-$env:VERSION.msi" out/release/
+          Copy-Item out/publish/EndHud.exe "out/release/EndHud-$env:VERSION-portable.exe"
+          Get-ChildItem out/release | Select-Object Name, @{n='MB';e={[math]::Round($_.Length/1MB,1)}}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EndHud-${{ env.VERSION }}
+          path: out/release
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # to tag the commit and create the release
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: EndHud-${{ needs.build.outputs.version }}
+          path: release
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "v${{ needs.build.outputs.version }}" release/*
+          --repo "${{ github.repository }}" --target "${{ github.sha }}"
+          --title "EndHud ${{ needs.build.outputs.version }}" --generate-notes
