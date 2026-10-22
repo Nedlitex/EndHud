@@ -387,7 +387,13 @@ internal static class InnKitchenCircleLayout
     public const double CenterX = 0.5, Bottom = 0.845;
 
     /// <summary>The size the row is drawn at: <paramref name="scale"/> (the window's times the player's), at most the 16:9 area's own (its height over 1080).</summary>
-    public static double Scale(double width, double height, double scale) => Math.Min(scale, Area(width, height).Height / 1080);
+    /// <summary>
+    /// The row's size at the inn's 100 %: 60 % of its drawn size (owner, 2026-10-22: "the bottom circle default size should be
+    /// around 60%, right now it is blocking the bottom menu"); the inn's size setting shrinks it further.
+    /// </summary>
+    public const double DefaultShare = 0.6;
+
+    public static double Scale(double width, double height, double scale) => Math.Min(scale, Area(width, height).Height / 1080) * DefaultShare;
 
     /// <summary>The row's size at <paramref name="scale"/>: three slots, the row's height.</summary>
     public static Size Size(double scale) => new(InnKitchenCircleView.Slots * InnKitchenCircleView.SlotWidth * scale, InnKitchenCircleView.RowHeight * scale);
