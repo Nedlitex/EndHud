@@ -30,8 +30,8 @@ public static class ReactionLevel
     internal const double MinInkHue = 35, MaxInkHue = 95, MinInkSaturation = 0.45, MinInkValue = 0.5;
 
     // The badge's background: of the box's pixels that aren't ink, the share darker than DarkBelow
-    // (max channel). Measured: 0.65-0.95 on the badges in Fixtures/reactions, 0.01-0.26 where the icon
-    // has no badge. A badge needs MinDarkShare.
+    // (max channel). Measured: 0.65-0.95 on the badges in Fixtures/reactions (0.45-0.93 over the
+    // recordings: under MinDarkShare reads unknown), 0.01-0.26 where the icon has no badge.
     internal const int DarkBelow = 100;
     internal const double MinDarkShare = 0.5;
 
@@ -44,14 +44,14 @@ public static class ReactionLevel
     // - of all the pixels there, the share of ink (the icon's own art in full colour): at least
     //   MinAbsentInk.
     // Measured on every Corrosion and Electrification BossStatusReader named in the four recordings,
-    // every 0.2 s (never the last 5 s; .tracking/changes/20261022-R1-MEASUREMENTS.txt): 542 badged
-    // readings (Si's Corrosion III, Laevatain's Electrification IV, Zhuang's II and III) had dark share
-    // 0.45-0.98 and background share 0.00-0.38, so none comes within 0.05 (dark) and 0.12 (background)
-    // of reading I; nor does any lose its numeral (16-25 px of 40, threshold 12). Of 599 readings with no
-    // badge, 331 read I: dark 0.00-0.40, background 0.50-0.89, art 0.11-0.51 (Electrification's waves
-    // 0.11-0.28, Corrosion's flask 0.27-0.51). The rest stay unknown: a dark or busy scene behind the
-    // square, an icon still fading in (art 0.00-0.09, washed white while its badge, if any, is already
-    // dark), Corrosion's dark outlines.
+    // every 0.2 s (never the last 5 s): 542 badged readings (Si's Corrosion III, Laevatain's
+    // Electrification IV, Zhuang's II and III) had dark share 0.45-0.93 and background share 0.00-0.38,
+    // so none comes within 0.05 (dark) or 0.12 (background) of reading I, and none lost its numeral
+    // (16-19 px of 40; under 12 is "no numeral"). Of 599 readings with no badge, 329 read I: dark
+    // 0.00-0.39, background 0.50-0.92, art 0.11-0.52 (Electrification's waves 0.11-0.26, Corrosion's
+    // flask 0.35-0.52). The rest stay unknown: a dark or busy scene behind the square, Corrosion's dark
+    // outlines, an icon still fading in (art 0.00-0.09: washed white, while a badge is drawn dark from
+    // the first frame).
     internal const int BackgroundNear = 45;
     internal const double MaxAbsentDarkShare = 0.4, MinAbsentBackgroundShare = 0.5, MinAbsentInk = 0.1;
 
