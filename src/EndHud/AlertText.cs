@@ -33,7 +33,6 @@ internal static class AlertText
     /// <param name="text">The strings (default: the app's, <see cref="Loc.Get"/>).</param>
     public static string Describe(IReadOnlyList<StateCondition> when, OperatorLibrary? library, Func<string, string>? text = null)
     {
-        return ""; // STUB (RED)
         text ??= Loc.Get;
         return string.Join(text("Alert.Describe.Separator"), when.Select(c => One(c, library, text, nested: false)));
     }
@@ -101,10 +100,8 @@ internal static class AlertText
     /// </summary>
     public static AlertSubject Subject(IReadOnlyList<StateCondition> when)
     {
-        return new AlertSubject(AlertSubjectKind.None); // STUB (RED)
-#pragma warning disable CS0162
+        if (when.Count == 0) return new AlertSubject(AlertSubjectKind.None);
         return SubjectOf(when[0]);
-#pragma warning restore CS0162
 
         static AlertSubject SubjectOf(StateCondition c) => c switch
         {
