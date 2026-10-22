@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using EndHud.Vision.Inn;
 
@@ -23,7 +24,8 @@ internal sealed record InnGourmandRow(string Number, string? Request, string? Pi
 
 /// <summary>One gourmand's banner: "gourmand, table 4" (Inn.Gourmand.Title) over one numbered row per request.</summary>
 /// <param name="Key">Who the banner is (the gourmand, by table): it stays up while the gourmand's order is open, what it says updated in place.</param>
-internal sealed record InnGourmandBanner(string Key, int Table, string Title, IReadOnlyList<InnGourmandRow> Rows)
+/// <param name="Short">The table alone (Inn.Gourmand.Table, "桌4"): the compact tile's badge, on its first picture.</param>
+internal sealed record InnGourmandBanner(string Key, int Table, string Title, string Short, IReadOnlyList<InnGourmandRow> Rows)
 {
     /// <summary>What it says: a banner whose content changes is drawn again where it is, never slid out and in.</summary>
     public string Content => Title + "|" + string.Join("|", Rows.Select(r => $"{r.Number}{r.Request}>{r.PictureId}>{r.Item}"));
@@ -50,15 +52,14 @@ internal static class InnGourmandView
     /// </summary>
     public const int MostBanners = TableCardReader.Tables;
 
-    /// <summary>A banner's title line and each row's height, its padding, and a row's picture, at 1080p (scaled with the window).</summary>
-    public const double TitleHeight = 30, RowHeight = 46, Padding = 10, PictureSize = 40;
-
     /// <summary>
-    /// The compact banner's row height, padding and picture, at 1080p: its title beside the rows instead of over them, so a
-    /// gourmand of two requests is 82 units tall instead of 142 (six fit on the right, <see cref="InnGourmandLayout.Arrange"/>).
-    /// Its words a little smaller (15; the title 17) and its margins narrower, so six stay clear of the held-dishes tray.
+    /// A tile's parts at 1080p (scaled with the window and the player's size): each item's picture as large as a kitchen
+    /// circle's (<see cref="InnKitchenCircleView.PictureSize"/>; owner, 2026-10-21: "make at least the picture bigger, at least
+    /// same size as the circule today"), every word at least the circles' 20; an item's column, the line under a picture (a
+    /// name), the request's two lines, the title's line, the padding inside the tile and between items.
     /// </summary>
-    public const double CompactRowHeight = 36, CompactPadding = 5, CompactPictureSize = 32;
+    public const double PictureSize = InnKitchenCircleView.PictureSize, ItemWidth = 132, CompactItemWidth = 116, NameHeight = 23,
+        RequestHeight = 2 * NameHeight, TitleHeight = 30, Padding = 8, CompactPadding = 2, ItemGap = 6, Font20 = 20, TitleFont = 22, BadgeFont = 20;
 
     /// <param name="text">The i18n lookup (<see cref="Loc.Get"/>; the tests pass zh-CN.xaml's strings).</param>
     public static IReadOnlyList<InnWant> Of(InnAdvice advice, Func<string, string> text) =>
@@ -107,82 +108,143 @@ internal static class InnGourmandView
         {
             var rows = g.OrderBy(w => w.Request).Select(w => new InnGourmandRow(
                 w.Description is null ? "" : w.Request < numbers.Length ? numbers[w.Request].ToString() : $"{w.Request + 1}.", w.Description, w.ItemId, w.Name)).ToList();
-            return new InnGourmandBanner($"gourmand:{g.Key}", g.Key, string.Format(text("Inn.Gourmand.Title"), g.Key), rows);
+            return new InnGourmandBanner($"gourmand:{g.Key}", g.Key, string.Format(text("Inn.Gourmand.Title"), g.Key), string.Format(text("Inn.Gourmand.Table"), g.Key), rows);
         })];
     }
 
-    /// <summary>A banner's height, at 1080p: its title and a row per request.</summary>
-    public static double Height(InnGourmandBanner banner) => 2 * Padding + TitleHeight + banner.Rows.Count * RowHeight;
-
-    /// <summary>A banner's height, at 1080p, full (<see cref="Height(InnGourmandBanner)"/>) or compact: its rows only.</summary>
-    public static double Height(InnGourmandBanner banner, bool compact) =>
-        compact ? 2 * CompactPadding + Math.Max(1, banner.Rows.Count) * CompactRowHeight : Height(banner);
-
-    private static readonly FontFamily Font = new("Microsoft YaHei UI, Segoe UI");
-    private static readonly Brush TextBrush = Frozen(new SolidColorBrush(Color.FromArgb(0xEE, 0xFF, 0xFF, 0xFF)));
-
-    /// <summary>A gourmand's banner as the overlay draws it: <see cref="ComboBanner"/>'s look, a title and the rows under it.</summary>
-    /// <param name="picture">A dish's or drink's picture by id; null when the package has none (the row is drawn without it).</param>
-    public static Border Banner(InnGourmandBanner banner, Func<string, BitmapSource?> picture) => Banner(banner, picture, compact: false);
-
-    /// <summary>
-    /// A gourmand's banner, full (the title over the rows) or <paramref name="compact"/> (the title beside them, smaller rows:
-    /// when many gourmands are up, <see cref="InnGourmandLayout.Arrange"/>).
-    /// </summary>
-    public static Border Banner(InnGourmandBanner banner, Func<string, BitmapSource?> picture, bool compact)
+    /// <summary>A tile's height, at 1080p, in <paramref name="shape"/> for a gourmand of <paramref name="requests"/> requests (side by side: the same for one or two).</summary>
+    public static double Height(InnGourmandShape shape, int requests)
     {
-        double padding = compact ? CompactPadding : Padding, rowHeight = compact ? CompactRowHeight : RowHeight;
-        double pictureSize = compact ? CompactPictureSize : PictureSize, fontSize = compact ? 15 : 17;
-        var rows = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        foreach (var row in banner.Rows)
+        int n = Math.Clamp(requests, 1, MostRequests);
+        return shape switch
         {
-            var line = new StackPanel { Orientation = Orientation.Horizontal, Height = rowHeight };
-            if (row.Request is not null)
-                line.Children.Add(Words($"{row.Number} {row.Request}", TextBrush, bold: false, fontSize));
-            if (row.Request is not null && row.Item is not null)
-                line.Children.Add(Words(" → ", ComboBanner.Accent, bold: true, fontSize));
-            if (row.PictureId is { } id && picture(id) is { } image)
-                line.Children.Add(new Image { Source = image, Width = pictureSize, Height = pictureSize, Margin = new Thickness(2, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center });
-            if (row.Item is not null)
-                line.Children.Add(Words(row.Item, ComboBanner.Accent, bold: row.PictureId is not null, fontSize));
-            rows.Children.Add(line);
-        }
-        var title = new TextBlock
-        {
-            Text = banner.Title, FontSize = compact ? 17 : 20, FontWeight = FontWeights.Bold, Foreground = TextBrush, FontFamily = Font,
-            VerticalAlignment = VerticalAlignment.Center,
+            InnGourmandShape.Full => 2 * Padding + TitleHeight + PictureSize + NameHeight + RequestHeight,
+            InnGourmandShape.Compact => 2 * CompactPadding + PictureSize + NameHeight,
+            InnGourmandShape.Tall => 2 * Padding + TitleHeight + n * (PictureSize + NameHeight) + (n - 1) * ItemGap,
+            _ => 2 * Padding + TitleHeight + n * PictureSize + (n - 1) * ItemGap,
         };
-        // Slanted back upright inside the slanted banner, as the combo banner's content is.
-        StackPanel content;
-        if (compact)
-        {
-            title.Margin = new Thickness(0, 0, 8, 0);
-            content = new StackPanel { Orientation = Orientation.Horizontal, Children = { title, rows } };
-        }
-        else
-        {
-            title.Height = TitleHeight;
-            content = new StackPanel { Children = { title, rows } };
-        }
-        content.RenderTransform = new SkewTransform(12, 0);
-        content.Margin = new Thickness(compact ? 12 : 18, padding, compact ? 16 : 28, padding);
-        content.VerticalAlignment = VerticalAlignment.Center;
-        var element = ComboBanner.Create(content, Height(banner, compact));
-        element.HorizontalAlignment = HorizontalAlignment.Right;
-        return element;
     }
 
-    private static TextBlock Words(string words, Brush brush, bool bold, double fontSize) => new()
+    /// <summary>A tile's slot's width, at 1080p, in <paramref name="shape"/>: room for <see cref="MostRequests"/> items.</summary>
+    public static double Width(InnGourmandShape shape) => Width(shape, MostRequests);
+
+    /// <summary>A tile's width, at 1080p, in <paramref name="shape"/> for a gourmand of <paramref name="requests"/> requests.</summary>
+    public static double Width(InnGourmandShape shape, int requests)
     {
-        Text = words, FontSize = fontSize, FontWeight = bold ? FontWeights.Bold : FontWeights.Normal, Foreground = brush, FontFamily = Font,
-        VerticalAlignment = VerticalAlignment.Center,
+        int n = shape is InnGourmandShape.Tall or InnGourmandShape.TallBare ? 1 : Math.Clamp(requests, 1, MostRequests);
+        return shape switch
+        {
+            InnGourmandShape.Full => 2 * Padding + n * ItemWidth + (n - 1) * ItemGap,
+            InnGourmandShape.Compact => 2 * CompactPadding + n * CompactItemWidth + (n - 1) * ItemGap,
+            _ => 2 * Padding + CompactItemWidth,
+        };
+    }
+
+    /// <summary>The most requests a gourmand makes: a tile's slot holds this many items.</summary>
+    public const int MostRequests = GourmandAdvisor.MaxRequests;
+
+    private static readonly FontFamily Font = new("Microsoft YaHei UI, Segoe UI");
+    private static readonly Brush TextBrush = Frozen(new SolidColorBrush(Color.FromArgb(0xF2, 0xFF, 0xFF, 0xFF)));
+    private static readonly Brush Back = Frozen(new SolidColorBrush(Color.FromArgb(0xD8, 0x16, 0x18, 0x1C)));
+    private static readonly Brush Slot = Frozen(new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)));
+    private static readonly Brush Ink = Frozen(new SolidColorBrush(Color.FromRgb(0x14, 0x16, 0x1A)));
+
+    /// <summary>
+    /// A gourmand's tile as the overlay draws it, at 1080p (<see cref="Width"/> × <see cref="Height"/> at most): a dark
+    /// rounded card with a gold edge, the table (Inn.Gourmand.Title), and per request its item's picture as large as a
+    /// kitchen circle's (112) with its number over the corner, the item's name under it and, in <see cref="InnGourmandShape.Full"/>,
+    /// the request in plain words. Items side by side (<see cref="InnGourmandShape.Full"/>, <see cref="InnGourmandShape.Compact"/>,
+    /// the table then on the first picture) or one above the other (<see cref="InnGourmandShape.Tall"/>,
+    /// <see cref="InnGourmandShape.TallBare"/>: beside the open panel). A request with no item shows an empty disc and why.
+    /// </summary>
+    /// <param name="picture">A dish's or drink's picture by id; null when the package has none (an empty disc is drawn).</param>
+    public static Border Tile(InnGourmandBanner banner, Func<string, BitmapSource?> picture, InnGourmandShape shape)
+    {
+        bool tall = shape is InnGourmandShape.Tall or InnGourmandShape.TallBare;
+        bool names = shape is not InnGourmandShape.TallBare;
+        double itemWidth = shape == InnGourmandShape.Full ? ItemWidth : CompactItemWidth;
+        var items = new StackPanel { Orientation = tall ? Orientation.Vertical : Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        for (int i = 0; i < banner.Rows.Count; i++)
+        {
+            var row = banner.Rows[i];
+            var item = new StackPanel { Width = itemWidth, Margin = i == 0 ? new Thickness(0) : tall ? new Thickness(0, ItemGap, 0, 0) : new Thickness(ItemGap, 0, 0, 0) };
+            var disc = new Grid { Width = PictureSize, Height = PictureSize, HorizontalAlignment = HorizontalAlignment.Center };
+            disc.Children.Add(new Border { CornerRadius = new CornerRadius(14), Background = Slot });
+            if (row.PictureId is { } id && picture(id) is { } image)
+                disc.Children.Add(new Image { Source = image, Width = PictureSize, Height = PictureSize, Stretch = Stretch.UniformToFill });
+            // The compact tile has no title line: its table on the first picture's left corner, the numbers on the right.
+            bool compact = shape == InnGourmandShape.Compact;
+            if (compact && i == 0)
+                disc.Children.Add(Badge(banner.Short, HorizontalAlignment.Left));
+            if (row.Number.Length > 0)
+                disc.Children.Add(Badge(row.Number, compact ? HorizontalAlignment.Right : HorizontalAlignment.Left));
+            item.Children.Add(disc);
+            if (names && row.Item is not null)
+                item.Children.Add(Words(row.Item, ComboBanner.Accent, bold: true, NameHeight, wrap: false, itemWidth));
+            if (shape == InnGourmandShape.Full && row.Request is not null)
+                item.Children.Add(Words(row.Request, TextBrush, bold: false, RequestHeight, wrap: true, itemWidth));
+            items.Children.Add(item);
+        }
+        var content = new StackPanel();
+        if (shape != InnGourmandShape.Compact)
+        {
+            var title = Words(banner.Title, TextBrush, bold: true, TitleHeight, wrap: false, Width(shape) - 2 * Padding);
+            title.FontSize = TitleFont;
+            title.HorizontalAlignment = HorizontalAlignment.Left;
+            content.Children.Add(title);
+        }
+        content.Children.Add(items);
+        double padding = shape == InnGourmandShape.Compact ? CompactPadding : Padding;
+        return new Border
+        {
+            Width = Width(shape, banner.Rows.Count),
+            Height = Height(shape, banner.Rows.Count),
+            Background = Back,
+            BorderBrush = ComboBanner.Accent,
+            BorderThickness = new Thickness(2),
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(padding - 2),
+            Child = content,
+            IsHitTestVisible = false,
+            Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 10, ShadowDepth = 0, Opacity = 0.6 },
+        };
+    }
+
+    /// <summary>A small gold pill over a picture's top corner: a request's number, or the table on a compact tile.</summary>
+    private static Border Badge(string words, HorizontalAlignment side) => new()
+    {
+        Background = ComboBanner.Accent,
+        CornerRadius = new CornerRadius(10),
+        Padding = new Thickness(6, 0, 6, 1),
+        Margin = new Thickness(3),
+        HorizontalAlignment = side,
+        VerticalAlignment = VerticalAlignment.Top,
+        Child = new TextBlock { Text = words, FontFamily = Font, FontSize = BadgeFont, FontWeight = FontWeights.Bold, Foreground = Ink },
+    };
+
+    private static TextBlock Words(string words, Brush brush, bool bold, double height, bool wrap, double width) => new()
+    {
+        Text = words,
+        FontSize = Font20,
+        FontWeight = bold ? FontWeights.Bold : FontWeights.Normal,
+        Foreground = brush,
+        FontFamily = Font,
+        TextAlignment = TextAlignment.Center,
+        HorizontalAlignment = HorizontalAlignment.Center,
+        TextWrapping = wrap ? TextWrapping.Wrap : TextWrapping.NoWrap,
+        TextTrimming = TextTrimming.CharacterEllipsis,
+        LineStackingStrategy = LineStackingStrategy.BlockLineHeight,
+        LineHeight = NameHeight,
+        Height = height,
+        MaxWidth = width,
+        Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 4, ShadowDepth = 0, Opacity = 0.9 },
     };
 
     /// <summary>What to drag while the menu is open out of a session: one gourmand asking for a dish and a drink of the inn's own.</summary>
     public static InnGourmandBanner Sample(InnData? data, Func<string, string> text)
     {
         string numbers = text("Inn.Gourmand.Numbers");
-        return new InnGourmandBanner("gourmand:sample", 0, text("Inn.Gourmand.Sample"),
+        return new InnGourmandBanner("gourmand:sample", 0, text("Inn.Gourmand.Sample"), text("Inn.Gourmand.Sample"),
         [
             new InnGourmandRow(numbers[0].ToString(), text("Inn.Gourmand.SampleDish"), data?.Dishes.FirstOrDefault()?.Id, data?.Dishes.FirstOrDefault()?.Zh ?? ""),
             new InnGourmandRow(numbers[1].ToString(), string.Format(text("Inn.Gourmand.Drink"), text("Inn.Gourmand.SampleDrink")), data?.Drinks.FirstOrDefault()?.Id, data?.Drinks.FirstOrDefault()?.Zh ?? ""),
@@ -271,11 +333,38 @@ internal sealed class InnWantsHold
     }
 }
 
+/// <summary>How a gourmand's tile is drawn (<see cref="InnGourmandView.Tile"/>).</summary>
+internal enum InnGourmandShape
+{
+    /// <summary>The table over the items side by side, each with its name and the request in plain words.</summary>
+    Full,
+
+    /// <summary>The items side by side with their names, the table on the first picture; no request words (many gourmands).</summary>
+    Compact,
+
+    /// <summary>Beside the open dispatch panel: the table over the items one above the other, each with its name.</summary>
+    Tall,
+
+    /// <summary>Beside the open panel with many gourmands: the table over the pictures alone.</summary>
+    TallBare,
+}
+
 /// <summary>
-/// Where the gourmands' banners go (owner, live 2026-10-21: "like the banner show on the right side"): their own stack,
-/// its right edge at the player's <c>InnGourmandRight</c> and its top at <c>InnGourmandTop</c> (fractions of the game
-/// window; by default the right edge near the window's, the top at 0.2: below the status at the top right and right of
-/// table 6's card, above the Full Blaze meter with one gourmand), kept on the window. Draggable while the menu is open.
+/// Where the gourmands' tiles go (owner, 2026-10-21: "the banner for gormand suggestion is too small for human to read, make
+/// at least the picture bigger, at least same size as the circule today"): each a tile with pictures as large as a kitchen
+/// circle's, placed one by one in table order into two columns, never over the game's Full Blaze meter, the held-dishes
+/// tray, the kitchens' circles or another tile, and kept on the window:
+/// <list type="bullet">
+/// <item>With the dispatch panel closed: the columns' right edge at the player's <c>InnGourmandRight</c> and their top at
+/// <c>InnGourmandTop</c> (fractions of the window: by default 0.985 and 0.2, right of table 6's card and below the status at
+/// the top right), the odd tables in the left column and the even ones in the right (one gourmand: the right column), each
+/// going down past what it would cover. <see cref="InnGourmandShape.Full"/> while all fit, else <see cref="InnGourmandShape.Compact"/>.</item>
+/// <item>With the panel open (owner, 2026-10-21: "gourmand's requirement window still flashes always ... the requirement is
+/// gone"; until then they were hidden while it was open): in the strips left and right of the panel, from the top,
+/// <see cref="InnGourmandShape.Tall"/> while all fit, else <see cref="InnGourmandShape.TallBare"/>, clear of the UID in the
+/// lower-left corner and the circles below the panel.</item>
+/// </list>
+/// If even the smaller shape doesn't fit (a big player size), the tiles are drawn smaller until they do.
 /// </summary>
 internal static class InnGourmandLayout
 {
@@ -286,69 +375,110 @@ internal static class InnGourmandLayout
     /// <summary>
     /// The game's Full Blaze meter on the right (its ring, the fire count and the streak under it), as fractions of the
     /// window's centred 16:9 area, a little wider than measured on the 4K fixtures (session-two-dishes.jpg: x 0.825–0.98,
-    /// y 0.48–0.67): banners stay above or below it.
+    /// y 0.48–0.67).
     /// </summary>
     public const double MeterLeft = 0.82, MeterTop = 0.465, MeterBottom = 0.685;
 
-    /// <summary>How low a banner may reach, a fraction of the window's height (the right side is floor down there).</summary>
-    public const double LowestBottom = 0.97;
+    /// <summary>The held-dishes tray, its 派单 button and the bar right of it, on the 16:9 area (session-two-dishes.jpg: x 0.38–0.78, y 0.855–0.94).</summary>
+    public static readonly Rect Tray = new(0.38, 0.855, 0.40, 0.085);
 
-    /// <summary>The frame's padding and border around the stack (OverlayWindow.xaml), in its units.</summary>
-    public const double Frame = 6 + 2;
+    /// <summary>The open dispatch panel on the 16:9 area (the 4K panel frames: x 0.109–0.891, y 0.194–0.853), a little wider.</summary>
+    public static readonly Rect Panel = new(0.105, 0.185, 0.79, 0.68);
 
-    /// <summary>The smallest share of the player's size the stack is shrunk to when even compact banners don't fit.</summary>
+    /// <summary>The UID and ping in the window's lower-left corner (masked on the fixtures: x up to 0.26, y from 0.94).</summary>
+    public static readonly Rect Uid = new(0, 0.93, 0.27, 0.07);
+
+    /// <summary>How low a tile may reach, and the strips' top beside the open panel, as fractions of the window's height.</summary>
+    public const double LowestBottom = 0.99, BesidePanelTop = 0.08;
+
+    /// <summary>The gap between two tiles and the strips' margin from the window's edge, in 1080p units.</summary>
+    public const double Gap = 6, Margin = 10;
+
+    /// <summary>The smallest share of the player's size the tiles are shrunk to when even the smaller shape doesn't fit.</summary>
     private const double SmallestShrink = 0.4;
 
     /// <summary>
-    /// Where each of <paramref name="banners"/> (by table) goes in the stack, from its top at <paramref name="top"/> (as
-    /// <see cref="Place"/>) at <paramref name="scale"/> (the window's times the player's): one under another, a gap between,
-    /// none over the Full Blaze meter (one that would reach it goes below it, when the stack is at the right where the meter
-    /// is) or below <see cref="LowestBottom"/>. Full banners while they fit, else compact ones (six gourmands: compact, three
-    /// above the meter and three below); if even those don't fit (a big player size) the stack is drawn smaller until they do.
-    /// The same banners always land in the same places, in table order.
+    /// Where each of <paramref name="banners"/> (by table) goes: its tile's top-left corner in the window (the overlay's units),
+    /// the shape they're all drawn in and the size (<paramref name="scale"/>, the window's times the player's, or smaller).
     /// </summary>
-    public static InnGourmandArrangement Arrange(IReadOnlyList<InnGourmandBanner> banners, double width, double height, double scale, double right, double top)
+    /// <param name="panelOpen">The dispatch panel is open: the tiles go beside it.</param>
+    /// <param name="circles">Where the kitchens' circles are drawn now (above the tray or below the panel), in the window.</param>
+    public static InnGourmandArrangement Arrange(IReadOnlyList<InnGourmandBanner> banners, double width, double height, double scale,
+        double right, double top, bool panelOpen, Rect circles)
     {
-        var (_, frameTop) = Place(width, height, right, top);
         double unit = Math.Min(width / 16, height / 9);
         double areaLeft = (width - unit * 16) / 2, areaTop = (height - unit * 9) / 2;
-        bool meterBeside = right * width > areaLeft + MeterLeft * unit * 16;
-        double bandTop = areaTop + MeterTop * unit * 9, bandBottom = areaTop + MeterBottom * unit * 9;
-
-        InnGourmandArrangement? Fit(bool compact, double s)
+        Rect OnArea(Rect r) => new(areaLeft + r.X * unit * 16, areaTop + r.Y * unit * 9, r.Width * unit * 16, r.Height * unit * 9);
+        var avoid = new List<Rect> { circles, new(Uid.X * width, Uid.Y * height, Uid.Width * width, Uid.Height * height) };
+        if (panelOpen) avoid.Add(OnArea(Panel));
+        else
         {
-            var tops = new List<double>();
-            double y = frameTop + Frame * s; // on screen
-            foreach (var banner in banners)
+            avoid.Add(OnArea(Tray));
+            avoid.Add(OnArea(new Rect(MeterLeft, MeterTop, 1 - MeterLeft, MeterBottom - MeterTop)));
+        }
+        var shapes = panelOpen ? new[] { InnGourmandShape.Tall, InnGourmandShape.TallBare } : [InnGourmandShape.Full, InnGourmandShape.Compact];
+
+        InnGourmandArrangement? Fit(InnGourmandShape shape, double s)
+        {
+            double w = InnGourmandView.Width(shape) * s, gap = Gap * s, margin = Margin * s;
+            double start = panelOpen ? BesidePanelTop * height : Math.Clamp(top * height, 0, height);
+            double rightEdge = panelOpen ? width - margin : Math.Clamp(right * width, w, width);
+            // Two columns; their order of preference for each tile alternates (odd tables first in the first column).
+            double[] columns = panelOpen ? [rightEdge - w, margin] : banners.Count == 1 ? [rightEdge - w] : [rightEdge - 2 * w - gap, rightEdge - w];
+            double[] cursor = [.. columns.Select(_ => start)];
+            var placed = new List<Rect>();
+            var places = new List<Point>();
+            for (int i = 0; i < banners.Count; i++)
             {
-                double tall = InnGourmandView.Height(banner, compact) * s;
-                if (meterBeside && y < bandBottom && y + tall > bandTop) y = bandBottom;
-                if (y + tall > LowestBottom * height) return null;
-                tops.Add((y - frameTop) / s - Frame);
-                y += tall + ComboBanner.Gap * s;
+                double h = InnGourmandView.Height(shape, banners[i].Rows.Count) * s;
+                bool done = false;
+                foreach (int c in Enumerable.Range(0, columns.Length).Select(c => (c + i) % columns.Length))
+                {
+                    double y = cursor[c];
+                    while (y + h <= LowestBottom * height)
+                    {
+                        var rect = new Rect(columns[c], y, w, h);
+                        var blocks = avoid.Concat(placed).Where(b => Overlap(rect, b)).ToList();
+                        if (blocks.Count == 0) break;
+                        y = blocks.Max(b => b.Bottom) + gap;
+                    }
+                    if (y + h > LowestBottom * height) continue;
+                    placed.Add(new Rect(columns[c], y, w, h));
+                    places.Add(new Point(columns[c], y));
+                    cursor[c] = y + h + gap;
+                    done = true;
+                    break;
+                }
+                if (!done) return null;
             }
-            double extent = banners.Count == 0 ? 0 : tops[^1] + InnGourmandView.Height(banners[^1], compact) + ComboBanner.Gap;
-            return new InnGourmandArrangement(compact, s, tops, extent);
+            return new InnGourmandArrangement(shape, s, places);
         }
 
-        if (Fit(false, scale) is { } full) return full;
-        for (double s = scale; s >= scale * SmallestShrink; s *= 0.95)
-            if (Fit(true, s) is { } compact) return compact;
-        // Nothing fits even that small (a window a few hundred pixels tall): compact, as small as allowed, one under another.
-        var stacked = new List<double>();
+        foreach (var shape in shapes)
+            if (Fit(shape, scale) is { } fits) return fits;
+        for (double s = scale * 0.95; s >= scale * SmallestShrink; s *= 0.95)
+            if (Fit(shapes[^1], s) is { } smaller) return smaller;
+        // Nothing fits even that small (a window a few hundred pixels tall): one under another from the top right.
+        var stacked = new List<Point>();
         double at = 0;
         foreach (var banner in banners)
         {
-            stacked.Add(at);
-            at += InnGourmandView.Height(banner, true) + ComboBanner.Gap;
+            stacked.Add(new Point(width - InnGourmandView.Width(shapes[^1]) * scale * SmallestShrink, at));
+            at += (InnGourmandView.Height(shapes[^1], banner.Rows.Count) + Gap) * scale * SmallestShrink;
         }
-        return new InnGourmandArrangement(true, scale * SmallestShrink, stacked, at);
+        return new InnGourmandArrangement(shapes[^1], scale * SmallestShrink, stacked);
+    }
+
+    /// <summary>Two rectangles share more than a sliver (a pixel's rounding is no overlap).</summary>
+    private static bool Overlap(Rect a, Rect b)
+    {
+        var both = Rect.Intersect(a, b);
+        return !both.IsEmpty && both.Width > 0.5 && both.Height > 0.5;
     }
 }
 
-/// <summary>Where the gourmands' banners go in their stack (<see cref="InnGourmandLayout.Arrange"/>).</summary>
-/// <param name="Compact">Drawn compact (<see cref="InnGourmandView.Banner(InnGourmandBanner, Func{string, BitmapSource?}, bool)"/>).</param>
-/// <param name="Scale">The size the stack is drawn at: the one asked for, or smaller when even compact banners didn't fit.</param>
-/// <param name="Tops">Each banner's top in the stack, in its units (at 1080p), by table.</param>
-/// <param name="Height">The stack's height in its units.</param>
-internal sealed record InnGourmandArrangement(bool Compact, double Scale, IReadOnlyList<double> Tops, double Height);
+/// <summary>Where the gourmands' tiles go (<see cref="InnGourmandLayout.Arrange"/>).</summary>
+/// <param name="Shape">How they're all drawn.</param>
+/// <param name="Scale">The size they're drawn at: the one asked for, or smaller when even the smaller shape didn't fit.</param>
+/// <param name="Places">Each tile's slot's top-left corner in the window, by table (a tile of one request drawn at its slot's right).</param>
+internal sealed record InnGourmandArrangement(InnGourmandShape Shape, double Scale, IReadOnlyList<Point> Places);

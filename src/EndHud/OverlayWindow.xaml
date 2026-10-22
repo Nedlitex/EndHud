@@ -119,9 +119,12 @@
                 <StackPanel x:Name="InnCallStack" />
             </StackPanel>
         </Border>
-        <!-- The gourmands' banners (one per gourmand: their requests, each with what meets it), on the right; right edge and
-             top at config InnGourmandRight/InnGourmandTop, draggable while the menu is open. Each banner placed in the
-             canvas by InnGourmandLayout.Arrange (around the Full Blaze meter). -->
+        <!-- The gourmands' tiles (one per gourmand: each request's item, its picture as large as a kitchen circle's), placed
+             in the window by InnGourmandLayout.Arrange: in two columns whose right edge and top are config
+             InnGourmandRight/InnGourmandTop (around the Full Blaze meter, the tray and the circles), or beside the open
+             dispatch panel. Never hit-tested. -->
+        <Canvas x:Name="InnGourmandTiles" IsHitTestVisible="False" />
+        <!-- The frame dragged while the menu is open to place the gourmands' columns (a sample tile in it). -->
         <Border x:Name="InnGourmandFrame" BorderThickness="2" Padding="6" CornerRadius="4" Background="Transparent"
                 MouseLeftButtonDown="InnGourmand_MouseDown" MouseMove="InnGourmand_MouseMove"
                 MouseLeftButtonUp="InnGourmand_MouseUp">

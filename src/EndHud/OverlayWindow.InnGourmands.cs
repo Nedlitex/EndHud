@@ -3,84 +3,106 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using EndHud.Vision.Inn;
 
 namespace EndHud;
 
 /// <summary>
-/// The gourmands' banners (<see cref="InnGourmandView"/>): during a session, while a gourmand's order is open, one
-/// banner per gourmand in its own stack on the right, by table, placed by <see cref="InnGourmandLayout.Arrange"/> (up to
-/// six: compact when many, clear of the Full Blaze meter), sliding in when new and out when served, put away while the
-/// dispatch panel is open. A sample shows while the menu is open out of a session, to drag the stack. The inn's size and
-/// opacity apply.
+/// The gourmands' tiles (<see cref="InnGourmandView.Tile"/>): during a session, while a gourmand's order is open, one tile
+/// per gourmand with pictures as large as the kitchens' circles, placed by <see cref="InnGourmandLayout.Arrange"/> in table
+/// order (on the right, clear of the Full Blaze meter, the tray and the circles; beside the dispatch panel while it's open,
+/// never hidden for it), fading in when new and out when served, gliding when the layout moves them. A sample tile shows
+/// in the drag frame while the menu is open out of a session, to place the columns. The inn's size and opacity apply.
 /// </summary>
 public partial class OverlayWindow
 {
-    private readonly List<(string Key, string Content, Border Element, Grid Holder, double Top)> _innGourmandBanners = [];
+    private readonly Dictionary<string, (string Content, FrameworkElement Element, Point At)> _innGourmandTiles = [];
     private Point? _innGourmandDragOffset;
-    private double _innGourmandScale = double.NaN;
-    private static readonly TimeSpan InnGourmandResize = TimeSpan.FromMilliseconds(150);
+    private double _innGourmandScale = 1;
+    private static readonly TimeSpan InnGourmandMove = TimeSpan.FromMilliseconds(150), InnGourmandFade = TimeSpan.FromMilliseconds(200);
+
+    /// <summary>The gourmands' tiles up now (the overlay's tick keeps drawing while any is).</summary>
+    private int InnGourmandCount => _innGourmandTiles.Count;
 
     /// <summary>
-    /// Puts up the banners for <paramref name="wants"/> (none: all slide out). A gourmand's banner already up stays as it
-    /// is; when what it says changes (a request read later, another item clearly sooner, the stack turning compact) it's
-    /// drawn again in place, and when a gourmand comes or goes above it, it glides to its new place.
+    /// Puts up the tiles for <paramref name="views"/>' gourmands (none: all fade out). A tile already up stays as it is; when
+    /// what it says or its shape changes it's drawn again in place, and when the layout moves it (a gourmand coming or
+    /// going, the panel opening or closing) it glides to its new place.
     /// </summary>
-    /// <param name="away">The dispatch panel is open: the stack is hidden in place and shown again as it is (<see cref="InnViews.Away"/>).</param>
-    private void RenderInnGourmands(IReadOnlyList<InnWant> wants, bool away)
+    private void RenderInnGourmands(InnViews views)
     {
-        var banners = _config.InnHelperEnabled ? InnGourmandView.Banners(wants, Loc.Get).ToList() : [];
-        if (_menuOpen && banners.Count == 0 && _config.InnHelperEnabled)
-            banners.Add(InnGourmandView.Sample(_party.Identifier?.Library.Inn, Loc.Get));
-        InnGourmandStack.Visibility = away && !_menuOpen ? Visibility.Hidden : Visibility.Visible;
+        var banners = _config.InnHelperEnabled ? InnGourmandView.Banners(views.Wants, Loc.Get).ToList() : [];
+        RenderInnGourmandSample(_menuOpen && _config.InnHelperEnabled && banners.Count == 0);
 
-        var arrangement = InnGourmandLayout.Arrange(banners, HintCanvas.ActualWidth, HintCanvas.ActualHeight, InnScale(), _config.InnGourmandRight, _config.InnGourmandTop);
-        if (arrangement.Scale != _innGourmandScale)
-        {
-            _innGourmandScale = arrangement.Scale;
-            InnGourmandFrame.LayoutTransform = new ScaleTransform(arrangement.Scale, arrangement.Scale);
-        }
-        InnGourmandStack.Height = arrangement.Height;
+        double width = HintCanvas.ActualWidth, height = HintCanvas.ActualHeight;
+        bool panelOpen = views.Session && views.Away;
+        var circles = views.Circles == InnCirclePlace.BelowPanel && views.Session
+            ? InnKitchenCircleLayout.BelowPanel(width, height, _innCircleScale)
+            : InnKitchenCircleLayout.Place(width, height, _innCircleScale, _config.InnCircleX, _config.InnCircleY);
+        var arrangement = InnGourmandLayout.Arrange(banners, width, height, InnScale(), _config.InnGourmandRight, _config.InnGourmandTop, panelOpen, circles);
 
-        foreach (var gone in _innGourmandBanners.Where(b => banners.All(m => m.Key != b.Key)).ToList())
+        foreach (var (key, gone) in _innGourmandTiles.Where(t => banners.All(b => b.Key != t.Key)).ToList())
         {
-            _innGourmandBanners.Remove(gone);
-            ComboBanner.SlideOut(gone.Holder, gone.Element, () => InnGourmandStack.Children.Remove(gone.Holder));
+            _innGourmandTiles.Remove(key);
+            var fade = new DoubleAnimation(0, InnGourmandFade);
+            fade.Completed += (_, _) => InnGourmandTiles.Children.Remove(gone.Element);
+            gone.Element.BeginAnimation(UIElement.OpacityProperty, fade);
         }
         for (int i = 0; i < banners.Count; i++)
         {
             var model = banners[i];
-            double top = arrangement.Tops[i];
-            string content = model.Content + (arrangement.Compact ? "|compact" : "");
-            int up = _innGourmandBanners.FindIndex(b => b.Key == model.Key);
-            if (up >= 0)
+            double s = arrangement.Scale;
+            // A tile of one request is drawn at its slot's right.
+            var at = new Point(arrangement.Places[i].X + (InnGourmandView.Width(arrangement.Shape) - InnGourmandView.Width(arrangement.Shape, model.Rows.Count)) * s,
+                arrangement.Places[i].Y);
+            string content = $"{model.Content}|{arrangement.Shape}|{s:F3}";
+            if (_innGourmandTiles.TryGetValue(model.Key, out var up))
             {
-                var (key, was, element, holder, wasTop) = _innGourmandBanners[up];
-                if (wasTop != top) holder.BeginAnimation(Canvas.TopProperty, new DoubleAnimation(top, InnGourmandResize));
-                if (was != content)
+                var element = up.Element;
+                if (up.Content != content)
                 {
-                    var redrawn = InnGourmandView.Banner(model, InnPicture, arrangement.Compact);
-                    holder.Children.Remove(element);
-                    holder.Children.Add(redrawn);
-                    holder.BeginAnimation(FrameworkElement.HeightProperty, new DoubleAnimation(redrawn.Height + ComboBanner.Gap, InnGourmandResize));
-                    element = redrawn;
+                    InnGourmandTiles.Children.Remove(element);
+                    element = NewInnGourmandTile(model, arrangement.Shape, s, up.At);
+                    element.Opacity = 1;
                 }
-                _innGourmandBanners[up] = (key, content, element, holder, top);
+                if (up.At != at)
+                {
+                    element.BeginAnimation(Canvas.LeftProperty, new DoubleAnimation(at.X, InnGourmandMove));
+                    element.BeginAnimation(Canvas.TopProperty, new DoubleAnimation(at.Y, InnGourmandMove));
+                }
+                _innGourmandTiles[model.Key] = (content, element, at);
                 continue;
             }
-            var banner = InnGourmandView.Banner(model, InnPicture, arrangement.Compact);
-            var newHolder = ComboBanner.Holder(banner, model.Table);
-            Canvas.SetRight(newHolder, 0);
-            Canvas.SetTop(newHolder, top);
-            InnGourmandStack.Children.Add(newHolder);
-            _innGourmandBanners.Add((model.Key, content, banner, newHolder, top));
-            ComboBanner.SlideIn(newHolder, banner);
+            var tile = NewInnGourmandTile(model, arrangement.Shape, s, at);
+            tile.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, InnGourmandFade));
+            _innGourmandTiles[model.Key] = (content, tile, at);
         }
-        // As wide as the widest banner, so the frame around the stack (dragged while the menu is open) covers them.
-        InnGourmandStack.Width = _innGourmandBanners.Count == 0 ? 0 : _innGourmandBanners.Max(b =>
+    }
+
+    private FrameworkElement NewInnGourmandTile(InnGourmandBanner model, InnGourmandShape shape, double scale, Point at)
+    {
+        var tile = InnGourmandView.Tile(model, InnPicture, shape);
+        tile.LayoutTransform = new ScaleTransform(scale, scale);
+        Canvas.SetLeft(tile, at.X);
+        Canvas.SetTop(tile, at.Y);
+        InnGourmandTiles.Children.Add(tile);
+        return tile;
+    }
+
+    /// <summary>The sample tile in the drag frame while the menu is open out of a session (or none).</summary>
+    private void RenderInnGourmandSample(bool show)
+    {
+        if (!show)
         {
-            b.Element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            return b.Element.DesiredSize.Width;
-        });
+            InnGourmandStack.Children.Clear();
+            InnGourmandStack.Width = InnGourmandStack.Height = 0;
+            return;
+        }
+        if (InnGourmandStack.Children.Count > 0) return;
+        var sample = InnGourmandView.Tile(InnGourmandView.Sample(_party.Identifier?.Library.Inn, Loc.Get), InnPicture, InnGourmandShape.Full);
+        InnGourmandStack.Children.Add(sample);
+        InnGourmandStack.Width = InnGourmandView.Width(InnGourmandShape.Full);
+        InnGourmandStack.Height = InnGourmandView.Height(InnGourmandShape.Full, InnGourmandView.MostRequests);
     }
 
     private void SetInnGourmandEditing(bool editing)
@@ -90,12 +112,13 @@ public partial class OverlayWindow
         InnGourmandFrame.Cursor = editing ? Cursors.SizeAll : null;
     }
 
-    /// <param name="size">The game window's scale (ComboHintLayout) times the player's size; the stack may be drawn smaller (<see cref="InnGourmandLayout.Arrange"/>).</param>
+    /// <param name="size">The game window's scale (ComboHintLayout) times the player's size; the tiles may be drawn smaller (<see cref="InnGourmandLayout.Arrange"/>).</param>
     private void ScaleInnGourmands(double size)
     {
         _innGourmandScale = size;
         InnGourmandFrame.LayoutTransform = new ScaleTransform(size, size);
         InnGourmandStack.Opacity = _config.InnStripOpacity;
+        InnGourmandTiles.Opacity = _config.InnStripOpacity;
         PlaceInnGourmandsFromConfig();
     }
 

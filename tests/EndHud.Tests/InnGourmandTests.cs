@@ -56,16 +56,16 @@ public class InnGourmandTests(ITestOutputHelper output)
         Assert.Equal([(First, "soup, no seed oil", A, Dish(A).Zh), (Second, Format("Inn.Gourmand.Drink", "no alcohol"), Tea, Drink(Tea).Zh)],
             banner.Rows.Select(r => (r.Number, r.Request, r.PictureId, r.Item)));
 
-        // Drawn: the title, then each row's words, the arrow, the item's picture and its name, in that order.
+        // Drawn: the table, then per request its number on the picture, the item's name and the request in plain words.
         var (texts, pictures) = OnSta(() =>
         {
-            var element = InnGourmandView.Banner(banner, _ => Picture());
+            var element = InnGourmandView.Tile(banner, _ => Picture(), InnGourmandShape.Full);
             element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             element.Arrange(new Rect(element.DesiredSize));
             var all = Descendants(element).ToList();
             return (all.OfType<TextBlock>().Select(t => t.Text).ToList(), all.OfType<Image>().Count());
         });
-        Assert.Equal([Format("Inn.Gourmand.Title", 4), $"{First} soup, no seed oil", " → ", Dish(A).Zh, $"{Second} {Format("Inn.Gourmand.Drink", "no alcohol")}", " → ", Drink(Tea).Zh], texts);
+        Assert.Equal([Format("Inn.Gourmand.Title", 4), First, Dish(A).Zh, "soup, no seed oil", Second, Drink(Tea).Zh, Format("Inn.Gourmand.Drink", "no alcohol")], texts);
         Assert.Equal(2, pictures);
     }
 
@@ -100,17 +100,18 @@ public class InnGourmandTests(ITestOutputHelper output)
         Assert.Equal([(First, "a dessert", null, Text("Inn.Gourmand.None")), (Second, "a side", C, Dish(C).Zh)], banners[1].Rows.Select(r => (r.Number, r.Request, r.PictureId, r.Item)));
         Assert.Equal([(First, Format("Inn.Gourmand.Drink", "tea"), (string?)null, (string?)null)], banners[2].Rows.Select(r => (r.Number, r.Request, r.PictureId, r.Item)));
         var asked = new List<string>();
-        OnSta(() => banners.Select(b => InnGourmandView.Banner(b, id => { asked.Add(id); return null; })).ToList());
+        OnSta(() => banners.Select(b => InnGourmandView.Tile(b, id => { asked.Add(id); return null; }, InnGourmandShape.Full)).ToList());
         Assert.Equal([C], asked);
     }
 
     /// <summary>
-    /// Through the overlay's own display: the banner is up while the order is open, put away in place while the dispatch
-    /// panel is open (it would cover the panel, as the cooking banners would; <see cref="InnViews.Away"/>, the same banner
-    /// shown again after, no slide-in), back when it's closed, gone once fulfilled.
+    /// Through the overlay's own display: the tile is up while the order is open, and stays while the dispatch panel is open,
+    /// beside it (<see cref="InnViews.GourmandsBesidePanel"/>; owner, 2026-10-21, test_yuanyuan6 at 6:10: "gourmand's
+    /// requirement window still flashes always ... hasnt been fulfilled but the requirement is gone", it was hidden while the
+    /// panel was open), gone once fulfilled.
     /// </summary>
     [Fact]
-    public void The_banner_stays_while_the_order_is_open_is_put_away_over_the_panel_and_goes_when_fulfilled()
+    public void The_tile_stays_while_the_order_is_open_beside_the_open_panel_and_goes_when_fulfilled()
     {
         var session = NewSession();
         var display = new InnDisplay();
@@ -127,7 +128,9 @@ public class InnGourmandTests(ITestOutputHelper output)
 
         display.Show(session, Session(11, tables: gourmand, panel: Panel(1, 1, [A, B, C])), S(11));
         display.Show(session, Session(11.3, tables: gourmand, panel: Panel(1, 1, [A, B, C])), S(11.3));
-        Assert.True(display.Views(session, S(11.3), callsEnabled: true, Text).Away);
+        var open = display.Views(session, S(11.3), callsEnabled: true, Text);
+        Assert.True(open.Away);
+        Assert.True(open.GourmandsBesidePanel);
         Assert.Equal(4, Assert.Single(Wants(11.3)).Table);
 
         display.Show(session, Session(11.6 + InnSession.PanelClosedAfter.TotalSeconds, tables: gourmand), S(11.6 + InnSession.PanelClosedAfter.TotalSeconds));
@@ -140,51 +143,37 @@ public class InnGourmandTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The fullest stack: <see cref="InnGourmandView.MostBanners"/> gourmands of two requests each, the longest requests in
-    /// the gourmands' table put in plain words and the longest dish names, at the player's default size, from the stack's
-    /// default place: inside the window at 1080p, 1440p and 4K, on the right half, below the table cards (their bottom at
-    /// y 0.13, session-four-orders.jpg) and the status at the top right.
+    /// Readable (owner, 2026-10-21: "the banner for gormand suggestion is too small for human to read, make at least the
+    /// picture bigger, at least same size as the circule today"): in every shape each item's picture is the kitchen circle's
+    /// (112 at 1080p, the old banner's 40) and no word is under the circles' 20; the tile, with the longest requests and dish
+    /// names, is exactly its slot (<see cref="InnGourmandView.Width(InnGourmandShape, int)"/> × <see cref="InnGourmandView.Height"/>).
     /// </summary>
     [Theory]
-    [InlineData(1920, 1080)]
-    [InlineData(2560, 1440)]
-    [InlineData(3840, 2160)]
-    public void The_fullest_stack_fits_on_the_right_from_its_default_place(int width, int height)
+    [InlineData("Full")]
+    [InlineData("Compact")]
+    [InlineData("Tall")]
+    [InlineData("TallBare")]
+    public void A_tiles_pictures_are_as_large_as_a_circles_and_its_words_as_large_as_the_circles(string shapeName)
     {
+        var shape = Enum.Parse<InnGourmandShape>(shapeName);
         var said = Inn.Gourmands.SelectMany(g => g.Requests).Select(r => GourmandCondition.Parse(r.When, Inn))
-            .Select(c => c.ForDrink ? Format("Inn.Gourmand.Drink", c.Describe()) : c.Describe()).OrderByDescending(d => d.Length).Take(2 * InnGourmandView.MostBanners).ToList();
-        var names = Inn.Dishes.OrderByDescending(d => d.Zh.Length).ThenBy(d => d.Id).Take(2 * InnGourmandView.MostBanners).ToList();
-        var wants = Enumerable.Range(0, 2 * InnGourmandView.MostBanners).Select(i => new InnWant(i / 2 + 1, i % 2, said[i], names[i].Id, names[i].Zh)).ToList();
-        var banners = InnGourmandView.Banners(wants, Text);
-        Assert.Equal(InnGourmandView.MostBanners, banners.Count);
+            .Select(c => c.ForDrink ? Format("Inn.Gourmand.Drink", c.Describe()) : c.Describe()).OrderByDescending(d => d.Length).Take(2).ToList();
+        var names = Inn.Dishes.OrderByDescending(d => d.Zh.Length).ThenBy(d => d.Id).Take(2).ToList();
+        var banner = Assert.Single(InnGourmandView.Banners([.. Enumerable.Range(0, 2).Select(i => new InnWant(6, i, said[i], names[i].Id, names[i].Zh))], Text));
 
-        double scale = ComboHintLayout.Scale(height, dpiScale: 1);
-        var arrangement = InnGourmandLayout.Arrange(banners, width, height, scale, HudConfig.DefaultInnGourmandRight, HudConfig.DefaultInnGourmandTop);
-        var (widest, label) = OnSta(() =>
+        var (pictures, fonts, size) = OnSta(() =>
         {
-            double max = banners.Max(b =>
-            {
-                var element = InnGourmandView.Banner(b, PackagePicture, arrangement.Compact);
-                element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-                return element.DesiredSize.Width;
-            });
-            var drag = new TextBlock { Text = Text("Inn.Gourmand.Drag"), Margin = new Thickness(0, 0, 0, 4) };
-            drag.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            return (max, drag.DesiredSize.Height);
+            var element = InnGourmandView.Tile(banner, PackagePicture, shape);
+            element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            element.Arrange(new Rect(element.DesiredSize));
+            var all = Descendants(element).ToList();
+            return (all.OfType<Image>().Select(i => i.ActualHeight).ToList(), all.OfType<TextBlock>().Select(t => t.FontSize).ToList(), element.DesiredSize);
         });
-        const double frame = 2 * (6 + 2); // the overlay's frame around the stack: padding and border (OverlayWindow.xaml)
-        // Six gourmands: compact, placed around the Full Blaze meter (InnSixGourmandsTests checks each banner's place).
-        Assert.True(arrangement.Compact);
-        double stackWidth = (widest + frame) * arrangement.Scale;
-        double stackHeight = (arrangement.Height + label + frame) * arrangement.Scale;
-        var (fromRight, top) = InnGourmandLayout.Place(width, height, HudConfig.DefaultInnGourmandRight, HudConfig.DefaultInnGourmandTop);
-        double left = width - fromRight - stackWidth;
-        output.WriteLine($"{width}x{height}: stack {stackWidth:F0}x{stackHeight:F0} at left {left:F0}, top {top:F0}");
-
-        Assert.True(left >= width / 2.0, $"left edge {left:F0}: not on the right half of {width}");
-        Assert.True(top >= 0.13 * height, $"top {top:F0}: over the table cards");
-        Assert.True(top + stackHeight <= height, $"bottom {top + stackHeight:F0} of {height}");
-        Assert.True(width - fromRight <= width, "inside the window");
+        output.WriteLine($"{shape}: pictures {string.Join(",", pictures)}, fonts {string.Join(",", fonts)}, tile {size.Width:F0}x{size.Height:F0}");
+        Assert.Equal(2, pictures.Count);
+        Assert.All(pictures, p => Assert.True(p >= InnKitchenCircleView.PictureSize, $"a picture {p:F0} units"));
+        Assert.All(fonts, f => Assert.True(f >= 20, $"a word {f} units tall"));
+        Assert.Equal((InnGourmandView.Width(shape, 2), InnGourmandView.Height(shape, 2)), (size.Width, size.Height));
     }
 
     /// <summary>A place dragged off the window is kept on it.</summary>

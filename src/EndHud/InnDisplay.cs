@@ -11,12 +11,20 @@ internal sealed record InnViews(IReadOnlyList<InnCall> Calls, IReadOnlyList<InnP
     public static readonly InnViews None = new([], [], []);
 
     /// <summary>
-    /// The dispatch panel is open, or the last frame read it so: the kitchens' circles, the banners and the gourmands'
-    /// banners are put away in place (hidden, not taken down), so the same ones show again when it closes, with no
-    /// slide-in (owner, 2026-10-21: "the recommended dish flashes heavily"). They'd cover the panel, whose marks take
-    /// over meanwhile; nothing of the helper but the marks shows over it.
+    /// The dispatch panel is open, or the last frame read it so: the banners (Full Blaze, the last call) are put away in
+    /// place (hidden, not taken down), so the same ones show again when it closes, with no slide-in (owner, 2026-10-21:
+    /// "the recommended dish flashes heavily"); the kitchens' circles stand in a row below the panel
+    /// (<see cref="Circles"/>) and the gourmands' tiles beside it (<see cref="GourmandsBesidePanel"/>), so nothing but the
+    /// marks is over it and nothing the player follows disappears while it's open.
     /// </summary>
     public bool Away { get; init; }
+
+    /// <summary>
+    /// The gourmands' tiles stand beside the open panel (<see cref="InnGourmandLayout"/>), not hidden (owner, 2026-10-21,
+    /// test_yuanyuan6 at 6:10: "gourmand's requirement window still flashes always ... hasnt been fulfilled but the
+    /// requirement is gone": until then they were hidden whenever the panel was open).
+    /// </summary>
+    public bool GourmandsBesidePanel { get; init; }
 
     /// <summary>Where the kitchens' circles are drawn: their row above the tray, or below the dispatch panel while it's open.</summary>
     public InnCirclePlace Circles { get; init; }
@@ -122,6 +130,7 @@ internal sealed class InnDisplay
             // Over the open panel the circles move to the row below it (the panel covers the tray and the row above it), the
             // kitchen whose tab is selected emphasised: the circles, the tabs' marks and the card's mark are one picture.
             Circles = away ? InnCirclePlace.BelowPanel : InnCirclePlace.AboveTray,
+            GourmandsBesidePanel = away,
             SelectedKitchen = away ? (advice.MarkedPanel ?? advice.Panel)?.Kitchen ?? _panelKitchen : null,
             Kitchens = [.. advice.Dispatch?.Kitchens.Select(k => k.Kitchen) ?? []],
         };

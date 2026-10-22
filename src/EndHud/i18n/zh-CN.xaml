@@ -331,6 +331,7 @@
     <sys:String x:Key="Inn.Circle.SwapReason">先拿掉{0} · 桌{1}</sys:String>
     <sys:String x:Key="Inn.Circle.Drag">按住拖动，调整厨房提示位置</sys:String>
     <sys:String x:Key="Inn.Gourmand.Title">老饕 桌{0}</sys:String>
+    <sys:String x:Key="Inn.Gourmand.Table">桌{0}</sys:String>
     <sys:String x:Key="Inn.Gourmand.Numbers">①②③</sys:String>
     <sys:String x:Key="Inn.Gourmand.Drink">{0}饮品</sys:String>
     <sys:String x:Key="Inn.Gourmand.None">没有合适的</sys:String>

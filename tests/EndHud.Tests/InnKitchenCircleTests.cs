@@ -320,18 +320,26 @@ public class InnKitchenCircleTests(ITestOutputHelper output)
     // ---- Drawn over a real frame ----
 
     /// <summary>
-    /// The circles drawn where they go over a real 4K frame of a session (session-two-dishes.jpg, the UID corner masked),
-    /// with six gourmands' banners on the right, saved as a picture for a person to look at
-    /// (.tracking/changes/2026-10-21-inn-circles-4k.png; nothing is asserted of it but that it was drawn).
+    /// The circles and the gourmands' tiles drawn where they go over a real 4K frame (the UID corner masked), saved as a
+    /// picture for a person to look at (.tracking/changes/2026-10-21-inn-y6-…png, local only; nothing is asserted of it but
+    /// that it was drawn): a session (session-two-dishes.jpg, the circles above the tray, the tiles on the right) and the
+    /// open dispatch panel (dispatch-panel-queue.jpg, the circles below it with kitchen 1's emphasised, the tiles beside
+    /// it), with 1, 3 and 6 gourmands.
     /// </summary>
-    [Fact]
-    public void The_circles_drawn_over_a_4K_session_frame()
+    [Theory]
+    [InlineData("session-two-dishes.jpg", false, 1)]
+    [InlineData("session-two-dishes.jpg", false, 3)]
+    [InlineData("session-two-dishes.jpg", false, 6)]
+    [InlineData("dispatch-panel-queue.jpg", true, 1)]
+    [InlineData("dispatch-panel-queue.jpg", true, 3)]
+    [InlineData("dispatch-panel-queue.jpg", true, 6)]
+    public void The_circles_and_gourmands_drawn_over_a_4K_frame(string frameName, bool panelOpen, int gourmands)
     {
-        string frame = Path.Combine(AppContext.BaseDirectory, "Fixtures", "inn", "session-two-dishes.jpg");
+        string frame = Path.Combine(AppContext.BaseDirectory, "Fixtures", "inn", frameName);
         if (!File.Exists(frame)) return; // the test data submodule isn't there
-        string saved = Path.Combine(RepositoryRoot(), ".tracking", "changes", "2026-10-21-inn-circles-4k.png");
+        string saved = Path.Combine(RepositoryRoot(), ".tracking", "changes", $"2026-10-21-inn-y6-{(panelOpen ? "panel" : "session")}-{gourmands}-gourmands.png");
         var circles = InnKitchenCircleView.Of([Order(1, A, 4), Ahead(2, D), Swap(3, D, B, 5)], Text);
-        var gourmands = InnGourmandView.Banners(SixGourmandsWants(), Text);
+        var tiles = InnGourmandView.Banners([.. SixGourmandsWants().Where(w => w.Table <= gourmands)], Text);
 
         OnSta(() =>
         {
@@ -340,30 +348,27 @@ public class InnKitchenCircleTests(ITestOutputHelper output)
             double scale = ComboHintLayout.Scale(h, dpiScale: 1);
             var canvas = new Canvas { Width = w, Height = h, Background = new ImageBrush(background) };
 
-            var place = InnKitchenCircleLayout.Place(w, h, scale, InnKitchenCircleLayout.DefaultCenterX, InnKitchenCircleLayout.DefaultBottomY);
-            var grid = InnCircleRow.NewGrid();
-            var row = new InnCircleRow(grid, m => InnKitchenCircleView.Circle(m, PackagePicture));
+            var place = panelOpen ? InnKitchenCircleLayout.BelowPanel(w, h, scale)
+                : InnKitchenCircleLayout.Place(w, h, scale, InnKitchenCircleLayout.DefaultCenterX, InnKitchenCircleLayout.DefaultBottomY);
+            var grid = panelOpen ? InnCircleRow.PanelShape(new Grid()) : InnCircleRow.NewGrid();
+            var row = new InnCircleRow(grid, m => panelOpen ? InnKitchenCircleView.PanelCircle(m, PackagePicture) : InnKitchenCircleView.Circle(m, PackagePicture));
             row.Update(circles);
             row.Settle();
+            if (panelOpen) row.Emphasise(1);
             var circleFrame = new Border { Padding = new Thickness(6), BorderThickness = new Thickness(2), Child = grid, LayoutTransform = new ScaleTransform(scale, scale) };
             Canvas.SetLeft(circleFrame, place.Left);
             Canvas.SetTop(circleFrame, place.Top);
             canvas.Children.Add(circleFrame);
 
-            var arrangement = InnGourmandLayout.Arrange(gourmands, w, h, scale, HudConfig.DefaultInnGourmandRight, HudConfig.DefaultInnGourmandTop);
-            var stack = new Canvas { Height = arrangement.Height };
-            for (int i = 0; i < gourmands.Count; i++)
+            var arrangement = InnGourmandLayout.Arrange(tiles, w, h, scale, HudConfig.DefaultInnGourmandRight, HudConfig.DefaultInnGourmandTop, panelOpen, place);
+            for (int i = 0; i < tiles.Count; i++)
             {
-                var banner = InnGourmandView.Banner(gourmands[i], PackagePicture, arrangement.Compact);
-                Canvas.SetRight(banner, 0);
-                Canvas.SetTop(banner, arrangement.Tops[i]);
-                stack.Children.Add(banner);
+                var tile = InnGourmandView.Tile(tiles[i], PackagePicture, arrangement.Shape);
+                tile.LayoutTransform = new ScaleTransform(arrangement.Scale, arrangement.Scale);
+                Canvas.SetLeft(tile, arrangement.Places[i].X);
+                Canvas.SetTop(tile, arrangement.Places[i].Y);
+                canvas.Children.Add(tile);
             }
-            var gourmandFrame = new Border { Padding = new Thickness(6), BorderThickness = new Thickness(2), Child = stack, LayoutTransform = new ScaleTransform(arrangement.Scale, arrangement.Scale) };
-            var (fromRight, top) = InnGourmandLayout.Place(w, h, HudConfig.DefaultInnGourmandRight, HudConfig.DefaultInnGourmandTop);
-            Canvas.SetRight(gourmandFrame, fromRight);
-            Canvas.SetTop(gourmandFrame, top);
-            canvas.Children.Add(gourmandFrame);
 
             canvas.Measure(new Size(w, h));
             canvas.Arrange(new Rect(0, 0, w, h));

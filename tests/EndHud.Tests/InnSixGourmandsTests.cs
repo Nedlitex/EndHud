@@ -8,8 +8,8 @@ namespace EndHud.Tests;
 
 /// <summary>
 /// All six tables gourmands at once (owner, 2026-10-21: "also we need to be prepared to support all 6 tables are
-/// gourmand"): each keeps their requests, gets a banner, and the six banners fit on the right without covering the
-/// Full Blaze meter or leaving the window, in table order.
+/// gourmand"): each keeps their requests, gets a tile, and the six tiles fit without covering the Full Blaze meter, the
+/// tray, the circles or the open panel, or leaving the window, in table order.
 /// </summary>
 [Collection(WpfCollection.Name)]
 public class InnSixGourmandsTests(ITestOutputHelper output)
@@ -34,53 +34,74 @@ public class InnSixGourmandsTests(ITestOutputHelper output)
         Assert.All(banners, b => Assert.Equal(2, b.Rows.Count));
     }
 
-    /// <summary>One or two gourmands keep the full look: compact only when there are many.</summary>
-    [Fact]
-    public void A_few_gourmands_keep_the_full_banner()
+    /// <summary>The open dispatch panel on a 16:9 window (the 4K panel frames: x 0.109–0.891, y 0.194–0.853).</summary>
+    private static readonly Rect PanelArea = new(0.109, 0.194, 0.782, 0.659);
+
+    /// <summary>The UID and ping in the lower-left corner (masked on the fixtures: x up to 0.26, y from 0.94).</summary>
+    private static readonly Rect UidArea = new(0, 0.94, 0.26, 0.06);
+
+    /// <summary>One to three gourmands keep the full tile (the requests in words): the smaller one only when there are many.</summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void A_few_gourmands_keep_the_full_tile(int count)
     {
-        var two = InnGourmandView.Banners([.. InnKitchenCircleTests.SixGourmandsWants().Where(w => w.Table <= 2)], Text);
-        var arrangement = InnGourmandLayout.Arrange(two, 1920, 1080, 1, HudConfig.DefaultInnGourmandRight, HudConfig.DefaultInnGourmandTop);
-        Assert.False(arrangement.Compact);
-        Assert.Equal(1, arrangement.Scale);
+        var some = InnGourmandView.Banners([.. InnKitchenCircleTests.SixGourmandsWants().Where(w => w.Table <= count)], Text);
+        var arrangement = Arrange(some, 1920, 1080, 1, panelOpen: false);
+        Assert.Equal((InnGourmandShape.Full, 1.0), (arrangement.Shape, arrangement.Scale));
     }
 
+    private static InnGourmandArrangement Arrange(IReadOnlyList<InnGourmandBanner> banners, int width, int height, double scale, bool panelOpen) =>
+        InnGourmandLayout.Arrange(banners, width, height, scale, HudConfig.DefaultInnGourmandRight, HudConfig.DefaultInnGourmandTop, panelOpen,
+            panelOpen ? InnKitchenCircleLayout.BelowPanel(width, height, scale)
+                : InnKitchenCircleLayout.Place(width, height, scale, InnKitchenCircleLayout.DefaultCenterX, InnKitchenCircleLayout.DefaultBottomY));
+
     /// <summary>
-    /// Six gourmands of two requests each, from the banners' default place at the player's default size: every banner
-    /// inside the window, none over the Full Blaze meter, none over another, top to bottom by table.
+    /// Six gourmands of two requests each (owner, 2026-10-21: pictures "at least same size as the circule today"; the tiles
+    /// must not overlap the fire meter, the table cards, the tray or the circles in either place): at the player's default
+    /// size, with the panel closed and open, every tile inside the window, none over the Full Blaze meter or the tray (panel
+    /// closed), the open panel (panel open), the kitchens' circles where they stand, the UID, the table cards at the top or
+    /// another tile; drawn at the size asked for (pictures 112 at 1080p), the same places every time, in table order.
     /// </summary>
     [Theory]
-    [InlineData(1920, 1080)]
-    [InlineData(2560, 1440)]
-    [InlineData(3840, 2160)]
-    public void Six_gourmands_banners_fit_on_the_right_clear_of_the_Full_Blaze_meter(int width, int height)
+    [InlineData(1920, 1080, false)]
+    [InlineData(2560, 1440, false)]
+    [InlineData(3840, 2160, false)]
+    [InlineData(1920, 1080, true)]
+    [InlineData(2560, 1440, true)]
+    [InlineData(3840, 2160, true)]
+    public void Six_gourmands_tiles_fit_clear_of_the_games_hud_and_the_circles(int width, int height, bool panelOpen)
     {
         var banners = InnGourmandView.Banners(InnKitchenCircleTests.SixGourmandsWants(), Text);
         double scale = ComboHintLayout.Scale(height, dpiScale: 1);
-        var arrangement = InnGourmandLayout.Arrange(banners, width, height, scale, HudConfig.DefaultInnGourmandRight, HudConfig.DefaultInnGourmandTop);
-        var widths = InnKitchenCircleTests.OnSta(() => banners.Select(b =>
-        {
-            var element = InnGourmandView.Banner(b, InnKitchenCircleTests.PackagePicture, arrangement.Compact);
-            element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            return element.DesiredSize.Width;
-        }).ToList());
-        var (fromRight, top) = InnGourmandLayout.Place(width, height, HudConfig.DefaultInnGourmandRight, HudConfig.DefaultInnGourmandTop);
-        double s = arrangement.Scale;
-        var meter = new Rect(Meter.X * width, Meter.Y * height, Meter.Width * width, Meter.Height * height);
+        var arrangement = Arrange(banners, width, height, scale, panelOpen);
+        Assert.Equal(arrangement.Places, Arrange(banners, width, height, scale, panelOpen).Places);
+        Assert.Equal(scale, arrangement.Scale);
+        Assert.Contains(arrangement.Shape, panelOpen ? new[] { InnGourmandShape.Tall, InnGourmandShape.TallBare } : [InnGourmandShape.Full, InnGourmandShape.Compact]);
 
-        double lastBottom = double.NegativeInfinity;
+        Rect Of(Rect r) => new(r.X * width, r.Y * height, r.Width * width, r.Height * height);
+        var circles = panelOpen ? InnKitchenCircleLayout.BelowPanel(width, height, scale)
+            : InnKitchenCircleLayout.Place(width, height, scale, InnKitchenCircleLayout.DefaultCenterX, InnKitchenCircleLayout.DefaultBottomY);
+        var avoid = new List<(string What, Rect Where)> { ("the circles", circles), ("the UID", Of(UidArea)), ("the table cards", Of(new Rect(0.14, 0, 0.47, 0.135))) };
+        if (panelOpen) avoid.Add(("the open panel", Of(PanelArea)));
+        else
+        {
+            avoid.Add(("the Full Blaze meter", Of(Meter)));
+            avoid.Add(("the held-dishes tray", Of(Tray)));
+        }
+        var tiles = new List<Rect>();
         for (int i = 0; i < banners.Count; i++)
         {
-            double bannerTop = top + (Frame + arrangement.Tops[i]) * s;
-            double bannerHeight = InnGourmandView.Height(banners[i], arrangement.Compact) * s;
-            double right = width - fromRight - Frame * s;
-            var rect = new Rect(right - widths[i] * s, bannerTop, widths[i] * s, bannerHeight);
-            output.WriteLine($"table {banners[i].Table}: x {rect.Left / width:F3}–{rect.Right / width:F3}, y {rect.Top / height:F3}–{rect.Bottom / height:F3}{(arrangement.Compact ? " compact" : "")} scale {s:F2}");
+            double s = arrangement.Scale;
+            var rect = new Rect(arrangement.Places[i].X, arrangement.Places[i].Y,
+                InnGourmandView.Width(arrangement.Shape) * s, InnGourmandView.Height(arrangement.Shape, banners[i].Rows.Count) * s);
+            output.WriteLine($"table {banners[i].Table}: x {rect.Left / width:F3}–{rect.Right / width:F3}, y {rect.Top / height:F3}–{rect.Bottom / height:F3} {arrangement.Shape}");
             Assert.True(rect.Left >= 0 && rect.Top >= 0 && rect.Right <= width && rect.Bottom <= height, $"table {banners[i].Table} off the window: {rect}");
-            Assert.False(rect.IntersectsWith(meter) && Overlap(rect, meter) > 1, $"table {banners[i].Table} over the Full Blaze meter: {rect} / {meter}");
-            var tray = new Rect(Tray.X * width, Tray.Y * height, Tray.Width * width, Tray.Height * height);
-            Assert.False(Overlap(rect, tray) > 1, $"table {banners[i].Table} over the held-dishes tray: {rect} / {tray}");
-            Assert.True(rect.Top >= lastBottom,$"table {banners[i].Table} over the one above it");
-            lastBottom = rect.Bottom;
+            foreach (var (what, where) in avoid)
+                Assert.False(Overlap(rect, where) > 1, $"table {banners[i].Table} over {what}: {rect} / {where}");
+            Assert.All(tiles, other => Assert.False(Overlap(rect, other) > 1, $"table {banners[i].Table} over another tile"));
+            tiles.Add(rect);
         }
     }
 

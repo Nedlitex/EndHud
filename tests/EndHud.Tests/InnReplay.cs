@@ -131,7 +131,7 @@ internal sealed class InnReplay
     /// the gourmands with a banner, whether those banners were hidden over the panel, and each table's last card.
     /// </summary>
     internal sealed record DrawStep(TimeSpan At, int? PanelKitchen, IReadOnlyDictionary<int, InnCall> Calls, IReadOnlySet<int> Tabs, bool CardMark,
-        bool CircleDrawn, IReadOnlySet<int> Gourmands, bool Away, IReadOnlyList<TableState?> Tables);
+        bool CircleDrawn, IReadOnlySet<int> Gourmands, bool GourmandsHidden, IReadOnlyList<TableState?> Tables);
 
     public List<DrawStep> Draws { get; } = [];
 
@@ -145,7 +145,7 @@ internal sealed class InnReplay
         var tabs = views.Marks.Where(m => !m.OnCard)
             .Select(m => Enumerable.Range(1, KitchenMath.MaxKitchens).FirstOrDefault(k => DispatchPanelReader.TabArea(k) == m.Area)).Where(k => k > 0).ToHashSet();
         Draws.Add(new DrawStep(at, _display.LastAdvice?.MarkedPanel?.Kitchen, calls, tabs, views.Marks.Any(m => m.OnCard), CirclesDrawn(views),
-            views.Wants.Select(w => w.Table).ToHashSet(), views.Away, [.. _cards.Select(c => c?.State)]));
+            views.Wants.Select(w => w.Table).ToHashSet(), views.Away && !views.GourmandsBesidePanel, [.. _cards.Select(c => c?.State)]));
     }
 
     /// <summary>
@@ -175,7 +175,7 @@ internal sealed class InnReplay
             double step = before is null ? 0 : (d.At - before.At).TotalSeconds;
             tabNoCircle.Take(d.At, step, d.Tabs.Any(k => !d.CircleDrawn || !d.Calls.ContainsKey(k)));
             callNoCard.Take(d.At, step, d.PanelKitchen is { } k2 && d.Calls.ContainsKey(k2) && !d.CardMark);
-            hidden.Take(d.At, step, d.Away && d.Gourmands.Count > 0);
+            hidden.Take(d.At, step, d.GourmandsHidden && d.Gourmands.Count > 0);
             aheadHidden.Take(d.At, step, !d.CircleDrawn && d.Calls.Values.Any(c => c.Kind == InnCallKind.CookAhead));
             // A call done on that very frame (its dish read queued as the tab opened) has nothing left to mark; a call that
             // went for anything else (the panel's queue read otherwise than the estimate had it) left a tab promising a mark.
