@@ -397,4 +397,57 @@ public class RotationTrackerTests
     {
         Assert.Null(RotationTracker.Evaluate(new PhaseShownCondition("charge", Comparison.AtLeast, 1), new Reading().ToState(), PhaseHistory.None));
     }
+
+    private static PartyState WithStatuses(params BossStatusReading[] statuses) =>
+        new Reading().ToState() with { BossStatuses = statuses };
+
+    private static BossStatusReading Cryo(int? stacks) => new("Cryo Infliction", BossStatusReading.RingPosition, 1, stacks);
+
+    /// <summary>
+    /// "The enemy has Cryo Infliction at 3 or more stacks" reads the ring's stack count: 3 holds, 2
+    /// doesn't, an unread count is unknown (never guessed), and no infliction at all is 0 stacks.
+    /// </summary>
+    [Fact]
+    public void Infliction_stacks_compare_against_the_ring_count()
+    {
+        var atLeastThree = new BossStatusCondition("Cryo Infliction", true, 3);
+
+        Assert.True(RotationTracker.Evaluate(atLeastThree, WithStatuses(Cryo(3)), PhaseHistory.None));
+        Assert.True(RotationTracker.Evaluate(atLeastThree, WithStatuses(Cryo(4)), PhaseHistory.None));
+        Assert.False(RotationTracker.Evaluate(atLeastThree, WithStatuses(Cryo(2)), PhaseHistory.None));
+        Assert.Null(RotationTracker.Evaluate(atLeastThree, WithStatuses(Cryo(null)), PhaseHistory.None));
+        Assert.False(RotationTracker.Evaluate(atLeastThree, WithStatuses(), PhaseHistory.None));
+        Assert.Null(RotationTracker.Evaluate(atLeastThree, new Reading().ToState(), PhaseHistory.None)); // statuses not read
+    }
+
+    /// <summary>"Doesn't have it at 3 or more" holds at 2 stacks and with none at all; unknown stays unknown.</summary>
+    [Fact]
+    public void Not_at_three_stacks_holds_at_two_and_with_none()
+    {
+        var notThree = new BossStatusCondition("Cryo Infliction", false, 3);
+
+        Assert.True(RotationTracker.Evaluate(notThree, WithStatuses(Cryo(2)), PhaseHistory.None));
+        Assert.True(RotationTracker.Evaluate(notThree, WithStatuses(), PhaseHistory.None));
+        Assert.False(RotationTracker.Evaluate(notThree, WithStatuses(Cryo(3)), PhaseHistory.None));
+        Assert.Null(RotationTracker.Evaluate(notThree, WithStatuses(Cryo(null)), PhaseHistory.None));
+    }
+
+    /// <summary>A reaction's level (Corrosion III read as 3) compares the same way; a badge it can't read is unknown.</summary>
+    [Fact]
+    public void Reaction_level_compares_like_stacks()
+    {
+        var levelThree = new BossStatusCondition("Corrosion", true, 3);
+
+        Assert.True(RotationTracker.Evaluate(levelThree, WithStatuses(new BossStatusReading("Corrosion", 0, 0.7, 3)), PhaseHistory.None));
+        Assert.False(RotationTracker.Evaluate(levelThree, WithStatuses(new BossStatusReading("Corrosion", 0, 0.7, 2)), PhaseHistory.None));
+        Assert.Null(RotationTracker.Evaluate(levelThree, WithStatuses(new BossStatusReading("Corrosion", 0, 0.7, null)), PhaseHistory.None));
+    }
+
+    /// <summary>At least 1 is just "has it": the count isn't needed, so an unread count still answers.</summary>
+    [Fact]
+    public void One_stack_is_presence_and_needs_no_count()
+    {
+        Assert.True(RotationTracker.Evaluate(new BossStatusCondition("Cryo Infliction", true), WithStatuses(Cryo(null)), PhaseHistory.None));
+        Assert.False(RotationTracker.Evaluate(new BossStatusCondition("Cryo Infliction", false), WithStatuses(Cryo(null)), PhaseHistory.None));
+    }
 }
