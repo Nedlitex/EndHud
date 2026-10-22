@@ -786,6 +786,32 @@ out (logged once per table and session, not shown), and a missing kitchen or men
 never guessed and never shown (owner, live 2026-10-20: "do not display" the not-seen-yet lines, "half of the
 time it is wrong and it is disturbing").
 
+**What is simulated, and what puts it right** (owner, 2026-10-21: "it should be simulated from the last known state whenever
+possible and refreshed when see the latest state, so we can always try to get a more accurate recommendation"). Every
+piece of state the advice relies on that isn't read on each frame is run on from the last state known, and a reading
+that contradicts it puts it right; each correction is logged ("inn: corrected …") and counted by kind
+(`InnSession.Corrections`, at the head of every replay's trace), so drift is visible. Counted over the five replays
+(test_yuanyuan3 / 4 / 5 / 6 / 7):
+
+| State | Run on by | Put right by | Corrections |
+|---|---|---|---|
+| Each kitchen's queue (dishes, seconds left) | cook times (`KitchenQueue.Tick`) | the dispatch panel showing that kitchen (`InnSession.Align`): a dish the estimate still has is out only when the estimate had it out within `OutEarlyWithinSeconds` (10 s; more while Full Blaze runs, its faster kitchens not modelled); a queue that doesn't line up (a dish taken out, a slot misread) once read so for `RemovalSettlesAfter` (1 s); a dish read served or picked up that the counter didn't have comes out of a queue | queue 3 / 1 / 3 / 1 / 7 |
+| The counter (`CounterEstimate`: each dish, when it came out, whether it is out for an order) | dishes out of the queues | a table card reading a dish served; the tray reading it picked up or put down (back on the counter 3 s later, or to a gourmand, below); the panel's queue (above) | |
+| — a dish out for an order still waiting | covers that order | the order's card still reading it unserved `CoverTrustedFor` (45 s) after it came out: taken as not there, the order called again (served at a median 10.5 s, 90 % within 43 s over the replays) | cover 0 / 0 / 0 / 0 / 0 |
+| — how many | | the counter holds 8: more is a contradiction, the oldest dish cooked ahead goes first | counter 0 / 1 / 0 / 0 / 0 |
+| — a dish leaving the hand with no guest's card read served | back on the counter after `HandSettlesAfter` (3 s); meanwhile still in hand | a gourmand waiting (arrived, ordered, or read eating since): it went to them, their card shows no pips | gourmand 0 / 0 / 6 / 5 / 5 |
+| The timer | run on from its last reading | a reading more than a second off (it shows whole seconds), or closing | timer 0 everywhere |
+| Stock (`MenuDish.Stock`) | the menu screen's stock less the dishes cooked out | nothing yet: the dispatch panel's cards show 可烹饪N, not read (a gap) | |
+
+Read on every frame, not estimated: the orders (held through the HUD's fades, above), the tray, the panel, the fire meter.
+Until 2026-10-21 nothing took a phantom off the counter: on test_yuanyuan7 the estimate held up to 20 dishes on a counter
+of 8 (before → after, the largest estimate on each replay: 7 / 9 / 11 / 7 / 20 → 7 / 8 / 4 / 3 / 5). Two leaks made them:
+`Align` reading a queue with a dish taken out of its middle as every dish out and the rest queued anew (y7 157.5 s:
+[福寿全, 八宝饭, 千果珍珠圆] read as [福寿全 9 s, 千果珍珠圆] put three dishes on the counter and cooked 福寿全 out twice; five times on
+y7), and every dish served to a gourmand taken as put back. The phantoms covered real orders: table 6's 福寿全 had no call
+from 227.7 s to 361.5 s (02:28 → 00:15), and tables 4 and 5 waited on 白鳞高汤 while the advice told the player to take a
+soup out of kitchen 2 (310 s, owner: "stuck behind a lot of soups but the kitchen recommendation is not even picking that up").
+
 The dispatch advice is worked out afresh on every frame, so on its own it flips with every queue time read a
 second off (owner, live 2026-10-20: the suggestions "keep changing during the session").
 [`InnCallHold`](src/EndHud/InnCalls.cs) turns it into `InnAdvice.Calls`, held steady: one call per kitchen (the
@@ -815,6 +841,18 @@ until one is done (test_yuanyuan3, 379.2 s: 3.3 s). Full
 Blaze and the last call come straight from the advice. Measured (InnCallTests, 10 s of jittery readings): the first
 suggestion per kitchen changed 19 times when the advice was worked out afresh, 0 times since it keeps the calls on
 screen; the calls 0 times.
+
+**One dish in one circle** (owner, 2026-10-21, test_yuanyuan7 at 00:46: "the recommended queue will be duplicated in
+multiple kitchens": 八宝饭 for table 3's order in kitchen 1 and to cook ahead in kitchen 3). A dish to cook ahead is never
+one another kitchen's circle shows: it gives way to an order or swap of that dish, or to the same dish cooked ahead shown
+before it, and its kitchen takes the next dish its advice cooks ahead that no circle shows, or shows nothing
+(`InnCallHold.DishShown`). Two orders of one dish for two tables stay, each naming its table. **A swap** stays only while the
+advice keeps its order in that kitchen (until 2026-10-21 it stayed while any kitchen wanted the order: y7 341.5 s, the order
+moved to kitchen 1 and kitchen 2's swap went on claiming it); it is kept as a swap while the dish it takes out is there to
+take out (`KeptCall.Remove`, `DispatchAdvisor`'s `TrySwap`; before, the next frame's advice made it a plain order queued
+behind that dish), and shown as a plain order once the advice makes it one (y7 from 261 s: "先拿掉界龙肉卷" stood 100 s over
+table 6's 福寿全 after the 界龙肉卷 was out). The last call's wrong dish for a table is chosen by the dish, not by its place
+among what's left, so one dish leaving the hand no longer reshuffles every table (y7 375.3 s).
 
 The calls are banners (owner, live 2026-10-20: "remove all hints from the current panel, use the combo instead.
 the current panel has the requirements of the gourmands"): [`InnCallView`](src/EndHud/InnCallView.cs) words them
@@ -1002,7 +1040,29 @@ replay test on any tab without its circle, kitchen with a call shown on the pane
 tab with no card mark, dish to cook ahead called with the circles not drawn or gone with nothing done, gourmand hidden or
 taken down while their table still waits.
 
-`InnReplayTests.Over_the_owners_recorded_sessions_nothing_flashes_or_jumps` replays the four fixtures on every run;
+**test_yuanyuan7, replayed** (2026-10-21; the owner's 八方美馔 session, its readings the fifth fixture, 0–390 s; the timer
+reads 5:00 at 76 s, so 00:46 is 330 s). The owner: "sometimes the recommended queue will be duplicated in multiple
+kitchens", and at 5–6 min "we ended up stuck behind a lot of soups but the kitchen recommendation is not even picking that
+up". Two checks were added for it (`InnReplay.DuplicateCircles`, `InnReplay.UncalledWaits`), measured on main's code of that
+day with the final checks, then after:
+
+| Measured (y3 / y4 / y5 / y6 / y7) | Before | After |
+|---|---|---|
+| one dish in two circles (not two tables' orders) | 6 / 9 / 4 / 0 / 9 (91 / 170 / 26 / 0 / 82 s) | 0 everywhere |
+| a dish tables wait for, not in hand nor queued, a kitchen able to have it out in time, no circle naming it, over 10 s, not ended by the dish picked up or served | 1 / 1 / 0 / 1 / 2 (y7: 福寿全 133.8 s from 227.7 s, 白鳞高汤 21.6 s from 318.0 s) | 1 / 1 / 0 / 0 / 0 (y3 莓果甜汤 17.4 s, y4 酸莓布丁 17.4 s: each covered by a dish taken to be out for it, inside the 45 s trust) |
+| the largest counter estimate (a counter of 8) | 7 / 9 / 11 / 7 / 20 | 7 / 8 / 4 / 3 / 5 |
+| calls a minute; flashes, jumps | 13.6 / 11.7 / 10.0 / 3.6 / 14.4; 0, 0 | 12.9 / 12.8 / 14.4 / 5.2 / 16.0; 0, 0 |
+
+The uncalled check counts the counter as nothing: it is never read. A wait the player ended by picking the dish up or
+serving it was covered by a dish really there (listed, not counted); one ended by a call at last, by the player queueing
+it with no call, or by the time running out counts. The replay test fails on any duplicate and on any counted wait longer
+than `InnSession.CoverTrustedFor`. Two kinds of change are not counted as flashes or jumps, each the hold's own words for
+one call: a dish to cook ahead that gave way to its dish in another circle, and one whose dish could no longer come out
+before serving ends (`CallStep.AheadTooLate`); and a call gone and back while its order's dish was picked up and put
+elsewhere (the tray read it). Each correction of the estimate is listed in the trace with its time; `ENDHUD_REPLAY_DETAIL=from-to`
+writes every step's state in that window.
+
+`InnReplayTests.Over_the_owners_recorded_sessions_nothing_flashes_or_jumps` replays the five fixtures on every run;
 `InnSteadyTests`, `InnSessionTests` and `InnCallTests` have one test per hold. To trace another recording (text only, to
 a folder of your choice):
 `ENDHUD_INN_RECORDING=<recording.mp4> ENDHUD_INN_TRACE_OUT=<folder> [ENDHUD_INN_RECORDING_TO=<seconds>] dotnet test
