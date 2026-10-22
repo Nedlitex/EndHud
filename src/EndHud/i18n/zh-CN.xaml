@@ -384,4 +384,28 @@
     <sys:String x:Key="Menu.Inn.Swaps.Hint">关掉后，不会再提示把排好的菜拿掉；客人点的菜排到有空位的厨房，或者等有空位再提示。</sys:String>
     <sys:String x:Key="Tray.InnHelper">缘缘庄助手</sys:String>
 
+    <!-- Alert rules (战斗提示): the pop-up's words when a rule has no text, the editor, the menu card, the tray. -->
+    <sys:String x:Key="Alert.Describe.Separator">，</sys:String>
+    <sys:String x:Key="Alert.Describe.Or">{0} 或 {1}</sys:String>
+    <sys:String x:Key="Alert.Describe.And">{0} 且 {1}</sys:String>
+    <sys:String x:Key="Alert.Describe.Group">（{0}）</sys:String>
+    <sys:String x:Key="Alert.Describe.Not">非（{0}）</sys:String>
+    <sys:String x:Key="Alert.Describe.SkillPoints">技力 {0} {1}</sys:String>
+    <sys:String x:Key="Alert.Describe.Combo.Ready">{0} 连携技就绪</sys:String>
+    <sys:String x:Key="Alert.Describe.Combo.Used">{0} 连携技已使用</sys:String>
+    <sys:String x:Key="Alert.Describe.ComboCharge">{0} 连携技冷却 {1} {2}%</sys:String>
+    <sys:String x:Key="Alert.Describe.BattleSkill.Ready">{0} 战技就绪</sys:String>
+    <sys:String x:Key="Alert.Describe.BattleSkill.Cooling">{0} 战技冷却中</sys:String>
+    <sys:String x:Key="Alert.Describe.Ultimate.Ready">{0} 终结技就绪</sys:String>
+    <sys:String x:Key="Alert.Describe.Ultimate.Used">{0} 终结技已使用</sys:String>
+    <sys:String x:Key="Alert.Describe.UltimateCharge">{0} 终结技充能 {1} {2}%</sys:String>
+    <sys:String x:Key="Alert.Describe.UltimateActive">{0} 终结技持续中</sys:String>
+    <sys:String x:Key="Alert.Describe.UltimateOver">{0} 终结技未持续</sys:String>
+    <sys:String x:Key="Alert.Describe.Counter">{0} {1} {2} {3}</sys:String>
+    <sys:String x:Key="Alert.Describe.Status.Has">敌人有 {0}</sys:String>
+    <sys:String x:Key="Alert.Describe.Status.HasNot">敌人没有 {0}</sys:String>
+    <sys:String x:Key="Alert.Describe.Status.Stacks">{0} {1} {2} 层</sys:String>
+    <sys:String x:Key="Alert.Describe.Status.Level">{0} {1} {2} 级</sys:String>
+    <sys:String x:Key="Alert.Describe.Controlling">正在操控 {0}</sys:String>
+    <sys:String x:Key="Alert.Describe.PhaseShown">轴段已显示次数（提示中不可用）</sys:String>
 </ResourceDictionary>
