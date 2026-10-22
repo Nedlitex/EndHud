@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -425,12 +426,12 @@ public partial class RotationEditor : Window
         };
     }
 
-    /// <summary>Who, at least / at most, and a percentage (0% and 10% steps; a value from a file is kept as it is). At most 0%: just used.</summary>
+    /// <summary>Who, a comparison, and a percentage (0% to 100% by 1%; a value from a file is kept as it is). At most 0%: just used.</summary>
     private (ComboBox Who, ComboBox Compare, ComboBox Value) ChargePickers(Panel row, string operatorId, Comparison comparison, int percent)
     {
         var who = OperatorPicker(operatorId);
         var compare = ComparePicker(comparison);
-        var percents = Enumerable.Range(0, 11).Select(n => n * 10).ToList();
+        var percents = Enumerable.Range(0, 101).ToList();
         if (!percents.Contains(percent)) percents = [.. percents.Append(percent).Order()];
         var value = Picker(percents, v => $"{v}%", percent);
         row.Children.Add(who);
@@ -564,7 +565,11 @@ public partial class RotationEditor : Window
             case SkillPointsCondition c:
             {
                 var compare = ComparePicker(c.Is);
-                var value = Picker([0.5, 1, 1.5, 2, 2.5, 3], v => $"{v:0.#}", c.Value);
+                // 0.0 to 3.0 by 0.1: the bar is read to about ±0.05 (CombatHudTests), so a tenth is meaningful.
+                // A finer value from a file (1.85) is kept, in its place in the list.
+                var points = Enumerable.Range(0, 31).Select(i => Math.Round(i * 0.1, 1)).ToList();
+                if (!points.Contains(c.Value)) points = [.. points.Append(c.Value).Order()];
+                var value = Picker(points, v => v.ToString("0.0#", CultureInfo.InvariantCulture), c.Value);
                 row.Children.Add(compare);
                 row.Children.Add(value);
                 read = () => new SkillPointsCondition((Comparison)Picked(compare), (double)Picked(value));
@@ -731,6 +736,10 @@ public partial class RotationEditor : Window
     {
         var picker = new ComboBox { MinWidth = 64 };
         foreach (var value in values) picker.Items.Add(Item(text(value), value!));
+        // A value from a file that isn't in the list is added and kept, never swapped for the first item
+        // (a 技力 1.8 used to save as 0.5).
+        if (selected is not null && !values.Any(v => Equals(v, selected)))
+            picker.Items.Add(Item(text(selected), selected));
         picker.SelectedItem = picker.Items.Cast<ComboBoxItem>().FirstOrDefault(i => Equals(i.Tag, selected)) ?? picker.Items.Cast<ComboBoxItem>().FirstOrDefault();
         return picker;
     }

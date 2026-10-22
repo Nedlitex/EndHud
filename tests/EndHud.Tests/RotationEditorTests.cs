@@ -138,7 +138,8 @@ public sealed class RotationEditorTests : IDisposable
             [
                 .. mine.Phases,
                 new RotationPhase("burst", "爆发轴", [new RotationStep("Laevatain", StepAction.Ultimate)],
-                    [new SkillPointsCondition(Comparison.AtLeast, 1.8), new UltimateChargeCondition("Laevatain", Comparison.AtLeast, 37)]),
+                    [new SkillPointsCondition(Comparison.AtLeast, 1.8), new UltimateChargeCondition("Laevatain", Comparison.AtLeast, 37),
+                     new SkillPointsCondition(Comparison.AtLeast, 1.85)]), // finer than the list: kept too
             ],
         });
 
@@ -158,9 +159,54 @@ public sealed class RotationEditorTests : IDisposable
         });
 
         var saved = Assert.Single(library.Own.Load().Rotations);
-        Assert.True(saved.Phases[1].When.Count == 2, $"editor said: {said}");
+        Assert.True(saved.Phases[1].When.Count == 3, $"editor said: {said}");
         Assert.Equal(new SkillPointsCondition(Comparison.AtMost, 1.8), saved.Phases[1].When[0]);
         Assert.Equal(new UltimateChargeCondition("Laevatain", Comparison.AtMost, 37), saved.Phases[1].When[1]);
+        Assert.Equal(new SkillPointsCondition(Comparison.AtMost, 1.85), saved.Phases[1].When[2]);
+    }
+
+    /// <summary>The items (text, value) of the last picker of a new entry condition of this kind, on the second phase (爆发轴).</summary>
+    private List<(string Text, object Value)> NewGateValues(string kind)
+    {
+        var library = new RotationLibrary(_folder);
+        var mine = Published() with { Id = "mine" };
+        library.Own.Save(mine with { Phases = [.. mine.Phases, new RotationPhase("burst", "爆发轴", [new RotationStep("Laevatain", StepAction.Ultimate)])] });
+        List<(string Text, object Value)> values = [];
+        OnEditor(library, _ => { }, editor =>
+        {
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;
+            Click(editor, "AddGateButton");
+            var gate = (StackPanel)editor.FindName("GateRows");
+            var picker = ((Panel)gate.Children[0]).Children.OfType<ComboBox>().First();
+            picker.SelectedItem = picker.Items.Cast<ComboBoxItem>().Single(i => (string)i.Tag == kind);
+            var value = RowOf(gate.Children[0]).Children.OfType<ComboBox>().Last();
+            values = value.Items.Cast<ComboBoxItem>().Select(i => ((string)i.Content, i.Tag)).ToList();
+        });
+        return values;
+    }
+
+    /// <summary>The row of pickers of a condition (a row with a grey hint under it is wrapped in a panel).</summary>
+    private static Panel RowOf(UIElement shown) => shown as WrapPanel ?? ((Panel)shown).Children.OfType<WrapPanel>().First();
+
+    [Fact]
+    public void The_skill_point_picker_offers_0_to_3_by_tenths()
+    {
+        var items = NewGateValues("SkillPoints");
+        Assert.Equal(31, items.Count);
+        Assert.Equal("0.0", items[0].Text);
+        Assert.Equal("3.0", items[^1].Text);
+        // What the list holds is the very number a file holds, so a file's 1.8 is found in it.
+        Assert.Contains(items, i => (double)i.Value == double.Parse("1.8", System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(1.8, Math.Round(18 * 0.1, 1));
+    }
+
+    [Fact]
+    public void The_charge_picker_offers_every_percent()
+    {
+        var items = NewGateValues("UltimateCharge");
+        Assert.Equal(101, items.Count);
+        Assert.Equal(Enumerable.Range(0, 101), items.Select(i => (int)i.Value));
+        Assert.Equal("37%", items[37].Text);
     }
 
     private static void Click(Window window, string name) =>
