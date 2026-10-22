@@ -88,6 +88,13 @@ internal sealed class InnPlanJudge(InnPlanner planner) : IInnPlanJudge
     public bool Fits(InnPlanInput input, InnPlanInput planFor, InnSetupAdvice shown, bool chefsAsPlanned)
     {
         var plan = shown.Plan;
+        // Worked out for this theme (its hot types, what guests prefer, its objective) and these kitchens with
+        // their places: a plan for another theme or other kitchens is another recommendation, never kept for these.
+        bool sameTheme = input.HotTraits.Order(StringComparer.Ordinal).SequenceEqual(planFor.HotTraits.Order(StringComparer.Ordinal))
+            && input.Preferred.Order(StringComparer.Ordinal).SequenceEqual(planFor.Preferred.Order(StringComparer.Ordinal))
+            && input.ChoiceDishTarget == planFor.ChoiceDishTarget && input.ChoiceTipsRaised == planFor.ChoiceTipsRaised;
+        bool sameKitchens = input.Kitchens.Select(k => (k.Number, k.Places)).Order().SequenceEqual(planFor.Kitchens.Select(k => (k.Number, k.Places)).Order());
+        if (!(sameTheme && sameKitchens)) return false;
         // The chefs it worked around are all still placed where they were (a plan for chefs since removed calls an empty kitchen set).
         bool stillPlaced = planFor.Kitchens.All(old => input.Kitchens.FirstOrDefault(k => k.Number == old.Number) is { } now
             && old.Placed.Count <= now.Placed.Count
@@ -145,9 +152,16 @@ internal sealed class InnPlanJudge(InnPlanner planner) : IInnPlanJudge
 /// advice shows meanwhile.</item>
 /// </list>
 /// A plan on screen stays (owner, live 2026-10-20: "the recommended recipe keeps changing, it is very hard to
-/// follow"): while it still fits the inputs (<see cref="IInnPlanJudge.Fits"/>: the player following it, a card
-/// seen while scrolling), a newer plan, fast or refined, replaces it only when clearly better
-/// (<see cref="IInnPlanJudge.ClearlyBetter"/>). A plan kept for newer inputs keeps its chefs, dishes and drinks, and
+/// follow"; test_yuanyuan6, 2026-10-21: "the recommendation should not change, unless some kitchen is filled"):
+/// while it still fits the inputs (<see cref="IInnPlanJudge.Fits"/>: the same theme and kitchens, the player
+/// following it, a card seen while scrolling), no newer plan replaces it, fast or refined, however much better.
+/// Only a plan just put on screen (less than <see cref="RefinedWithin"/> ago) may still give way to a clearly better
+/// one (<see cref="IInnPlanJudge.ClearlyBetter"/>): the refined plan a moment late, before the player has acted on
+/// the quick one. In the owner's recording the simulator's plan came 8.4 s after the quick one, the player already
+/// in kitchen 1's picker placing the first chef it named, and replaced kitchen 1's 安塔尔+狼卫 with 秋栗+昼雪.
+/// The cost, taken knowingly: the advice first shown is the quick search's whenever the simulator takes longer than
+/// <see cref="RefinedWithin"/>, and stays so until the player places other chefs or the theme or what's offered
+/// changes. A plan kept for newer inputs keeps its chefs, dishes and drinks, and
 /// its suggestions are worked out again for them (<see cref="IInnPlanJudge.Restate"/>): a kitchen filled with the
 /// chefs advised says it's set, a kitchen half filled names only the chef still missing. New inputs cancel the work
 /// for the older ones: only the latest inputs' advice is ever stored.
@@ -157,12 +171,15 @@ internal sealed class InnPlanJudge(InnPlanner planner) : IInnPlanJudge
 /// <param name="refine">The better advice for an input, stopped by its token; null for one stage only.</param>
 /// <param name="log">Where a failure is said (throttled to the log by default).</param>
 /// <param name="note">Where each stage's time is said (the log by default).</param>
+/// <param name="clock">The time now, for how long a plan has been on screen (<see cref="InnClock"/> by default).</param>
 internal sealed class InnSetupPlanning(IInnPlanJudge judge, Func<InnPlanInput, InnSetupAdvice> fast,
-    Func<InnPlanInput, CancellationToken, InnSetupAdvice>? refine = null, Action<string>? log = null, Action<string>? note = null)
+    Func<InnPlanInput, CancellationToken, InnSetupAdvice>? refine = null, Action<string>? log = null, Action<string>? note = null,
+    Func<TimeSpan>? clock = null)
 {
     /// <summary>
     /// With nothing on screen, the refined advice is shown directly when it's ready this soon after the inputs
-    /// changed, rather than the fast advice and then a swap a moment later.
+    /// changed, rather than the fast advice and then a swap a moment later. Also how long a plan just put on
+    /// screen may still give way to a clearly better one; after that it stays while it fits.
     /// </summary>
     public static readonly TimeSpan RefinedWithin = TimeSpan.FromSeconds(1);
 
@@ -177,11 +194,13 @@ internal sealed class InnSetupPlanning(IInnPlanJudge judge, Func<InnPlanInput, I
     private readonly object _lock = new();
     private readonly Action<string> _log = log ?? (m => DiagnosticLog.Throttled("inn-setup-plan", TimeSpan.FromSeconds(30), m, "ERROR"));
     private readonly Action<string> _note = note ?? DiagnosticLog.Info;
+    private readonly Func<TimeSpan> _clock = clock ?? (() => InnClock.Now);
     private string? _requested;
     private CancellationTokenSource? _working;
     private InnSetupAdvice? _plan;
     private InnPlanInput? _planInput; // the inputs the plan shown was worked out for
     private string? _planKey; // the latest inputs it was judged to fit, and its suggestions worked out for
+    private TimeSpan _shownAt; // when the plan shown was put on screen (on the clock)
     private int _started, _replaced, _changes, _restated;
 
     /// <summary>Plans started so far (tests).</summary>
@@ -300,8 +319,8 @@ internal sealed class InnSetupPlanning(IInnPlanJudge judge, Func<InnPlanInput, I
     private static string Say(Outcome outcome) => outcome switch
     {
         Outcome.Shown => "different: shown",
-        Outcome.Kept => "different, not clearly better: kept",
-        Outcome.Restated => "not clearly better: kept, restated for what's placed",
+        Outcome.Kept => "different: kept, the one shown still fits",
+        Outcome.Restated => "kept, the one shown still fits; restated for what's placed",
         _ => "the same",
     };
 
@@ -328,8 +347,10 @@ internal sealed class InnSetupPlanning(IInnPlanJudge judge, Func<InnPlanInput, I
     }
 
     /// <summary>
-    /// <paramref name="advice"/> for the latest inputs: shown when nothing fitting is on screen or it's clearly
-    /// better than what is (<see cref="IInnPlanJudge"/>); otherwise the plan on screen stays and now stands for
+    /// <paramref name="advice"/> for the latest inputs: shown when nothing fitting is on screen, or when what is was
+    /// put there less than <see cref="RefinedWithin"/> ago and this is clearly better (<see cref="IInnPlanJudge"/>).
+    /// Otherwise the plan on screen stays (owner, test_yuanyuan6: "the recommendation should not change, unless some
+    /// kitchen is filled"), however much better this one is, and now stands for
     /// these inputs, its suggestions worked out again for them (<see cref="IInnPlanJudge.Restate"/>, here on the
     /// worker; the input the plan was worked out for stays what <see cref="IInnPlanJudge.Fits"/> judges by). Nothing
     /// when newer inputs were asked for since.
@@ -339,9 +360,12 @@ internal sealed class InnSetupPlanning(IInnPlanJudge judge, Func<InnPlanInput, I
         InnSetupAdvice? shown;
         InnPlanInput? shownFor;
         string? shownKey;
-        lock (_lock) (shown, shownFor, shownKey) = (_plan, _planInput, _planKey);
+        TimeSpan shownAt;
+        lock (_lock) (shown, shownFor, shownKey, shownAt) = (_plan, _planInput, _planKey, _shownAt);
+        // Seen for a moment at most: the player can't have acted on it yet, so a clearly better plan may still take its place.
+        bool justShown = _clock() - shownAt < RefinedWithin;
         bool replace = shown is null || shownFor is null || !judge.Fits(input, shownFor, shown, chefsAsPlanned: true)
-                       || (shown.Signature != advice.Signature && judge.ClearlyBetter(input, advice, shown));
+                       || (justShown && shown.Signature != advice.Signature && judge.ClearlyBetter(input, advice, shown));
         // Kept for other inputs than its suggestions were worked out for: worked out again (what's placed may differ).
         var restated = !replace && shownKey != key ? judge.Restate(input, shown!) : null;
         lock (_lock)
@@ -359,7 +383,11 @@ internal sealed class InnSetupPlanning(IInnPlanJudge judge, Func<InnPlanInput, I
                 return shown!.Signature == advice.Signature ? Outcome.Same : Outcome.Kept;
             }
             bool looksDifferent = shown?.Signature != advice.Signature;
-            if (looksDifferent) _changes++;
+            if (looksDifferent)
+            {
+                _changes++;
+                _shownAt = _clock();
+            }
             if (refined && looksDifferent) _replaced++;
             (_plan, _planInput, _planKey) = (advice, input, key);
             return looksDifferent ? Outcome.Shown : Outcome.Same;
