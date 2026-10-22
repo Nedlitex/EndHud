@@ -127,6 +127,18 @@ public class InnReplayTests(ITestOutputHelper output)
         Assert.True(aheadFlickers == 0, string.Join("; ", flickerList));
 
         Assert.True(replay.SessionSpan > TimeSpan.FromMinutes(5), "the whole session was replayed");
+        // One dish in one circle unless two tables each need it (owner, 2026-10-21, test_yuanyuan7 00:46: "the recommended queue
+        // will be duplicated in multiple kitchens"). Before: y3 6 (90.9 s), y4 9 (169.5 s), y5 4 (25.9 s), y6 0, y7 9 (82.2 s).
+        var (duplicates, duplicateList) = replay.DuplicateCircles();
+        Assert.True(duplicates.Count == 0, string.Join("; ", duplicateList));
+        // No order left uncalled with its dish taken to be somewhere it isn't (owner, test_yuanyuan7: "stuck behind a lot of soups
+        // but the kitchen recommendation is not even picking that up"): a dish tables wait for, not in hand nor queued, a kitchen
+        // able to have it out in time, and no circle naming it never waits longer than a dish out for an order is trusted
+        // (InnSession.CoverTrustedFor), unless the player then picks it up or serves it (it was on the counter). Before:
+        // y7 福寿全 143.1 s with no call (227.7 s), white-fin soups 21.6 s (318.0 s).
+        var uncalled = replay.UncalledWaits(InnReplay.UncalledAfterSeconds).Where(u => u.Counts).ToList();
+        Assert.True(uncalled.All(u => u.Seconds <= InnSession.CoverTrustedFor.TotalSeconds),
+            string.Join("; ", uncalled.Select(u => $"{u.Dish} from {u.From.TotalSeconds:F1} s for {u.Seconds:F1} s ({u.Ended})")));
         // The kitchens' calls: none gone and back, none switched with nothing done to it.
         Assert.Empty(flashes);
         Assert.Empty(jumps);
