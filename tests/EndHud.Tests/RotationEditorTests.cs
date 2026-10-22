@@ -123,6 +123,46 @@ public sealed class RotationEditorTests : IDisposable
         Assert.Equal(new NotCondition(new UltimateChargeCondition("Laevatain", Comparison.AtMost, 0)), Assert.Single(saved.Phases[1].When));
     }
 
+    /// <summary>
+    /// BUG1: a rotation file holding 技力 至少 1.8 opened in the editor, and once the row was touched
+    /// it saved back as 0.5 (the picker fell back to its first item: 1.8 wasn't in its list).
+    /// </summary>
+    [Fact]
+    public void A_skill_point_value_not_in_the_old_list_survives_open_and_save()
+    {
+        var library = new RotationLibrary(_folder);
+        var mine = Published() with { Id = "mine" };
+        library.Own.Save(mine with
+        {
+            Phases =
+            [
+                .. mine.Phases,
+                new RotationPhase("burst", "爆发轴", [new RotationStep("Laevatain", StepAction.Ultimate)],
+                    [new SkillPointsCondition(Comparison.AtLeast, 1.8), new UltimateChargeCondition("Laevatain", Comparison.AtLeast, 37)]),
+            ],
+        });
+
+        string said = "";
+        OnEditor(library, _ => { }, editor =>
+        {
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;
+            var gate = (StackPanel)editor.FindName("GateRows");
+            foreach (var row in gate.Children.OfType<Panel>())
+            {
+                // The player changes the comparison (至少 → 至多): the value must stay what the file said.
+                var compare = row.Children.OfType<ComboBox>().First(p => p.Items.Cast<ComboBoxItem>().Any(i => Equals(i.Tag, Comparison.AtMost)));
+                compare.SelectedItem = compare.Items.Cast<ComboBoxItem>().Single(i => Equals(i.Tag, Comparison.AtMost));
+            }
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        });
+
+        var saved = Assert.Single(library.Own.Load().Rotations);
+        Assert.True(saved.Phases[1].When.Count == 2, $"editor said: {said}");
+        Assert.Equal(new SkillPointsCondition(Comparison.AtMost, 1.8), saved.Phases[1].When[0]);
+        Assert.Equal(new UltimateChargeCondition("Laevatain", Comparison.AtMost, 37), saved.Phases[1].When[1]);
+    }
+
     private static void Click(Window window, string name) =>
         ((Button)window.FindName(name)).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
 
