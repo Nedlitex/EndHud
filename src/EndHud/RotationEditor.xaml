@@ -69,7 +69,12 @@
             </Grid.ColumnDefinitions>
 
             <!-- The phases, in order; one with an entry condition is switched to when it holds -->
-            <GroupBox Grid.Column="0" Header="{DynamicResource Editor.Phases}">
+            <!-- The header wraps: as one line it is wider than the column, and WPF then lays the whole box
+                 out at that width and clips its right edge (condition rows and hints were cut off). -->
+            <GroupBox Grid.Column="0">
+                <GroupBox.Header>
+                    <TextBlock Text="{DynamicResource Editor.Phases}" TextWrapping="Wrap" MaxWidth="370" />
+                </GroupBox.Header>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel>
                         <ListBox x:Name="PhaseList" Height="100" SelectionChanged="PhaseList_SelectionChanged" />
@@ -98,18 +103,20 @@
             <!-- The selected phase's steps -->
             <GroupBox Grid.Column="2" x:Name="StepsGroup">
                 <Grid>
+                    <!-- Shared by ratio, not a fixed 300 for the list: at the window's smallest width the step
+                         details (operator, action, the 普攻 hint, 与上一步连放) were cut off on the right. -->
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="300" />
+                        <ColumnDefinition Width="2*" MinWidth="200" MaxWidth="300" />
                         <ColumnDefinition Width="12" />
-                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="3*" />
                     </Grid.ColumnDefinitions>
                     <DockPanel Grid.Column="0">
-                        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
+                        <WrapPanel DockPanel.Dock="Bottom" Margin="0,6,0,0">
                             <Button x:Name="AddStepButton" Content="{DynamicResource Editor.AddStep}" Click="AddStep_Click" />
                             <Button Content="↑" Click="StepUp_Click" ToolTip="{DynamicResource Editor.MoveUp}" />
                             <Button Content="↓" Click="StepDown_Click" ToolTip="{DynamicResource Editor.MoveDown}" />
                             <Button Content="{DynamicResource Editor.DeleteStep}" Click="DeleteStep_Click" />
-                        </StackPanel>
+                        </WrapPanel>
                         <ListBox x:Name="StepList" SelectionChanged="StepList_SelectionChanged" />
                     </DockPanel>
                     <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
