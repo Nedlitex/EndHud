@@ -87,8 +87,9 @@ public class InnReplayTests(ITestOutputHelper output)
     /// </list>
     /// Since 2026-10-22 a gourmand's dish is an order for the kitchens (1a00587). As shipped (v0.6.2) the call followed the
     /// advice's best option of the moment while the tile held another, came after every table's order, and an order out too
-    /// late everywhere was moved anyway: y3 1 jump, y4 1, y5 2, y7 1. Now the dish is the tile's (InnGourmandPicks), in the
-    /// order taken: none.
+    /// late everywhere was moved anyway: y4 1 jump, y5 1, y7 1 (y3 1 and y5 2 more before the checker knew a gourmand served and a
+    /// queued dish freed by another table's serve). Now the dish is the tile's (InnGourmandPicks), in the
+    /// order taken: none. Calls a minute on y8: 4.0 with no gourmand's dish called, 8.8 with (the gourmands' own calls).
     /// Before 2026-10-21's fixes, the kitchens' calls: y3 88 changes (16.2 a minute), 3 flashes, 1 jump; y4 46 changes
     /// (8.6 a minute), 1 flash, 3 jumps (<see cref="InnReplay.Steadiness"/>); and every banner slid out and in again each
     /// time the dispatch panel opened and closed.
