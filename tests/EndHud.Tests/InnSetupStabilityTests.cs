@@ -223,6 +223,33 @@ public class InnSetupStabilityTests(ITestOutputHelper output)
         Assert.False(Judge.Fits(withoutIt, input, shown, chefsAsPlanned: false));
     }
 
+    /// <summary>
+    /// A plan is kept only for the theme and kitchens it was worked out for: nothing but its not fitting replaces a plan
+    /// once seen (owner, test_yuanyuan6), so another theme (other hot types, another preference) or a kitchen more or
+    /// less must not fit, even with the same chefs offered and nothing placed.
+    /// </summary>
+    [Fact]
+    public void A_plan_fits_only_its_own_theme_and_kitchens()
+    {
+        static SetupKitchen Empty(int number) => new(number, 2, [null, null], [null, null]) { ChefsPlaced = 0 };
+        var wholesome = NewSession();
+        wholesome.Update(new InnReading(InnScreenKind.Setup, S(0), Setup: new InnSetup("养身心", Inn.Themes.Single(t => t.Zh == "养身心"), "开启2次满堂彩",
+            [], ["Veggy", "Rich"], [Empty(1), Empty(2), Empty(3)])));
+        var input = wholesome.SetupInputs().Input!;
+        var shown = InnSetupAdvice.Fast(Planner, input);
+        Assert.True(Judge.Fits(input, input, shown, chefsAsPlanned: true));
+
+        var soupAndEntree = NewSession();
+        soupAndEntree.Update(new InnReading(InnScreenKind.Setup, S(0), Setup: new InnSetup("一汤一饭", Inn.Themes.Single(t => t.Zh == "一汤一饭"), null,
+            [], ["Entree", "Soup"], [Empty(1), Empty(2), Empty(3)])));
+        Assert.False(Judge.Fits(soupAndEntree.SetupInputs().Input!, input, shown, chefsAsPlanned: false));
+
+        var twoKitchens = input with { Kitchens = [.. input.Kitchens.Where(k => k.Number != 3)] };
+        Assert.False(Judge.Fits(twoKitchens, input, shown, chefsAsPlanned: false));
+        var morePlaces = input with { Kitchens = [.. input.Kitchens.Select(k => k.Number == 3 ? k with { Places = 3 } : k)] };
+        Assert.False(Judge.Fits(morePlaces, input, shown, chefsAsPlanned: false));
+    }
+
     // ---- The kitchens' panels follow the chefs placed (owner, live 2026-10-21, debug_yuanyuan1) ----
 
     /// <summary>The setup screen: kitchen 1 full (Perlica, Avywenna), kitchens 2 and 3 with these chefs placed (operator ids).</summary>
