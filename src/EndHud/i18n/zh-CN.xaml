@@ -322,8 +322,14 @@
     <sys:String x:Key="Inn.Call.LastCallWrong">不是点的菜，端过去也有钱</sys:String>
     <sys:String x:Key="Inn.Call.BlazeNowCaption">满堂彩已经满了</sys:String>
     <sys:String x:Key="Inn.Call.BlazeSoonCaption">满了就按 R 开启</sys:String>
-    <sys:String x:Key="Inn.Call.Sample">派单提示示例</sys:String>
-    <sys:String x:Key="Inn.Call.SampleCaption">营业时，该排什么菜会这样提示</sys:String>
+    <sys:String x:Key="Inn.Call.Sample">满堂彩和收尾提示示例</sys:String>
+    <sys:String x:Key="Inn.Call.SampleCaption">营业时，开启满堂彩、收尾端菜会这样提示</sys:String>
+    <sys:String x:Key="Inn.Circle.Order">点单</sys:String>
+    <sys:String x:Key="Inn.Circle.CookAhead">预做</sys:String>
+    <sys:String x:Key="Inn.Circle.Swap">换菜</sys:String>
+    <sys:String x:Key="Inn.Circle.CookAheadReason">还没人点，先做好</sys:String>
+    <sys:String x:Key="Inn.Circle.SwapReason">先拿掉{0} · 桌{1}</sys:String>
+    <sys:String x:Key="Inn.Circle.Drag">按住拖动，调整厨房提示位置</sys:String>
     <sys:String x:Key="Inn.Gourmand.Title">老饕 桌{0}</sys:String>
     <sys:String x:Key="Inn.Gourmand.Numbers">①②③</sys:String>
     <sys:String x:Key="Inn.Gourmand.Drink">{0}饮品</sys:String>
