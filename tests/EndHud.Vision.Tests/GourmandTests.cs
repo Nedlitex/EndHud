@@ -160,6 +160,47 @@ public class GourmandTests
         Assert.Contains("金丝小贝", DishesMeeting("非<金石稻>"));
     }
 
+    /// <summary>
+    /// Every request in the data, said exactly as the data has it, is found as itself (owner, 2026-10-21, test_yuanyuan8: the
+    /// feast pool's tenth gourmand asks for a drink in two characters and a dish in one, and those were never found: a line
+    /// had to have three two-character pieces).
+    /// </summary>
+    [Fact]
+    public void Every_request_said_exactly_is_found_as_itself()
+    {
+        var missed = Inn.Gourmands.SelectMany(g => g.Requests.Select((r, i) => (g, r, i)))
+            .Where(x => Inn.MatchSaid(x.r.Text).FirstOrDefault()?.Request != x.r)
+            .Select(x => $"{x.g.Pool} {x.g.Number} request {x.i}")
+            .ToList();
+        Assert.True(missed.Count == 0, string.Join(", ", missed));
+    }
+
+    /// <summary>
+    /// A gourmand's two requests in one bubble, a line each, or wrapped at ten characters as the game's bubble wraps them
+    /// (test_yuanyuan8: every one of the fourteen feast gourmands' bubbles is one of these pairs): both found, in order, and
+    /// nothing else. Every pair of every gourmand in the data.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(10)]
+    public void A_gourmands_two_requests_on_their_own_lines_are_both_found(int wrapAt)
+    {
+        var missed = new List<string>();
+        foreach (var g in Inn.Gourmands)
+        for (int i = 0; i < g.Requests.Count; i++)
+        for (int j = 0; j < g.Requests.Count; j++)
+        {
+            if (i == j) continue;
+            string[] lines = [.. Wrap(g.Requests[i].Text, wrapAt), .. Wrap(g.Requests[j].Text, wrapAt)];
+            var found = new GourmandBubble(string.Concat(lines), lines).Requests(Inn).Select(m => m.Request).ToList();
+            if (!found.SequenceEqual([g.Requests[i], g.Requests[j]])) missed.Add($"{g.Pool} {g.Number} requests {i}+{j}");
+        }
+        Assert.True(missed.Count == 0, $"{missed.Count}: {string.Join(", ", missed)}");
+
+        static IEnumerable<string> Wrap(string text, int at) =>
+            at <= 0 ? [text] : Enumerable.Range(0, (text.Length + at - 1) / at).Select(k => text.Substring(k * at, Math.Min(at, text.Length - k * at)));
+    }
+
     [Theory]
     [InlineData("甜品&([酸]或[甜])")]
     [InlineData("主食&非[美观]&非[雅致]")]

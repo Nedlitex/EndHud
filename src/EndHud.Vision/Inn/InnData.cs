@@ -107,6 +107,9 @@ public sealed record GourmandRequestMatch(Gourmand Gourmand, GourmandRequest Req
         var letters = text.Where(char.IsLetterOrDigit).ToArray();
         return [.. Enumerable.Range(0, Math.Max(0, letters.Length - 1)).Select(i => new string(letters, i, 2))];
     }
+
+    /// <summary>The text's letters and digits, punctuation and spaces left out.</summary>
+    internal static string Letters(string text) => new([.. text.Where(char.IsLetterOrDigit)]);
 }
 
 /// <param name="Text">What they say, as the speech bubble shows it (typed by players: wording may be a little off).</param>
@@ -281,9 +284,14 @@ public sealed record InnData(int Format, IReadOnlyList<InnDishType> DishTypes, I
     /// </summary>
     public IReadOnlyList<GourmandRequestMatch> MatchSaid(string said)
     {
+        var requests = Gourmands.SelectMany(g => g.Requests.Select(r => (Gourmand: g, Request: r, Pieces: GourmandRequestMatch.Pieces(r.Text)))).ToList();
+        // Said exactly (letters alike, punctuation aside): that request, however short. The feast pool's tenth gourmand says
+        // a drink in three letters and a dish in one (test_yuanyuan8), too few pieces to weigh.
+        string letters = GourmandRequestMatch.Letters(said);
+        var exact = requests.Where(r => letters.Length > 0 && GourmandRequestMatch.Letters(r.Request.Text) == letters).ToList();
+        if (exact.Count > 0) return [.. exact.Select(r => new GourmandRequestMatch(r.Gourmand, r.Request, 1))];
         var pieces = GourmandRequestMatch.Pieces(said);
         if (pieces.Count < GourmandRequestMatch.MinPieces) return [];
-        var requests = Gourmands.SelectMany(g => g.Requests.Select(r => (Gourmand: g, Request: r, Pieces: GourmandRequestMatch.Pieces(r.Text)))).ToList();
         double Weight(string piece) => Math.Log(1 + requests.Count / (double)Math.Max(1, requests.Count(r => r.Pieces.Contains(piece))));
         double total = pieces.Sum(Weight);
         return [.. requests
