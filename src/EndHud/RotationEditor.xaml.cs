@@ -396,7 +396,7 @@ public partial class RotationEditor : Window
 
     // ---- Conditions: a step's expected state, a phase's entry condition ----
 
-    private static readonly string[] ConditionKinds = ["SkillPoints", "Combo", "ComboCharge", "BattleSkill", "Ultimate", "UltimateCharge", "UltimateActive", "Counter", "BossStatus", "Controlling", "Group"];
+    private static readonly string[] ConditionKinds = ["SkillPoints", "Combo", "ComboCharge", "BattleSkill", "Ultimate", "UltimateCharge", "UltimateActive", "Counter", "BossStatus", "Controlling", "PhaseShown", "Group"];
 
     private void AddCondition_Click(object sender, RoutedEventArgs e)
     {
@@ -426,6 +426,8 @@ public partial class RotationEditor : Window
             "Counter" => Counters().FirstOrDefault() is { } c ? new CounterCondition(c.OperatorId, c.Id, Comparison.AtLeast, c.Max) : new SkillPointsCondition(Comparison.AtLeast, 2),
             "BossStatus" => new BossStatusCondition(_library.Statuses.FirstOrDefault()?.Id ?? "", true),
             "Controlling" => new ControllingCondition(first),
+            // Another phase's count by default: a phase's entry condition can't use its own (Rotation.Problems).
+            "PhaseShown" => new PhaseShownCondition((_draft?.Phases.FirstOrDefault(p => p != _phase) ?? _phase)?.Id ?? "", Comparison.AtLeast, 1),
             // A group is made to say "or": it starts as "any of" with one condition in it.
             "Group" => new AnyCondition([new UltimateCondition(first, true)]),
             _ => new SkillPointsCondition(Comparison.AtLeast, 2),
@@ -457,6 +459,7 @@ public partial class RotationEditor : Window
         CounterCondition => "Counter",
         BossStatusCondition => "BossStatus",
         ControllingCondition => "Controlling",
+        PhaseShownCondition => "PhaseShown",
         AllCondition or AnyCondition => "Group",
         _ => "SkillPoints",
     };
@@ -681,6 +684,23 @@ public partial class RotationEditor : Window
                 var who = OperatorPicker(c.OperatorId);
                 row.Children.Add(who);
                 read = () => new ControllingCondition((string)Picked(who));
+                break;
+            }
+            case PhaseShownCondition c:
+            {
+                // The rotation's phases by the strip's own names ("充能轴 II"), never ids; a deleted one stays listed as missing.
+                var rotation = _draft!.ToRotation();
+                var phases = rotation.Phases.Select((p, i) => (p.Id, Label: rotation.PhaseLabel(i))).ToList();
+                if (!phases.Any(p => p.Id == c.PhaseId)) phases.Insert(0, (c.PhaseId, Loc.Get("Editor.PhaseMissing")));
+                var which = Picker(phases, p => p.Label, phases.First(p => p.Id == c.PhaseId));
+                var compare = ComparePicker(c.Is);
+                var times = Picker(Enumerable.Range(0, 10).ToList(), n => Loc.Format("Editor.Times", n), c.Times);
+                row.Children.Add(which);
+                row.Children.Add(compare);
+                row.Children.Add(times);
+                read = () => new PhaseShownCondition((((string Id, string Label))Picked(which)).Id, (Comparison)Picked(compare), (int)Picked(times));
+                hint = Loc.Get("Editor.PhaseShownHint");
+                kind.ToolTip = hint;
                 break;
             }
             default:
