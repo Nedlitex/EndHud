@@ -56,9 +56,13 @@ internal static class InnKitchenCircleView
 
     /// <summary>
     /// The circle, the dish's picture in it, a slot's width and the row's height, and the words' sizes, at 1080p: the
-    /// original circle (v0.6.0), as the owner asked back (2026-10-22: "USE the original circle style").
+    /// circle with its words beside it, as v0.6.0 drew it under the open panel, which the owner asked back (2026-10-22, with
+    /// their screenshot of that row: "USE the original circle style").
     /// </summary>
-    public const double CircleSize = 136, PictureSize = 112, SlotWidth = 260, RowHeight = 240, LabelFont = 22, DishFont = 22, ReasonFont = 20;
+    public const double CircleSize = 136, PictureSize = 112, SlotWidth = 300, RowHeight = CircleSize, LabelFont = 22, DishFont = 22, ReasonFont = 20;
+
+    /// <summary>The words' column beside the ring.</summary>
+    private const double WordsWidth = SlotWidth - CircleSize - 10;
 
     private const double RingThickness = 8;
 
@@ -164,11 +168,18 @@ internal static class InnKitchenCircleView
         var dish = Words(model.Dish, DishFont, brush, bold: true);
         dish.Margin = new Thickness(0, 4, 0, 0);
         var reason = Words(model.Reason, ReasonFont, TextBrush, bold: false);
+        // The ring on the left; beside it the kitchen and the kind's word, the dish and the reason.
+        header.HorizontalAlignment = HorizontalAlignment.Left;
+        dish.HorizontalAlignment = reason.HorizontalAlignment = HorizontalAlignment.Left;
+        ring.VerticalAlignment = VerticalAlignment.Center;
+        var beside = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0), Width = WordsWidth, Children = { header, dish, reason } };
         return new StackPanel
         {
+            Orientation = Orientation.Horizontal,
             Width = SlotWidth,
+            Height = RowHeight,
             VerticalAlignment = VerticalAlignment.Bottom,
-            Children = { header, ring, dish, reason },
+            Children = { ring, beside },
         };
     }
 
@@ -181,7 +192,7 @@ internal static class InnKitchenCircleView
         FontFamily = Font,
         HorizontalAlignment = HorizontalAlignment.Center,
         TextTrimming = TextTrimming.CharacterEllipsis,
-        MaxWidth = SlotWidth,
+        MaxWidth = WordsWidth,
         // Readable over any scene, as the gauges' words are.
         Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 5, ShadowDepth = 0, Opacity = 0.95 },
     };
