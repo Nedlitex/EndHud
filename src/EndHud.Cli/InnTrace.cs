@@ -7,7 +7,8 @@ namespace EndHud.Cli;
 
 /// <summary>
 /// <c>trace-inn</c>: what a recording of the inn shows over time, as text only. Per sampled frame
-/// the screen, the session's timer and each table card (its state and the ids of what it ordered);
+/// the screen, the session's timer, each table card (its state and the ids of what it ordered), the dishes in hand and
+/// Full Blaze's countdown;
 /// then every order once (table, time, items) and how often each dish and drink was ordered, with
 /// the menu as the screens list it (the menu screen's chosen cards, the dispatch panel's dishes) and
 /// the theme as the setup screen states it. It never writes an image: it is for measuring how guests
@@ -38,11 +39,12 @@ internal static class InnTrace
         var panelReader = new DispatchPanelReader(text, pictures, data, library.Operators);
         var setupReader = new SetupReader(text, data, library.Operators);
         var menuReader = new MenuReader(text, data);
+        var trayReader = new TrayReader(pictures);
 
         var video = await VideoFile.OpenAsync(path);
         double end = Math.Min(to ?? double.MaxValue, video.Duration.TotalSeconds - endMargin);
         Console.WriteLine($"# video {video.Width}x{video.Height}, {F(video.Duration.TotalSeconds)} s; sampled {F(from)}-{F(end)} s every {F(everySeconds)} s");
-        Console.WriteLine("t,screen,timer," + string.Join(",", Enumerable.Range(1, TableCardReader.Tables).Select(i => $"table{i}")) + ",panel");
+        Console.WriteLine("t,screen,timer," + string.Join(",", Enumerable.Range(1, TableCardReader.Tables).Select(i => $"table{i}")) + ",panel,tray,blaze");
 
         var orders = new OrderTracker();
         var menu = new SortedSet<string>(StringComparer.Ordinal);
@@ -52,7 +54,7 @@ internal static class InnTrace
         {
             var frame = await video.GetFrameAsync(TimeSpan.FromSeconds(t));
             var kind = await InnScreen.DetectAsync(text, frame);
-            string timer = "", tables = string.Join(",", Enumerable.Repeat("", TableCardReader.Tables)), panelCell = "";
+            string timer = "", tables = string.Join(",", Enumerable.Repeat("", TableCardReader.Tables)), panelCell = "", trayCell = "", blazeCell = "";
             switch (kind)
             {
                 case InnScreenKind.Session or InnScreenKind.DispatchPanel:
@@ -70,6 +72,13 @@ internal static class InnTrace
                         string queue = string.Join("+", panel.Queue.Select(q => !q.Filled ? "-" : q.DishId ?? "?"));
                         panelCell = $"k{panel.Kitchen}:" + string.Join("+", ids) + $" queue:{queue}";
                     }
+                    else
+                    {
+                        // What the player holds ("-" an empty slot, "?" one not told apart, "*" the 珍馐 badge), and Full Blaze's countdown.
+                        if (trayReader.Read(frame) is { } tray)
+                            trayCell = string.Join("+", tray.Select(h => h is null ? "-" : (h.Id ?? "?") + (h.Choice ? "*" : "")));
+                        if (await FireMeterReader.ReadAsync(text, frame) is { BlazeLeft: { } left }) blazeCell = F(left.TotalSeconds);
+                    }
                     break;
                 }
                 case InnScreenKind.Menu:
@@ -80,7 +89,7 @@ internal static class InnTrace
                     if (await setupReader.ReadAsync(frame, InnScreenKind.Setup) is { } s && (setup is null || Score(s) > Score(setup))) setup = s;
                     break;
             }
-            Console.WriteLine($"{F(t)},{kind?.ToString() ?? ""},{timer},{tables},{panelCell}");
+            Console.WriteLine($"{F(t)},{kind?.ToString() ?? ""},{timer},{tables},{panelCell},{trayCell},{blazeCell}");
         }
 
         Console.WriteLine();
