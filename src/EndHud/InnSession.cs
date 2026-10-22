@@ -1330,10 +1330,6 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         {
             CookingNow = k => Kitchen(k).Queue.Dishes is [var cooking, ..] ? cooking.Dish.Id : null,
         };
-        // The calls on screen are kept while possible: the advice plans around them (owner, 2026-10-21: "the recommendation
-        // should stay steady").
-        var dispatch = advisor.Advise(state, fillEverySlot, _calls.Kept(view));
-
         var drinks = MenuDrinks();
         var notes = new List<InnGourmandNote>();
         foreach (int table in gourmandTables)
@@ -1350,6 +1346,15 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             bool drinksUnknown = drinks.Count == 0 && stillOpen.Any(r => GourmandCondition.Parse(r.When, data).ForDrink);
             notes.Add(new InnGourmandNote(table, new GourmandAdvisor(advisor).Advise(stillOpen, state, drinks), null, drinksUnknown));
         }
+        // A gourmand's dish, as its tile names it, is an order for the kitchens like any table's (owner, 2026-10-22: "table 1
+        // wants 肉卷, but it is NEVER suggested in the kitchen"): it goes once its request reads resolved (its pip).
+        var gourmandDishes = notes.SelectMany(n => InnGourmandView.Of(n, _ => ""))
+            .Where(w => w.ItemId is { } id && DishOf(id) is not null).Select(w => new OrderedDish(w.Table, DishOf(w.ItemId!)!)).ToList();
+        if (gourmandDishes.Count > 0) state = state with { Outstanding = [.. state.Outstanding, .. gourmandDishes] };
+
+        // The calls on screen are kept while possible: the advice plans around them (owner, 2026-10-21: "the recommendation
+        // should stay steady").
+        var dispatch = advisor.Advise(state, fillEverySlot, _calls.Kept(view));
         var calls = _calls.Update(dispatch, blaze, view, now);
         _shownCalls = calls;
         return new InnAdvice(dispatch, null, blaze, _blaze.Running, notes, unreadable, exact, !_ordersSeen)
