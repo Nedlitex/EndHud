@@ -42,6 +42,48 @@ public sealed class ControllerLayoutTests : IDisposable
     public async Task The_layout_on_screen_is_recognised(string fixture, HudLayout layout) =>
         Assert.Equal(layout, (await ReadAsync(fixture)).Layout);
 
+    /// <summary>
+    /// A PlayStation controller labels the badges "L1" instead of "LB" (a player's screenshot; no
+    /// full-size picture of it yet): the recording's frames with each badge's "B" replaced by a
+    /// "1" are still the controller layout, and the squad is still read. Before, only "LB" was
+    /// looked for, so with that pad the squad was found only while L1 was held.
+    /// </summary>
+    [Theory]
+    [InlineData("combat.jpg")]
+    [InlineData("combat-late.jpg")]
+    [InlineData("out-of-combat.jpg")]
+    [InlineData("fullbattle-ultimates-charging.jpg")]
+    public async Task A_PlayStation_controllers_L1_badges_are_the_controller_layout(string fixture)
+    {
+        var frame = WithL1Badges(await ImageFile.LoadAsync(Fixture(fixture)));
+        var state = await new PartyReader(new TextRecognizer()).ReadAsync(frame);
+
+        Assert.Equal(HudLayout.Controller, state.Layout);
+        if (fixture != "out-of-combat.jpg") Assert.True(state.PanelVisible);
+    }
+
+    /// <summary><paramref name="frame"/> with each badge's "B" (4K: x 461–483 / 3552–3574, rows
+    /// 1836–1865) painted over dark and a 4-pixel "1" drawn in its place.</summary>
+    private static Frame WithL1Badges(Frame frame)
+    {
+        var ui = new UiScaler(frame.Width, frame.Height);
+        var bgra = (byte[])frame.Bgra.Clone();
+        void Fill(PixelRect r, byte value)
+        {
+            for (int y = r.Y; y < r.Bottom; y++)
+            for (int x = r.X; x < r.Right; x++)
+            {
+                int i = (y * frame.Width + x) * 4;
+                bgra[i] = bgra[i + 1] = bgra[i + 2] = value;
+            }
+        }
+        Fill(ui.BottomLeft(new PixelRect(461, 1836, 23, 30)), 20);
+        Fill(ui.BottomLeft(new PixelRect(466, 1838, 4, 25)), 250);
+        Fill(ui.BottomRight(new PixelRect(3552, 1836, 23, 30)), 20);
+        Fill(ui.BottomRight(new PixelRect(3557, 1838, 4, 25)), 250);
+        return new Frame(frame.Width, frame.Height, bgra);
+    }
+
     /// <summary>Combo: 1 = ready, otherwise the refilled part.</summary>
     public static TheoryData<string, int, double[], double[]> Readings() => new()
     {

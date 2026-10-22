@@ -238,7 +238,7 @@
     <sys:String x:Key="Menu.PartyOcr">识别小队栏</sys:String>
     <sys:String x:Key="Menu.DebugPanel">显示调试面板（识别到的等级、生命值和技能）</sys:String>
     <sys:String x:Key="Menu.ExportDiagnostics">导出诊断信息</sys:String>
-    <sys:String x:Key="Menu.ExportDiagnostics.Hint">在桌面生成诊断压缩包，包含运行日志、设置和最近的几张游戏截图（UID 已遮挡）。反馈问题（例如一直显示“正在识别小队栏”）时请附上该文件。</sys:String>
+    <sys:String x:Key="Menu.ExportDiagnostics.Hint">在桌面生成诊断压缩包（小于 20 KB），包含最近的运行日志、设置和游戏画面左下、右下角的小截图（UID 已遮挡）。反馈问题（例如一直显示“正在识别小队栏”）时请附上该文件。</sys:String>
     <sys:String x:Key="Diagnostics.Exported">已导出到桌面：{0}</sys:String>
     <sys:String x:Key="Diagnostics.ExportFailed">导出失败，请稍后再试，或打开配置文件夹，把其中的 logs 文件夹发给开发者。</sys:String>
     <sys:String x:Key="Menu.CheckForUpdates">自动检查更新（每天一次）：EndHud 新版本、推荐排轴和干员头像库</sys:String>

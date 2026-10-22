@@ -42,13 +42,29 @@ public static class HudLayoutDetector
     /// <summary>The "LB" letters in the middle of the squad diamond, anchored bottom-left.</summary>
     private static readonly PixelRect SquadLetters = new(441, 1836, 42, 30);
 
+    // A PlayStation controller labels the same badges "L1" (a player's screenshot, 0.6.2), and the
+    // "LB" letters above don't match it: the HUD read as keyboard and mouse and the squad was never
+    // found unless L1 was held (the D-pad). The "L" both labels share, alone, scores 0.89 or more in
+    // every controller fixture and 0.43 at most on keyboard-and-mouse ones; the search is wider
+    // because "L1" is narrower than "LB", so its "L" sits further right in the badge.
+    private const double LetterLMatchAt = 0.7;
+    private const int LetterLSearchRadius = 8;
+
+    /// <summary>The "L" of the squad badge's "LB" or "L1", anchored bottom-left.</summary>
+    private static readonly PixelRect SquadLetterL = new(441, 1836, 22, 30);
+
+    /// <summary>The "L" of the skill badge's "LB" or "L1", anchored bottom-right.</summary>
+    private static readonly PixelRect SkillsLetterL = new(3532, 1836, 22, 30);
+
     /// <summary>The D-pad in the middle of the squad diamond while LB is held, anchored bottom-left.</summary>
     private static readonly PixelRect SquadDpad = new(414, 1798, 98, 99);
 
     public static HudLayout Detect(Frame frame, UiScaler ui)
     {
         if (WhiteShape.Score(frame, ui.BottomRight(SkillsLetters), SkillsLbShape, LetterWhiteMin, SearchRadius) >= MatchAt
-            || WhiteShape.Score(frame, ui.BottomLeft(SquadLetters), SquadLbShape, LetterWhiteMin, SearchRadius) >= MatchAt)
+            || WhiteShape.Score(frame, ui.BottomLeft(SquadLetters), SquadLbShape, LetterWhiteMin, SearchRadius) >= MatchAt
+            || WhiteShape.Score(frame, ui.BottomRight(SkillsLetterL), LetterLShape, LetterWhiteMin, LetterLSearchRadius) >= LetterLMatchAt
+            || WhiteShape.Score(frame, ui.BottomLeft(SquadLetterL), LetterLShape, LetterWhiteMin, LetterLSearchRadius) >= LetterLMatchAt)
             return HudLayout.Controller;
         if (WhiteShape.Score(frame, ui.BottomLeft(SquadDpad), DpadShape, LetterWhiteMin, SearchRadius) >= MatchAt)
             return HudLayout.ControllerSkillsHeld;
@@ -177,4 +193,8 @@ public static class HudLayoutDetector
         ".................................................",
         ".................................................",
     ];
+
+    /// <summary>The "L" of <see cref="SquadLbShape"/> (its left 22 columns). After it: static fields
+    /// are set in the order they're written.</summary>
+    private static readonly string[] LetterLShape = [.. SquadLbShape.Select(row => row[..22])];
 }

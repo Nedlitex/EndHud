@@ -33,6 +33,23 @@ public static class ImageFile
         return Frame.FromSoftwareBitmap(bitmap);
     }
 
+    /// <summary>Save as JPEG at <paramref name="quality"/> (0–1): far smaller than PNG for a game picture.</summary>
+    public static async Task SaveJpegAsync(Frame frame, string path, double quality)
+    {
+        path = Path.GetFullPath(path);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        using var bitmap = SoftwareBitmap.Convert(frame.ToSoftwareBitmap(), BitmapPixelFormat.Bgra8, BitmapAlphaMode.Ignore);
+        using var memory = new InMemoryRandomAccessStream();
+        var options = new BitmapPropertySet { ["ImageQuality"] = new BitmapTypedValue((float)quality, Windows.Foundation.PropertyType.Single) };
+        var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.JpegEncoderId, memory, options);
+        encoder.SetSoftwareBitmap(bitmap);
+        await encoder.FlushAsync();
+
+        memory.Seek(0);
+        await using var output = File.Create(path);
+        await memory.AsStreamForRead().CopyToAsync(output);
+    }
+
     public static async Task SavePngAsync(Frame frame, string path)
     {
         path = Path.GetFullPath(path);

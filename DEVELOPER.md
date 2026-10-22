@@ -123,11 +123,15 @@ over at 1 MB and keeps three files; the user's profile folder is written as `%US
 
 "Export diagnostics" (tray, or the menu's General card) writes `EndHud-diagnostics-<time>.zip` to the
 desktop ([`DiagnosticExport`](src/EndHud/DiagnosticExport.cs)): `summary.txt` (version, PC, the game
-window, what reading is doing, the last reading per slot, the operator library on disk), `logs/`,
-`config.json` and `game.png`, the last game picture read with the UID area (bottom left, at 4K
-x 170–560, 15–95 px above the bottom) blacked out, and `recent/`: the pictures read over the last
-~12 s (one every 2 s, six, at most 960 px wide, UID blacked out) with `readings.txt` saying what
-was read from each. The summary also lists the graphics. Learned portraits aren't included.
+window, what reading is doing, the last reading per slot, the operator library on disk),
+`logs/endhud.log`, `config.json`, `hud.jpg` (the bottom corners of the last game picture read, squad
+and skill buttons side by side, with the UID area, bottom left at 4K x 200–500, 28–60 px above the
+bottom, blacked out) and `recent/readings.txt`, what was read over the last ~12 s. Players upload it
+to sites that take small files (a 19 KB zip was too large for one), so it stays under 20 KB
+(`MaxZipBytes`): the text gets about 11 KB, the log cut to its end until it fits (all three files
+joined, oldest first; a player's 250 KB log kept its last 80 KB), and the picture takes the largest
+size that still fits, or is left out. The summary also lists the graphics. Learned portraits aren't
+included.
 
 **Network.** Every GitHub request (EndHud updates, recommended rotations, the operator package)
 goes through [`GitHubHttp`](src/EndHud/GitHubHttp.cs), which logs the host and path, the status and
@@ -1709,7 +1713,10 @@ up to 10 readings in a row; hidden marks made a full squad look smaller for unde
 With a controller the game draws another HUD, and switches back and forth with the last device
 used, mid-fight too. [`HudLayoutDetector`](src/EndHud.Vision/HudLayout.cs) tells them apart on
 every reading by the white "LB" letters in the middle of the squad diamond and the skill diamond,
-and the D-pad that replaces the squad's letters while LB is held. Where each slot's parts are in
+and the D-pad that replaces the squad's letters while LB is held. A PlayStation controller labels
+the same badges "L1" (its LB is L1): the "L" alone is matched too (0.89 or more in every controller
+fixture, 0.43 at most on keyboard-and-mouse ones, matched at 0.7), so that pad is read as well;
+before 0.6.4 its squad was found only while L1 was held. Where each slot's parts are in
 each layout is in [`SquadGeometry`](src/EndHud.Vision/SquadGeometry.cs):
 
 | | Keyboard and mouse | Controller | Controller, LB held |
