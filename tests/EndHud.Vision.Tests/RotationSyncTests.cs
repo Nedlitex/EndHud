@@ -208,6 +208,23 @@ public sealed class RotationSyncTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// The recommended rotations are downloaded by every EndHud, released ones included. Those read
+    /// up to format 3, so a published file stays at 3 or less until a release reads format 4.
+    /// </summary>
+    [Fact]
+    public void Published_rotations_stay_readable_by_released_builds()
+    {
+        var files = Directory.GetFiles(Path.Combine(OperatorCache.RepositoryRoot(), "rotations"), "*.json");
+
+        Assert.NotEmpty(files);
+        Assert.All(files, file =>
+        {
+            using var json = System.Text.Json.JsonDocument.Parse(File.ReadAllText(file));
+            Assert.True(json.RootElement.GetProperty("format").GetInt32() <= 3, $"{Path.GetFileName(file)} needs a newer EndHud than the released one");
+        });
+    }
+
     private static IEnumerable<StateCondition> Flatten(IEnumerable<StateCondition> conditions) => conditions.SelectMany(c => c switch
     {
         AllCondition all => Flatten(all.Of),

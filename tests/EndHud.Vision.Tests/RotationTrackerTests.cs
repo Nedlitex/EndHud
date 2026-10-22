@@ -376,4 +376,25 @@ public class RotationTrackerTests
         Assert.Equal(1, tracker.Update(new Reading { ComboReady = CombosExcept(1) }.ToState())!.Step.Index);
         Assert.Equal(0, tracker.Update(new Reading { ComboReady = CombosExcept(2) }.ToState())!.Step.Index);
     }
+
+    /// <summary>小于 is strictly less: "技力 小于 2" holds at 1.95 and not at 2 (format 4).</summary>
+    [Fact]
+    public void Below_two_skill_points_holds_at_1_95_and_not_at_2()
+    {
+        var below = new SkillPointsCondition(Comparison.Below, 2);
+        var above = new SkillPointsCondition(Comparison.Above, 2);
+
+        Assert.True(RotationTracker.Evaluate(below, new Reading(SkillPoints: 1.95).ToState(), PhaseHistory.None));
+        Assert.False(RotationTracker.Evaluate(below, new Reading(SkillPoints: 2).ToState(), PhaseHistory.None));
+        Assert.False(RotationTracker.Evaluate(above, new Reading(SkillPoints: 2).ToState(), PhaseHistory.None));
+        Assert.True(RotationTracker.Evaluate(above, new Reading(SkillPoints: 2.05).ToState(), PhaseHistory.None));
+        Assert.Null(RotationTracker.Evaluate(below, new Reading(SkillPoints: null).ToState(), PhaseHistory.None));
+    }
+
+    /// <summary>Outside a phase selector (alerts, explanations) nobody counts phases: "shown" is unknown, never a guessed 0.</summary>
+    [Fact]
+    public void Phase_shown_is_unknown_without_a_history()
+    {
+        Assert.Null(RotationTracker.Evaluate(new PhaseShownCondition("charge", Comparison.AtLeast, 1), new Reading().ToState(), PhaseHistory.None));
+    }
 }

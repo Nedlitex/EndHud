@@ -200,7 +200,7 @@ public sealed class RotationFormatTests : IDisposable
     [Theory]
     [InlineData("""{ "name": "x" }""", RotationReadError.NotARotation)]
     [InlineData("not json", RotationReadError.NotARotation)]
-    [InlineData("""{ "format": 4, "id": "x" }""", RotationReadError.NewerFormat)]
+    [InlineData("""{ "format": 5, "id": "x" }""", RotationReadError.NewerFormat)]
     public void A_file_that_isnt_a_rotation_this_build_can_read_is_refused(string json, RotationReadError expected) =>
         Assert.Equal(expected, Assert.Throws<RotationReadException>(() => RotationFormat.FromJson(json)).Error);
 
@@ -311,5 +311,55 @@ public sealed class RotationFormatTests : IDisposable
         Assert.True(back.LastMatchWins);
         Assert.Equal(new NotCondition(new UltimateChargeCondition("Laevatain", Comparison.AtMost, 50)), Assert.Single(back.Phases[0].When));
         Assert.Contains("\"kind\": \"not\"", RotationFormat.ToJson(rotation));
+    }
+
+    /// <summary>
+    /// Format 4 adds basic-attack steps, "phase shown" conditions and the 小于/大于 comparisons. A
+    /// rotation that uses none of them is still saved as format 2 or 3.
+    /// </summary>
+    [Fact]
+    public void A_basic_attack_step_needs_format_4()
+    {
+        var plain = Guide().Phases;
+        RotationPhase[] basic = [plain[0] with { Steps = [.. plain[0].Steps, new RotationStep("Laevatain", StepAction.BasicAttack)] }];
+
+        Assert.Equal(4, Rotation.FormatNeeded(basic, lastMatchWins: false));
+        var back = RotationFormat.FromJson(RotationFormat.ToJson(Guide() with { Format = 4, Phases = basic }));
+        Assert.Equal(StepAction.BasicAttack, back.Phases[0].Steps[^1].Action);
+        Assert.Contains("\"action\": \"BasicAttack\"", RotationFormat.ToJson(Guide() with { Format = 4, Phases = basic }));
+    }
+
+    [Fact]
+    public void Below_needs_format_4_and_round_trips()
+    {
+        var plain = Guide().Phases;
+        var below = new AnyCondition([new NotCondition(new SkillPointsCondition(Comparison.Below, 2))]);
+        RotationPhase[] phases = [plain[0] with { When = [below] }];
+        RotationPhase[] above = [plain[0] with { When = [new UltimateChargeCondition("Laevatain", Comparison.Above, 37)] }];
+
+        Assert.Equal(4, Rotation.FormatNeeded(phases, lastMatchWins: false));
+        Assert.Equal(4, Rotation.FormatNeeded(above, lastMatchWins: false));
+        var back = RotationFormat.FromJson(RotationFormat.ToJson(Guide() with { Format = 4, Phases = phases }));
+        Assert.Equal(below, Assert.Single(back.Phases[0].When));
+        Assert.Contains("\"is\": \"Below\"", RotationFormat.ToJson(Guide() with { Format = 4, Phases = phases }));
+    }
+
+    [Fact]
+    public void A_rotation_using_nothing_new_still_saves_as_format_2()
+    {
+        var plain = Guide().Phases;
+
+        Assert.Equal(2, Rotation.FormatNeeded(plain, lastMatchWins: false));
+        Assert.Equal(3, Rotation.FormatNeeded(plain, lastMatchWins: true));
+        Assert.Equal(4, Rotation.CurrentFormat);
+    }
+
+    /// <summary>A build that reads up to format 3 refuses a format 4 file as "newer" (simulated one format up, as this build reads 4).</summary>
+    [Fact]
+    public void Format_4_file_is_refused_by_a_build_reading_3()
+    {
+        string json = RotationFormat.ToJson(Guide() with { Format = Rotation.CurrentFormat + 1 });
+
+        Assert.Equal(RotationReadError.NewerFormat, Assert.Throws<RotationReadException>(() => RotationFormat.FromJson(json)).Error);
     }
 }
