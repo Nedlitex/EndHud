@@ -82,7 +82,13 @@ public class InnReplayTests(ITestOutputHelper output)
     /// <item>test_yuanyuan7 (2026-10-21, 0–390 s; owner: the recommended dish "duplicated in multiple kitchens", and "stuck
     /// behind a lot of soups but the kitchen recommendation is not even picking that up"). Before that day's fixes: 9
     /// duplicates (82 s), table 6's immortal-galore-of-fortune with no call for 133.8 s, a counter estimate of up to 20 on a counter of 8.</item>
+    /// <item>test_yuanyuan8 (2026-10-21, the feast: 14 gourmands, 28 requests). Owed since its readings landed: a panel frame
+    /// read a row up (165.9 s) counted as a call with no card marked, though its dish had no card on screen.</item>
     /// </list>
+    /// Since 2026-10-22 a gourmand's dish is an order for the kitchens (1a00587). As shipped (v0.6.2) the call followed the
+    /// advice's best option of the moment while the tile held another, came after every table's order, and an order out too
+    /// late everywhere was moved anyway: y3 1 jump, y4 1, y5 2, y7 1. Now the dish is the tile's (InnGourmandPicks), in the
+    /// order taken: none.
     /// Before 2026-10-21's fixes, the kitchens' calls: y3 88 changes (16.2 a minute), 3 flashes, 1 jump; y4 46 changes
     /// (8.6 a minute), 1 flash, 3 jumps (<see cref="InnReplay.Steadiness"/>); and every banner slid out and in again each
     /// time the dispatch panel opened and closed.
@@ -126,6 +132,7 @@ public class InnReplayTests(ITestOutputHelper output)
     [InlineData("test-yuanyuan5-readings.jsonl.gz")]
     [InlineData("test-yuanyuan6-readings.jsonl.gz")]
     [InlineData("test-yuanyuan7-readings.jsonl.gz")]
+    [InlineData("test-yuanyuan8-readings.jsonl.gz")]
     public void Over_the_owners_recorded_sessions_nothing_flashes_or_jumps(string fixture)
     {
         var replay = InnReplay.Run(InnReplay.Load(Path.Combine(AppContext.BaseDirectory, "Fixtures", "inn-replay", fixture)));
@@ -155,8 +162,8 @@ public class InnReplayTests(ITestOutputHelper output)
         // A gourmand's tile never hidden while their order is open (owner, 2026-10-21: "gourmand's requirement window still
         // flashes always"). Before, hidden whenever the panel was open: y3 4 times (42.8 s), y4 4 (31.3 s), y5 7 (39.9 s),
         // y6 7 (38.2 s; 367.5 s is the owner's 6:10). And none taken down while its table still waits.
-        // Since 2026-10-22 the tiles stand in the middle of the screen (owner: "important things should be at the central view
-        // port"), over the open panel's dish cards, so they are put away in place while it's open (InnViews.Away) and only then.
+        // Since 2026-10-22 the tiles stand at their tables' spots left and right (InnGourmandLayout), shown with the panel open
+        // too: never put away.
         output.WriteLine($"gourmand tiles put away under the open panel: {gourmandHidden}");
         Assert.Equal(0, replay.GourmandLives().DownUnserved);
         // A dish to cook ahead stays until done or impossible, or an order takes its kitchen (owner, 2026-10-21: "the blue

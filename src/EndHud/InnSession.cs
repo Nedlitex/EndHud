@@ -1390,9 +1390,22 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         // the one held for the request (InnGourmandPicks), the tile's: until 2026-10-22 it was the advice's best of the moment,
         // which flips as the queues move while the tile held another, and the kitchen's call jumped with it (the replays of
         // test_yuanyuan3, 4, 5 and 7: one jump each).
+        // In the order taken, with the tables' orders (oldest first: the advice serves the orders in that order): until
+        // 2026-10-22 they came after every table's, so a table ordering later took the kitchen a gourmand's call stood in
+        // (test_yuanyuan4 422.1 s: table 2's melon-meatball-soup in kitchen 3 beaten by table 5's sourberry-pudding).
         var gourmandDishes = notes.SelectMany(n => InnGourmandView.Of(n, _ => ""))
             .Where(w => w.ItemId is { } id && DishOf(id) is not null).Select(w => new OrderedDish(w.Table, DishOf(w.ItemId!)!)).ToList();
-        if (gourmandDishes.Count > 0) state = state with { Outstanding = [.. state.Outstanding, .. gourmandDishes] };
+        if (gourmandDishes.Count > 0)
+        {
+            var since = LiveTables(now).Where(t => t.Card.State == TableState.Order).ToDictionary(t => t.Card.Table, t => t.OrderSince);
+            TimeSpan Since(OrderedDish order, bool gourmand) =>
+                gourmand ? _gourmandOrdered.GetValueOrDefault(order.Table, _gourmands[order.Table].Since) : since.GetValueOrDefault(order.Table);
+            state = state with
+            {
+                Outstanding = [.. state.Outstanding.Select(o => (Order: o, At: Since(o, false))).Concat(gourmandDishes.Select(o => (Order: o, At: Since(o, true))))
+                    .OrderBy(o => o.At).Select(o => o.Order)],
+            };
+        }
 
         // The calls on screen are kept while possible: the advice plans around them (owner, 2026-10-21: "the recommendation
         // should stay steady").

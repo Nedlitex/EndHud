@@ -217,7 +217,12 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
                 continue;
             }
             if (!plan.CanQueue(keep.Kitchen) || !onScreen.Add(keep.Kitchen)) continue;
-            if (state.ServingSecondsLeft is { } left && plan.ReadyIn(keep.Kitchen, keep.Dish) > left)
+            // Out too late there: it goes where it is out in time. With no kitchen having it out in time it stays (going
+            // elsewhere gains nothing): until 2026-10-22 it went back among the orders at the end, and an order taken later got
+            // its kitchen in the last seconds (test_yuanyuan4 430.8 s, a gourmand's melon-meatball-soup beaten by table 5's
+            // sourberry-pudding, the soup moved to kitchen 1 and that kitchen's order beaten in turn).
+            if (state.ServingSecondsLeft is { } left && plan.ReadyIn(keep.Kitchen, keep.Dish) > left
+                && plan.Soonest(keep.Dish) is { } elsewhere && elsewhere.ReadyIn <= left)
             {
                 onScreen.Remove(keep.Kitchen);
                 continue;

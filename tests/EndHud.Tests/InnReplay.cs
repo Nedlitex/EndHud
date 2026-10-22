@@ -79,6 +79,7 @@ internal sealed class InnReplay
         _now = e.At;
         string why = Describe(_last, e.Reading);
         _display.Show(_session, e.Reading, e.At);
+        if (e.Reading is { Fresh: true, Panel: { } panelRead }) _panelRead = panelRead.Dishes.Where(d => d.DishId is not null).Select(d => d.DishId!).ToHashSet();
         if (e.Reading is { Fresh: true, InSession: true } fresh)
         {
             for (int i = 0; i < Math.Min(fresh.TableCards.Count, _cards.Length); i++)
@@ -222,7 +223,13 @@ internal sealed class InnReplay
     {
         /// <summary>Each table's gourmand order read with every request resolved on its pips (served, imperfect or failed).</summary>
         public IReadOnlyList<bool> Resolved { get; init; } = [];
+
+        /// <summary>The dishes whose cards the last fresh reading of the panel showed (what the session shows the panel as while it takes it as open); null before any.</summary>
+        public IReadOnlySet<string>? PanelRead { get; init; }
     }
+
+    /// <summary>The dishes on the panel's cards as the last fresh reading read them (<see cref="DrawStep.PanelRead"/>).</summary>
+    private HashSet<string>? _panelRead;
 
     /// <summary>Each table's gourmand pips read resolved since their order.</summary>
     private readonly HashSet<int>[] _pipsResolved = [.. Enumerable.Range(0, TableCardReader.Tables).Select(_ => new HashSet<int>())];
@@ -245,6 +252,7 @@ internal sealed class InnReplay
             views.Wants.Select(w => w.Table).ToHashSet(), false /* never put away: shown at their spots with the panel open too (InnGourmandLayout) */, [.. _cards.Select(c => c?.State)])
         {
             Resolved = [.. Enumerable.Range(0, TableCardReader.Tables).Select(i => _cards[i] is { State: TableState.GourmandOrder } c && c.Served.Count > 0 && _pipsResolved[i].Count >= c.Served.Count)],
+            PanelRead = _panelRead,
         });
     }
 
@@ -254,7 +262,7 @@ internal sealed class InnReplay
     /// kitchen, there is no recommendation"), counted as episodes (a run of draws in a row) and seconds:
     /// <list type="bullet">
     /// <item><b>TabWithoutCircle:</b> a tab marked while that kitchen's circle isn't drawn;</item>
-    /// <item><b>CallWithoutCard:</b> the panel on screen showing a kitchen with a call, and no card marked;</item>
+    /// <item><b>CallWithoutCard:</b> the panel on screen showing a kitchen with a call, and no card marked (a frame whose reading shows no card of its dish aside: nothing to mark);</item>
     /// <item><b>SwitchNoCard:</b> the player switched to a tab marked on the draw before, and no card was marked in the next second;</item>
     /// <item><b>GourmandHidden:</b> a gourmand's banner up but hidden (the panel open over it);</item>
     /// <item><b>CookAheadHidden:</b> a dish to cook ahead called while the circles aren't drawn (the cyan circle gone and back
@@ -274,7 +282,10 @@ internal sealed class InnReplay
             var before = i > 0 ? Draws[i - 1] : null;
             double step = before is null ? 0 : (d.At - before.At).TotalSeconds;
             tabNoCircle.Take(d.At, step, d.Tabs.Any(k => !d.CircleDrawn || !d.Calls.ContainsKey(k)));
-            callNoCard.Take(d.At, step, d.PanelKitchen is { } k2 && d.Calls.ContainsKey(k2) && !d.CardMark);
+            // A frame whose panel reading shows no card of the call's dish (the list mid-slide or scrolled: test_yuanyuan8 165.9 s,
+            // every card read a row up) has nothing to mark: a mark there would sit on another dish.
+            callNoCard.Take(d.At, step, d.PanelKitchen is { } k2 && d.Calls.TryGetValue(k2, out var called) && !d.CardMark
+                                        && !(d.PanelRead is { } read && !read.Contains(called.Dish!.Id)));
             hidden.Take(d.At, step, d.GourmandsHidden && d.Gourmands.Count > 0);
             aheadHidden.Take(d.At, step, !d.CircleDrawn && d.Calls.Values.Any(c => c.Kind == InnCallKind.CookAhead));
             // A call done on that very frame (its dish read queued as the tab opened) has nothing left to mark; a call that
@@ -511,6 +522,9 @@ internal sealed class InnReplay
         /// rule took it, nothing else.
         /// </summary>
         public IReadOnlySet<int> AheadTooLate { get; init; } = new HashSet<int>();
+
+        /// <summary>Each gourmand's requests still open on this step, by table: the requests' own numbers (<see cref="InnGourmandNote.Numbers"/>).</summary>
+        public IReadOnlyDictionary<int, IReadOnlySet<int>> GourmandOpen { get; init; } = new Dictionary<int, IReadOnlySet<int>>();
     }
 
     /// <summary>The kitchens of <paramref name="calls"/> whose dish to cook ahead can no longer come out in time at <paramref name="at"/> (<see cref="CallStep.AheadTooLate"/>).</summary>
@@ -569,7 +583,9 @@ internal sealed class InnReplay
                                                     && _session.ReadyIn(k.Kitchen, q.Dish.Id) is { } readyIn && readyIn <= q.ReadyIn + InnCallHold.ShowElsewhereWithinSeconds))
                 freeFor.Add((q.Dish.Id, table));
         }
-        Steps.Add(new CallStep(at, kitchens, open, queues, ahead, why, state[(state.LastIndexOf('[') + 1)..^1]) { Sendable = sendable, FreeFor = freeFor, Unattended = advice is null ? [] : Unattended(queues, at), Supply = advice is null ? [] : Supply(queues), AheadTooLate = AheadTooLate(before, at) });
+        Steps.Add(new CallStep(at, kitchens, open, queues, ahead, why, state[(state.LastIndexOf('[') + 1)..^1]) { Sendable = sendable, FreeFor = freeFor, Unattended = advice is null ? [] : Unattended(queues, at), Supply = advice is null ? [] : Supply(queues), AheadTooLate = AheadTooLate(before, at),
+            GourmandOpen = advice is null ? new Dictionary<int, IReadOnlySet<int>>()
+                : advice.Gourmands.Where(g => g.Advice is not null).ToDictionary(g => g.Table, g => (IReadOnlySet<int>)Enumerable.Range(0, g.Advice!.Requests.Count).Select(g.NumberOf).ToHashSet()) });
     }
 
     /// <summary>
@@ -754,6 +770,10 @@ internal sealed class InnReplay
         var grace = step.At - InnCallHold.GraceSeconds - TimeSpan.FromSeconds(0.5);
         if (call.Kind is InnCallKind.Queue or InnCallKind.Swap && !step.Open.Contains((call.Dish!.Id, call.Table!.Value))
             && (OnCounter(step, call.Dish.Id) || ServedWithin(i, call.Table.Value, call.Dish.Id) || DoneWithin(i, call.Table.Value)
+                || GourmandServedWithin(i, call.Table.Value)
+                // Its dish served to another table, and one of it already in a queue now covers this order instead (that table's
+                // until then): test_yuanyuan3 277.2 s, table 1 served fin-mato-soup off the counter, kitchen 3's for table 4.
+                || (ServedWithin(i, table: null, call.Dish.Id) && Steps[i].Queues.Split(' ').Any(q => q.Split(':', 2) is [_, var dishes] && dishes.Split(',').Contains(call.Dish.Id)))
                 || QueuedWithin(i, grace, kitchen: null, dish: call.Dish.Id))) return true;
         if (call.Kind == InnCallKind.CookAhead && (!step.CooksAhead || step.AheadTooLate.Contains(kitchen))) return true;
         // Nothing done elsewhere excuses a call going (owner, 2026-10-21: "the recommendation should stay steady"): a dish
@@ -816,6 +836,21 @@ internal sealed class InnReplay
                 if (dish is null ? served.Any() : served.Contains(dish + "*")) return true;
             }
         }
+        return false;
+    }
+
+    /// <summary>
+    /// A request of <paramref name="table"/>'s gourmand read resolved (their pip, or their bubble's face) within the grace before
+    /// step <paramref name="i"/>: what was ordered for it is served, as a table's card reading its dish served is
+    /// (<see cref="ServedWithin"/>; a gourmand's card shows no dishes). Since 2026-10-22 a gourmand's dish is a kitchen's order.
+    /// </summary>
+    private bool GourmandServedWithin(int i, int table)
+    {
+        var since = Steps[i].At - InnCallHold.GraceSeconds - TimeSpan.FromSeconds(0.5);
+        for (int j = i; j > 0 && Steps[j].At >= since; j--)
+            // A request resolved, or the last of them (the gourmand then leaves the advice: nothing more to serve).
+            if (Steps[j - 1].GourmandOpen.TryGetValue(table, out var was) && was.Except(Steps[j].GourmandOpen.GetValueOrDefault(table) ?? new HashSet<int>()).Any())
+                return true;
         return false;
     }
 
