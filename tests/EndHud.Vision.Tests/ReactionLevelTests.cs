@@ -94,16 +94,38 @@ public class ReactionLevelTests
         Assert.Null(ReactionLevel.ReadLevel(hidden, square));
     }
 
-    /// <summary>In a dark scene a badge would be dark on dark: an icon with no badge there is unknown, not I.</summary>
+    /// <summary>
+    /// In a dark scene a badge would be dark on dark: an icon with no badge there is unknown, not I. The
+    /// Typhoeus fight at 70 s (no badge, the art in full colour, the corner matching the square) and the
+    /// same Electrification at 30 s with the whole picture darkened to a fifth.
+    /// </summary>
     [Fact]
     public async Task An_icon_without_a_badge_in_a_dark_scene_is_unknown()
+    {
+        var (night, nightSquare) = await LoadAsync("level-I-typhoeus-70s.jpg", 0);
+        Assert.Null(ReactionLevel.ReadLevel(night, nightSquare));
+
+        var (frame, square) = await LoadAsync("other-typhoeus-30s.jpg", 1);
+        Assert.Equal(1, ReactionLevel.ReadLevel(frame, square));
+        var dark = Repaint(frame, null, p => ((byte)(p.R / 5), (byte)(p.G / 5), (byte)(p.B / 5)));
+        Assert.Null(ReactionLevel.ReadLevel(dark, square));
+    }
+
+    /// <summary>
+    /// Something over the corner that is neither dark nor the square's own grey (a cyan slash, as in the
+    /// Zhuang fight) may hide a badge: unknown, not I, even with the icon's art still in full colour.
+    /// </summary>
+    [Fact]
+    public async Task A_corner_covered_by_an_effect_is_unknown()
     {
         var (frame, square) = await LoadAsync("other-typhoeus-30s.jpg", 1);
         Assert.Equal(1, ReactionLevel.ReadLevel(frame, square));
 
-        var dark = Repaint(frame, null, p => ((byte)(p.R / 5), (byte)(p.G / 5), (byte)(p.B / 5)));
+        // The waves' yellow stays; everything else in the badge's box turns light cyan.
+        var slash = Repaint(frame, BadgeBox(square), p => p.R > 150 && p.B < 100 ? p : ((byte)120, (byte)200, (byte)220));
 
-        Assert.Null(ReactionLevel.ReadLevel(dark, square));
+        Assert.True(ReactionLevel.Measure(slash, square).InkShare >= ReactionLevel.MinAbsentInk);
+        Assert.Null(ReactionLevel.ReadLevel(slash, square));
     }
 
     /// <summary>A bright effect over the badge's corner (a flash, a slash) hides the badge: unknown, not I.</summary>
@@ -116,6 +138,23 @@ public class ReactionLevelTests
         var flash = Repaint(frame, BadgeBox(square), p => ((byte)(p.R / 4 + 190), (byte)(p.G / 4 + 190), (byte)(p.B / 4 + 190)));
 
         Assert.Null(ReactionLevel.ReadLevel(flash, square));
+    }
+
+    /// <summary>
+    /// An icon fading in, or under a white flash, is washed out, its badge too: pale, not dark, the numeral
+    /// no longer yellow. That corner can't be told from no badge: unknown, not I.
+    /// </summary>
+    [Fact]
+    public async Task A_washed_out_badge_is_unknown_not_level_one()
+    {
+        var (frame, square) = await LoadAsync("electrification-II-36s.jpg", 0);
+        var box = BadgeBox(square);
+        var washedArea = new PixelRect(square.X, square.Y, box.Right - square.X, box.Bottom - square.Y);
+
+        var washed = Repaint(frame, washedArea, p => ((byte)(p.R / 4 + 191), (byte)(p.G / 4 + 191), (byte)(p.B / 4 + 191)));
+
+        Assert.Equal(0, ReactionLevel.Measure(washed, square).Height);
+        Assert.Null(ReactionLevel.ReadLevel(washed, square));
     }
 
     [Fact]
