@@ -382,8 +382,11 @@ public sealed class RotationTracker(Rotation rotation)
                 return reading?.Value is { } value ? Compare(value, c.Is, c.Value) : null;
             case BossStatusCondition c:
                 if (state.BossStatuses is not { } statuses) return null;
-                if (c.MinStacks > 1) return null; // stack badges aren't read yet
-                return statuses.Any(s => s.StatusId == c.StatusId) == c.Present;
+                var match = statuses.FirstOrDefault(s => s.StatusId == c.StatusId);
+                if (c.MinStacks <= 1) return (match is not null) == c.Present;
+                if (match is null) return !c.Present;            // not there: 0 stacks
+                if (match.Stacks is not { } stacks) return null; // there, but its count isn't read (covered, or not a counted status)
+                return (stacks >= c.MinStacks) == c.Present;
             case ControllingCondition c:
                 if (state.ActiveSlot is not { } active) return null;
                 return slots.TryGetValue(c.OperatorId, out int controlled) ? controlled == active - 1 : false;
