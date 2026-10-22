@@ -60,6 +60,13 @@ internal sealed class HudConfig
 
     public double ComboHintY { get; set; } = DefaultComboHintY;
 
+    /// <summary>
+    /// Pop up the player's alert rules (alerts.json) in battle. On by default: an operational
+    /// switch over a feature that ships on; the rules list is what decides whether anything shows.
+    /// A config.json from before it reads as on (no settings version needed).
+    /// </summary>
+    public bool AlertsEnabled { get; set; } = true;
+
     /// <summary>Show the rotation strip (排轴) when the recognised squad has a rotation.</summary>
     public bool RotationEnabled { get; set; } = true;
 
