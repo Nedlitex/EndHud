@@ -13,7 +13,12 @@ public sealed record GourmandBubble(string Text, IReadOnlyList<string> Lines)
     private const int MostPiecesPerRequest = 6;
 
     /// <summary>
-    /// The requests the bubble makes, in the order it says them. The lines are cut at their
+    /// The requests the bubble makes, in the order it says them. Where the icons were seen, the lines are cut where each
+    /// request's icon stands (<see cref="Starts"/>); else, a request starting on a line of its own, the lines are taken as
+    /// one request or cut once into two, whichever matches best (test_yuanyuan8: 43 of the data's pairs of a gourmand's
+    /// requests on their own lines were lost to the cut below, among them the feast pool's tenth gourmand's dish and drink,
+    /// tables 1 and 2). Last, for lines
+    /// OCR ran together, the lines are cut at their
     /// sentence ends and commas into pieces; every run of consecutive pieces is matched on its own
     /// (<see cref="InnData.MatchSaid"/>), so a request wrapped onto the next line is found whole and
     /// two requests are never read as one sentence (owner, 2026-10-19: the bubble 「来点汤，要酸口，
@@ -22,6 +27,65 @@ public sealed record GourmandBubble(string Text, IReadOnlyList<string> Lines)
     /// request once, never two runs sharing a piece.
     /// </summary>
     public IReadOnlyList<GourmandRequestMatch> Requests(InnData data)
+    {
+        if (Starts is { Count: > 0 } starts && ByStarts(data, starts) is { } byIcons) return byIcons;
+        if (ByLines(data) is { } byLines) return byLines;
+        return ByPieces(data);
+    }
+
+    /// <summary>
+    /// The first line of each request, where the bubble's icons stand (<see cref="BubbleReader"/>); null when the icons
+    /// weren't seen (a bubble cut by the screen's edge, or read before 2026-10-21).
+    /// </summary>
+    public IReadOnlyList<int>? Starts { get; init; }
+
+    /// <summary>
+    /// Each request's state as its icon shows it, in the order of <see cref="Starts"/>: true once the icon has turned into a
+    /// face (green served, yellow served imperfectly, red failed: nothing more to do for it). Null when not read.
+    /// </summary>
+    public IReadOnlyList<bool>? Resolved { get; init; }
+
+    /// <summary>A score this close to whole means the lines are one request (two requests can't both be in one's words).</summary>
+    private const double WholeScore = 0.9;
+
+    /// <summary>The lines cut where the icons say each request starts, each part matched on its own; null when a part matches nothing.</summary>
+    private IReadOnlyList<GourmandRequestMatch>? ByStarts(InnData data, IReadOnlyList<int> starts)
+    {
+        var bounds = starts.Where(s => s >= 0 && s < Lines.Count).Distinct().Order().ToList();
+        if (bounds.Count == 0 || bounds[0] != 0) return null;
+        var found = new List<GourmandRequestMatch>();
+        for (int i = 0; i < bounds.Count; i++)
+        {
+            int end = i + 1 < bounds.Count ? bounds[i + 1] : Lines.Count;
+            if (Best(data, bounds[i], end) is not { } match || found.Any(f => f.Request == match.Request)) return null;
+            found.Add(match);
+        }
+        return found;
+    }
+
+    /// <summary>
+    /// A gourmand starts each request on a line of its own (every bubble of test_yuanyuan8): the lines as one request, or cut
+    /// once into two, whichever accounts for them best. Null when no cut gives two requests and the whole isn't clearly one.
+    /// </summary>
+    private IReadOnlyList<GourmandRequestMatch>? ByLines(InnData data)
+    {
+        if (Lines.Count == 0) return null;
+        var whole = Best(data, 0, Lines.Count);
+        if (whole is { Score: >= WholeScore }) return [whole];
+        (double Score, GourmandRequestMatch First, GourmandRequestMatch Second)? best = null;
+        for (int cut = 1; cut < Lines.Count; cut++)
+        {
+            if (Best(data, 0, cut) is not { } first || Best(data, cut, Lines.Count) is not { } second || first.Request == second.Request) continue;
+            double score = first.Score + second.Score;
+            if (best is null || score > best.Value.Score) best = (score, first, second);
+        }
+        return best is { } b ? [b.First, b.Second] : null;
+    }
+
+    private GourmandRequestMatch? Best(InnData data, int from, int to) => data.MatchSaid(string.Concat(Lines.Skip(from).Take(to - from))).FirstOrDefault();
+
+    /// <summary>The lines cut at sentence ends and commas, every run of pieces matched (lines OCR ran together).</summary>
+    private IReadOnlyList<GourmandRequestMatch> ByPieces(InnData data)
     {
         var pieces = Lines.SelectMany(l => l.Split(Breaks, StringSplitOptions.RemoveEmptyEntries))
             .Where(p => p.Any(char.IsLetter)).ToList();
