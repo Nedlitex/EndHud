@@ -180,7 +180,7 @@ public partial class RotationEditor : Window
         RefreshPhaseList();
         _loading = true;
         PhaseNameBox.Text = _phase?.Name ?? "";
-        PhaseNameBox.IsEnabled = AddGateButton.IsEnabled = _phase is not null;
+        PhaseNameBox.IsEnabled = AddGateButton.IsEnabled = CopyPhaseButton.IsEnabled = _phase is not null;
         _loading = false;
         BuildGateRows();
         StepsGroup.Header = _phase is null ? Loc.Get("Editor.Steps") : Loc.Format("Editor.StepsOf", _phase.Name);
@@ -316,6 +316,17 @@ public partial class RotationEditor : Window
         if (_draft is null) return;
         _phase = new PhaseDraft { Name = Loc.Format("Editor.NewPhaseNumbered", _draft.Phases.Count + 1) };
         _draft.Phases.Add(_phase);
+        MarkDirty();
+        RefreshPhases();
+    }
+
+    /// <summary>复制轴段: a copy of the selected phase (steps and entry condition), right after it, selected.</summary>
+    private void CopyPhase_Click(object sender, RoutedEventArgs e)
+    {
+        if (_draft is null || _phase is null) return;
+        var copy = _phase.Copy(Loc.Format("Editor.CopyName", _phase.Name));
+        _draft.Phases.Insert(_draft.Phases.IndexOf(_phase) + 1, copy);
+        _phase = copy;
         MarkDirty();
         RefreshPhases();
     }

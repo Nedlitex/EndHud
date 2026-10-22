@@ -96,6 +96,22 @@ internal sealed class PhaseDraft
 
     /// <summary>Entry condition (all must hold); empty: part of the order.</summary>
     public List<StateCondition> When { get; set; } = [];
+
+    /// <summary>A copy under a new id: its own steps (changing one doesn't change the original), the same entry condition.</summary>
+    public PhaseDraft Copy(string name) => new()
+    {
+        Name = name,
+        When = [.. When],
+        Steps = Steps.Select(s => new StepDraft
+        {
+            OperatorId = s.OperatorId,
+            Action = s.Action,
+            Label = s.Label,
+            Note = s.Note,
+            WithPrevious = s.WithPrevious,
+            Expect = [.. s.Expect],
+        }).ToList(),
+    };
 }
 
 internal sealed class StepDraft

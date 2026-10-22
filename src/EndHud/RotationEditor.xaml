@@ -77,6 +77,7 @@
                             <Button Content="↑" Click="PhaseUp_Click" ToolTip="{DynamicResource Editor.MoveUp}" />
                             <Button Content="↓" Click="PhaseDown_Click" ToolTip="{DynamicResource Editor.MoveDown}" />
                             <Button x:Name="NewPhaseButton" Content="{DynamicResource Editor.NewPhase}" Click="NewPhase_Click" />
+                            <Button x:Name="CopyPhaseButton" Content="{DynamicResource Editor.CopyPhase}" Click="CopyPhase_Click" ToolTip="{DynamicResource Editor.CopyPhaseHint}" />
                             <Button Content="{DynamicResource Editor.DeletePhase}" Click="DeletePhase_Click" />
                         </StackPanel>
                         <CheckBox x:Name="LastMatchWinsBox" Content="{DynamicResource Editor.LastMatchWins}" Margin="0,6,0,0"
