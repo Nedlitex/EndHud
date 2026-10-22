@@ -35,6 +35,10 @@ public partial class I18nTests
         foreach (string kind in new[] { "SkillPoints", "Combo", "Ultimate", "Counter", "BossStatus", "Controlling", "PhaseShown", "Group" }) used.Add($"Editor.Condition.{kind}");
         used.UnionWith(["Editor.Group.All", "Editor.Group.Any", "Editor.PhaseItem", "Editor.PhaseItemGated"]);
         foreach (var compare in Enum.GetValues<Vision.Rotations.Comparison>()) used.Add($"Editor.Compare.{compare}");
+        // The alert editor's problems and import errors, named by their enums.
+        foreach (var problem in Enum.GetValues<Vision.Alerts.AlertProblem>()) used.Add($"Alerts.Problem.{problem}");
+        foreach (var error in Enum.GetValues<Vision.Alerts.AlertReadError>()) used.Add($"Alerts.ImportError.{error}");
+        foreach (string kind in AlertEditor.AlertKinds) used.Add($"Editor.Condition.{kind}");
 
         Assert.NotEmpty(used);
         Assert.Equal([], used.Where(k => !defined.Contains(k)).ToArray());

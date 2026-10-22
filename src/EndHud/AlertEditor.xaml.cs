@@ -219,7 +219,7 @@ public partial class AlertEditor : Window
         }
         try
         {
-            // STUB (RED) _store.Save([.. _rules.Select(r => r.ToRule())]);
+            _store.Save([.. _rules.Select(r => r.ToRule())]);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
