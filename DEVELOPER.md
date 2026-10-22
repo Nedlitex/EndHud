@@ -518,7 +518,10 @@ the kitchen where it comes out first (owner, 2026-10-19): the seconds left on th
 is cooking, plus the dishes waiting behind it, plus this dish's cook time there; there's no
 "idle kitchen first" rule, an idle kitchen wins only when that makes it the earliest. It also and suggests taking a dish cooked
 ahead out for an order only when that wins by more than 5 s (a cooking dish only when barely
-started, since its progress is taken as lost). A kitchen with no chef cannot cook (owner): one rule,
+started, since its progress is taken as lost), and never a dish the player queued because a call said so while it still
+comes out before serving ends (`InnState.QueuedAsCalled`; test_yuanyuan5 at 04:16: "厨房二 预做：界龙肉卷" followed, then
+10 s later "先拿掉界龙肉卷，再排这个" for a new order; the advice doesn't undo its own word). A dish in the player's hand
+(the tray, `InnState.Carried`) covers an order of it first. A kitchen with no chef cannot cook (owner): one rule,
 `KitchenMath.Cooks`, which the planner, the advisor and the session all go by; such a kitchen gets no
 advice and isn't listed (a kitchen whose chefs weren't seen, `Kitchen.ChefsUnknown`, is taken to
 cook, at base speed). The end of a session (owner): after the 5:00 timer reaches 00:00 the inn
@@ -533,7 +536,12 @@ own dish if there, else a wrong one ("a wrong dish still earns some money"), old
 table whose dish can still make it waits for it. A table waiting only for a drink never gets a dish
 (it wouldn't be served; drinks aren't outstanding dishes). Once closed, the dishes on the counter are
 also listed for the tables that ordered them. [`FullBlazeAdvisor`](src/EndHud.Vision/Inn/FullBlaze.cs)
-says when to start Full Blaze (满堂彩); whether it's running is inferred from the ready button going.
+says when to start Full Blaze (满堂彩); whether it's running is read off the meter, whose button turns into a red circle
+counting down what's left (`FireMeter.BlazeLeft`), and until that's read inferred from the ready button going. Until
+2026-10-21 the countdown wasn't read: through the whole of Full Blaze the meter read as nothing, the tracker never saw the
+ready button go, and "开启满堂彩（R）" stayed up to the end of the session (test_yuanyuan5 from 333 s; also visible on
+test_yuanyuan3's session-hud-faded frame). A ready label read while the countdown shows (the game's line "灶火正旺，满堂生彩!"
+stands where the label was) changes nothing.
 [`GourmandAdvisor`](src/EndHud.Vision/Inn/GourmandAdvisor.cs) ranks what meets a gourmand's
 request and, for two requests, the order to serve them in. [`InnSimulator`](src/EndHud.Vision/Inn/InnSimulator.cs)
 replays an order stream through all this, serving 18 s after 5:00 like the game; on the recorded
@@ -643,8 +651,9 @@ corners, and other window shapes are EndHud's assumption, not checked.
 |---|---|---|
 | `InnScreen.DetectAsync` | the setup screen, the theme list (its own kind: it starts a new setup), chef picker, menu, session, dispatch panel (titles by OCR, the timer by its digits) | all 20 frames, at every size (the session's first frame, fading in, at 4K only) |
 | `InnScreen.ReadPickerKitchenAsync` | which kitchen a chef picker is for, off its title (kitchen one = 1) | chef-picker, at every size |
-| `InnScreen.ReadClock` | time left, closed at 00:00 | every session frame |
-| `FireMeterReader` | fire "N/100", streak, ready (red button, 开启满堂彩) | all, at every size; hidden behind the dispatch panel |
+| `InnScreen.ReadClock` | time left, closed at 00:00, and whether it was read in its pill under 结束经营 (`BelowButton`: the panel open puts it at the top) | every session frame; where, on 6 frames at every size |
+| `FireMeterReader` | fire "N/100", streak, ready (red button, 开启满堂彩), Full Blaze running (the red circle's countdown, `BlazeLeft`) | all, at every size; hidden behind the dispatch panel; Full Blaze on 2 frames at every size |
+| `TrayReader` | the tray of what the player holds (five slots at the bottom middle): each slot's dish or drink by picture, the 珍馐 badge, empty; on screen only with the 派单 button beside it | 12 frames of four sessions (and 4 without it) at 4K, 1440p and 1080p: every slot right, right pictures 6.4–12.9 against ≥ 31.6 for the next; the HUD fading in reads "not told apart", never a guess |
 | `TableCardReader` | each table's state and, for an order, its dishes and drinks by picture and whether each is served (its pip green, or the blue auto-serve spinner on it) | 56/56 items and 90/90 cards at 4K, 1440p and 1080p |
 | `DispatchPanelReader` | whether the panel is open (a dark tab AND the first dish card's light face: 10 of 10 points on every panel frame, at most 3 on a session frame), kitchen shown, chefs, choice-dish chance, each dish's cook time and the card it's on (`KitchenDish.Card`; where each card and tab is: `CardArea`, `TabArea`), the queue (dish, time left) | 114–115 of 115 values per size, none wrong; every dish named on its card, each card's place its outline (3 frames, every size); no panel on 10 session frames with it closed, at every size |
 | `BubbleReader` | a gourmand's speech bubble: each line cut at sentence ends and commas, every run of up to 6 pieces matched on its own with `InnData.MatchSaid` (each piece and request used once), so a request on the second line isn't lost to the first; the text's left edge is measured in character heights, since the bubble's size follows the camera | three recorded bubbles (the owner's soup-and-drink gourmand on three frames), both requests and only them, at every size |
@@ -738,6 +747,12 @@ panel when it shows that kitchen, otherwise moved on by cook times since: an est
 turning served on a table card takes it off the counter or out of the estimate at once), the orders
 (oldest first, served items left out), dishes on the counter (estimated: each dish out of a kitchen is out for the next
 order of it still waiting for one, else cooked ahead; one out for an order turns cooked ahead if its order goes), the
+dishes in the player's hand (the tray, read on every frame without the panel and taken once two readings agree; a tray
+with a picture not told apart says nothing): a dish coming into the hand leaves the counter estimate (or a kitchen the
+estimate still has it cooking in), one served from the hand leaves the counter alone (the card and the tray read a frame
+apart either way), one put down with no table read served within `InnSession.HandSettlesAfter` (3 s) is back on the
+counter (the game's 放回出餐台); drinks in hand aren't dishes. Until 2026-10-21 the hand wasn't read and `InnState.Carried`
+was always empty: test_yuanyuan5 at 02:12, 至臻鳞肉卷 in hand and the call "厨房三：至臻鳞肉卷 / 桌4 点的". Then the
 timer (0 s left once closed, for the end of the session's advice), the fire meter with
 `FullBlazeTracker`, and each gourmand's request. A gourmand's request is kept from the moment it's read
 until their order is fulfilled (owner, live 2026-10-20: "if you cannot see but the order is not fulfilled,
@@ -845,9 +860,12 @@ doesn't change in a session, `InnSession.PanelShown`), never a guess; every othe
 16:9 area (`OverlayWindow.InnMarks`); they follow the game's layout, so nothing is dragged or kept in config. Full
 Blaze and the last call wait for the panel to close. The marks go the moment the panel is seen closed
 (`InnAdvice.MarkedPanel`; owner, live 2026-10-21: "the recommendation leaks after the kitchen is closed"): a fresh frame
-since the panel was last read that reads the Full Blaze meter (which the open panel covers) takes them away at once,
-while the banners stay down for the panel's 1.5 s hold; a frame merely missing the panel (its tabs misread while
-open) keeps them. The leak itself was the panel read where there was none (above, "Reading the inn's screens"): a
+since the panel was last read that shows something the open panel covers or moves takes them away at once: the Full
+Blaze meter read, the timer read in its pill under 结束经营 (`SessionClock.BelowButton`), or the tray read; while the
+banners stay down for the panel's 1.5 s hold; a frame merely missing the panel (its tabs misread while open, the timer
+still at the top) keeps them. Until 2026-10-21 only the meter counted, and it fades in last after the panel closes (and
+through Full Blaze wasn't read at all): "预做这个" stayed over the dining room for about a second (test_yuanyuan5 252.6 s,
+session-panel-just-closed.jpg). The leak itself was the panel read where there was none (above, "Reading the inn's screens"): a
 closed panel's frame read as kitchen 1, its cards remembered from the last real reading standing in.
 
 **Held steady: nothing flashes** (owner, live 2026-10-20: "it is still flashing, the display of both banner and the

@@ -34,7 +34,7 @@ public sealed class TrayReader(InnPictures pictures)
     // Measured: a badge 0.32 yellow and 0.13 black at every size; a slot without one 0 and 0.
     private const double BadgeYellowShare = 0.15, BadgeDarkShare = 0.06;
     // A picture is named when its colour is this close (mean difference per channel over its solid pixels) and the next
-    // picture this much further. Measured at 4K, 1440p and 1080p: right pictures 6.9-11.7, the next >= 36.9; an empty slot's best
+    // picture this much further. Measured at 4K, 1440p and 1080p: right pictures 6.4-12.9, the next >= 31.6; an empty slot's best
     // (fin-dumpling, a light picture) 21.5-28.7, so emptiness is told first, by its flatness.
     internal const double MaxDifference = 16, MinLead = 10;
     // An empty slot's middle is flat: its colours spread less than this (mean distance from the mean, largest channel).
