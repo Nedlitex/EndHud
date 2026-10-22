@@ -110,6 +110,58 @@ public class RotationStripViewTests
         OnSta(() => RotationStrip.Build(view)); // draws
     }
 
+    /// <summary>
+    /// 普攻 (basic attack, format 4) is only drawn: it has no skill icon, so the operator's face fills
+    /// the circle (no small face in the corner), under the word 普攻. It never borrows the battle
+    /// skill's icon.
+    /// </summary>
+    [Fact]
+    public void A_basic_attack_step_shows_the_operators_face_and_the_word_basic_attack()
+    {
+        var library = Operators(["Laevatain", "Camille", "Arcane", "Ardelia"]);
+        var face = OnSta(() =>
+        {
+            var bitmap = new System.Windows.Media.Imaging.WriteableBitmap(2, 2, 96, 96, PixelFormats.Bgra32, null);
+            bitmap.Freeze();
+            return (System.Windows.Media.Imaging.BitmapSource)bitmap;
+        });
+        var skill = OnSta(() =>
+        {
+            var bitmap = new System.Windows.Media.Imaging.WriteableBitmap(3, 3, 96, 96, PixelFormats.Bgra32, null);
+            bitmap.Freeze();
+            return (System.Windows.Media.Imaging.BitmapSource)bitmap;
+        });
+        var rotation = new Rotation(Rotation.CurrentFormat, "r", "r", ["Laevatain", "Camille", "Arcane", "Ardelia"],
+        [
+            new RotationPhase("basic", "普攻轴", [new RotationStep("Laevatain", StepAction.BasicAttack), new RotationStep("Camille", StepAction.BattleSkill)],
+                [new SkillPointsCondition(Comparison.Below, 2)]),
+        ]);
+
+        var view = RotationStripView.ForPhase(rotation, 0, library, (_, _) => skill, _ => face);
+
+        var basic = view.Steps[0];
+        Assert.Same(face, basic.Icon);
+        Assert.Null(basic.Avatar);
+        Assert.Equal(Loc.Get("Rotation.Action.BasicAttack"), basic.Action);
+        // The battle skill next to it is drawn as before: its icon, the face in the corner.
+        Assert.Same(skill, view.Steps[1].Icon);
+        Assert.Same(face, view.Steps[1].Avatar);
+        OnSta(() => RotationStrip.Build(view)); // draws
+    }
+
+    /// <summary>A library of these operators, without any art: enough to find them by id.</summary>
+    internal static Vision.Operators.OperatorLibrary Operators(string[] ids)
+    {
+        string folder = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "endhud-tests", Guid.NewGuid().ToString("N"));
+        string reference = System.IO.Path.Combine(folder, "reference");
+        System.IO.Directory.CreateDirectory(System.IO.Path.Combine(reference, "icons"));
+        System.IO.File.WriteAllText(System.IO.Path.Combine(reference, "operators.json"), System.Text.Json.JsonSerializer.Serialize(
+            ids.Select(id => new Vision.Operators.OperatorInfo(id, id, id, id + ".png"))));
+        byte[] pixel = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
+        foreach (string id in ids) System.IO.File.WriteAllBytes(System.IO.Path.Combine(reference, "icons", id + ".png"), pixel);
+        return Vision.Operators.OperatorLibrary.LoadAsync(System.IO.Path.Combine(folder, "user"), reference).GetAwaiter().GetResult();
+    }
+
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
     {
         foreach (var child in LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>())
@@ -133,5 +185,92 @@ public class RotationStripViewTests
         thread.Join();
         if (error is not null) throw new Xunit.Sdk.XunitException(error.ToString());
         return result;
+    }
+}
+
+/// <summary>
+/// What the overlay does with each reading (<see cref="RotationFollower"/>, driven as
+/// <c>OverlayWindow.TrackRotation</c> drives it): which phase the strip shows, when the counts of
+/// phases shown are forgotten, and whether the boss's statuses are read.
+/// </summary>
+public class RotationFollowerTests
+{
+    private static readonly string[] Squad = ["Laevatain", "Camille", "Arcane", "Ardelia"];
+
+    /// <summary>A reading of the squad: in battle (skill points and combo bars read) or out of it.</summary>
+    private static Vision.PartyState Reading(bool inBattle, bool laevatainUltimateReady = false)
+    {
+        var slots = Squad.Select((id, i) => new Vision.PartySlot(i + 1, null, 1.0, "", new Vision.Frame(1, 1, new byte[4]),
+            Combo: inBattle ? new Vision.ComboReading(1, true) : null,
+            Ultimate: new Vision.UltimateReading(i == 0 && laevatainUltimateReady, i == 0 && laevatainUltimateReady ? 1 : 0.3),
+            Operator: new Vision.Operators.OperatorMatch(new Vision.Operators.OperatorInfo(id, id, id, id + ".png"), 1, true))).ToList();
+        return new Vision.PartyState(slots, PanelMarks: 8) { SkillPoints = inBattle ? 2 : null, ActiveSlot = 1 };
+    }
+
+    private static Func<IReadOnlyList<string?>, Rotation?> For(Rotation rotation) => squad => rotation.IsFor(squad) ? rotation : null;
+
+    /// <summary>The owner's ask (2026-10-22): the counts of phases shown are cleared when the fight ends ("退战时清空").</summary>
+    [Fact]
+    public void Leaving_battle_forgets_how_often_each_phase_was_shown()
+    {
+        var rotation = new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
+        [
+            new RotationPhase("charge", "充能轴", [new RotationStep("Ardelia", StepAction.BattleSkill)]),
+            new RotationPhase("burst", "爆发轴", [new RotationStep("Laevatain", StepAction.Ultimate)], [new UltimateCondition("Laevatain", true)]),
+        ]);
+        var follower = new RotationFollower();
+
+        Assert.Equal("充能轴 I", follower.Update(Reading(inBattle: true), true, For(rotation)).Position!.Value.Position.Step.PhaseLabel);
+        Assert.Equal("爆发轴 II", follower.Update(Reading(inBattle: true, laevatainUltimateReady: true), true, For(rotation)).Position!.Value.Position.Step.PhaseLabel);
+        RotationFollowing? outside = null;
+        for (int i = 0; i < 20; i++) outside = follower.Update(Reading(inBattle: false), true, For(rotation));
+        Assert.False(outside!.InBattle); // the short-gap allowance (StripVisibility) is long over
+        Assert.Equal("充能轴 I", follower.Update(Reading(inBattle: true), true, For(rotation)).Position!.Value.Position.Step.PhaseLabel);
+
+        // The second fight's showing only (not 2), and 爆发轴 not yet in this fight.
+        Assert.Equal(1, follower.Selectors["r"].TimesShown("charge"));
+        Assert.Equal(0, follower.Selectors["r"].TimesShown("burst"));
+    }
+
+    [Fact]
+    public void A_short_gap_in_battle_is_not_the_end_of_the_fight()
+    {
+        var rotation = new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
+            [new RotationPhase("charge", "充能轴", [new RotationStep("Ardelia", StepAction.BattleSkill)])]);
+        var follower = new RotationFollower();
+
+        follower.Update(Reading(inBattle: true), true, For(rotation));
+        follower.Update(Reading(inBattle: false), true, For(rotation)); // one reading without the skill points
+        follower.Update(Reading(inBattle: true), true, For(rotation));
+
+        Assert.Equal(1, follower.Selectors["r"].TimesShown("charge"));
+    }
+
+    /// <summary>BUG2: a phase gate on a boss status (here inside an "any") never opened: the statuses were read only for steps.</summary>
+    [Fact]
+    public void A_status_in_a_phase_gate_turns_status_reading_on()
+    {
+        var rotation = new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
+        [
+            new RotationPhase("charge", "充能轴", [new RotationStep("Ardelia", StepAction.BattleSkill)]),
+            new RotationPhase("burst", "爆发轴", [new RotationStep("Laevatain", StepAction.Ultimate)],
+                [new AnyCondition([new BossStatusCondition("Cryo Infliction", true), new UltimateCondition("Arcane", true)])]),
+        ]);
+        var follower = new RotationFollower();
+
+        Assert.True(follower.Update(Reading(inBattle: true), true, For(rotation)).ReadBossStatuses);
+        // Out of battle there's no rotation to follow: nothing to read.
+        RotationFollowing? outside = null;
+        for (int i = 0; i < 20; i++) outside = follower.Update(Reading(inBattle: false), true, For(rotation));
+        Assert.False(outside!.ReadBossStatuses);
+    }
+
+    [Fact]
+    public void A_rotation_without_status_conditions_leaves_status_reading_off()
+    {
+        var rotation = new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
+            [new RotationPhase("charge", "充能轴", [new RotationStep("Ardelia", StepAction.BattleSkill, [new ComboCondition("Camille", true)])])]);
+
+        Assert.False(new RotationFollower().Update(Reading(inBattle: true), true, For(rotation)).ReadBossStatuses);
     }
 }
