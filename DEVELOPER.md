@@ -46,8 +46,8 @@ still being recognised (the first second or so), a hint waits for the name inste
 
 ### Rotation strip (排轴)
 
-A rotation is the order a squad's skills are used in: battle skills, combos and ultimates (basic
-attacks aren't tracked). In battle, a strip at the top centre shows the
+A rotation is the order a squad's skills are used in: battle skills, combos and ultimates, plus
+basic-attack steps that are only drawn (EndHud can't see a basic attack). In battle, a strip at the top centre shows the
 phase of the recognised squad's rotation that fits the game right now, styled after community
 rotation charts.
 
@@ -77,7 +77,50 @@ rotation charts.
   kept up to date daily, without a release (see [Recommended rotations](#recommended-rotations)).
 - **Edit and share** in the rotation editor (menu → 排轴 → 编辑排轴…, or the tray): phases and
   their conditions picked from lists, steps, a live preview, and import/export as a file or a share
-  code (`EHR1:` + compressed JSON, short enough for a chat message).
+  code (`EHR1:` + compressed JSON, short enough for a chat message). Skill points are picked from
+  0.0 to 3.0 by 0.1 and charge percentages from 0 to 100 by 1 (with a hint that the bars are read
+  to about ±4 %); a value from a file that isn't on the list is kept as it is (before, editing its
+  row saved it as 0.5). 复制轴段 copies the selected phase (its steps and entry condition, new id,
+  named "X（副本）") right after it. The condition pickers are one control
+  ([`ConditionEditor`](src/EndHud/ConditionEditor.cs)) shared with the alert editor.
+
+### Combat alerts (战斗提示)
+
+The player writes rules ("when 技力 is at least 1.8, say 可以放战技了"; "when the enemy has 寒冷附着
+at least 3 stacks …"), global for every fight and squad, and EndHud pops each up in battle when
+it turns true. See [Alerts](#alerts) for the file, the firing rule and the editor.
+
+- **Where:** the combo hint's mirror image (owner, 2026-10-22). The pop-ups' right edge is at the
+  window's width less the combo hints' left edge, at the combo hints' height, so they follow the
+  combo hint when it's dragged; they're never dragged themselves. A circle on the right holds the
+  rule's subject, picked from its first condition (inside a group or "not", the first part): the
+  skill points (three slanted yellow segments), a boss status's icon, the operator's avatar for a
+  skill, charge, counter or "controlling" condition, otherwise "!". A slanted text panel slides
+  out of it leftwards, towards the screen centre, with an orange edge (the combo banners' is
+  gold); the text wraps to two lines at most and ends in an ellipsis past that
+  ([`AlertPopUp`](src/EndHud/AlertPopUp.cs)).
+- **How long:** 3 s, or less if the rule stops holding first; at most three at once (the oldest
+  goes); all down on leaving battle. No sound.
+- **Words:** a rule with no text shows its conditions in words from the `Alert.Describe.*`
+  strings, e.g. "技力 ≥ 1.8", "寒冷附着 ≥ 3 层" ([`AlertText`](src/EndHud/AlertText.cs)).
+- **Menu and tray:** a 战斗提示 card (on/off, the number of rules, 编辑战斗提示…; while the menu is
+  open a sample pop-up shows where alerts appear) and a tray item 编辑战斗提示. Editing works with
+  the pop-ups off.
+
+### Gauges for Si
+
+With Si in the squad the gauge row has two more circles, both with her avatar:
+
+- **伤害层数** (her battle skill's damage stacks): the number on the green badge left of the HP
+  bar, read for the controlled operator like every other counter
+  ([`OperatorCounters.SiStacks`](src/EndHud.Vision/Operators/OperatorCounters.cs), digits by
+  [`BadgeNumber`](src/EndHud.Vision/BadgeNumber.cs)). The game sets no maximum (owner,
+  2026-10-22), so the counter is uncapped (`CounterDefinition.Max` is null, `Uncapped`): drawn as a
+  large number on a faded avatar, no segments, no "full" glow; "?" before it's read.
+- **战技持续** (her battle skill's time left): from her first cast, her battle-skill button's
+  butterfly turns into a swirl and a grey ring inside the button drains clockwise over about 22 s
+  ([`SkillRing`](src/EndHud.Vision/SkillRing.cs)). The gauge is a grey-white glowing ring draining
+  anticlockwise, the seconds left in the corner. See [the estimate rule](#sis-battle-skill-timer).
 
 ### Debug panel
 
@@ -358,11 +401,12 @@ release.yml).
 | `ComboHintEnabled` | `true` | Show the combo-ready hint (needs `PartyOcrEnabled`). |
 | `ComboHintMode` | `WhenReady` | `WhenReady`: for `ComboHintSeconds` after the cooldown finishes. `WhileReady`: until the combo skill is used. |
 | `ComboHintSeconds` | `3` | How long a `WhenReady` hint stays up. |
-| `ComboHintX`, `ComboHintY` | `0.2`, `0.36` | Where the hint sits: its top-left corner as a fraction of the game window's width and height. |
+| `ComboHintX`, `ComboHintY` | `0.2`, `0.36` | Where the hint sits: its top-left corner as a fraction of the game window's width and height. The alert pop-ups mirror it (right edge at 1 − `ComboHintX`, same `ComboHintY`). |
+| `AlertsEnabled` | `true` | Pop up the player's alert rules (`alerts.json`) in battle (needs `PartyOcrEnabled`). An operational switch over a feature that ships on: the rules list decides whether anything shows. A `config.json` from before it reads as on. |
 | `RotationEnabled` | `true` | Show the rotation strip when the recognised squad has a rotation. |
 | `RotationCenterX`, `RotationY` | `0.5`, `0.13` | Where the strip sits, as a fraction of the game window: the middle of its width (it stays centred as it changes width) and its top. |
 | `RotationScale` | `1` | The strip's size on top of following the game window, 0.5–2 (the menu's 大小 slider; a value outside is brought back into range). |
-| `GaugesEnabled` | `true` | Show the gauges in battle: team buffs (Link with its stacks, once seen in the battle), and each recognised operator's ultimate charge and own counters, as circles with the operator's avatar in the middle. While a lasting ultimate runs (Laevatain's, Zhuang Fangyi's), the controlled operator's ultimate circle shows its time left instead: violet, glowing, draining anticlockwise, labelled 持续中. |
+| `GaugesEnabled` | `true` | Show the gauges in battle: team buffs (Link with its stacks, once seen in the battle), and each recognised operator's ultimate charge and own counters, as circles with the operator's avatar in the middle. While a lasting ultimate runs (Laevatain's, Zhuang Fangyi's), the controlled operator's ultimate circle shows its time left instead: violet, glowing, draining anticlockwise, labelled 持续中. With Si in the squad: her damage stacks as a plain number, and while her battle skill lasts its time left (grey-white, "≈" when estimated); see [Gauges for Si](#gauges-for-si). |
 | `GaugesScale` | `1` | The gauges' size on top of following the game window (the menu's slider): 0.5–2; a value outside that is clamped when the file is read. |
 | `GaugesCenterX`, `GaugesBottomY` | `0.5`, `0.885` | Where the gauges sit, as a fraction of the game window: the middle of their width and their bottom edge (so a bigger size grows upwards): bottom middle, just above the game's HP and skill-point bars. |
 | `ActiveRotations` | `{}` | The rotation chosen for each squad: squad key (the four operator ids, sorted, joined by `\|`) → rotation id. Set by saving in the editor. |
@@ -1394,8 +1438,12 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   `when`, the phase already shown stays. See [Choosing the phase](#choosing-the-phase).
 - `lastMatchWins` (optional, format 3): `true` shows the last phase whose `when` holds instead of
   the first.
-- `action`: `BattleSkill`, `Combo` or `Ultimate`. The skill being available (a skill point for a
-  battle skill, the combo or ultimate ready) is implied; `expect` lists anything else.
+- `action`: `BattleSkill`, `Combo`, `Ultimate` or `BasicAttack` (format 4). The skill being
+  available (a skill point for a battle skill, the combo or ultimate ready) is implied; `expect`
+  lists anything else. `BasicAttack` is drawn only: the strip shows the operator's avatar as its
+  icon (no skill icon, no small face in the corner) labelled 普攻; it is never seen "used" and its
+  availability is unknown, so the phase's `when` says when it shows (e.g. a 普攻 phase gated on
+  `skillPoints` `Below` 2).
 - `withPrevious`: used right after the previous step of the same phase, drawn overlapping it.
 - `label` (optional): replaces the action's name above the icon, for a variant the game names
   differently (e.g. "战技·意"). `note` (optional): a short hint under the icon.
@@ -1403,7 +1451,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
 
   | `kind` | Fields | Holds when |
   |---|---|---|
-  | `skillPoints` | `is` (`AtLeast`, `AtMost`, `Exactly`), `value` (0–3, halves allowed) | the skill point bar compares so |
+  | `skillPoints` | `is` (`AtLeast`, `AtMost`, `Exactly`, and from format 4 `Below`, `Above`), `value` (0–3; the editor offers tenths) | the skill point bar compares so |
   | `combo` | `operatorId`, `ready` | that operator's combo is ready (`true`) or cooling (`false`) |
   | `comboCharge` | `operatorId`, `is`, `percent` (0–100) | that operator's combo cooldown bar has refilled so far (ready is 100) |
   | `battleSkill` | `operatorId`, `ready` | that operator's battle skill button is available (`true`) or cooling (its countdown seconds aren't read) |
@@ -1411,8 +1459,9 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   | `ultimateCharge` | `operatorId`, `is`, `percent` (0–100) | that operator's ultimate is charged so far (ready is 100; at most 0 is just used) |
   | `ultimateActive` | `operatorId`, `active` (format 3) | that operator's lasting ultimate is running (`true`) or not: the time bar above the skill points, which is the controlled operator's; unknown while the skill points can't be read |
   | `counter` | `operatorId`, `counterId`, `is`, `value` | an operator's own resource compares so (see below) |
-  | `bossStatus` | `statusId` (the wiki's English name), `present`, `minStacks` | the enemy shows (or doesn't show) that status |
+  | `bossStatus` | `statusId` (the wiki's English name), `present`, `minStacks` | the enemy shows (or doesn't show) that status; with `minStacks` above 1, with at least that many stacks (inflictions) or that level (Corrosion, Electrification: I–IV as 1–4). An absent status counts as 0; a present one whose count isn't read (covered, a dark scene, or a status whose count EndHud doesn't read: `BossStatusReader.CountsRead`) is unknown |
   | `controlling` | `operatorId` | that operator is the one being controlled |
+  | `phaseShown` | `phaseId`, `is`, `times` (format 4) | that phase has come onto the strip so many times this fight (see [Choosing the phase](#choosing-the-phase)); unknown outside a phase selector (step `expect`, alerts) |
   | `all` | `of`: a list of conditions | every one holds (and) |
   | `any` | `of`: a list of conditions | at least one holds (or) |
   | `not` | `of`: one condition (format 3) | it doesn't hold; unknown stays unknown |
@@ -1421,9 +1470,19 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   operator's counter while someone else is controlled) is *unknown*, not false: `all` is false if a
   part is false, else unknown if a part is unknown; `any` is true if a part is true, else unknown if
   a part is unknown. A phase's `when` that is unknown doesn't switch to it.
+  `Below` and `Above` are strict (`skillPoints` `Below` 2: 1.95 holds, 2 doesn't); `Exactly` allows
+  ±0.05. [`ConditionWalk`](src/EndHud.Vision/Rotations/ConditionWalk.cs) opens up groups and `not`
+  at any depth; everything that asks "is there a condition of kind X anywhere" (the format needed,
+  whether boss statuses must be read, an alert's problems) goes through it.
 
-- `format`: 3 when it uses `not`, `ultimateActive` or `lastMatchWins`, else 2: a rotation is saved in the lowest
-  format that holds it, so one using nothing new stays readable by builds from before format 3. A
+  Two problems are refused in the editor with a sentence: a phase whose own `when` counts its own
+  showings (`PhaseShownOwnGate`: counted on arrival, it would flip on the very reading that shows
+  it), and a `phaseShown` naming a phase that was deleted (`PhaseShownMissingPhase`).
+
+- `format`: 4 when it uses a `BasicAttack` step, `Below`/`Above` or `phaseShown`; else 3 when it
+  uses `not`, `ultimateActive` or `lastMatchWins`; else 2. A rotation is saved in the lowest
+  format that holds it (`Rotation.FormatNeeded`), so one using nothing new stays readable by older
+  builds, and the published `rotations/*.json` stay at format 3 or lower (a test checks). A
   file from a newer EndHud is refused with a message instead of being misread (builds from before
   format 2 or 3 say so about such a file or share code). A format 1 file (a fixed
   `sequence` of phases with repeat counts) is read as those phases in that order, repeats copied,
@@ -1481,13 +1540,34 @@ like everything else.
 | Lasting ultimate ([`UltimateTimeBar`](src/EndHud.Vision/UltimateTimeBar.cs)) | the thin line right above the skill points, while Laevatain's or Zhuang Fangyi's ultimate runs | one colour from the left over a grey track; its length is the time left. Taken as the bar only with that shape and a line's edges (bright sky there read as a full bar before). Kept through gaps of up to 4 s (PartyTracker). |
 | Controlled operator ([`ActiveSlot`](src/EndHud.Vision/ActiveSlot.cs)) | the chevron over the controlled operator's portrait | shape match against the chevron |
 | Battle skill ([`BattleSkillButton`](src/EndHud.Vision/BattleSkillButton.cs)) | each battle skill button, bottom right | a dark disc with white digits is cooling; the white icon is available |
-| Operator counters ([`OperatorCounters`](src/EndHud.Vision/Operators/OperatorCounters.cs)) | the controlled operator's resource, bottom centre | Laevatain's 熔火 (0–4): lit petals of the flower; pink petals mean full. Typhoeus's 猎矢 (`hunting-arrow`, 0–4): bars lit cyan (with a white streak over them when full); and 启示 (`sign`, 0–8): dots lit white, filling from the bottom row. Unknown when a bar or dot is neither lit nor grey, or the lit ones aren't in their fill order (the HUD moving). Zhuang Fangyi's 青霆剑 (`sunderblade`, 0–9): cells of a diamond grid lit cyan |
-| Elemental infliction ([`InflictionRing`](src/EndHud.Vision/InflictionRing.cs)) | the ring at the right end of the boss's HP bar, top centre | present when the white stack segment on top of the ring shows; the element from the colour of the icon inside (heat, cryo, electric, nature) |
-| Enemy statuses ([`BossStatusReader`](src/EndHud.Vision/BossStatusReader.cs)) | the icon row under the boss's bars, top centre | each square is matched against the wiki's status icons; read at most once a second and only when the current rotation asks about statuses (about 70 ms a read at 4K) |
+| Operator counters ([`OperatorCounters`](src/EndHud.Vision/Operators/OperatorCounters.cs)) | the controlled operator's resource, bottom centre | Laevatain's 熔火 (0–4): lit petals of the flower; pink petals mean full. Typhoeus's 猎矢 (`hunting-arrow`, 0–4): bars lit cyan (with a white streak over them when full); and 启示 (`sign`, 0–8): dots lit white, filling from the bottom row. Unknown when a bar or dot is neither lit nor grey, or the lit ones aren't in their fill order (the HUD moving). Zhuang Fangyi's 青霆剑 (`sunderblade`, 0–9): cells of a diamond grid lit cyan. Si's 伤害层数 (`damage-stacks`, no maximum): the badge left of the HP bar where Laevatain's flower is; 0 is a hollow green four-lobed flower with no number, from 1 a green cross with a white number on it, read digit by digit against the game's digit shapes ([`BadgeNumber`](src/EndHud.Vision/BadgeNumber.cs); Windows OCR reads nothing from one or two lone digits). Any number of digits; only 1–2 measured (up to 45 seen) |
+| Si's battle-skill button ([`SkillRing`](src/EndHud.Vision/SkillRing.cs)) | her battle-skill button, bottom right, keyboard and mouse only | which icon (butterfly: not running; swirl: running; a countdown: cooling; neither clearly: unknown) by the icon's white shape against two masks; while the swirl shows, how much of the grey ring inside the button is left (null when it can't be read). Measured with Si in slot 1; any slot is read |
+| Elemental infliction ([`InflictionRing`](src/EndHud.Vision/InflictionRing.cs)) | the ring at the right end of the boss's HP bar, top centre | present when the white stack segment on top of the ring shows; the element from the colour of the icon inside (heat, cryo, electric, nature). Stacks (1–4, `ReadWithStacks`): four arc segments centred at 12, 3, 6 and 9 o'clock; a lit one is a white arc standing out of its dark outline, an unlit one has no arc and no track (the scene shows through). The lit ones must be the first n clockwise from the top, and every segment must be clearly lit or unlit; anything else is unknown |
+| Enemy statuses ([`BossStatusReader`](src/EndHud.Vision/BossStatusReader.cs)) | the icon row under the boss's bars, top centre | each square is matched against the wiki's status icons; read at most once a second and only when the current rotation (a phase's `when` or a step, at any depth) or an alert rule asks about statuses (about 70 ms a read at 4K). Each reading carries its count where one is read (`BossStatusReading.Stacks`): the ring's stacks, or a reaction's level |
+| Reaction level ([`ReactionLevel`](src/EndHud.Vision/ReactionLevel.cs)) | the badge on a Corrosion or Electrification icon's bottom-right corner | a dark square with the level as a Roman numeral in the reaction's colour, read in two bands between the serifs: an "I" is one upright run in both bands, a "V" two runs above that close into one below; the runs must spell I–IV. **Level I has no badge** (owner, 2026-10-22): a corner that clearly has none (no numeral, little dark, the square's own background showing, the icon's art in full colour) reads I. A dark corner (a badge, or a dark scene that could hide one), one covered by an effect, or one washed out (an icon fading in) is unknown, never I. Over the four recordings every 0.2 s, 0 of 542 badged readings read I and 329 of 599 badgeless readings did; the rest stayed unknown. Only these two reactions are read (`ReactionLevel.Measured`) |
 
 Status icons come from the wiki's glossary module along with the operators (`statuses.json` in the
 operator library), so new statuses need no release. Chinese names are in
 [`StatusNames`](src/EndHud.Vision/Operators/StatusInfo.cs).
+
+### Si's battle-skill timer
+
+[`SkillTimer`](src/EndHud.Vision/SkillTimer.cs) turns each reading of her button
+(`PartyState.SkillRings`, read in `PartyMonitor` once the squad is named) into what the gauge
+shows:
+
+- **Swirl seen, ring read:** the ring is the clock. Time left = the ring's share × 22 s
+  (`SkillRing.SiDuration`: full at 13.5 s, gone at 35.5 s, butterfly back at 35.75 s on the owner's
+  fight, ±0.25 s; whether her skill level changes it is not known). The start is re-anchored to
+  that reading.
+- **Swirl seen, ring not read** (an effect over it): an **estimate** from the start (the first
+  reading the swirl was seen, or the ring's last anchor) and 22 s, shown with "≈" before the
+  seconds. When the estimate runs out, nothing is shown.
+- **Swirl not seen** (unknown icon, a cutscene): nothing is shown, and the start is kept.
+- **Butterfly back, or the button cooling:** the skill ended; the start is forgotten.
+
+So the timer is only ever on screen while the changed icon is seen. With a controller the battle
+skill buttons aren't read, so there is no timer there.
 
 ### Choosing the phase
 
@@ -1499,7 +1579,18 @@ phase shown stays; before any has held, the first phase without `when` (or the f
 Until 0.5.1 the phase shown always stayed when none held, so a phase without `when` never came
 back once another had held (a player's 充能轴 I "Laevatain's ultimate at most 50%" never gave way
 to 充能轴 II).
-Conditions are evaluated by `RotationTracker.Evaluate`.
+Conditions are evaluated by `RotationTracker.Evaluate`, which takes an `IPhaseHistory`: the
+selector passes itself, anything else (`RotationTracker`'s step following, the strip's reasons,
+alerts) passes `PhaseHistory.None`, where `phaseShown` is unknown.
+
+The selector also counts, per phase, how many times it has **come onto the strip** this fight
+(owner, 2026-10-22: counted on arrival, so the one on the strip now is included; leaving and coming
+back counts again). The conditions see the counts as they were before the reading's switch, so a
+gate on another phase's count opens on the reading after that phase first shows.
+`PhaseSelector.EndFight` forgets the phase shown and every count; the overlay's
+[`RotationFollower`](src/EndHud/OverlayWindow.Rotation.cs) calls it when the fight ends
+(`StripVisibility` going from in battle to not, so short gaps don't reset it). Reloading the rotations
+(`ReloadRotations`, e.g. after the editor saves) starts every selector afresh as well, counts included.
 
 [`RotationTracker`](src/EndHud.Vision/Rotations/RotationTracker.cs) also follows the steps inside a
 phase from skills it sees used, as below. The app doesn't use that part while the strip shows no
@@ -1524,6 +1615,76 @@ current step (it couldn't tell reliably which button was pressed):
    condition turns true).
 
 The current step is "ready" (lit) when all its known checks hold.
+
+## Alerts
+
+### The file
+
+One file for every rule, global (every fight, every squad): `%APPDATA%\EndHud\alerts.json`
+([`AlertRule`, `AlertFile`](src/EndHud.Vision/Alerts/AlertRule.cs),
+[`AlertFormat`, `AlertStore`](src/EndHud.Vision/Alerts/AlertStore.cs)):
+
+```json
+{
+  "format": 1,
+  "rules": [
+    { "id": "3b0e…", "when": [ { "kind": "skillPoints", "is": "AtLeast", "value": 1.8 } ], "message": "可以放战技了" },
+    { "id": "9a4c…", "when": [ { "kind": "bossStatus", "statusId": "Cryo Infliction", "present": true, "minStacks": 3 } ], "message": "" }
+  ]
+}
+```
+
+- `id`: kept for the rule's whole life. `when`: every condition must hold; the same condition
+  kinds as rotations (groups and `not` included) except `phaseShown`, which belongs to a rotation.
+  `message`: the pop-up's text; empty shows the conditions in words.
+- `AlertRule.Problems()`: no conditions, an empty group, or a `phaseShown` (from a hand-edited or
+  shared file). The editor refuses to save such a rule, with a sentence.
+- Share codes: `EHA1:` + the JSON, deflated, in URL-safe base64 (the rotations' `EHR1:` scheme). A
+  damaged code is refused; an `EHA2:` code says it's from a newer EndHud; anything else (a
+  rotation's code) isn't alert rules. Files export as `战斗提示.endhud-alerts.json`.
+
+### The store, all six answers
+
+| | How |
+|---|---|
+| **Create** | The editor's 新建 (a rule with 技力 至少 2.0 and no text), 复制 (the selected rule again, right after it, new id), or an import. `AlertStore.Save` writes the whole file to a temp file, then renames it over `alerts.json`. |
+| **Read** | `AlertStore.Load` at start and after every save; checked on every reading in battle. A missing file is no rules. |
+| **Correct** | Select the rule, change its conditions or text, 保存: `AlertStore.Corrected` rewrites it in its place under its own id. A wrong rule is fixed in place, never by adding a second one. |
+| **Remove** | 删除, after confirming ("删除提示“{0}”？此操作无法撤销。"): `AlertStore.Removed`. Nothing is removed automatically: no eviction, no age limit. |
+| **Protect** | Every rule stays until the player deletes it. At most 100 (`AlertFile.MaxRules`): 新建 is refused with "最多 100 条提示，请先删除不用的。", `Save` refuses more. Imports never replace (`AlertStore.Import`): every imported rule gets a new id, one with the same conditions and words as a rule already there is skipped, and past 100 the rest is left out; the editor says how many of each. An **unreadable** file is renamed to `alerts.unreadable-<yyyyMMdd-HHmmss>.json` beside it, never overwritten or lost, and the editor says so (`RenamedEarlier` keeps the name for an editor opened later in the run). A file from a **newer** EndHud (format above 1) is left as it is and saving is refused; so is a file that couldn't be opened (locked, no access). |
+| **Carry** | `%APPDATA%` survives updates (the installer and updater don't touch it). Between computers and players: share codes (all rules, or the selected one) and files. There are no published alerts and nothing syncs from GitHub. |
+
+### When a pop-up shows
+
+[`AlertMonitor`](src/EndHud.Vision/Alerts/AlertMonitor.cs), on every reading in battle, evaluates
+each rule's conditions as one `all` (`RotationTracker.Evaluate` with `PhaseHistory.None`):
+
+- A rule **fires** when it is seen holding after it was last seen not holding, or on its first
+  sighting this fight. While it keeps holding it stays quiet.
+- A reading where it can't be told (unknown: a cutscene, a count not read, an operator not in the
+  squad) changes nothing: it neither fires nor re-arms, so a flickering reading can't make it fire
+  again and again.
+- [`AlertFollower`](src/EndHud/AlertFollower.cs) takes a pop-up down after 3 s
+  (`AlertFollower.ShowFor`, also between readings on the overlay's timer) or on the first reading
+  where the rule was seen not holding, whichever is first, or when the rule is deleted. At most
+  three are up (`MostShown`): the oldest goes.
+- Leaving battle (`StripVisibility`, the strip's rule) takes every pop-up down and re-arms every
+  rule (`AlertMonitor.EndFight`); so does turning alerts off.
+- The boss's statuses are read when any rule asks about them (`AlertMonitor.NeedsBossStatuses`),
+  even when the rotation doesn't.
+
+Measured by `AlertMonitorTests`: 技力 1.7 → 1.8 fires once; staying at 1.8 is quiet; 1.5 then 1.9
+fires again; 寒冷附着 2 → 3 stacks fires, an unread count doesn't.
+
+### The editor
+
+[`AlertEditor`](src/EndHud/AlertEditor.xaml.cs) (menu → 战斗提示 → 编辑战斗提示…, or the tray):
+the rule list (新建, 复制, 删除), the selected rule's 提示文字 and conditions on the shared
+[`ConditionEditor`](src/EndHud/ConditionEditor.cs) pickers (no 轴段已显示次数), and 粘贴分享码,
+复制选中的分享码, 复制全部分享码, 导入文件…, 导出文件…, 保存, 关闭. Saving reloads the overlay's rules at
+once. The status condition offers 至少 1–4 层 for the four inflictions and 至少 I–IV 级 for Corrosion
+and Electrification; for any other status a grey line says its count isn't read, and only
+present/absent is offered. Si's damage stacks offer 0–200 (a larger value from a file is kept).
 
 ## Tests
 
@@ -1592,16 +1753,34 @@ exception: hosted runners can't capture windows, so they only run on a developer
   in the rest of the test data ever taken for a controller layout.
 - **Elemental infliction** ([`Fixtures/infliction`](tests/data/Fixtures/infliction)):
   heat and nature rings, and frames with no ring (a white background, a cutscene, blue effects
-  filling the ring's place), at 4K and on simulated 1440p, 1080p and 16:10 screens.
+  filling the ring's place), at 4K and on simulated 1440p, 1080p and 16:10 screens; the stack count
+  on cryo rings at 1–4 stacks from Si's fight (right or unknown, never wrong).
+- **Reaction levels** ([`Fixtures/reactions`](tests/data/Fixtures/reactions)): Corrosion III,
+  Electrification II, III and IV badges, badgeless Corrosion and Electrification icons read as I,
+  other badges and dark scenes read as unknown (never a wrong level, never I where a badge could
+  hide); each level-I condition has a test that fails without it.
+- **Si** ([`Fixtures/si`](tests/data/Fixtures/si)): her damage stacks (the badge number, the zero
+  flower) and her battle-skill button before, during and after her skill (icon, ring left), and
+  the timer's three states (no timer before; time left within ±1.5 s during; none after the
+  butterfly is back), including the "≈" estimate when the ring is hidden; the gauge row's two
+  circles.
+- **Alerts:** the store (create, read, correct in place, remove, an unreadable file renamed, a
+  newer one refused, imports never replacing, the 100 cap, share codes), the firing rule
+  (`AlertMonitorTests`), the pop-ups' life (`AlertFollowerTests`), the words and icons
+  (`AlertTextTests`), the pop-up's layout, and the editor driven through its real buttons
+  (`AlertEditorTests`: 技力 至少 1.8 and 寒冷附着 至少 3 层 built from the pickers).
 - **Recommended rotations:** synced against a stand-in for GitHub (new, unchanged, corrected and
   removed files; a SHA or id that doesn't match; a 404, an unexpected answer or an unreachable
   GitHub changing nothing; the player's own rotations never touched; deleted ones staying deleted
   until restored); the editor saving a recommended rotation as the player's copy and hiding a
   deleted one; and every file in `rotations/` being valid.
 - **Rotations:** the file format and share codes (round trip, damaged codes, newer formats,
-  imports never overwriting); the tracker (picking a step with no reset, moving only on seen use,
-  steps used together, going off-script, looping, nothing on screen); the editor's working copy;
-  the strip's layout; every UI string translated, including keys built at run time.
+  imports never overwriting, format 4 only when needed, published rotations at format 3 or lower);
+  the tracker (picking a step with no reset, moving only on seen use, steps used together, going
+  off-script, looping, nothing on screen, stacks and levels in status conditions); the phase
+  selector's counts and their reset at the end of a fight; the editor's working copy and the
+  editor itself (普攻 steps, 0.1 skill points, 1 % charge, a value off the list kept, 复制轴段,
+  轴段已显示次数); the strip's layout; every UI string translated, including keys built at run time.
 
 - **Other screen sizes**, simulated from the 4K fixtures and recordings (see
   [`SimulatedScreen`](tests/EndHud.Vision.Tests/SimulatedScreen.cs)): desktop monitors (5K,
@@ -1659,11 +1838,12 @@ package, add it to `requirements.txt` with an exact version.
 ## Project layout
 
 ```
-src/EndHud/              the tray app: overlay window (debug panel, combo-ready hint, rotation strip), rotation editor, menu, tray icon, config, i18n
+src/EndHud/              the tray app: overlay window (debug panel, combo-ready hint, rotation strip, gauges, alert pop-ups), rotation and alert editors, menu, tray icon, config, i18n
 src/EndHud.Vision/       everything that reads the screen
   Capture/               Windows.Graphics.Capture of a single window
   Operators/             operator library, recognition (character model), learning, operator counters, status icons
-  Rotations/             rotation format, store, recommended-rotation sync, and the tracker that finds the current step
+  Rotations/             rotation format, store, recommended-rotation sync, condition walk, the phase selector and the tracker that finds the current step
+  Alerts/                alert rules, their file and store, and when a rule fires (AlertMonitor)
   Inn/                   the inn: its data (InnData), gourmands, and the readers of its screens
   Assets/ccip/           the character recognition model (Git LFS; see tools/ccip-model)
   Assets/operator-portraits.json  in-game portrait references (the model's numbers; built from test fixtures)
@@ -1673,6 +1853,8 @@ src/EndHud.Vision/       everything that reads the screen
   PartyTracker.cs        carries readings over (deaths, values that are briefly unreadable)
   ComboHints.cs          when to show the combo-ready hint
   SkillPointBar.cs, ActiveSlot.cs, BattleSkillButton.cs, BossStatusReader.cs   combat readings for rotations
+  InflictionRing.cs, ReactionLevel.cs   the boss's infliction (element, stacks) and reaction levels
+  SkillRing.cs, SkillTimer.cs, BadgeNumber.cs   Si's battle-skill button and timer, and badge digits (her stacks)
 src/EndHud.Cli/          endhud-cli developer tool
 tests/EndHud.Vision.Tests/ tests of everything that reads the screen (fixtures, recordings, screen sizes)
 tests/EndHud.Tests/      tests of the tray app (banner layout at any display scaling, windowed capture)
@@ -1742,8 +1924,8 @@ is held they become large rings around the icons, which aren't read: a nearly fu
 looks much like a ready one there, and holds last a second or two, so the last reading stays.
 Operator counters, buffs and the boss's statuses are read where they are with keyboard and mouse
 (bottom and top centre, which the controller layout doesn't move), but the recordings have none
-of them to confirm. Not read yet: levels (the squad isn't drawn out of combat there) and battle
-skill cooldowns.
+of them to confirm. Not read yet: levels (the squad isn't drawn out of combat there), battle
+skill cooldowns, and so Si's battle-skill timer (`SkillRing.Read` returns nothing there).
 
 A level that isn't read keeps its last value; one that might be wrong is not shown: two OCR
 attempts must agree, and only levels 10 to 90 (the game's cap) are accepted. Levels 1–9 are
@@ -1790,14 +1972,23 @@ Copy `src/EndHud/i18n/zh-CN.xaml` to, for example, `en-US.xaml`, translate the v
   the screen clearly matches another step (RotationTracker's jump).
 - Hints and the rotation strip follow the screen reading, four times a second by default
   (`OcrIntervalMs`), so they can lag the game by up to a quarter of a second.
-- Rotations: Laevatain's 熔火, Typhoeus's 猎矢 and 启示, and Zhuang Fangyi's 青霆剑 are read as
-  operator counters so far; counters are read for the controlled operator only. A battle
-  skill's cooldown is read as available or cooling, not its seconds. Stack counts aren't read (the status row's
-  badges, or the infliction ring's segments), so the editor doesn't offer them, and a shared
-  rotation asking for 2+ stacks treats that check as unknown. Infliction rings have been seen at one
-  and two stacks, and only for heat and nature; cryo and electric are told apart by colour from the
-  wiki's icons but not yet seen in a recording. A few boss icons aren't on the
-  wiki's glossary and aren't recognised.
+- Rotations and alerts: Laevatain's 熔火, Typhoeus's 猎矢 and 启示, Zhuang Fangyi's 青霆剑 and Si's
+  伤害层数 are read as operator counters so far. Counters are read for the controlled operator
+  only: the game also draws a counter small on a non-controlled operator's portrait, but no
+  recording has a frame of it to measure (every counter operator is controlled in slot 1
+  throughout), so it isn't read; the gauge shows the last value seen, faded. A battle skill's
+  cooldown is read as available or cooling, not its seconds.
+- Enemy counts: the infliction ring's stacks (1–4) and the levels of Corrosion and Electrification
+  (I–IV) are read. 破防 (Vulnerable) stacks aren't: no recording shows them (every team in them
+  deals arts damage), so the editor offers only present/absent for it, and a shared rotation or
+  alert asking for 2+ stacks of it treats that check as unknown; the same for the levels of
+  Combustion, Solidification and any reaction not yet seen with a badge. Infliction stacks 3–4
+  have been seen only for cryo; the infliction fixtures have no electric ring (its colour range
+  comes from the wiki's icon). A badgeless reaction
+  over a dark or busy scene stays unknown rather than I. A few boss icons aren't on the wiki's
+  glossary and aren't recognised.
+- Si: her stacks reader is measured on 1–2 digit numbers (up to 45 seen); her battle-skill timer
+  only with her in slot 1, on keyboard and mouse, and assumes 22 s whatever her skill level.
 
 ## Game art
 
