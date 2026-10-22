@@ -60,6 +60,21 @@ public class ConfigTests
         Assert.DoesNotContain(typeof(HudConfig).GetProperties(), p => p.Name.StartsWith("InnSetup", StringComparison.Ordinal) || p.Name is "InnStripX" or "InnStripY");
     }
 
+    /// <summary>
+    /// The gourmands' tiles stand at fixed spots (owner, test_yuanyuan8: "make the position FIXED"): a config saved with the
+    /// dragged columns' place still loads, the rest kept; the swaps setting, absent from it, is on.
+    /// </summary>
+    [Fact]
+    public void A_config_with_the_gourmands_dragged_place_still_loads_and_swaps_are_on()
+    {
+        var config = ConfigStore.Parse("""{ "InnGourmandRight": 0.7, "InnGourmandTop": 0.4, "InnCallX": 0.3 }""");
+
+        Assert.Equal(0.3, config.InnCallX);
+        Assert.True(config.InnSwapsEnabled);
+        Assert.DoesNotContain(typeof(HudConfig).GetProperties(), p => p.Name.StartsWith("InnGourmand", StringComparison.Ordinal));
+        Assert.False(ConfigStore.Parse("""{ "InnSwapsEnabled": false }""").InnSwapsEnabled);
+    }
+
     /// <summary>Before version 3 every start saved 50% (a slider bug), so 50% from then means the default.</summary>
     [Theory]
     [InlineData("""{ "GaugesScale": 0.5, "SettingsVersion": 2 }""", 1.0)]
