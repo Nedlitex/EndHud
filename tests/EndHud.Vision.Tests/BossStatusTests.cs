@@ -62,15 +62,15 @@ public sealed class BossStatusTests : IDisposable
         Assert.Equal((1, 3), (corrosion.Position, corrosion.Stacks));
     }
 
-    /// <summary>A reaction shown with no badge is named, and its level is unknown (not guessed as I).</summary>
+    /// <summary>A reaction shown with no badge is named, at level I (the game draws no badge at I).</summary>
     [Fact]
-    public async Task A_reaction_without_a_badge_has_no_level()
+    public async Task A_reaction_without_a_badge_is_level_one()
     {
         var frame = await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("reactions", "other-typhoeus-30s.jpg")));
 
         var electrification = Assert.Single((await ReaderAsync()).Read(frame), s => s.StatusId == "Electrification");
 
-        Assert.Null(electrification.Stacks);
+        Assert.Equal(1, electrification.Stacks);
     }
 
     [Fact]

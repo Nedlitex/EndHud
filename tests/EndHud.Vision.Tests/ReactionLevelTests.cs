@@ -6,8 +6,9 @@ namespace EndHud.Vision.Tests;
 
 /// <summary>
 /// The Roman numeral level on a reaction's icon (<see cref="ReactionLevel"/>), on frames of the owner's
-/// fights labelled by eye (Fixtures/reactions): Corrosion III, Electrification II, III and IV, and
-/// positions holding other badges (white digits), the same reactions with no badge, or no badge at all.
+/// fights labelled by eye (Fixtures/reactions): Corrosion III, Electrification II, III and IV, the same
+/// reactions with no badge (level I: the game draws no badge at I), and positions holding other badges
+/// (white digits). Only a clearly absent badge is I; a badge hidden in a dark scene stays unknown.
 /// </summary>
 public class ReactionLevelTests
 {
@@ -18,10 +19,16 @@ public class ReactionLevelTests
         File.ReadAllText(CombatFrameTests.Fixture(Path.Combine("reactions", "labels.json"))),
         new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
 
+    /// <summary>
+    /// The positions the level is read at: a measured reaction, or another badge (status null). Other
+    /// statuses (Combustion) are never asked for a level (<see cref="BossStatusReader"/>).
+    /// </summary>
+    private static IEnumerable<Label> Read => Labels.Where(l => l.Status is null || ReactionLevel.Measured.Contains(l.Status));
+
     public static TheoryData<string, int> Positions()
     {
         var data = new TheoryData<string, int>();
-        foreach (var label in Labels) data.Add(label.File, label.Position);
+        foreach (var label in Read) data.Add(label.File, label.Position);
         return data;
     }
 
@@ -51,7 +58,8 @@ public class ReactionLevelTests
         Assert.Contains(Labels, l => l.Status == "Corrosion" && l.Level == 3);
         Assert.Contains(Labels, l => l.Status == "Electrification" && l.Level == 2);
         Assert.Contains(Labels, l => l.Status == "Electrification" && l.Level == 4);
-        Assert.Contains(Labels, l => l.Status is not null && ReactionLevel.Measured.Contains(l.Status) && l.Level is null);
+        Assert.Contains(Labels, l => l.Status == "Corrosion" && l.Level == 1 && !l.Hard);
+        Assert.Contains(Labels, l => l.Status == "Electrification" && l.Level == 1 && !l.Hard);
         Assert.True(Labels.Count(l => l.Level is null) >= 3);
     }
 
@@ -63,7 +71,7 @@ public class ReactionLevelTests
     public async Task On_smaller_screens_the_level_is_right_or_unknown(string screenName)
     {
         var screen = SimulatedScreen.Named(screenName);
-        foreach (var label in Labels)
+        foreach (var label in Read)
         {
             int? level = await ReadAsync(label.File, label.Position, screen);
             Assert.True(level is null || level == label.Level, $"{label.File} position {label.Position} at {screen.Width}x{screen.Height}: {level}, labelled {label.Level?.ToString() ?? "none"}");
