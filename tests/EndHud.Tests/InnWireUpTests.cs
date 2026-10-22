@@ -37,6 +37,7 @@ public class InnWireUpTests
         public Task<IReadOnlyList<TableCard?>> ReadTablesAsync(Frame frame) => Task.FromResult(Tables);
 
         public Task<FireMeter?> ReadFireAsync(Frame frame) => Task.FromResult<FireMeter?>(new FireMeter(30, 4, false, BlazeLeft: null));
+        public IReadOnlyList<HeldDish?>? ReadTray(Frame frame) => null;
 
         public Task<DispatchPanel?> ReadPanelAsync(Frame frame)
         {
@@ -387,6 +388,7 @@ public class InnWireUpTests
         public SessionClock? ReadClock(Frame frame) => null;
         public Task<IReadOnlyList<TableCard?>> ReadTablesAsync(Frame frame) => throw new NotSupportedException();
         public Task<FireMeter?> ReadFireAsync(Frame frame) => throw new NotSupportedException();
+        public IReadOnlyList<HeldDish?>? ReadTray(Frame frame) => throw new NotSupportedException();
         public Task<DispatchPanel?> ReadPanelAsync(Frame frame) => throw new NotSupportedException();
         public Task<GourmandBubble?> ReadBubbleAsync(Frame frame) => throw new NotSupportedException();
         public Task<InnSetup?> ReadSetupAsync(Frame frame) => throw new NotSupportedException();

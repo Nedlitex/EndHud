@@ -28,6 +28,12 @@ internal sealed record InnReading(InnScreenKind Screen, TimeSpan At, SessionCloc
 {
     public IReadOnlyList<TableCard?> TableCards => Tables ?? [];
 
+    /// <summary>
+    /// On a session frame: the tray of what the player holds, slot by slot (null slot: empty; <see cref="TrayReader"/>); null when it
+    /// wasn't read (the dispatch panel over it, the HUD faded, or a reading saved before the tray was read).
+    /// </summary>
+    public IReadOnlyList<HeldDish?>? Tray { get; init; }
+
     /// <summary>On a chef picker: the kitchen it's for (kitchen one = 1), read off its title; null when unread or between reads.</summary>
     public int? PickerKitchen { get; init; }
 
@@ -51,6 +57,9 @@ internal interface IInnScreens
 
     Task<FireMeter?> ReadFireAsync(Frame frame);
 
+    /// <summary>The tray of what the player holds (pixels, no OCR); null when it isn't on screen.</summary>
+    IReadOnlyList<HeldDish?>? ReadTray(Frame frame);
+
     /// <summary>The dispatch panel, or null when it isn't open (told by its tabs' pixels before any OCR).</summary>
     Task<DispatchPanel?> ReadPanelAsync(Frame frame);
 
@@ -72,6 +81,7 @@ internal sealed class InnScreens(InnText text, InnPictures pictures, InnData dat
 {
 
     private readonly TableCardReader _tables = new(text, pictures);
+    private readonly TrayReader _tray = new(pictures);
     private readonly DispatchPanelReader _panel = new(text, pictures, data, library.Operators);
     private readonly BubbleReader _bubble = new(text);
     private readonly SetupReader _setup = new(text, data, library.Operators);
@@ -85,6 +95,8 @@ internal sealed class InnScreens(InnText text, InnPictures pictures, InnData dat
     public Task<IReadOnlyList<TableCard?>> ReadTablesAsync(Frame frame) => _tables.ReadAsync(frame);
 
     public Task<FireMeter?> ReadFireAsync(Frame frame) => FireMeterReader.ReadAsync(text, frame);
+
+    public IReadOnlyList<HeldDish?>? ReadTray(Frame frame) => _tray.Read(frame);
 
     public Task<DispatchPanel?> ReadPanelAsync(Frame frame) => _panel.ReadAsync(frame);
 
@@ -113,6 +125,8 @@ internal sealed class ClockOnlyScreens : IInnScreens
     public Task<IReadOnlyList<TableCard?>> ReadTablesAsync(Frame frame) => Task.FromResult<IReadOnlyList<TableCard?>>([]);
 
     public Task<FireMeter?> ReadFireAsync(Frame frame) => Task.FromResult<FireMeter?>(null);
+
+    public IReadOnlyList<HeldDish?>? ReadTray(Frame frame) => null;
 
     public Task<DispatchPanel?> ReadPanelAsync(Frame frame) => Task.FromResult<DispatchPanel?>(null);
 
@@ -228,10 +242,12 @@ internal sealed class InnFrameReader(IInnScreens screens)
                 var tables = await screens.ReadTablesAsync(frame);
                 // The meter hides behind the dispatch panel.
                 var fire = panel is null ? await screens.ReadFireAsync(frame) : null;
+                // The panel covers the tray too.
+                var tray = panel is null ? screens.ReadTray(frame) : null;
                 var bubble = tables.Any(t => t?.State is TableState.GourmandArrived or TableState.GourmandOrdering or TableState.GourmandOrder)
                     ? await screens.ReadBubbleAsync(frame)
                     : null;
-                return new InnReading(screen, now, clock, tables, fire, panel, bubble);
+                return new InnReading(screen, now, clock, tables, fire, panel, bubble) { Tray = tray };
             }
             case InnScreenKind.Setup or InnScreenKind.Menu or InnScreenKind.ChefPicker:
             {

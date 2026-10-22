@@ -124,6 +124,13 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// </summary>
     public static readonly TimeSpan GourmandEchoFor = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// A dish leaving the player's hand is matched with a table read served with it within this long (the card and the tray
+    /// are read on the same frames, a frame or two apart as each draws); otherwise it was put back on the counter. An
+    /// assumption, not measured: a few readings at the live loop's 0.3 s.
+    /// </summary>
+    public static readonly TimeSpan HandSettlesAfter = TimeSpan.FromSeconds(3);
+
     /// <summary>The timer going up by more than this means a new session started.</summary>
     private static readonly TimeSpan NewSessionJump = TimeSpan.FromSeconds(10);
 
@@ -150,6 +157,11 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     // queue, so it covers that order until served). Both are an estimate: the counter is never read off the screen.
     private readonly Dictionary<string, int> _spares = [], _outForOrders = [], _cooked = [], _servedBefore = [];
     private readonly HashSet<string> _dishesSeen = [], _drinksSeen = [];
+    // The dishes in the player's hand (the tray, TakeTray), a tray read otherwise once awaiting a second reading, dishes
+    // that left the hand not yet read served on a table, and dishes read served while the tray still showed them.
+    private readonly List<string> _carried = [];
+    private List<string>? _trayChange;
+    private readonly List<(string Id, TimeSpan At)> _leftHand = [], _servedFromHand = [];
     private readonly Dictionary<int, GourmandMemory> _gourmands = [];
     private readonly Dictionary<int, TimeSpan> _gourmandLeaving = []; // a gourmand's table read in another state since then
     private readonly List<(IReadOnlyList<GourmandRequest> Requests, TimeSpan At)> _gourmandsDone = []; // served gourmands' words, and when (TakeBubble)
@@ -219,10 +231,11 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     public string QueueSignature() =>
         string.Join(" ", _kitchens.Values.Select(k => $"{k.Queue.Kitchen}:{string.Join(",", k.Queue.Dishes.Select(d => d.Dish.Id))}"));
 
-    /// <summary>The dishes the estimate has on the counter, cooked ahead or out for an order (the replay's trace).</summary>
+    /// <summary>The dishes the estimate has on the counter, cooked ahead or out for an order, and those in hand ("@hand"; the replay's trace).</summary>
     public string CounterSignature() =>
         string.Join(",", _spares.Keys.Union(_outForOrders.Keys).Select(id => (id, n: _spares.GetValueOrDefault(id) + _outForOrders.GetValueOrDefault(id)))
-            .Where(c => c.n > 0).Select(c => $"{c.id}x{c.n}"));
+            .Where(c => c.n > 0).Select(c => $"{c.id}x{c.n}")
+            .Concat(_carried.GroupBy(id => id).Select(g => $"{g.Key}x{g.Count()}@hand")));
 
     /// <summary>
     /// Seconds until a dish would be out in a kitchen if queued now, as the calls count it (what's in its queue + the dish's
@@ -279,6 +292,8 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         if (panelRead is not null) TakePanel(panelRead, reading.At);
         TakePanelOpen(panelRead, reading.At, closedForSure: reading.Panel is null && reading.Fire is not null);
         if (reading.TableCards.Count > 0) TakeTables(reading.TableCards, reading.At);
+        if (reading.Tray is { } tray) TakeTray(tray, reading.At);
+        SettleHand(reading.At);
         // While Full Blaze runs the meter shows its countdown, not the fire: the fire is unknown until read again, never
         // the full meter from before it was started.
         if (reading.Fire is { } fire) _fire = fire.BlazeLeft is not null ? null : fire.Ready ? FullBlazeAdvisor.Full : fire.Fire ?? _fire;
@@ -335,6 +350,10 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         _servedBefore.Clear();
         _dishesSeen.Clear();
         _drinksSeen.Clear();
+        _carried.Clear();
+        _trayChange = null;
+        _leftHand.Clear();
+        _servedFromHand.Clear();
         _gourmands.Clear();
         _gourmandLeaving.Clear();
         _gourmandsDone.Clear();
@@ -589,10 +608,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         foreach (var (id, count) in served)
         {
             int more = count - _servedBefore.GetValueOrDefault(id);
-            for (int n = 0; n < more; n++)
-            {
-                if (!TakeOffCounter(id)) TakeOutOfQueue(id);
-            }
+            for (int n = 0; n < more; n++) ServedOne(id, at);
         }
         _servedBefore.Clear();
         foreach (var (id, count) in served) _servedBefore[id] = count;
@@ -639,6 +655,83 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             _cooked[id] = _cooked.GetValueOrDefault(id) + 1;
             return;
         }
+    }
+
+    /// <summary>
+    /// A dish read newly served on a table: from the player's hand when it just left the tray (or the tray still shows it:
+    /// the tray read a frame later than the card), else off the counter or straight out of a kitchen the estimate still has
+    /// it cooking in.
+    /// </summary>
+    private void ServedOne(string id, TimeSpan at)
+    {
+        int left = _leftHand.FindIndex(h => h.Id == id);
+        if (left >= 0)
+        {
+            _leftHand.RemoveAt(left);
+            return;
+        }
+        if (_carried.Remove(id))
+        {
+            _servedFromHand.Add((id, at));
+            return;
+        }
+        if (!TakeOffCounter(id)) TakeOutOfQueue(id);
+    }
+
+    /// <summary>
+    /// The tray of what the player holds (owner's live session 2026-10-21, test_yuanyuan5 258 s: 至臻鳞肉卷 in hand and the
+    /// advice still sending one for table 4 to a kitchen). A change is taken once the next reading agrees (a frame read as
+    /// the tray draws or fades); a tray with a picture not told apart says nothing. A dish coming into the hand was taken off
+    /// the counter (or out of a kitchen the estimate still has it cooking in); one leaving it was served (<see cref="ServedOne"/>)
+    /// or, when no table is read served with it within <see cref="HandSettlesAfter"/>, put back on the counter (the game's
+    /// "放回出餐台").
+    /// </summary>
+    private void TakeTray(IReadOnlyList<HeldDish?> slots, TimeSpan at)
+    {
+        if (slots.Any(s => s is { Id: null })) return;
+        var held = slots.OfType<HeldDish>().Select(h => h.Id!).Where(id => DishOf(id) is not null).Order(StringComparer.Ordinal).ToList();
+        if (held.SequenceEqual(_carried.Order(StringComparer.Ordinal)))
+        {
+            _trayChange = null;
+            return;
+        }
+        if (_trayChange is null || !_trayChange.SequenceEqual(held))
+        {
+            _trayChange = held;
+            return;
+        }
+        _trayChange = null;
+        foreach (string id in held.Union(_carried).Distinct().ToList())
+        {
+            int more = held.Count(h => h == id) - _carried.Count(c => c == id);
+            for (int n = 0; n < more; n++)
+            {
+                // Picked up: off the counter, or out of a kitchen the estimate still has it cooking in.
+                if (!TakeOffCounter(id)) TakeOutOfQueue(id);
+            }
+            for (int n = 0; n < -more; n++)
+            {
+                int served = _servedFromHand.FindIndex(s => s.Id == id);
+                if (served >= 0) _servedFromHand.RemoveAt(served);
+                else _leftHand.Add((id, at));
+            }
+        }
+        _carried.Clear();
+        _carried.AddRange(held);
+    }
+
+    /// <summary>
+    /// A dish that left the hand with no table read served with it for <see cref="HandSettlesAfter"/> was put back on the
+    /// counter; a dish read served while the tray still showed it, the tray never dropping it since, is forgotten.
+    /// </summary>
+    private void SettleHand(TimeSpan at)
+    {
+        foreach (var (id, since) in _leftHand.Where(h => at - h.At >= HandSettlesAfter).ToList())
+        {
+            _leftHand.Remove((id, since));
+            PutOnCounter(id);
+        }
+        _servedFromHand.RemoveAll(s => at - s.At >= HandSettlesAfter);
     }
 
     private static IEnumerable<OrderItem> Unserved(TableCard card) => card.Items.Where(i => !i.Served);
@@ -835,12 +928,14 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         // queue), and those cooked ahead, which cover no order: they're where the estimate drifts.
         var outForOrders = _outForOrders.Where(s => s.Value > 0).SelectMany(s => Enumerable.Repeat(DishOf(s.Key)!, s.Value)).ToList();
         var counter = outForOrders.Concat(_spares.Where(s => s.Value > 0).SelectMany(s => Enumerable.Repeat(DishOf(s.Key)!, s.Value))).ToList();
-        var state = new InnState(queues, counter, outForOrders, Carried: [], outstanding, menu, ServingLeft(now));
+        // In hand: what the tray shows (a dish in hand covers an order of it first, DispatchAdvisor's Cover).
+        var carried = _carried.Select(id => DishOf(id)!).ToList();
+        var state = new InnState(queues, counter, outForOrders, carried, outstanding, menu, ServingLeft(now));
 
         var left = _clock?.Left ?? TimeSpan.FromMinutes(5);
         var nextOut = queues.Where(q => q.Dishes.Count > 0).Select(q => (TimeSpan?)TimeSpan.FromSeconds(q.Dishes[0].SecondsLeft)).Min();
         FullBlazeAdvice? blaze = _fire is { } fire || _blaze.Running
-            ? FullBlazeAdvisor.Advise(_fire ?? 0, _blaze.Running, left, state.Counter.Count, nextOut, _blaze.FullFor)
+            ? FullBlazeAdvisor.Advise(_fire ?? 0, _blaze.Running, left, state.Counter.Count + state.Carried.Count, nextOut, _blaze.FullFor)
             : null;
         bool fillEverySlot = !_ordersSeen || blaze == FullBlazeAdvice.GetReady || _blaze.Running;
 
