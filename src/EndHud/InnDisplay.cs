@@ -18,6 +18,9 @@ internal sealed record InnViews(IReadOnlyList<InnCall> Calls, IReadOnlyList<InnP
     /// </summary>
     public bool Away { get; init; }
 
+    /// <summary>Where the kitchens' circles are drawn: their row above the tray, or nowhere while the dispatch panel is open.</summary>
+    public InnCirclePlace Circles { get; init; }
+
     /// <summary>A session's views (<see cref="None"/> is not): the banners' rows are kept while this holds (<see cref="InnBannerRows"/>).</summary>
     public bool Session { get; init; }
 
@@ -97,6 +100,8 @@ internal sealed class InnDisplay
         }
         LastAdvice = advice;
         var wants = _wants.Update(advice, text, now);
+        bool away = advice.Panel is not null
+                    || (_panelTabs is { } tabs && tabs >= _mostTabsBefore && tabs >= (advice.Dispatch?.Kitchens.Count ?? 0));
         return new InnViews(
             // The banners: every call, put away in place over the open dispatch panel, where its marks take over.
             advice.Calls,
@@ -105,9 +110,9 @@ internal sealed class InnDisplay
             // What each gourmand wants, while their order is open, held steady; put away in place over the open panel too.
             wants)
         {
-            Away = advice.Panel is not null
-                   || (_panelTabs is { } tabs && tabs >= _mostTabsBefore && tabs >= (advice.Dispatch?.Kitchens.Count ?? 0)),
+            Away = away,
             Session = true,
+            Circles = away ? InnCirclePlace.Hidden : InnCirclePlace.AboveTray,
             Kitchens = [.. advice.Dispatch?.Kitchens.Select(k => k.Kitchen) ?? []],
         };
     }

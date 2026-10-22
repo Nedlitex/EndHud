@@ -27,7 +27,7 @@ public partial class OverlayWindow
         var slots = on && views.Session ? InnKitchenCircleView.Of(views.Calls, Loc.Get) : [];
         // Something to drag while placing them.
         if (_menuOpen && on && slots.All(s => s is null)) slots = InnKitchenCircleView.Sample(_party.Identifier?.Library.Inn, Loc.Get);
-        InnCircleFrame.Visibility = views.Away && !_menuOpen ? Visibility.Hidden : Visibility.Visible;
+        InnCircleFrame.Visibility = views.Circles == InnCirclePlace.Hidden && views.Session && !_menuOpen ? Visibility.Hidden : Visibility.Visible;
         InnCircles.Update(slots);
     }
 

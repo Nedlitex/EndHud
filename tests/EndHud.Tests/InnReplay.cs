@@ -68,6 +68,9 @@ internal sealed class InnReplay
     {
         string why = Describe(_last, e.Reading);
         _display.Show(_session, e.Reading, e.At);
+        if (e.Reading is { Fresh: true, InSession: true } fresh)
+            for (int i = 0; i < Math.Min(fresh.TableCards.Count, _cards.Length); i++)
+                if (fresh.TableCards[i] is { } card) _cards[i] = card;
         if (e.Reading is { InSession: true })
         {
             _sessionFrom ??= e.At;
@@ -114,6 +117,176 @@ internal sealed class InnReplay
             if (_gourmandContent.TryGetValue(banner.Key, out var before) && before != banner.Content) Changes.Add(new InnViewChange(at, "gourmand", "~", banner.Content, why));
         _gourmandContent = drawn.ToDictionary(b => b.Key, b => b.Content);
         _gourmands = gourmands;
+        TakeDraw(at, views);
+    }
+
+    // ---- One picture: the circles, the panel's marks and the gourmands' banners drawn together ----
+
+    /// <summary>The latest fresh reading of each table's card (null: never read), for the gourmands' lifetimes.</summary>
+    private readonly TableCard?[] _cards = new TableCard?[TableCardReader.Tables];
+
+    /// <summary>
+    /// What the player saw at one draw: the panel's kitchen (null: no marks, the panel not on screen), each kitchen's call
+    /// (whatever shows it), the tabs marked "a dish to queue", whether a card was marked, where the circles were drawn,
+    /// the gourmands with a banner, whether those banners were hidden over the panel, and each table's last card.
+    /// </summary>
+    internal sealed record DrawStep(TimeSpan At, int? PanelKitchen, IReadOnlyDictionary<int, InnCall> Calls, IReadOnlySet<int> Tabs, bool CardMark,
+        InnCirclePlace Circles, IReadOnlySet<int> Gourmands, bool Away, IReadOnlyList<TableState?> Tables);
+
+    public List<DrawStep> Draws { get; } = [];
+
+    private void TakeDraw(TimeSpan at, InnViews views)
+    {
+        if (!views.Session) return;
+        var calls = views.Calls.Where(c => c.ForKitchen && c.Dish is not null).GroupBy(c => c.Kitchen!.Value).ToDictionary(g => g.Key, g => g.First());
+        var tabs = views.Marks.Where(m => !m.OnCard)
+            .Select(m => Enumerable.Range(1, KitchenMath.MaxKitchens).FirstOrDefault(k => DispatchPanelReader.TabArea(k) == m.Area)).Where(k => k > 0).ToHashSet();
+        Draws.Add(new DrawStep(at, _display.LastAdvice?.MarkedPanel?.Kitchen, calls, tabs, views.Marks.Any(m => m.OnCard), views.Circles,
+            views.Wants.Select(w => w.Table).ToHashSet(), views.Away, [.. _cards.Select(c => c?.State)]));
+    }
+
+    /// <summary>
+    /// The picture's parts agreeing (owner, 2026-10-21, test_yuanyuan6: "there are MANY cases where the kitchen shows 有菜要排,
+    /// BUT there is no circle under ... also there are many cases where the kitchen shows 有菜要排, but when we go to the
+    /// kitchen, there is no recommendation"), counted as episodes (a run of draws in a row) and seconds:
+    /// <list type="bullet">
+    /// <item><b>TabWithoutCircle:</b> a tab marked while that kitchen's circle isn't drawn;</item>
+    /// <item><b>CallWithoutCard:</b> the panel on screen showing a kitchen with a call, and no card marked;</item>
+    /// <item><b>SwitchNoCard:</b> the player switched to a tab marked on the draw before, and no card was marked in the next second;</item>
+    /// <item><b>GourmandHidden:</b> a gourmand's banner up but hidden (the panel open over it).</item>
+    /// </list>
+    /// </summary>
+    public (Episodes TabWithoutCircle, Episodes CallWithoutCard, int SwitchNoCard, Episodes GourmandHidden) Agreement()
+    {
+        var tabNoCircle = new Episodes();
+        var callNoCard = new Episodes();
+        var hidden = new Episodes();
+        int switchNoCard = 0;
+        for (int i = 0; i < Draws.Count; i++)
+        {
+            var d = Draws[i];
+            var before = i > 0 ? Draws[i - 1] : null;
+            double step = before is null ? 0 : (d.At - before.At).TotalSeconds;
+            tabNoCircle.Take(d.At, step, d.Tabs.Any(k => d.Circles == InnCirclePlace.Hidden || !d.Calls.ContainsKey(k)));
+            callNoCard.Take(d.At, step, d.PanelKitchen is { } k2 && d.Calls.ContainsKey(k2) && !d.CardMark);
+            hidden.Take(d.At, step, d.Away && d.Gourmands.Count > 0);
+            if (before is { PanelKitchen: { } was } && d.PanelKitchen is { } now && now != was && before.Tabs.Contains(now))
+            {
+                bool marked = false;
+                for (int j = i; j < Draws.Count && Draws[j].At - d.At <= TimeSpan.FromSeconds(1) && Draws[j].PanelKitchen == now; j++)
+                    marked |= Draws[j].CardMark;
+                if (!marked) switchNoCard++;
+            }
+        }
+        return (tabNoCircle, callNoCard, switchNoCard, hidden);
+    }
+
+    /// <summary>Runs of a condition over the draws: how many began, their seconds in all, and when each began.</summary>
+    internal sealed class Episodes
+    {
+        private bool _on;
+
+        public int Count => Starts.Count;
+
+        public double Seconds { get; private set; }
+
+        public List<TimeSpan> Starts { get; } = [];
+
+        public void Take(TimeSpan at, double step, bool on)
+        {
+            if (on && _on) Seconds += step;
+            if (on && !_on) Starts.Add(at);
+            _on = on;
+        }
+
+        public override string ToString() => $"{Count} ({Seconds:F1} s){(Count > 0 ? ": " + string.Join(", ", Starts.Take(12).Select(s => s.TotalSeconds.ToString("F1", CultureInfo.InvariantCulture))) : "")}";
+    }
+
+    /// <summary>
+    /// The dishes to cook ahead as called (owner, 2026-10-21, test_yuanyuan6: "the blue circle just shows very
+    /// indeterministically"): each cook-ahead call shown in a kitchen, how long it stood, and how it ended. A flicker is
+    /// one that went with nothing done to it: not queued (dropped: done), not displaced by an order in its kitchen, the
+    /// kitchen not full, cooking ahead not over (the end of serving).
+    /// </summary>
+    public (int Shown, int Flickers, List<(TimeSpan At, int Kitchen, string Dish, double Lasted, string Why)> List) CookAheadFlicker()
+    {
+        var list = new List<(TimeSpan, int, string, double, string)>();
+        int shown = 0;
+        var since = new Dictionary<int, (InnCall Call, TimeSpan At)>();
+        for (int i = 0; i < Steps.Count; i++)
+        {
+            var step = Steps[i];
+            foreach (var (k, held) in since.ToList())
+            {
+                var now = step.Kitchens.GetValueOrDefault(k);
+                if (now?.Key == held.Call.Key) continue;
+                since.Remove(k);
+                bool done = step.Why.Contains($"{held.Call.Key} dropped: done", StringComparison.Ordinal);
+                bool order = now is { Kind: InnCallKind.Queue or InnCallKind.Swap };
+                bool full = step.Why.Contains($"{held.Call.Key} dropped: the kitchen", StringComparison.Ordinal);
+                bool over = !step.CooksAhead;
+                if (!done && !order && !full && !over)
+                    list.Add((step.At, k, held.Call.Dish!.Id, (step.At - held.At).TotalSeconds, now is null ? "gone" : $"-> {now.Key}"));
+            }
+            foreach (var (k, call) in step.Kitchens)
+                if (call.Kind == InnCallKind.CookAhead && !since.ContainsKey(k))
+                {
+                    since[k] = (call, step.At);
+                    shown++;
+                }
+        }
+        return (shown, list.Count, list);
+    }
+
+    /// <summary>
+    /// Each gourmand's banner (owner, 2026-10-21: "gourmand's requirement window still flashes always ... hasnt been
+    /// fulfilled but the requirement is gone"): how many times one went up and came down, how long each stood, and those
+    /// taken down while that table's card still read a gourmand waiting (arrived, ordering or ordered: not served).
+    /// </summary>
+    public (int Up, int Down, int DownUnserved, List<string> Lives) GourmandLives()
+    {
+        int up = 0, down = 0, unserved = 0;
+        var lives = new List<string>();
+        var since = new Dictionary<int, TimeSpan>();
+        for (int i = 0; i < Draws.Count; i++)
+        {
+            var d = Draws[i];
+            foreach (int table in d.Gourmands.Where(t => !since.ContainsKey(t)))
+            {
+                since[table] = d.At;
+                up++;
+            }
+            // The session's last draws: it ended (the results screen), not the gourmand.
+            if (Draws[^1].At - d.At < TimeSpan.FromSeconds(1)) continue;
+            foreach (var (table, from) in since.Where(s => !d.Gourmands.Contains(s.Key)).ToList())
+            {
+                since.Remove(table);
+                down++;
+                var state = table - 1 < d.Tables.Count ? d.Tables[table - 1] : null;
+                bool waiting = state is TableState.GourmandArrived or TableState.GourmandOrdering or TableState.GourmandOrder;
+                if (waiting) unserved++;
+                lives.Add($"table {table} {from.TotalSeconds:F1}-{d.At.TotalSeconds:F1} s ({state}){(waiting ? " UNSERVED" : "")}");
+            }
+        }
+        foreach (var (table, from) in since) lives.Add($"table {table} {from.TotalSeconds:F1}- (to the end)");
+        return (up, down, unserved, lives);
+    }
+
+    /// <summary>The picture's numbers in one block (the replay test's output, the trace's head).</summary>
+    public string Consistency()
+    {
+        var (tabNoCircle, callNoCard, switchNoCard, hidden) = Agreement();
+        var (shown, flickers, list) = CookAheadFlicker();
+        var (up, down, unserved, lives) = GourmandLives();
+        var sb = new StringBuilder();
+        sb.AppendLine(CultureInfo.InvariantCulture, $"# tab marked, no circle drawn for it: {tabNoCircle}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"# panel on a kitchen with a call, no card marked: {callNoCard}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"# switched to a marked tab, no card marked within 1 s: {switchNoCard}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"# cook-ahead calls shown: {shown}, flickers (gone with nothing done): {flickers}");
+        foreach (var f in list) sb.AppendLine(CultureInfo.InvariantCulture, $"#   flicker {f.At.TotalSeconds,7:F1} kitchen {f.Kitchen} {f.Dish} after {f.Lasted:F1} s {f.Why}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"# gourmand banners up {up}, down {down}, down while the table still waited {unserved}; hidden over the panel: {hidden}");
+        foreach (var l in lives) sb.AppendLine(CultureInfo.InvariantCulture, $"#   gourmand {l}");
+        return sb.ToString();
     }
 
     private void Diff(string display, HashSet<string> before, HashSet<string> now, TimeSpan at, string why)
@@ -435,6 +608,7 @@ internal sealed class InnReplay
     {
         var sb = new StringBuilder();
         sb.AppendLine(CultureInfo.InvariantCulture, $"# session span {SessionSpan.TotalSeconds:F1} s");
+        sb.Append(Consistency());
         foreach (var (display, rate) in PerMinute())
             sb.AppendLine(CultureInfo.InvariantCulture, $"# {display}: {Changes.Count(c => c.Display == display)} changes, {rate:F1}/min");
         var (flashes, jumps) = Steadiness();

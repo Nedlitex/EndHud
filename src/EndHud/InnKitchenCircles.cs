@@ -22,6 +22,16 @@ internal enum InnCircleKind
     Swap,
 }
 
+/// <summary>Where the kitchens' circles are drawn.</summary>
+internal enum InnCirclePlace
+{
+    /// <summary>Their row above the held-dishes tray (<see cref="InnKitchenCircleLayout"/>).</summary>
+    AboveTray,
+
+    /// <summary>Not drawn (the dispatch panel is open over their place).</summary>
+    Hidden,
+}
+
 /// <summary>One kitchen's circle, as drawn.</summary>
 /// <param name="Kitchen">1 to <see cref="KitchenMath.MaxKitchens"/>: its slot, left to right.</param>
 /// <param name="Key">The call's key (<see cref="InnCall.Key"/>): a circle with the same key stays up as it is.</param>
