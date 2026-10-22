@@ -46,6 +46,10 @@
           CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\inn\setup-chefs-placed.jpg')" />
     <None Include="..\data\Fixtures\inn\chef-picker.jpg" Link="Fixtures\inn\chef-picker.jpg"
           CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\inn\chef-picker.jpg')" />
+    <None Include="..\data\Fixtures\inn\setup-soup-entree-empty.jpg" Link="Fixtures\inn\setup-soup-entree-empty.jpg"
+          CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\inn\setup-soup-entree-empty.jpg')" />
+    <None Include="..\data\Fixtures\inn\chef-picker-kitchen1-empty.jpg" Link="Fixtures\inn\chef-picker-kitchen1-empty.jpg"
+          CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\inn\chef-picker-kitchen1-empty.jpg')" />
     <None Include="..\data\Fixtures\inn\menu-dishes.jpg" Link="Fixtures\inn\menu-dishes.jpg"
           CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\inn\menu-dishes.jpg')" />
     <None Include="..\data\Fixtures\inn\menu-drinks.jpg" Link="Fixtures\inn\menu-drinks.jpg"
