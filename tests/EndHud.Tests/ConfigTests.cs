@@ -34,11 +34,11 @@ public class ConfigTests
     public void The_inn_helper_is_on_by_default() => Assert.True(ConfigStore.Parse("{}").InnHelperEnabled);
 
     [Theory]
-    [InlineData("{}", 1.0, 1.0)]
+    [InlineData("{}", 1.0, 0.85)]
     [InlineData("{\"InnStripScale\": 1.4, \"InnStripOpacity\": 0.5}", 1.4, 0.5)]
     [InlineData("{\"InnStripScale\": 9, \"InnStripOpacity\": 4}", 2.0, 1.0)]
     [InlineData("{\"InnStripScale\": 0, \"InnStripOpacity\": 0}", 0.5, 0.2)]
-    public void The_inn_strips_size_and_opacity_default_to_100_percent_and_hand_edited_ones_stay_in_range(string json, double scale, double opacity)
+    public void The_inn_strips_size_defaults_to_100_percent_its_opacity_to_85_and_hand_edited_ones_stay_in_range(string json, double scale, double opacity)
     {
         var config = ConfigStore.Parse(json);
 
@@ -100,6 +100,7 @@ public class ConfigTests
     [InlineData("""{ "InnCallX": 0.43, "InnCallY": 0.52, "SettingsVersion": 3 }""", 0.43, 0.52)]  // dragged there before 4: kept
     [InlineData("""{ "InnCallX": 0.6, "InnCallY": 0.3, "SettingsVersion": 4 }""", 0.6, 0.3)]      // dragged: kept
     [InlineData("""{ "InnCallX": 0.2, "InnCallY": 0.36, "SettingsVersion": 5 }""", 0.2, 0.36)]    // chosen in version 5: kept
+    [InlineData("""{ "InnCallX": 0.2, "InnCallY": 0.36, "SettingsVersion": 6 }""", 0.2, 0.36)]    // chosen in version 6: kept
     [InlineData("""{ }""", HudConfig.DefaultInnCallX, HudConfig.DefaultInnCallY)]
     public void The_inn_banners_old_default_places_move_to_the_new_default(string json, double x, double y)
     {
@@ -108,12 +109,39 @@ public class ConfigTests
         Assert.Equal(HudConfig.CurrentSettingsVersion, config.SettingsVersion);
     }
 
-    /// <summary>The inn helper is 85% opaque by default (owner, 2026-10-22: "make sure the transparency is not 100%"); a saved value is kept.</summary>
-    [Fact]
-    public void The_inn_helper_is_see_through_by_default_and_a_saved_opacity_is_kept()
+    /// <summary>
+    /// The inn helper is 85% opaque by default (owner, 2026-10-22: "make sure the transparency is not 100%"). The first start
+    /// writes the whole config, so every file from before version 6 says 100% (the old default), never the player's choice:
+    /// it becomes 85%. Until 2026-10-22 it was kept, so no player upgrading ever saw the new default (v0.6.2 also wrote it back
+    /// as version 5). Another value, or 100% chosen in version 6, is kept.
+    /// </summary>
+    [Theory]
+    [InlineData("""{ }""", 0.85)]
+    [InlineData("""{ "InnStripOpacity": 1 }""", 0.85)]
+    [InlineData("""{ "InnStripOpacity": 1, "SettingsVersion": 4 }""", 0.85)]
+    [InlineData("""{ "InnStripOpacity": 1, "SettingsVersion": 5 }""", 0.85)]
+    [InlineData("""{ "InnStripOpacity": 0.6, "SettingsVersion": 4 }""", 0.6)]
+    [InlineData("""{ "InnStripOpacity": 1, "SettingsVersion": 6 }""", 1.0)]
+    [InlineData("""{ "InnStripOpacity": 0.85, "SettingsVersion": 6 }""", 0.85)]
+    public void The_inn_helper_is_see_through_by_default_and_an_old_files_100_percent_becomes_85(string json, double opacity)
     {
-        Assert.Equal(0.85, ConfigStore.Parse("{}").InnStripOpacity);
-        Assert.Equal(1.0, ConfigStore.Parse("""{ "InnStripOpacity": 1 }""").InnStripOpacity);
+        Assert.Equal(0.85, HudConfig.DefaultInnStripOpacity);
+        Assert.Equal(0.85, new HudConfig().InnStripOpacity);
+        var config = ConfigStore.Parse(json);
+        Assert.Equal(opacity, config.InnStripOpacity);
+        Assert.Equal(HudConfig.CurrentSettingsVersion, config.SettingsVersion);
+    }
+
+    /// <summary>A config written now and read back keeps the inn helper's opacity, the default and 100% alike.</summary>
+    [Theory]
+    [InlineData(0.85)]
+    [InlineData(1.0)]
+    [InlineData(0.4)]
+    public void The_inn_helpers_opacity_survives_a_save_and_load(double opacity)
+    {
+        var config = ConfigStore.Parse("{}");
+        config.InnStripOpacity = opacity;
+        Assert.Equal(opacity, ConfigStore.Parse(ConfigStore.Serialize(config)).InnStripOpacity);
     }
 
     [Fact]

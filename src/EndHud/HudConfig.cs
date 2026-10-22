@@ -30,7 +30,7 @@ internal sealed class HudConfig
     /// </summary>
     public int? SettingsVersion { get; set; }
 
-    public const int CurrentSettingsVersion = 5;
+    public const int CurrentSettingsVersion = 6;
 
     /// <summary>UI language; picks the file i18n/&lt;Language&gt;.xaml.</summary>
     public string Language { get; set; } = "zh-CN";
@@ -246,6 +246,13 @@ internal static class ConfigStore
                 ? config.InnCallX == HudConfig.Version4InnCallX && config.InnCallY == HudConfig.Version4InnCallY
                 : config.InnCallX == HudConfig.DefaultComboHintX && config.InnCallY == HudConfig.DefaultComboHintY;
             if (oldDefault) (config.InnCallX, config.InnCallY) = (HudConfig.DefaultInnCallX, HudConfig.DefaultInnCallY);
+        }
+        if (config.SettingsVersion is null or < 6)
+        {
+            // The first start writes the whole config, so every file from before version 6 says the inn helper is 100% opaque,
+            // the old default and never the player's choice; v0.6.2 (version 5) kept it, so no player upgrading saw the 85%
+            // default (owner, 2026-10-22: "make sure the transparency is not 100%"). 100% chosen from version 6 is kept.
+            if (config.InnStripOpacity == HudConfig.MaxInnStripOpacity) config.InnStripOpacity = HudConfig.DefaultInnStripOpacity;
         }
         config.SettingsVersion = HudConfig.CurrentSettingsVersion;
         // A hand-edited size outside what the slider offers would hide the gauges or fill the screen.
