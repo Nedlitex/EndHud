@@ -108,7 +108,7 @@ public sealed class RotationEditorTests : IDisposable
             var gate = (StackPanel)editor.FindName("GateRows");
             var kind = ((Panel)gate.Children[0]).Children.OfType<ComboBox>().First();
             kind.SelectedItem = kind.Items.Cast<ComboBoxItem>().Single(i => (string)i.Tag == "UltimateCharge");
-            var row = (Panel)gate.Children[0];
+            var row = RowOf(gate.Children[0]);
             var pickers = row.Children.OfType<ComboBox>().ToList(); // kind, who, compare, percent
             pickers[2].SelectedItem = pickers[2].Items.Cast<ComboBoxItem>().Single(i => Equals(i.Tag, Comparison.AtMost));
             pickers[3].SelectedItem = pickers[3].Items.Cast<ComboBoxItem>().Single(i => Equals(i.Tag, 0));
@@ -148,10 +148,10 @@ public sealed class RotationEditorTests : IDisposable
         {
             ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;
             var gate = (StackPanel)editor.FindName("GateRows");
-            foreach (var row in gate.Children.OfType<Panel>())
+            foreach (var shown in gate.Children.OfType<UIElement>().ToList())
             {
                 // The player changes the comparison (至少 → 至多): the value must stay what the file said.
-                var compare = row.Children.OfType<ComboBox>().First(p => p.Items.Cast<ComboBoxItem>().Any(i => Equals(i.Tag, Comparison.AtMost)));
+                var compare = RowOf(shown).Children.OfType<ComboBox>().First(p => p.Items.Cast<ComboBoxItem>().Any(i => Equals(i.Tag, Comparison.AtMost)));
                 compare.SelectedItem = compare.Items.Cast<ComboBoxItem>().Single(i => Equals(i.Tag, Comparison.AtMost));
             }
             Click(editor, "SaveButton");

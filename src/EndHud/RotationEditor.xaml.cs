@@ -235,8 +235,13 @@ public partial class RotationEditor : Window
         StepLabel.Text = _step?.Label ?? "";
         StepNote.Text = _step?.Note ?? "";
         _loading = false;
+        ShowBasicAttackHint();
         BuildConditionRows();
     }
+
+    /// <summary>A basic attack isn't detected: say so under the action, and how its phase's condition decides when it shows.</summary>
+    private void ShowBasicAttackHint() =>
+        BasicAttackHint.Visibility = _step?.Action == StepAction.BasicAttack ? Visibility.Visible : Visibility.Collapsed;
 
     // ---- Name and squad ----
 
@@ -380,6 +385,7 @@ public partial class RotationEditor : Window
         _step.WithPrevious = StepWithPrevious.IsChecked == true;
         _step.Label = StepLabel.Text;
         _step.Note = StepNote.Text;
+        ShowBasicAttackHint();
         MarkDirty();
         int index = _phase!.Steps.IndexOf(_step);
         _loading = true;
@@ -516,6 +522,8 @@ public partial class RotationEditor : Window
         UIElement result = row;
         ComboBox? groupMode = null;
         Func<StateCondition> read;
+        // A grey line under the row, for conditions that need a word of explanation.
+        string? hint = null;
         switch (condition)
         {
             case AllCondition or AnyCondition:
@@ -606,12 +614,14 @@ public partial class RotationEditor : Window
             {
                 var (who, compare, value) = ChargePickers(row, c.OperatorId, c.Is, c.Percent);
                 read = () => new UltimateChargeCondition((string)Picked(who), (Comparison)Picked(compare), (int)Picked(value));
+                hint = Loc.Get("Editor.ChargeHint");
                 break;
             }
             case ComboChargeCondition c:
             {
                 var (who, compare, value) = ChargePickers(row, c.OperatorId, c.Is, c.Percent);
                 read = () => new ComboChargeCondition((string)Picked(who), (Comparison)Picked(compare), (int)Picked(value));
+                hint = Loc.Get("Editor.ChargeHint");
                 break;
             }
             case BattleSkillCondition c:
@@ -685,6 +695,15 @@ public partial class RotationEditor : Window
             changed(true);
         };
         row.Children.Add(remove);
+        if (hint is not null)
+        {
+            row.Margin = new Thickness(0);
+            result = new StackPanel
+            {
+                Margin = new Thickness(0, 0, 0, 6),
+                Children = { row, new TextBlock { Text = hint, Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x88, 0x88, 0x88)), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) } },
+            };
+        }
 
         kind.SelectionChanged += (_, _) =>
         {
@@ -721,7 +740,7 @@ public partial class RotationEditor : Window
     }
 
     private ComboBox ComparePicker(Comparison selected) =>
-        Picker([Comparison.AtLeast, Comparison.AtMost, Comparison.Exactly], c => Loc.Get($"Editor.Compare.{c}"), selected);
+        Picker([Comparison.AtLeast, Comparison.AtMost, Comparison.Exactly, Comparison.Below, Comparison.Above], c => Loc.Get($"Editor.Compare.{c}"), selected);
 
     private ComboBox OperatorPicker(string selected)
     {

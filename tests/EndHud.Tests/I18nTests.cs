@@ -26,15 +26,15 @@ public partial class I18nTests
         foreach (string file in Directory.GetFiles(app, "*.xaml", SearchOption.AllDirectories).Where(f => !f.Contains("i18n")))
             foreach (Match m in XamlKey().Matches(File.ReadAllText(file))) used.Add(m.Groups[1].Value);
         // Keys built at run time.
-        foreach (string action in new[] { "BattleSkill", "Combo", "Ultimate" }) used.Add($"Rotation.Action.{action}");
+        foreach (var action in Enum.GetValues<Vision.Rotations.StepAction>()) used.Add($"Rotation.Action.{action}");
         foreach (string error in new[] { "NotARotation", "DamagedShareCode", "NewerFormat" })
         {
             used.Add($"Editor.ReadError.{error}");
             used.Add($"Editor.ImportError.{error}");
         }
-        foreach (string kind in new[] { "SkillPoints", "Combo", "Ultimate", "Counter", "BossStatus", "Controlling", "Group" }) used.Add($"Editor.Condition.{kind}");
+        foreach (string kind in new[] { "SkillPoints", "Combo", "Ultimate", "Counter", "BossStatus", "Controlling", "PhaseShown", "Group" }) used.Add($"Editor.Condition.{kind}");
         used.UnionWith(["Editor.Group.All", "Editor.Group.Any", "Editor.PhaseItem", "Editor.PhaseItemGated"]);
-        foreach (string compare in new[] { "AtLeast", "AtMost", "Exactly" }) used.Add($"Editor.Compare.{compare}");
+        foreach (var compare in Enum.GetValues<Vision.Rotations.Comparison>()) used.Add($"Editor.Compare.{compare}");
 
         Assert.NotEmpty(used);
         Assert.Equal([], used.Where(k => !defined.Contains(k)).ToArray());

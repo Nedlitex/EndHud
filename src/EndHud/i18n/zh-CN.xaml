@@ -88,7 +88,7 @@
     <sys:String x:Key="Editor.AddStep">添加步骤</sys:String>
     <sys:String x:Key="Editor.DeleteStep">删除步骤</sys:String>
     <sys:String x:Key="Editor.Operator">干员</sys:String>
-    <sys:String x:Key="Editor.Action">技能</sys:String>
+    <sys:String x:Key="Editor.Action">动作</sys:String>
     <sys:String x:Key="Editor.WithPrevious">与上一步连放（显示为叠在一起）</sys:String>
     <sys:String x:Key="Editor.WithPreviousShort">（连放）</sys:String>
     <sys:String x:Key="Editor.ConditionCount">{0} 个条件</sys:String>
@@ -149,6 +149,18 @@
     <sys:String x:Key="Editor.Gate">显示条件（可选）</sys:String>
     <sys:String x:Key="Editor.GateHint">满足这些条件时显示这个轴段（几个轴段同时满足时，显示最上面的那个，也可以在上面改为最下面的那个）。都不满足时显示第一个没有条件的轴段；所有轴段都有条件，或有条件暂时看不到时（例如终结技动画），保持当前显示的轴段。勾选“非”表示这个条件不满足时才算满足。例如爆发轴：“青霆剑 等于 9”且“庄方宜 终结技 就绪”。</sys:String>
     <sys:String x:Key="Editor.Condition.Group">条件组</sys:String>
+    <sys:String x:Key="Editor.Compare.Below">小于</sys:String>
+    <sys:String x:Key="Editor.Compare.Above">大于</sys:String>
+    <sys:String x:Key="Editor.BasicAttackHint">普攻只用来显示，EndHud 不会识别普攻。用轴段的进入条件决定什么时候显示，例如“技力 小于 2.0”。</sys:String>
+    <sys:String x:Key="Editor.ChargeHint">终结技和连携技的百分比按画面估算，误差约 ±4%。</sys:String>
+    <sys:String x:Key="Editor.Condition.PhaseShown">轴段已显示次数</sys:String>
+    <sys:String x:Key="Editor.PhaseShownHint">本场战斗中这个轴段出现在排轴条上的次数（出现一次算一次），离开战斗后清零。</sys:String>
+    <sys:String x:Key="Editor.Times">{0} 次</sys:String>
+    <sys:String x:Key="Editor.PhaseMissing">（已删除的轴段）</sys:String>
+    <sys:String x:Key="Rotation.Problem.PhaseShownOwnGate">轴段“{0}”的进入条件用了它自己的显示次数：它一出现，次数就变了，条件也跟着变。请改用其他轴段的次数。</sys:String>
+    <sys:String x:Key="Rotation.Problem.PhaseShownMissingPhase">轴段“{0}”的条件引用了一个已删除的轴段，请重新选择轴段或删除这个条件。</sys:String>
+    <sys:String x:Key="Editor.CopyPhase">复制轴段</sys:String>
+    <sys:String x:Key="Editor.CopyPhaseHint">复制选中的轴段（步骤和进入条件都会复制），放在它后面。</sys:String>
     <sys:String x:Key="Editor.Group.All">全部满足</sys:String>
     <sys:String x:Key="Editor.Group.Any">任一满足</sys:String>
     <sys:String x:Key="Editor.AddToGroup">在组内添加条件</sys:String>
