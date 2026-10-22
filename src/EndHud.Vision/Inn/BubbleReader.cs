@@ -155,7 +155,7 @@ public sealed class BubbleReader(InnText text)
     public async Task<GourmandBubble?> ReadAsync(Frame frame) => (await ReadAllAsync(frame)).FirstOrDefault();
 
     /// <summary>
-    /// Every bubble on screen with words read in it, the largest first. In the 食有老饕 mode every guest is a gourmand, and
+    /// Every bubble on screen with words read in it, the largest first. In the feast mode every guest is a gourmand, and
     /// test_yuanyuan8 showed up to three bubbles at once, of three tables, at three sizes: reading only the largest left the
     /// others' requests to be read whenever that one happened to be largest.
     /// </summary>

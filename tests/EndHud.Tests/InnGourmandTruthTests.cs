@@ -9,7 +9,7 @@ namespace EndHud.Tests;
 /// <summary>
 /// Every gourmand of an owner's recording, read off its frames by eye (not by EndHud's readers), against what the gourmands'
 /// tiles showed when the recording's readings are replayed through the real session and views (<see cref="InnReplay"/>).
-/// Owner, 2026-10-21, test_yuanyuan8 (a 食有老饕 session, the mode where every guest is a gourmand): "MOST of the gourmand
+/// Owner, 2026-10-21, test_yuanyuan8 (a feast-mode session, where every guest is a gourmand): "MOST of the gourmand
 /// requirement IS NOT recognized".
 /// </summary>
 public class InnGourmandTruthTests(ITestOutputHelper output)

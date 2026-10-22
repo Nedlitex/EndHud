@@ -205,6 +205,14 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     private readonly List<(string Id, TimeSpan At)> _leftHand = [], _servedFromHand = [], _lateTray = [];
     private readonly Dictionary<int, GourmandMemory> _gourmands = [];
     private readonly Dictionary<int, TimeSpan> _gourmandLeaving = []; // a gourmand's table read in another state since then
+    // Tables whose gourmand has ordered (their card read GourmandOrder, the bubble's words just said), since when: the HUD's
+    // fades aside, so a fade never makes every table's order look new (TakeGourmandCards).
+    private readonly Dictionary<int, TimeSpan> _gourmandOrdered = [];
+    private readonly TableState?[] _gourmandCard = new TableState?[TableCardReader.Tables]; // each table's last card read, fades aside
+    private readonly TimeSpan?[] _gourmandCardEmptySince = new TimeSpan?[TableCardReader.Tables];
+    // Each gourmand table's requests (by place, as the card's pips stand) read resolved, and readings in a row of each pip resolved.
+    private readonly Dictionary<int, HashSet<int>> _pipsResolved = [];
+    private readonly int[,] _pipReads = new int[TableCardReader.Tables, 2];
     private readonly List<(IReadOnlyList<GourmandRequest> Requests, TimeSpan At)> _gourmandsDone = []; // served gourmands' words, and when (TakeBubble)
     private readonly HashSet<string> _unreadLogged = [];
     private readonly HashSet<int> _unreadableLogged = []; // tables whose unreadable order was logged this session
@@ -247,7 +255,39 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// <param name="OrderSince">When this order first showed: older orders are served first.</param>
     private sealed record TableMemory(TableCard Card, TimeSpan SeenAt, TimeSpan OrderSince);
 
-    private sealed record GourmandMemory(IReadOnlyList<GourmandRequest> Requests, string? Unread);
+    /// <summary>
+    /// One gourmand's words, as their bubble was read again and again: a half-faded bubble names one request of two, an OCR slip
+    /// another of the same gourmand's, so every reading is kept and the one the most readings agree with stands (a reading
+    /// agrees with every reading that has all its requests). And which requests their bubble showed resolved.
+    /// </summary>
+    private sealed class GourmandMemory(TimeSpan since, string? unread = null)
+    {
+        private readonly List<(IReadOnlyList<GourmandRequest> Requests, int Count, int Order)> _readings = [];
+
+        /// <summary>When these words were first given to this table.</summary>
+        public TimeSpan Since { get; } = since;
+
+        /// <summary>The bubble's text when no request was recognised in it.</summary>
+        public string? Unread { get; } = unread;
+
+        /// <summary>Requests whose icon on the bubble turned into a face (served, imperfect or failed).</summary>
+        public HashSet<GourmandRequest> Resolved { get; } = [];
+
+        public IReadOnlyList<GourmandRequest> Requests =>
+            _readings.Count == 0 ? [] : _readings
+                .OrderByDescending(r => _readings.Where(o => o.Requests.All(r.Requests.Contains)).Sum(o => o.Count))
+                .ThenByDescending(r => r.Requests.Count).ThenByDescending(r => r.Order).First().Requests;
+
+        /// <summary>The gourmands (in the data) whose words these are.</summary>
+        public IEnumerable<GourmandRequest> Every => _readings.SelectMany(r => r.Requests);
+
+        public void Read(IReadOnlyList<GourmandRequest> requests)
+        {
+            int i = _readings.FindIndex(r => r.Requests.SequenceEqual(requests));
+            if (i >= 0) _readings[i] = (_readings[i].Requests, _readings[i].Count + 1, _readings.Count);
+            else _readings.Add((requests, 1, _readings.Count));
+        }
+    }
 
     /// <summary>
     /// No inn screen for this long means the inn was left (a fight, the open world): the setup is
@@ -375,7 +415,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         // the full meter from before it was started.
         if (reading.Fire is { } fire) _fire = fire.BlazeLeft is not null ? null : fire.Ready ? FullBlazeAdvisor.Full : fire.Fire ?? _fire;
         _blaze.Update(reading.At, reading.Fire?.Ready, reading.Fire?.BlazeLeft, inSession: true);
-        if (reading.Bubble is { } bubble) TakeBubble(bubble, reading.At);
+        foreach (var bubble in reading.BubblesRead()) TakeBubble(bubble, reading.At);
     }
 
     /// <summary>
@@ -461,6 +501,11 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         _gourmands.Clear();
         _gourmandLeaving.Clear();
         _gourmandsDone.Clear();
+        _gourmandOrdered.Clear();
+        Array.Clear(_gourmandCard);
+        Array.Clear(_gourmandCardEmptySince);
+        _pipsResolved.Clear();
+        Array.Clear(_pipReads);
         _blaze.Update(TimeSpan.Zero, null, null, inSession: false);
         _fire = null;
         _ordersSeen = false;
@@ -693,6 +738,8 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
 
     private void TakeTables(IReadOnlyList<TableCard?> cards, TimeSpan at)
     {
+        bool faded = Faded(cards);
+        TakeGourmandCards(cards, at, faded);
         for (int i = 0; i < Math.Min(cards.Count, _tables.Length); i++)
         {
             if (cards[i] is not { } card) continue; // kept as it was for a while (TableKeptFor)
@@ -720,7 +767,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             _tableChange[i] = null;
             _tables[i] = new TableMemory(card, at, sameOrder ? before!.OrderSince : at);
             if (card.State is TableState.Order or TableState.GourmandOrder) _ordersSeen = true;
-            TakeGourmandTable(card, at);
+            TakeGourmandTable(card, at, faded);
             foreach (var item in card.Items)
             {
                 if (item.Id is null) continue;
@@ -744,32 +791,100 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     }
 
     /// <summary>
-    /// A gourmand's request is kept from the moment it's read until their order is fulfilled (owner, live 2026-10-20:
-    /// "if you cannot see but the order is not fulfilled, just keep showing"): at once when their card reads them
-    /// eating; when it reads another state (paying, empty, a new guest) on every reading for
-    /// <see cref="GourmandGoneAfter"/>, since a faded HUD reads every card empty for a moment. A card not read changes nothing.
+    /// A frame of the HUD fading (the camera moving): every card read reads empty (session-hud-faded.jpg; test_yuanyuan8, 2.1 to
+    /// 3.9 s at a time, five times in five minutes). Such a frame says nothing about any table.
     /// </summary>
-    private void TakeGourmandTable(TableCard card, TimeSpan at)
+    private static bool Faded(IReadOnlyList<TableCard?> cards) =>
+        cards.OfType<TableCard>().Any() && cards.OfType<TableCard>().All(c => c.State == TableState.Empty);
+
+    /// <summary>
+    /// The gourmands' cards as read, fades aside: which tables' gourmands have ordered and since when, and their pips. A gourmand
+    /// orders (their card turns from waiting or choosing to the order's icons) the moment the player takes it, and that is when their
+    /// bubble shows their words (test_yuanyuan8: all fourteen). A new order at a table is a new gourmand: the last one's words
+    /// there are forgotten. A table read empty (not in a fade) for <see cref="GourmandGoneAfter"/>, or in any other state, has
+    /// no gourmand ordering.
+    /// </summary>
+    private void TakeGourmandCards(IReadOnlyList<TableCard?> cards, TimeSpan at, bool faded)
+    {
+        if (faded) return;
+        foreach (var card in cards.OfType<TableCard>())
+        {
+            int t = card.Table, i = t - 1;
+            if (i < 0 || i >= _gourmandCard.Length) continue;
+            if (card.State == TableState.Empty)
+            {
+                _gourmandCardEmptySince[i] ??= at;
+                if (at - _gourmandCardEmptySince[i]!.Value >= GourmandGoneAfter)
+                {
+                    _gourmandOrdered.Remove(t);
+                    _gourmandCard[i] = TableState.Empty;
+                }
+                continue;
+            }
+            _gourmandCardEmptySince[i] = null;
+            var before = _gourmandCard[i];
+            _gourmandCard[i] = card.State;
+            if (card.State != TableState.GourmandOrder)
+            {
+                _gourmandOrdered.Remove(t);
+                continue;
+            }
+            if (!_gourmandOrdered.ContainsKey(t) || before is TableState.GourmandArrived or TableState.GourmandOrdering)
+            {
+                if (_gourmandOrdered.ContainsKey(t) || (_gourmands.TryGetValue(t, out var old) && old.Since < at)) ForgetGourmand(t, at);
+                _gourmandOrdered[t] = at;
+                _pipsResolved.Remove(t);
+                for (int k = 0; k < 2; k++) _pipReads[i, k] = 0;
+            }
+            // A request reads resolved once two readings in a row say so (a pip is a few pixels).
+            for (int k = 0; k < Math.Min(2, card.Served.Count); k++)
+            {
+                _pipReads[i, k] = card.Served[k] ? _pipReads[i, k] + 1 : 0;
+                if (_pipReads[i, k] >= 2) (_pipsResolved.TryGetValue(t, out var set) ? set : _pipsResolved[t] = []).Add(k);
+            }
+        }
+    }
+
+    /// <summary>
+    /// A gourmand's request is kept from the moment it's read until it's resolved (its pip or its bubble's icon) or their order
+    /// is over (owner, live 2026-10-20: "if you cannot see but the order is not fulfilled, just keep showing"): at once when
+    /// their card reads them eating, or another gourmand arrives there; when it reads another state (paying, empty, a guest) on
+    /// every reading for <see cref="GourmandGoneAfter"/>, a fade's empty cards aside (test_yuanyuan8: fades of up to 3.9 s
+    /// forgot every gourmand's words, never read again). A card not read changes nothing.
+    /// </summary>
+    private void TakeGourmandTable(TableCard card, TimeSpan at, bool faded)
     {
         if (!_gourmands.ContainsKey(card.Table)) return;
         switch (card.State)
         {
-            case TableState.GourmandArrived or TableState.GourmandOrdering or TableState.GourmandOrder:
+            case TableState.GourmandOrder:
                 _gourmandLeaving.Remove(card.Table);
                 return;
-            case TableState.GourmandEating:
-                Forget();
+            case TableState.GourmandEating or TableState.GourmandArrived or TableState.GourmandOrdering:
+                ForgetGourmand(card.Table, at);
+                return;
+            case TableState.Empty when faded:
                 return;
         }
         if (!_gourmandLeaving.TryGetValue(card.Table, out var since)) _gourmandLeaving[card.Table] = at;
-        else if (at - since >= GourmandGoneAfter) Forget();
+        else if (at - since >= GourmandGoneAfter) ForgetGourmand(card.Table, at);
+    }
 
-        void Forget()
-        {
-            if (_gourmands.TryGetValue(card.Table, out var done) && done.Requests.Count > 0) _gourmandsDone.Add((done.Requests, at));
-            _gourmands.Remove(card.Table);
-            _gourmandLeaving.Remove(card.Table);
-        }
+    /// <summary>Done with a table's gourmand: their words kept a while as served (<see cref="GourmandEchoFor"/>).</summary>
+    private void ForgetGourmand(int table, TimeSpan at)
+    {
+        if (_gourmands.TryGetValue(table, out var done) && done.Requests.Count > 0) _gourmandsDone.Add(([.. done.Every.Distinct()], at));
+        _gourmands.Remove(table);
+        _gourmandLeaving.Remove(table);
+    }
+
+    /// <summary>A gourmand's requests not yet resolved, by their pips (when the words name as many as the card) or their bubble's icons.</summary>
+    private IReadOnlyList<GourmandRequest> Open(int table, GourmandMemory memory)
+    {
+        var requests = memory.Requests;
+        var pips = _pipsResolved.GetValueOrDefault(table);
+        bool byPips = pips is not null && requests.Count == 2;
+        return [.. requests.Where((r, k) => !memory.Resolved.Contains(r) && !(byPips && pips!.Contains(k)))];
     }
 
     /// <summary>The estimate still has this dish cooking, but it's out: take its first place in a queue away.</summary>
@@ -925,43 +1040,77 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// <summary>
     /// A gourmand's bubble, given to the table whose gourmand said it (owner, live 2026-10-21: table 4's circles showed
     /// another gourmand's dessert and soup for 46 s while it asked for a soup and a drink). The bubble doesn't say whose it
-    /// is, so its words do:
+    /// is, so its words and the cards do:
     /// <list type="number">
-    /// <item>A table holding any of these words: theirs (the fuller reading kept: a half-faded bubble names fewer).</item>
+    /// <item>A table holding any of these words, or the only one holding words of the same gourmand (a reading with an OCR slip
+    /// names another of their requests): theirs, read once more (<see cref="GourmandMemory"/>).</item>
     /// <item>Words of a gourmand served within <see cref="GourmandEchoFor"/>: their bubble read again, nobody's new request.</item>
-    /// <item>Otherwise a gourmand speaking anew: the newest gourmand table with no words yet; else the newest one asking
-    /// (arrived or choosing), whose words were someone else's or an earlier gourmand's at that table, replaced.</item>
+    /// <item>Otherwise the newest table whose gourmand has ordered (<see cref="TakeGourmandCards"/>) with no words yet: a gourmand's
+    /// words show the moment their order is taken. A gourmand only arrived or choosing has said nothing yet (test_yuanyuan8: at
+    /// 247.8 s table 4's words went to table 6, whose gourmand was still choosing, and stayed there 49 s).</item>
     /// </list>
-    /// Words not recognised go only to a table with none (and are logged once).
+    /// Words no table can be given are nobody's (logged once). Words not recognised go only to a table with none (and are
+    /// logged once). The icons' faces mark requests resolved.
     /// </summary>
     private void TakeBubble(GourmandBubble bubble, TimeSpan at)
     {
-        var asking = _tables.OfType<TableMemory>()
-            .Where(t => t.Card.State is TableState.GourmandArrived or TableState.GourmandOrdering or TableState.GourmandOrder)
-            .OrderByDescending(t => t.OrderSince).ThenBy(t => t.Card.Table)
-            .ToList();
-        var requests = bubble.Requests(data).Select(m => m.Request).Take(GourmandAdvisor.MaxRequests).ToList();
+        var all = bubble.RequestsAndState(data);
+        if (all.Count == 0)
+        {
+            TakeSaid(bubble, [], at);
+            return;
+        }
+        // Two bubbles side by side can be found as one patch (test_yuanyuan8 303 s: tables 3's and 5's): each gourmand's
+        // words are taken on their own, never one gourmand's given to the table holding the other's.
+        foreach (var group in all.GroupBy(m => m.Match.Gourmand))
+            TakeSaid(bubble, [.. group.Take(GourmandAdvisor.MaxRequests)], at);
+    }
+
+    private void TakeSaid(GourmandBubble bubble, IReadOnlyList<(GourmandRequestMatch Match, bool Resolved)> said, TimeSpan at)
+    {
+        var requests = said.Select(m => m.Match.Request).ToList();
+        var ordered = _gourmandOrdered.OrderByDescending(o => o.Value).ThenBy(o => o.Key).Select(o => o.Key).ToList();
         bool Words(int table) => _gourmands.TryGetValue(table, out var g) && g.Requests.Count > 0;
         if (requests.Count > 0)
         {
-            if (_gourmands.FirstOrDefault(g => g.Value.Requests.Intersect(requests).Any()) is { Value: { } said } owner)
+            var who = said.Select(m => m.Match.Gourmand).Distinct().ToList();
+            var owner = _gourmands.Select(g => (Table: g.Key, Shared: g.Value.Every.Distinct().Count(requests.Contains)))
+                .Where(g => g.Shared > 0).OrderByDescending(g => g.Shared).ThenBy(g => g.Table).Select(g => (int?)g.Table).FirstOrDefault();
+            if (owner is null && who.Count == 1)
             {
-                if (said.Requests.Count < requests.Count) _gourmands[owner.Key] = new GourmandMemory(requests, null);
+                var same = _gourmands.Where(g => g.Value.Every.Any(r => who[0].Requests.Contains(r))).Select(g => g.Key).ToList();
+                if (same.Count == 1) owner = same[0];
+            }
+            if (owner is { } table)
+            {
+                Take(_gourmands[table]);
                 return;
             }
             if (_gourmandsDone.Any(d => at - d.At <= GourmandEchoFor && d.Requests.Intersect(requests).Any())) return;
-            var table = asking.FirstOrDefault(t => !Words(t.Card.Table))
-                        ?? asking.FirstOrDefault(t => t.Card.State is TableState.GourmandArrived or TableState.GourmandOrdering)
-                        ?? asking.FirstOrDefault();
-            if (table is null) return;
-            if (Words(table.Card.Table)) _log($"inn: table {table.Card.Table}'s gourmand says other words now; the earlier ones were another gourmand's");
-            _gourmands[table.Card.Table] = new GourmandMemory(requests, null);
-            _gourmandLeaving.Remove(table.Card.Table);
+            int speaker = ordered.FirstOrDefault(t => !Words(t));
+            if (speaker > 0)
+            {
+                var memory = new GourmandMemory(at);
+                _gourmands[speaker] = memory;
+                _gourmandLeaving.Remove(speaker);
+                Take(memory);
+                return;
+            }
+            string key = string.Join("|", requests.Select(r => r.Text));
+            if (_unreadLogged.Add("nobody:" + key)) _log($"inn: a gourmand's words were read with no table whose gourmand has ordered without words: {key}");
             return;
         }
-        if (asking.FirstOrDefault(t => !Words(t.Card.Table)) is not { } waiting) return;
-        _gourmands[waiting.Card.Table] = new GourmandMemory([], bubble.Text);
+        int waiting = ordered.FirstOrDefault(t => !_gourmands.ContainsKey(t));
+        if (waiting == 0) return;
+        _gourmands[waiting] = new GourmandMemory(at, bubble.Text);
         if (_unreadLogged.Add(bubble.Text)) _warn($"inn: a gourmand's request wasn't recognised; read \"{bubble.Text}\"");
+
+        void Take(GourmandMemory memory)
+        {
+            memory.Read(requests);
+            foreach (var (match, resolved) in said)
+                if (resolved) memory.Resolved.Add(match.Request);
+        }
     }
 
     /// <summary>
@@ -1161,8 +1310,11 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
                 notes.Add(new InnGourmandNote(table, null, memory.Unread, false));
                 continue;
             }
-            bool drinksUnknown = drinks.Count == 0 && memory.Requests.Any(r => GourmandCondition.Parse(r.When, data).ForDrink);
-            notes.Add(new InnGourmandNote(table, new GourmandAdvisor(advisor).Advise(memory.Requests, state, drinks), null, drinksUnknown));
+            // Only what's still to serve: a request resolved (its pip or its bubble's icon a face) asks nothing more.
+            var stillOpen = Open(table, memory);
+            if (stillOpen.Count == 0) continue;
+            bool drinksUnknown = drinks.Count == 0 && stillOpen.Any(r => GourmandCondition.Parse(r.When, data).ForDrink);
+            notes.Add(new InnGourmandNote(table, new GourmandAdvisor(advisor).Advise(stillOpen, state, drinks), null, drinksUnknown));
         }
         var calls = _calls.Update(dispatch, blaze, view, now);
         _shownCalls = calls;

@@ -45,10 +45,10 @@ public class InnWireUpTests
             return Task.FromResult(Kind == InnScreenKind.DispatchPanel ? Panel : null);
         }
 
-        public Task<GourmandBubble?> ReadBubbleAsync(Frame frame)
+        public Task<IReadOnlyList<GourmandBubble>> ReadBubblesAsync(Frame frame)
         {
             BubbleReads++;
-            return Task.FromResult<GourmandBubble?>(new GourmandBubble("x", ["x"]));
+            return Task.FromResult<IReadOnlyList<GourmandBubble>>([new GourmandBubble("x", ["x"])]);
         }
 
         public Task<InnSetup?> ReadSetupAsync(Frame frame)
@@ -390,7 +390,7 @@ public class InnWireUpTests
         public Task<FireMeter?> ReadFireAsync(Frame frame) => throw new NotSupportedException();
         public IReadOnlyList<HeldDish?>? ReadTray(Frame frame) => throw new NotSupportedException();
         public Task<DispatchPanel?> ReadPanelAsync(Frame frame) => throw new NotSupportedException();
-        public Task<GourmandBubble?> ReadBubbleAsync(Frame frame) => throw new NotSupportedException();
+        public Task<IReadOnlyList<GourmandBubble>> ReadBubblesAsync(Frame frame) => throw new NotSupportedException();
         public Task<InnSetup?> ReadSetupAsync(Frame frame) => throw new NotSupportedException();
         public Task<int?> ReadPickerKitchenAsync(Frame frame) => throw new NotSupportedException();
         public Task<InnMenu?> ReadMenuAsync(Frame frame) => throw new NotSupportedException();

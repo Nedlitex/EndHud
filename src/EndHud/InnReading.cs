@@ -34,6 +34,15 @@ internal sealed record InnReading(InnScreenKind Screen, TimeSpan At, SessionCloc
     /// </summary>
     public IReadOnlyList<HeldDish?>? Tray { get; init; }
 
+    /// <summary>
+    /// Every gourmand's bubble on the frame when there's more than one (<see cref="Bubble"/> is the largest); null when one or
+    /// none (and on readings saved before 2026-10-21). In the feast mode every guest is a gourmand (test_yuanyuan8: up to three bubbles at once).
+    /// </summary>
+    public IReadOnlyList<GourmandBubble>? Bubbles { get; init; }
+
+    /// <summary>The gourmands' bubbles read on this frame, the largest first (a method: not saved with the reading).</summary>
+    public IReadOnlyList<GourmandBubble> BubblesRead() => Bubbles ?? (Bubble is { } one ? [one] : []);
+
     /// <summary>On a chef picker: the kitchen it's for (kitchen one = 1), read off its title; null when unread or between reads.</summary>
     public int? PickerKitchen { get; init; }
 
@@ -63,7 +72,8 @@ internal interface IInnScreens
     /// <summary>The dispatch panel, or null when it isn't open (told by its tabs' pixels before any OCR).</summary>
     Task<DispatchPanel?> ReadPanelAsync(Frame frame);
 
-    Task<GourmandBubble?> ReadBubbleAsync(Frame frame);
+    /// <summary>Every gourmand's speech bubble on screen, the largest first (<see cref="BubbleReader.ReadAllAsync"/>).</summary>
+    Task<IReadOnlyList<GourmandBubble>> ReadBubblesAsync(Frame frame);
 
     Task<InnSetup?> ReadSetupAsync(Frame frame);
 
@@ -100,7 +110,7 @@ internal sealed class InnScreens(InnText text, InnPictures pictures, InnData dat
 
     public Task<DispatchPanel?> ReadPanelAsync(Frame frame) => _panel.ReadAsync(frame);
 
-    public Task<GourmandBubble?> ReadBubbleAsync(Frame frame) => _bubble.ReadAsync(frame);
+    public Task<IReadOnlyList<GourmandBubble>> ReadBubblesAsync(Frame frame) => _bubble.ReadAllAsync(frame);
 
     public Task<InnSetup?> ReadSetupAsync(Frame frame) => _setup.ReadAsync(frame, InnScreenKind.Setup);
 
@@ -130,7 +140,7 @@ internal sealed class ClockOnlyScreens : IInnScreens
 
     public Task<DispatchPanel?> ReadPanelAsync(Frame frame) => Task.FromResult<DispatchPanel?>(null);
 
-    public Task<GourmandBubble?> ReadBubbleAsync(Frame frame) => Task.FromResult<GourmandBubble?>(null);
+    public Task<IReadOnlyList<GourmandBubble>> ReadBubblesAsync(Frame frame) => Task.FromResult<IReadOnlyList<GourmandBubble>>([]);
 
     public Task<InnSetup?> ReadSetupAsync(Frame frame) => Task.FromResult<InnSetup?>(null);
 
@@ -244,10 +254,10 @@ internal sealed class InnFrameReader(IInnScreens screens)
                 var fire = panel is null ? await screens.ReadFireAsync(frame) : null;
                 // The panel covers the tray too.
                 var tray = panel is null ? screens.ReadTray(frame) : null;
-                var bubble = tables.Any(t => t?.State is TableState.GourmandArrived or TableState.GourmandOrdering or TableState.GourmandOrder)
-                    ? await screens.ReadBubbleAsync(frame)
-                    : null;
-                return new InnReading(screen, now, clock, tables, fire, panel, bubble) { Tray = tray };
+                IReadOnlyList<GourmandBubble> bubbles = tables.Any(t => t?.State is TableState.GourmandArrived or TableState.GourmandOrdering or TableState.GourmandOrder)
+                    ? await screens.ReadBubblesAsync(frame)
+                    : [];
+                return new InnReading(screen, now, clock, tables, fire, panel, bubbles.FirstOrDefault()) { Tray = tray, Bubbles = bubbles.Count > 1 ? bubbles : null };
             }
             case InnScreenKind.Setup or InnScreenKind.Menu or InnScreenKind.ChefPicker:
             {

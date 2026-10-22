@@ -514,7 +514,8 @@ public class InnSessionTests
         var session = NewSession(warnings);
         session.Update(SetupScreen(0, 1));
         session.Update(MenuScreen(1, Menu));
-        var gourmand = Tables(new TableCard(2, TableState.GourmandArrived, [], []));
+        // The words show the moment the gourmand's order is taken: their card reads the order (test_yuanyuan8, all fourteen).
+        var gourmand = Tables(new TableCard(2, TableState.GourmandOrder, [], []));
 
         session.Update(Session(10, tables: gourmand, bubble: new GourmandBubble("xyz qrs tuv", ["xyz qrs tuv"])));
         session.Update(Session(11, tables: gourmand, bubble: new GourmandBubble("xyz qrs tuv", ["xyz qrs tuv"])));
@@ -680,8 +681,10 @@ public class InnSessionTests
     }
 
     /// <summary>
-    /// A new gourmand at the same table (the last one left without their eating card being read): their own words replace
-    /// the last one's, even when as many.
+    /// A new gourmand at the same table (the last one left without their eating card being read): the last one's words go the
+    /// moment the new one is read arrived, and the new one's own words, said as their order is taken, replace them, even when as
+    /// many. Until 2026-10-21 words went to a gourmand only arrived; in test_yuanyuan8 that gave table 4's words to table 6,
+    /// whose gourmand was still choosing, for 49 s.
     /// </summary>
     [Fact]
     public void A_new_gourmands_words_at_a_table_replace_the_last_ones()
@@ -689,8 +692,12 @@ public class InnSessionTests
         var session = Prepared(1, 2);
         session.Update(Session(10, tables: Tables(Gourmand(4, TableState.GourmandOrder)), bubble: TableTwoSays));
         session.Update(Session(11, tables: Tables(Gourmand(4, TableState.GourmandArrived)), bubble: TableFourSays));
+        session.Update(Session(11.3, tables: Tables(Gourmand(4, TableState.GourmandArrived)), bubble: TableFourSays));
+        Assert.Empty(session.Advice(S(11.3))!.Gourmands);
 
-        var note = Assert.Single(session.Advice(S(11))!.Gourmands);
+        session.Update(Session(12, tables: Tables(Gourmand(4, TableState.GourmandOrder)), bubble: TableFourSays));
+        var note = Assert.Single(session.Advice(S(12))!.Gourmands);
+        Assert.Equal(4, note.Table);
         Assert.Equal(TableFourSays.Lines, note.Advice!.Requests.Select(r => r.Request.Text));
     }
 }

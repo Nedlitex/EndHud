@@ -82,7 +82,14 @@ internal sealed class InnReplay
         if (e.Reading is { Fresh: true, InSession: true } fresh)
         {
             for (int i = 0; i < Math.Min(fresh.TableCards.Count, _cards.Length); i++)
-                if (fresh.TableCards[i] is { } card) _cards[i] = card;
+                if (fresh.TableCards[i] is { } card)
+                {
+                    _cards[i] = card;
+                    // A gourmand's requests read resolved on their pips, since their order (a fade's empty cards aside).
+                    if (card.State == TableState.GourmandOrder)
+                        foreach (int k in Enumerable.Range(0, card.Served.Count).Where(k => card.Served[k])) _pipsResolved[i].Add(k);
+                    else if (card.State != TableState.Empty) _pipsResolved[i].Clear();
+                }
             if (fresh.Tray is { } tray && tray.All(s => s is null or { Id: not null })) _tray = [.. tray.OfType<HeldDish>().Select(h => h.Id!)];
         }
         if (e.Reading is { InSession: true })
@@ -211,7 +218,14 @@ internal sealed class InnReplay
     /// the gourmands with a banner, whether those banners were hidden over the panel, and each table's last card.
     /// </summary>
     internal sealed record DrawStep(TimeSpan At, int? PanelKitchen, IReadOnlyDictionary<int, InnCall> Calls, IReadOnlySet<int> Tabs, bool CardMark,
-        bool CircleDrawn, IReadOnlySet<int> Gourmands, bool GourmandsHidden, IReadOnlyList<TableState?> Tables);
+        bool CircleDrawn, IReadOnlySet<int> Gourmands, bool GourmandsHidden, IReadOnlyList<TableState?> Tables)
+    {
+        /// <summary>Each table's gourmand order read with every request resolved on its pips (served, imperfect or failed).</summary>
+        public IReadOnlyList<bool> Resolved { get; init; } = [];
+    }
+
+    /// <summary>Each table's gourmand pips read resolved since their order.</summary>
+    private readonly HashSet<int>[] _pipsResolved = [.. Enumerable.Range(0, TableCardReader.Tables).Select(_ => new HashSet<int>())];
 
     public List<DrawStep> Draws { get; } = [];
 
@@ -225,7 +239,10 @@ internal sealed class InnReplay
         var tabs = views.Marks.Where(m => !m.OnCard)
             .Select(m => Enumerable.Range(1, KitchenMath.MaxKitchens).FirstOrDefault(k => DispatchPanelReader.TabArea(k) == m.Area)).Where(k => k > 0).ToHashSet();
         Draws.Add(new DrawStep(at, _display.LastAdvice?.MarkedPanel?.Kitchen, calls, tabs, views.Marks.Any(m => m.OnCard), CirclesDrawn(views),
-            views.Wants.Select(w => w.Table).ToHashSet(), false /* never hidden: each tile at its table's fixed spot, the panel open or not (InnGourmandLayout) */, [.. _cards.Select(c => c?.State)]));
+            views.Wants.Select(w => w.Table).ToHashSet(), false /* never hidden: each tile at its table's fixed spot, the panel open or not (InnGourmandLayout) */, [.. _cards.Select(c => c?.State)]))
+        {
+            Resolved = [.. Enumerable.Range(0, TableCardReader.Tables).Select(i => _cards[i] is { State: TableState.GourmandOrder } c && c.Served.Count > 0 && _pipsResolved[i].Count >= c.Served.Count)],
+        };
     }
 
     /// <summary>
@@ -358,7 +375,9 @@ internal sealed class InnReplay
                 since.Remove(table);
                 down++;
                 var state = table - 1 < d.Tables.Count ? d.Tables[table - 1] : null;
-                bool waiting = state is TableState.GourmandArrived or TableState.GourmandOrdering or TableState.GourmandOrder;
+                // Waiting: their order still open, not every request read resolved on the pips (then nothing is left to serve).
+                bool waiting = state is TableState.GourmandArrived or TableState.GourmandOrdering
+                               || (state is TableState.GourmandOrder && !(table - 1 < d.Resolved.Count && d.Resolved[table - 1]));
                 if (waiting) unserved++;
                 lives.Add($"table {table} {from.TotalSeconds:F1}-{d.At.TotalSeconds:F1} s ({state}){(waiting ? " UNSERVED" : "")}");
             }
