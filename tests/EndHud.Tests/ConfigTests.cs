@@ -33,6 +33,16 @@ public class ConfigTests
     [Fact]
     public void The_inn_helper_is_on_by_default() => Assert.True(ConfigStore.Parse("{}").InnHelperEnabled);
 
+    /// <summary>Alert pop-ups ship on: an older config.json without the setting has them on; the rules list decides what shows.</summary>
+    [Fact]
+    public void Alerts_are_on_by_default_and_an_old_config_has_them_on()
+    {
+        Assert.True(new HudConfig().AlertsEnabled);
+        Assert.True(ConfigStore.Parse("""{ "SettingsVersion": 6, "ComboHintX": 0.3 }""").AlertsEnabled);
+        Assert.False(ConfigStore.Parse("""{ "AlertsEnabled": false }""").AlertsEnabled);
+        Assert.Contains("\"AlertsEnabled\": true", ConfigStore.Serialize(new HudConfig()));
+    }
+
     [Theory]
     [InlineData("{}", 1.0, 0.85)]
     [InlineData("{\"InnStripScale\": 1.4, \"InnStripOpacity\": 0.5}", 1.4, 0.5)]
