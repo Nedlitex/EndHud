@@ -247,7 +247,8 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
 
     /// <summary>The dishes the estimate has on the counter, cooked ahead or out for an order, and those in hand ("@hand"; the replay's trace).</summary>
     public string CounterSignature() =>
-        string.Join(",", _counter.Entries.GroupBy(e => e.Id).Select(g => $"{g.Key}x{g.Count()}")
+        string.Join(",", _counter.Entries.GroupBy(e => e.Id).Select(g =>
+                $"{g.Key}x{g.Count()}{(g.Any(e => e.ForOrder) ? $"(for orders {string.Join("/", g.Where(e => e.ForOrder).Select(e => $"{(_advancedTo - e.OutAt).TotalSeconds:F0}s"))})" : "")}")
             .Concat(_carried.GroupBy(id => id).Select(g => $"{g.Key}x{g.Count()}@hand")));
 
     /// <summary>
