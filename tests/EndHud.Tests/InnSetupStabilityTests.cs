@@ -37,8 +37,9 @@ public class InnSetupStabilityTests(ITestOutputHelper output)
         new(InnScreenKind.Menu, S(at), Menu: new InnMenu(MenuTab.AllDishes, null, null,
             [.. ids.Select(id => new MenuCard(id, id, OnMenu: onMenu.Contains(id), Unlimited: true, Stock: null))]));
 
-    private static InnSetupPlanning Planning(IInnPlanJudge judge) =>
-        new(judge, input => InnSetupAdvice.Fast(Planner, input), (input, cancel) => InnSetupAdvice.For(Planner, input, cancel), note: _ => { });
+    /// <param name="clock">The planning's clock; null for the real one.</param>
+    private static InnSetupPlanning Planning(IInnPlanJudge judge, Func<TimeSpan>? clock = null) =>
+        new(judge, input => InnSetupAdvice.Fast(Planner, input), (input, cancel) => InnSetupAdvice.For(Planner, input, cancel), note: _ => { }, clock: clock);
 
     /// <summary>
     /// The owner's way through the menu screen: the drinks tab, then the dishes scrolled into view four at a time
@@ -96,7 +97,8 @@ public class InnSetupStabilityTests(ITestOutputHelper output)
     [Fact]
     public async Task Picking_the_menu_the_advice_changes_only_when_clearly_beaten()
     {
-        var (before, steps) = await PickTheMenu(Planning(Replacing), settle: false);
+        // Before: every plan counted as just shown (a clock that never moves), so any newer one that looks different replaces it.
+        var (before, steps) = await PickTheMenu(Planning(Replacing, Frozen), settle: false);
         var (after, _) = await PickTheMenu(Planning(Judge), settle: true);
 
         output.WriteLine($"scripted picking ({steps} readings): advice on screen changed {before} times before (replaced when different), {after} times after (kept until clearly beaten)");

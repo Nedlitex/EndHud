@@ -129,6 +129,12 @@ internal static partial class InnTestKit
 
     public static readonly IInnPlanJudge Replacing = new ReplacingJudge();
 
+    /// <summary>
+    /// A clock for <see cref="InnSetupPlanning"/> that never moves: every plan on screen counts as just shown
+    /// (<see cref="InnSetupPlanning.RefinedWithin"/>), so a clearly better one may still replace it however long the test took.
+    /// </summary>
+    public static TimeSpan Frozen() => TimeSpan.Zero;
+
     /// <summary>A time long after every reading of a test: the menu's list has been still for long (<see cref="InnSetupPlanning.ScrollSettle"/>).</summary>
     public static readonly TimeSpan Settled = TimeSpan.FromHours(1);
 

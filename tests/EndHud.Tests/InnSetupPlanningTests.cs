@@ -106,13 +106,14 @@ public class InnSetupPlanningTests(ITestOutputHelper output)
         Assert.Equal(0, same.Replaced);
         Assert.Equal(1, doneCalls);
 
-        // A different refined advice coming after InnSetupPlanning.RefinedWithin replaces the quick one.
+        // A different, clearly better refined advice coming after InnSetupPlanning.RefinedWithin, the quick one only
+        // just shown (a clock that doesn't move), replaces it.
         doneCalls = 0;
         var late = new InnSetupPlanning(Replacing, _ => quick, (_, _) =>
         {
             Thread.Sleep(InnSetupPlanning.RefinedWithin + TimeSpan.FromMilliseconds(300));
             return other;
-        }, note: _ => { });
+        }, note: _ => { }, clock: Frozen);
         await late.Request(session.SetupInputs(), Settled, () => Interlocked.Increment(ref doneCalls))!;
         Assert.Same(other, late.Showable(session.SetupInputs()));
         Assert.Equal(1, late.Replaced);
@@ -126,6 +127,38 @@ public class InnSetupPlanningTests(ITestOutputHelper output)
         Assert.Same(other, soon.Showable(session.SetupInputs()));
         Assert.Equal(1, doneCalls);
         Assert.Equal(1, soon.Changes);
+    }
+
+    /// <summary>
+    /// The quick advice on screen longer than <see cref="InnSetupPlanning.RefinedWithin"/> (the player may be following it:
+    /// owner, test_yuanyuan6, "the recommendation should not change, unless some kitchen is filled") stays when the
+    /// refined one comes, however much better the judge finds it (<see cref="Replacing"/>: always).
+    /// </summary>
+    [Fact]
+    public async Task A_refined_advice_coming_after_the_quick_one_has_been_seen_does_not_replace_it()
+    {
+        var session = NewSession();
+        session.Update(Cleared(0));
+        var quick = Quick(session);
+        var other = InnSetupAdvice.Fast(Planner, NewSessionWith(Staffed(0)).SetupInputs().Input!);
+        Assert.NotEqual(quick.Signature, other.Signature);
+        var now = TimeSpan.Zero;
+        var release = new ManualResetEventSlim(false);
+        var planning = new InnSetupPlanning(Replacing, _ => quick, (_, _) =>
+        {
+            release.Wait();
+            return other;
+        }, note: _ => { }, clock: () => now);
+
+        var work = planning.Request(session.SetupInputs(), Settled)!;
+        await WaitUntil(() => planning.Showable(session.SetupInputs()) is not null);
+        now += InnSetupPlanning.RefinedWithin + TimeSpan.FromSeconds(7); // the 8.4 s of the owner's log
+        release.Set();
+        await work;
+
+        Assert.Same(quick, planning.Showable(session.SetupInputs()));
+        Assert.Equal(0, planning.Replaced);
+        Assert.Equal(1, planning.Changes);
     }
 
     /// <summary>Inputs changed while older ones are worked out: the older work is cancelled, and its late result is never kept.</summary>
