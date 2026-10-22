@@ -1209,9 +1209,16 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         })];
     }
 
+    /// <summary>
+    /// The drinks on the menu: as the menu screen showed them, and any an order had. With no drink of the menu read on
+    /// the menu screen (it wasn't scrolled to its drinks, or EndHud started after it), every drink the player has
+    /// (<see cref="InnSetupMemory.DrinksOwned"/>): until 2026-10-22 a gourmand's drink request then named no drink at all
+    /// (owner, live v0.6.1: "果香的或奶香的饮品" and "不要酒香的饮品" with an empty picture).
+    /// </summary>
     private IReadOnlyList<MenuDrink> MenuDrinks()
     {
-        var ids = _memory.Menu.Keys.Where(IsDrink).Concat(_drinksSeen).Distinct();
+        var read = _memory.Menu.Keys.Where(IsDrink).ToList();
+        var ids = (read.Count > 0 ? read : _memory.DrinksOwned().Select(d => d.Id)).Concat(_drinksSeen).Distinct();
         return [.. ids.Select(id =>
         {
             var drink = data.Drinks.First(d => d.Id == id);

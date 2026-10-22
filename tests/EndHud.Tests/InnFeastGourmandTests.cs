@@ -209,4 +209,53 @@ public class InnFeastGourmandTests
 
         Assert.Equal(Texts(5, 2, 4), Shown(session, 12, 1));
     }
+
+    /// <summary>What a gourmand's tile names for each request, as the banners do (InnGourmandView), by id; null for none.</summary>
+    private static IReadOnlyList<string?> Named(InnSession session, double at, int table) =>
+        [.. InnGourmandView.Of(session.Advice(S(at))!.Gourmands.Single(g => g.Table == table), key => key).Select(w => w.ItemId)];
+
+    /// <summary>
+    /// Owner, live v0.6.1 (2026-10-22): "now the drink suggestion is empty, if there are multiple, suggest the most expensive
+    /// one". Table 2's gourmand asked "饮料都挺不错，上果香奶香的吧。" and table 3's "哎你们有没有无酒精饮料？" with no drink of the
+    /// menu read on the menu screen: both tiles showed the request with an empty picture. Every drink the player has (Inn
+    /// Rating unread: the highest) is offered instead, the most expensive that meets the request first: 瓶装霞莓饮 (果香,
+    /// 60) over 瓶装优质兽奶 (奶香, 35); for "not 酒香", 瓶装霞莓饮 and 潮前龙井 (both 60) before the rest.
+    /// </summary>
+    [Fact]
+    public void A_drink_request_names_the_most_expensive_drink_even_before_the_menu_drinks_are_read()
+    {
+        var session = NewSession();
+        session.Update(SetupScreen(0, 1, 2));
+        session.Update(MenuScreen(1, A, B, C, D, E));
+        session.Update(Session(9, tables: Tables(Gourmand(2, TableState.GourmandArrived), Gourmand(3, TableState.GourmandArrived))));
+        for (double t = 10; t < 11; t += 0.3)
+            session.Update(Session(t, tables: Tables(Gourmand(2, TableState.GourmandOrder), Gourmand(3, TableState.GourmandArrived)), bubble: Says(14, [0, 3])));
+        for (double t = 12; t < 13; t += 0.3)
+            session.Update(Session(t, tables: Tables(Gourmand(2, TableState.GourmandOrder), Gourmand(3, TableState.GourmandOrder)), bubble: Says(11, [2, 3])));
+
+        Assert.Equal(Texts(14, 0, 3), Shown(session, 13, 2));
+        Assert.Equal(Texts(11, 2, 3), Shown(session, 13, 3));
+        Assert.Equal("bottled-duskberry-juice", Named(session, 13, 2)[1]);
+        Assert.Equal("bottled-duskberry-juice", Named(session, 13, 3)[1]);
+        var notKohlic = session.Advice(S(13))!.Gourmands.Single(g => g.Table == 3).Advice!.Requests[1].Options;
+        Assert.Equal(["bottled-duskberry-juice", "pre-tide-lungjing"], notKohlic.Take(2).Select(o => o.Id));
+        Assert.DoesNotContain(notKohlic, o => o.Drink!.Traits.Contains("Kohlic"));
+    }
+
+    /// <summary>With the menu's drinks read, the most expensive of those that meet the request: never one not on the menu.</summary>
+    [Fact]
+    public void A_drink_request_names_the_most_expensive_drink_on_the_menu()
+    {
+        var session = NewSession();
+        session.Update(SetupScreen(0, 1, 2));
+        session.Update(MenuScreen(1, A, B, C, D, E, "bottled-milk-a", "bottled-milk", "seekers-kohl"));
+        session.Update(Session(9, tables: Tables(Gourmand(2, TableState.GourmandArrived), Gourmand(3, TableState.GourmandArrived))));
+        for (double t = 10; t < 11; t += 0.3)
+            session.Update(Session(t, tables: Tables(Gourmand(2, TableState.GourmandOrder), Gourmand(3, TableState.GourmandArrived)), bubble: Says(14, [0, 3])));
+        for (double t = 12; t < 13; t += 0.3)
+            session.Update(Session(t, tables: Tables(Gourmand(2, TableState.GourmandOrder), Gourmand(3, TableState.GourmandOrder)), bubble: Says(11, [2, 3])));
+
+        Assert.Equal("bottled-milk-a", Named(session, 13, 2)[1]);
+        Assert.Equal("bottled-milk-a", Named(session, 13, 3)[1]); // 35 over 瓶装兽奶 (10); 游人酒 is 酒香
+    }
 }

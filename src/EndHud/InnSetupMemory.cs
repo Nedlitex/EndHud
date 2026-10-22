@@ -240,11 +240,29 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
         return staffed.Count == 0 ? setup with { Key = "menu+" + setup.Key, ChefsPlanned = true } : Inputs(staffed, "menu");
     }
 
+    /// <summary>The Inn Rating: the menu screen's requirements', else the theme's; unread, the highest.</summary>
+    private int Rating => Math.Clamp(_requirements?.Rating ?? Setup?.Theme?.Rating ?? KitchenMath.MaxRating, 1, KitchenMath.MaxRating);
+
+    private static bool ByRating(DishUnlock unlock, int rating) => unlock.Rating is { } needs && needs <= rating;
+
+    /// <summary>
+    /// The drinks the player has: every drink the Inn Rating unlocks, and of the others those the menu screen has shown
+    /// (before it, those no rating unlocks). What the setup plan picks from, and what a gourmand's drink request is met
+    /// from while no drink of the session's menu is known (<see cref="InnSession"/>; owner, 2026-10-22: the drink
+    /// suggestion was empty).
+    /// </summary>
+    public IReadOnlyList<InnDrink> DrinksOwned()
+    {
+        int rating = Rating;
+        bool drinksSeen = data.Drinks.Any(d => _offered.ContainsKey(d.Id));
+        return [.. data.Drinks.Where(d => ByRating(d.Unlock, rating) || (drinksSeen ? _offered.ContainsKey(d.Id) : d.Unlock.Rating is null))];
+    }
+
     private InnSetupInputs Inputs(IReadOnlyList<PlanKitchen> kitchens, string purpose)
     {
         var setup = Setup!;
         var r = _requirements;
-        int rating = Math.Clamp(r?.Rating ?? setup.Theme?.Rating ?? KitchenMath.MaxRating, 1, KitchenMath.MaxRating);
+        int rating = Rating;
         // Only operators who can cook and are in the game (InnChefRules.Suggestable: Argent Flow isn't out yet, owner 2026-10-20).
         var chefs = roster.Where(o => data.ChefBonuses.Suggestable(o.Id)).ToList();
         int? Stock(string id) => _offered.TryGetValue(id, out var card) && !card.Unlimited ? card.Stock : null;
@@ -253,12 +271,10 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
         // any one that I have"); before the menu screen, those a theme's stars unlock too. Never only the cards seen: the
         // list shows a few at a time, and the first in view were all soups and desserts, so the plan could not reach 3
         // types (owner, live 2026-10-21). Drinks alike, by the drinks seen.
-        bool dishesSeen = data.Dishes.Any(d => _offered.ContainsKey(d.Id)), drinksSeen = data.Drinks.Any(d => _offered.ContainsKey(d.Id));
-        bool ByRating(DishUnlock unlock) => unlock.Rating is { } needs && needs <= rating;
-        var dishes = data.Dishes.Where(d => ByRating(d.Unlock) || (dishesSeen ? _offered.ContainsKey(d.Id) : d.Unlock.Rating is null))
+        bool dishesSeen = data.Dishes.Any(d => _offered.ContainsKey(d.Id));
+        var dishes = data.Dishes.Where(d => ByRating(d.Unlock, rating) || (dishesSeen ? _offered.ContainsKey(d.Id) : d.Unlock.Rating is null))
             .Select(d => new MenuDish(d, Stock(d.Id))).ToList();
-        var drinks = data.Drinks.Where(d => ByRating(d.Unlock) || (drinksSeen ? _offered.ContainsKey(d.Id) : d.Unlock.Rating is null))
-            .Select(d => new MenuDrink(d, d.Unlimited ? null : Stock(d.Id))).ToList();
+        var drinks = DrinksOwned().Select(d => new MenuDrink(d, d.Unlimited ? null : Stock(d.Id))).ToList();
 
         // The theme's rules (a trait's or a dish type's): as the setup screen states them, and as the menu screen does.
         var setupRules = DishRule.ParseAll(setup.MenuRules, data);
