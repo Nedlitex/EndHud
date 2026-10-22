@@ -23,6 +23,9 @@ public class InnSixGourmandsTests(ITestOutputHelper output)
     /// <summary>The game's Full Blaze meter on the right, as fractions of a 16:9 window (owner: about x 0.86–0.98, y 0.48–0.66; widened a little).</summary>
     private static readonly Rect Meter = new(0.84, 0.47, 0.15, 0.20);
 
+    /// <summary>The held-dishes tray, its 派单 button and the bar right of it (session-two-dishes.jpg: x 0.38–0.78, y 0.855–0.94).</summary>
+    private static readonly Rect Tray = new(0.38, 0.855, 0.40, 0.085);
+
     [Fact]
     public void Six_gourmands_each_get_a_banner_in_table_order()
     {
@@ -74,7 +77,9 @@ public class InnSixGourmandsTests(ITestOutputHelper output)
             output.WriteLine($"table {banners[i].Table}: x {rect.Left / width:F3}–{rect.Right / width:F3}, y {rect.Top / height:F3}–{rect.Bottom / height:F3}{(arrangement.Compact ? " compact" : "")} scale {s:F2}");
             Assert.True(rect.Left >= 0 && rect.Top >= 0 && rect.Right <= width && rect.Bottom <= height, $"table {banners[i].Table} off the window: {rect}");
             Assert.False(rect.IntersectsWith(meter) && Overlap(rect, meter) > 1, $"table {banners[i].Table} over the Full Blaze meter: {rect} / {meter}");
-            Assert.True(rect.Top >= lastBottom, $"table {banners[i].Table} over the one above it");
+            var tray = new Rect(Tray.X * width, Tray.Y * height, Tray.Width * width, Tray.Height * height);
+            Assert.False(Overlap(rect, tray) > 1, $"table {banners[i].Table} over the held-dishes tray: {rect} / {tray}");
+            Assert.True(rect.Top >= lastBottom,$"table {banners[i].Table} over the one above it");
             lastBottom = rect.Bottom;
         }
     }
@@ -111,7 +116,9 @@ public class InnSixGourmandsTests(ITestOutputHelper output)
         Assert.Equal(6, advice.Gourmands.Select(g => string.Join("|", g.Advice!.Requests.Select(r => r.Request.Text))).Distinct().Count());
 
         display.Show(session, Session(17, tables: Tables([.. cards])), S(17));
-        var wants = display.Views(session, S(17), callsEnabled: true, Text).Wants;
+        display.Views(session, S(17), callsEnabled: true, Text);
+        // Up once what they say has stood a moment (InnWantsHold.ShowAfter).
+        var wants = display.Views(session, S(17.6), callsEnabled: true, Text).Wants;
         Assert.Equal([1, 2, 3, 4, 5, 6], InnGourmandView.Banners(wants, Text).Select(b => b.Table));
     }
 

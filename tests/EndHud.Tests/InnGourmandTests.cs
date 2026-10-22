@@ -158,11 +158,13 @@ public class InnGourmandTests(ITestOutputHelper output)
         var banners = InnGourmandView.Banners(wants, Text);
         Assert.Equal(InnGourmandView.MostBanners, banners.Count);
 
+        double scale = ComboHintLayout.Scale(height, dpiScale: 1);
+        var arrangement = InnGourmandLayout.Arrange(banners, width, height, scale, HudConfig.DefaultInnGourmandRight, HudConfig.DefaultInnGourmandTop);
         var (widest, label) = OnSta(() =>
         {
             double max = banners.Max(b =>
             {
-                var element = InnGourmandView.Banner(b, PackagePicture);
+                var element = InnGourmandView.Banner(b, PackagePicture, arrangement.Compact);
                 element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
                 return element.DesiredSize.Width;
             });
@@ -171,9 +173,10 @@ public class InnGourmandTests(ITestOutputHelper output)
             return (max, drag.DesiredSize.Height);
         });
         const double frame = 2 * (6 + 2); // the overlay's frame around the stack: padding and border (OverlayWindow.xaml)
-        double scale = ComboHintLayout.Scale(height, dpiScale: 1);
-        double stackWidth = (widest + frame) * scale;
-        double stackHeight = (banners.Sum(b => InnGourmandView.Height(b) + ComboBanner.Gap) + label + frame) * scale;
+        // Six gourmands: compact, placed around the Full Blaze meter (InnSixGourmandsTests checks each banner's place).
+        Assert.True(arrangement.Compact);
+        double stackWidth = (widest + frame) * arrangement.Scale;
+        double stackHeight = (arrangement.Height + label + frame) * arrangement.Scale;
         var (fromRight, top) = InnGourmandLayout.Place(width, height, HudConfig.DefaultInnGourmandRight, HudConfig.DefaultInnGourmandTop);
         double left = width - fromRight - stackWidth;
         output.WriteLine($"{width}x{height}: stack {stackWidth:F0}x{stackHeight:F0} at left {left:F0}, top {top:F0}");

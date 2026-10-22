@@ -44,11 +44,21 @@ internal sealed record InnGourmandBanner(string Key, int Table, string Title, IR
 /// </summary>
 internal static class InnGourmandView
 {
-    /// <summary>The most banners up at once: three gourmands, the fullest stack fitting from its default place at 1080p (InnGourmandTests); a fourth waits for one to be served.</summary>
-    public const int MostBanners = 3;
+    /// <summary>
+    /// The most banners up at once: every table a gourmand's (owner, 2026-10-21: "we need to be prepared to support all 6
+    /// tables are gourmand"). Many are drawn compact and placed around the Full Blaze meter (<see cref="InnGourmandLayout.Arrange"/>).
+    /// </summary>
+    public const int MostBanners = TableCardReader.Tables;
 
     /// <summary>A banner's title line and each row's height, its padding, and a row's picture, at 1080p (scaled with the window).</summary>
     public const double TitleHeight = 30, RowHeight = 46, Padding = 10, PictureSize = 40;
+
+    /// <summary>
+    /// The compact banner's row height, padding and picture, at 1080p: its title beside the rows instead of over them, so a
+    /// gourmand of two requests is 82 units tall instead of 142 (six fit on the right, <see cref="InnGourmandLayout.Arrange"/>).
+    /// Its words a little smaller (15; the title 17) and its margins narrower, so six stay clear of the held-dishes tray.
+    /// </summary>
+    public const double CompactRowHeight = 36, CompactPadding = 5, CompactPictureSize = 32;
 
     /// <param name="text">The i18n lookup (<see cref="Loc.Get"/>; the tests pass zh-CN.xaml's strings).</param>
     public static IReadOnlyList<InnWant> Of(InnAdvice advice, Func<string, string> text) =>
@@ -104,45 +114,67 @@ internal static class InnGourmandView
     /// <summary>A banner's height, at 1080p: its title and a row per request.</summary>
     public static double Height(InnGourmandBanner banner) => 2 * Padding + TitleHeight + banner.Rows.Count * RowHeight;
 
-    public static double Height(InnGourmandBanner banner, bool compact) => throw new NotImplementedException();
-
-    public static Border Banner(InnGourmandBanner banner, Func<string, BitmapSource?> picture, bool compact) => throw new NotImplementedException();
+    /// <summary>A banner's height, at 1080p, full (<see cref="Height(InnGourmandBanner)"/>) or compact: its rows only.</summary>
+    public static double Height(InnGourmandBanner banner, bool compact) =>
+        compact ? 2 * CompactPadding + Math.Max(1, banner.Rows.Count) * CompactRowHeight : Height(banner);
 
     private static readonly FontFamily Font = new("Microsoft YaHei UI, Segoe UI");
     private static readonly Brush TextBrush = Frozen(new SolidColorBrush(Color.FromArgb(0xEE, 0xFF, 0xFF, 0xFF)));
 
     /// <summary>A gourmand's banner as the overlay draws it: <see cref="ComboBanner"/>'s look, a title and the rows under it.</summary>
     /// <param name="picture">A dish's or drink's picture by id; null when the package has none (the row is drawn without it).</param>
-    public static Border Banner(InnGourmandBanner banner, Func<string, BitmapSource?> picture)
+    public static Border Banner(InnGourmandBanner banner, Func<string, BitmapSource?> picture) => Banner(banner, picture, compact: false);
+
+    /// <summary>
+    /// A gourmand's banner, full (the title over the rows) or <paramref name="compact"/> (the title beside them, smaller rows:
+    /// when many gourmands are up, <see cref="InnGourmandLayout.Arrange"/>).
+    /// </summary>
+    public static Border Banner(InnGourmandBanner banner, Func<string, BitmapSource?> picture, bool compact)
     {
-        // Slanted back upright inside the slanted banner, as the combo banner's content is.
-        var content = new StackPanel { RenderTransform = new SkewTransform(12, 0), Margin = new Thickness(18, Padding, 28, Padding), VerticalAlignment = VerticalAlignment.Center };
-        content.Children.Add(new TextBlock
-        {
-            Text = banner.Title, FontSize = 20, FontWeight = FontWeights.Bold, Foreground = TextBrush, FontFamily = Font,
-            Height = TitleHeight, VerticalAlignment = VerticalAlignment.Center,
-        });
+        double padding = compact ? CompactPadding : Padding, rowHeight = compact ? CompactRowHeight : RowHeight;
+        double pictureSize = compact ? CompactPictureSize : PictureSize, fontSize = compact ? 15 : 17;
+        var rows = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         foreach (var row in banner.Rows)
         {
-            var line = new StackPanel { Orientation = Orientation.Horizontal, Height = RowHeight };
+            var line = new StackPanel { Orientation = Orientation.Horizontal, Height = rowHeight };
             if (row.Request is not null)
-                line.Children.Add(Words($"{row.Number} {row.Request}", TextBrush, bold: false));
+                line.Children.Add(Words($"{row.Number} {row.Request}", TextBrush, bold: false, fontSize));
             if (row.Request is not null && row.Item is not null)
-                line.Children.Add(Words(" → ", ComboBanner.Accent, bold: true));
+                line.Children.Add(Words(" → ", ComboBanner.Accent, bold: true, fontSize));
             if (row.PictureId is { } id && picture(id) is { } image)
-                line.Children.Add(new Image { Source = image, Width = PictureSize, Height = PictureSize, Margin = new Thickness(2, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center });
+                line.Children.Add(new Image { Source = image, Width = pictureSize, Height = pictureSize, Margin = new Thickness(2, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center });
             if (row.Item is not null)
-                line.Children.Add(Words(row.Item, ComboBanner.Accent, bold: row.PictureId is not null));
-            content.Children.Add(line);
+                line.Children.Add(Words(row.Item, ComboBanner.Accent, bold: row.PictureId is not null, fontSize));
+            rows.Children.Add(line);
         }
-        var element = ComboBanner.Create(content, Height(banner));
+        var title = new TextBlock
+        {
+            Text = banner.Title, FontSize = compact ? 17 : 20, FontWeight = FontWeights.Bold, Foreground = TextBrush, FontFamily = Font,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        // Slanted back upright inside the slanted banner, as the combo banner's content is.
+        StackPanel content;
+        if (compact)
+        {
+            title.Margin = new Thickness(0, 0, 8, 0);
+            content = new StackPanel { Orientation = Orientation.Horizontal, Children = { title, rows } };
+        }
+        else
+        {
+            title.Height = TitleHeight;
+            content = new StackPanel { Children = { title, rows } };
+        }
+        content.RenderTransform = new SkewTransform(12, 0);
+        content.Margin = new Thickness(compact ? 12 : 18, padding, compact ? 16 : 28, padding);
+        content.VerticalAlignment = VerticalAlignment.Center;
+        var element = ComboBanner.Create(content, Height(banner, compact));
         element.HorizontalAlignment = HorizontalAlignment.Right;
         return element;
     }
 
-    private static TextBlock Words(string words, Brush brush, bool bold) => new()
+    private static TextBlock Words(string words, Brush brush, bool bold, double fontSize) => new()
     {
-        Text = words, FontSize = 17, FontWeight = bold ? FontWeights.Bold : FontWeights.Normal, Foreground = brush, FontFamily = Font,
+        Text = words, FontSize = fontSize, FontWeight = bold ? FontWeights.Bold : FontWeights.Normal, Foreground = brush, FontFamily = Font,
         VerticalAlignment = VerticalAlignment.Center,
     };
 
@@ -251,10 +283,72 @@ internal static class InnGourmandLayout
     public static (double FromRight, double Top) Place(double width, double height, double right, double top) =>
         (Math.Clamp((1 - right) * width, 0, width), Math.Clamp(top * height, 0, height));
 
-    /// <summary>Work in progress.</summary>
-    public static InnGourmandArrangement Arrange(IReadOnlyList<InnGourmandBanner> banners, double width, double height, double scale, double right, double top) =>
-        throw new NotImplementedException();
+    /// <summary>
+    /// The game's Full Blaze meter on the right (its ring, the fire count and the streak under it), as fractions of the
+    /// window's centred 16:9 area, a little wider than measured on the 4K fixtures (session-two-dishes.jpg: x 0.825–0.98,
+    /// y 0.48–0.67): banners stay above or below it.
+    /// </summary>
+    public const double MeterLeft = 0.82, MeterTop = 0.465, MeterBottom = 0.685;
+
+    /// <summary>How low a banner may reach, a fraction of the window's height (the right side is floor down there).</summary>
+    public const double LowestBottom = 0.97;
+
+    /// <summary>The frame's padding and border around the stack (OverlayWindow.xaml), in its units.</summary>
+    public const double Frame = 6 + 2;
+
+    /// <summary>The smallest share of the player's size the stack is shrunk to when even compact banners don't fit.</summary>
+    private const double SmallestShrink = 0.4;
+
+    /// <summary>
+    /// Where each of <paramref name="banners"/> (by table) goes in the stack, from its top at <paramref name="top"/> (as
+    /// <see cref="Place"/>) at <paramref name="scale"/> (the window's times the player's): one under another, a gap between,
+    /// none over the Full Blaze meter (one that would reach it goes below it, when the stack is at the right where the meter
+    /// is) or below <see cref="LowestBottom"/>. Full banners while they fit, else compact ones (six gourmands: compact, three
+    /// above the meter and three below); if even those don't fit (a big player size) the stack is drawn smaller until they do.
+    /// The same banners always land in the same places, in table order.
+    /// </summary>
+    public static InnGourmandArrangement Arrange(IReadOnlyList<InnGourmandBanner> banners, double width, double height, double scale, double right, double top)
+    {
+        var (_, frameTop) = Place(width, height, right, top);
+        double unit = Math.Min(width / 16, height / 9);
+        double areaLeft = (width - unit * 16) / 2, areaTop = (height - unit * 9) / 2;
+        bool meterBeside = right * width > areaLeft + MeterLeft * unit * 16;
+        double bandTop = areaTop + MeterTop * unit * 9, bandBottom = areaTop + MeterBottom * unit * 9;
+
+        InnGourmandArrangement? Fit(bool compact, double s)
+        {
+            var tops = new List<double>();
+            double y = frameTop + Frame * s; // on screen
+            foreach (var banner in banners)
+            {
+                double tall = InnGourmandView.Height(banner, compact) * s;
+                if (meterBeside && y < bandBottom && y + tall > bandTop) y = bandBottom;
+                if (y + tall > LowestBottom * height) return null;
+                tops.Add((y - frameTop) / s - Frame);
+                y += tall + ComboBanner.Gap * s;
+            }
+            double extent = banners.Count == 0 ? 0 : tops[^1] + InnGourmandView.Height(banners[^1], compact) + ComboBanner.Gap;
+            return new InnGourmandArrangement(compact, s, tops, extent);
+        }
+
+        if (Fit(false, scale) is { } full) return full;
+        for (double s = scale; s >= scale * SmallestShrink; s *= 0.95)
+            if (Fit(true, s) is { } compact) return compact;
+        // Nothing fits even that small (a window a few hundred pixels tall): compact, as small as allowed, one under another.
+        var stacked = new List<double>();
+        double at = 0;
+        foreach (var banner in banners)
+        {
+            stacked.Add(at);
+            at += InnGourmandView.Height(banner, true) + ComboBanner.Gap;
+        }
+        return new InnGourmandArrangement(true, scale * SmallestShrink, stacked, at);
+    }
 }
 
-/// <summary>Work in progress.</summary>
+/// <summary>Where the gourmands' banners go in their stack (<see cref="InnGourmandLayout.Arrange"/>).</summary>
+/// <param name="Compact">Drawn compact (<see cref="InnGourmandView.Banner(InnGourmandBanner, Func{string, BitmapSource?}, bool)"/>).</param>
+/// <param name="Scale">The size the stack is drawn at: the one asked for, or smaller when even compact banners didn't fit.</param>
+/// <param name="Tops">Each banner's top in the stack, in its units (at 1080p), by table.</param>
+/// <param name="Height">The stack's height in its units.</param>
 internal sealed record InnGourmandArrangement(bool Compact, double Scale, IReadOnlyList<double> Tops, double Height);
