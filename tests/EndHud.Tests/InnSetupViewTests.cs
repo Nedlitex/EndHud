@@ -234,7 +234,7 @@ public class InnSetupViewTests(ITestOutputHelper output)
 
         var panel = Assert.Single(InnSetupView.Menu(inputs, null, [], Inn, Text));
 
-        Assert.Equal(["看不懂菜单要求：至少有3道很奇怪的菜品（推荐没有算上它）", "正在推荐…"], Lines(panel));
+        Assert.Equal(["营业设定的菜单要求有一条没读懂，推荐没有算上它", "正在推荐…"], Lines(panel));
     }
 
     // ---- Nothing anywhere else ----

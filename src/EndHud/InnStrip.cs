@@ -96,6 +96,10 @@ internal static class InnStrip
     public static FrameworkElement Build(InnStripModel model, Func<string, BitmapSource?> picture, double lineWidth, InnStripLook? look = null)
     {
         look ??= InnStripLook.Normal;
+        // A piece that can't wrap (a picture with its name, a label and what's kept with it) wider than the lines would be cut
+        // at the card's edge (owner, test_yuanyuan8: words running off the panel). The lines are widened to the widest such
+        // piece instead: the card grows past its spot rather than hiding a name.
+        lineWidth = Math.Max(lineWidth, model.Lines.Select(l => Unbreakable(l, picture, look)).DefaultIfEmpty(0).Max());
         var lines = new StackPanel();
         foreach (var line in model.Lines)
         {
@@ -114,7 +118,22 @@ internal static class InnStrip
         };
     }
 
-    private static UIElement Line(InnLine line, Func<string, BitmapSource?> picture, double lineWidth, InnStripLook look)
+    /// <summary>The narrowest the lines can be with nothing of <paramref name="line"/> cut: its indent, its label and its widest piece that can't wrap.</summary>
+    private static double Unbreakable(InnLine line, Func<string, BitmapSource?> picture, InnStripLook look)
+    {
+        var units = new List<FrameworkElement>();
+        var labels = new List<FrameworkElement>();
+        Line(line, picture, double.PositiveInfinity, look, units, labels);
+        static double Width(FrameworkElement e)
+        {
+            e.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            return Math.Ceiling(e.DesiredSize.Width);
+        }
+        return line.Indent * IndentStep + labels.Sum(Width) + units.Select(Width).DefaultIfEmpty(0).Max();
+    }
+
+    private static UIElement Line(InnLine line, Func<string, BitmapSource?> picture, double lineWidth, InnStripLook look,
+        List<FrameworkElement>? unbreakable = null, List<FrameworkElement>? labels = null)
     {
         double FontSize = look.FontSize, PictureSize = look.PictureSize;
         var (brush, size, weight) = line.Style switch
@@ -150,6 +169,7 @@ internal static class InnStrip
             // A label ("干员："): the names wrap beside it, never under it.
             // As tall as the first row of names, its words centred like theirs; at the top when the names wrap.
             label = new Border { Height = PictureSize, VerticalAlignment = VerticalAlignment.Top, Child = Text(segments[0]) };
+            labels?.Add(label);
             segments = [.. segments.Skip(1)];
         }
         StackPanel? unit = null;
@@ -159,6 +179,8 @@ internal static class InnStrip
             {
                 unit = new StackPanel { Orientation = Orientation.Horizontal, MinHeight = PictureSize };
                 row.Children.Add(unit);
+                // A unit of plain words alone wraps within itself (a sentence); any other unit is as wide as it is.
+                if (segment.PictureId is not null || segment.KeepWithNext) unbreakable?.Add(unit);
             }
             if (segment.PictureId is { } id && picture(id) is { } image)
             {
