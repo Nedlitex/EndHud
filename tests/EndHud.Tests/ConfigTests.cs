@@ -88,6 +88,34 @@ public class ConfigTests
         Assert.Equal(HudConfig.CurrentSettingsVersion, config.SettingsVersion);
     }
 
+    /// <summary>
+    /// Every start saved the inn's banners' place, so each version's default then is not the player's choice: the combo
+    /// hint's place (0.2, 0.36) up to version 3, the middle (0.43, 0.52) in version 4. Both move to the default now; a place
+    /// the player dragged to is kept.
+    /// </summary>
+    [Theory]
+    [InlineData("""{ "InnCallX": 0.2, "InnCallY": 0.36 }""", HudConfig.DefaultInnCallX, HudConfig.DefaultInnCallY)]
+    [InlineData("""{ "InnCallX": 0.2, "InnCallY": 0.36, "SettingsVersion": 3 }""", HudConfig.DefaultInnCallX, HudConfig.DefaultInnCallY)]
+    [InlineData("""{ "InnCallX": 0.43, "InnCallY": 0.52, "SettingsVersion": 4 }""", HudConfig.DefaultInnCallX, HudConfig.DefaultInnCallY)]
+    [InlineData("""{ "InnCallX": 0.43, "InnCallY": 0.52, "SettingsVersion": 3 }""", 0.43, 0.52)]  // dragged there before 4: kept
+    [InlineData("""{ "InnCallX": 0.6, "InnCallY": 0.3, "SettingsVersion": 4 }""", 0.6, 0.3)]      // dragged: kept
+    [InlineData("""{ "InnCallX": 0.2, "InnCallY": 0.36, "SettingsVersion": 5 }""", 0.2, 0.36)]    // chosen in version 5: kept
+    [InlineData("""{ }""", HudConfig.DefaultInnCallX, HudConfig.DefaultInnCallY)]
+    public void The_inn_banners_old_default_places_move_to_the_new_default(string json, double x, double y)
+    {
+        var config = ConfigStore.Parse(json);
+        Assert.Equal((x, y), (config.InnCallX, config.InnCallY));
+        Assert.Equal(HudConfig.CurrentSettingsVersion, config.SettingsVersion);
+    }
+
+    /// <summary>The inn helper is 85% opaque by default (owner, 2026-10-22: "make sure the transparency is not 100%"); a saved value is kept.</summary>
+    [Fact]
+    public void The_inn_helper_is_see_through_by_default_and_a_saved_opacity_is_kept()
+    {
+        Assert.Equal(0.85, ConfigStore.Parse("{}").InnStripOpacity);
+        Assert.Equal(1.0, ConfigStore.Parse("""{ "InnStripOpacity": 1 }""").InnStripOpacity);
+    }
+
     [Fact]
     public void The_debug_panel_is_not_a_setting_so_an_old_config_cannot_turn_it_on()
     {

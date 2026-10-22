@@ -62,7 +62,7 @@ public class InnKitchenCircleTests(ITestOutputHelper output)
 
         Assert.Equal((Text("Inn.Kitchen.1"), Dish(A).Zh, Format("Inn.Call.ForTable", 4), A), (order.Label, order.Dish, order.Reason, order.PictureId));
         Assert.Equal((Text("Inn.Kitchen.2"), Dish(D).Zh, Text("Inn.Circle.CookAheadReason")), (ahead.Label, ahead.Dish, ahead.Reason));
-        Assert.Equal((Text("Inn.Kitchen.3"), Dish(B).Zh, Dish(D).Zh, B, true), (swap.Label, swap.Dish, swap.Reason, swap.PictureId, swap.ReasonStruck));
+        Assert.Equal((Text("Inn.Kitchen.3"), Dish(B).Zh, Format("Inn.Circle.SwapReason", Dish(D).Zh, 5), B), (swap.Label, swap.Dish, swap.Reason, swap.PictureId));
         Assert.Equal([InnCircleKind.Order, InnCircleKind.CookAhead, InnCircleKind.Swap], new[] { order.Kind, ahead.Kind, swap.Kind });
         Assert.Equal(3, new[] { order.KindWord, ahead.KindWord, swap.KindWord }.Distinct().Count());
         Assert.Equal(3, new[] { InnCircleKind.Order, InnCircleKind.CookAhead, InnCircleKind.Swap }.Select(InnKitchenCircleView.ColorOf).Distinct().Count());
@@ -291,7 +291,7 @@ public class InnKitchenCircleTests(ITestOutputHelper output)
     {
         string frame = Path.Combine(AppContext.BaseDirectory, "Fixtures", "inn", frameName);
         if (!File.Exists(frame)) return; // the test data submodule isn't there
-        string saved = Path.Combine(RepositoryRoot(), ".tracking", "changes", $"2026-10-22-inn-circles-fixed-AFTER-{(panelOpen ? "panel" : "session")}-{gourmands}-gourmands.png");
+        string saved = Path.Combine(RepositoryRoot(), ".tracking", "changes", $"2026-10-22-inn-layout-owner-{(panelOpen ? "panel" : "session")}-{gourmands}-gourmands.png");
         var circles = InnKitchenCircleView.Of([Order(1, A, 4), Ahead(2, D), Swap(3, D, B, 5)], Text);
         int[] tables = gourmands switch { 1 => [5], 3 => [1, 4, 6], _ => [1, 2, 3, 4, 5, 6] };
         int single = gourmands switch { 1 => 0, 3 => 4, _ => 2 };
@@ -311,16 +311,18 @@ public class InnKitchenCircleTests(ITestOutputHelper output)
             row.Update(circles);
             row.Settle();
             if (panelOpen) row.Emphasise(1);
-            var circleFrame = new Border { Child = grid, LayoutTransform = new ScaleTransform(circleScale, circleScale) };
+            // At the inn's default opacity, as a player sees them.
+            var circleFrame = new Border { Child = grid, LayoutTransform = new ScaleTransform(circleScale, circleScale), Opacity = HudConfig.DefaultInnStripOpacity };
             Canvas.SetLeft(circleFrame, place.Left);
             Canvas.SetTop(circleFrame, place.Top);
             canvas.Children.Add(circleFrame);
 
             var arrangement = InnGourmandLayout.Arrange(tiles, w, h, scale);
-            // Put away in place while the panel is open (their spots are over its dish cards).
-            for (int i = 0; i < (panelOpen ? 0 : tiles.Count); i++)
+            // Shown at their spots with the panel open or closed.
+            for (int i = 0; i < tiles.Count; i++)
             {
                 var tile = InnGourmandView.Tile(tiles[i], PackagePicture);
+                tile.Opacity = HudConfig.DefaultInnStripOpacity;
                 tile.LayoutTransform = new ScaleTransform(arrangement.Scale, arrangement.Scale);
                 Canvas.SetLeft(tile, arrangement.Places[i].X);
                 Canvas.SetTop(tile, arrangement.Places[i].Y);

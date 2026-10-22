@@ -9,7 +9,7 @@ namespace EndHud.Tests;
 
 /// <summary>
 /// Owner, 2026-10-22: "do not change the circle location, keep them at fixed location, like gourmand banners. user is
-/// very hard to trace things that are flying around". Each kitchen's circle stands at one place on the screen: with the
+/// very hard to trace things that are flying around"; "that must stay at the middle bottom, above the dishes in hands". Each kitchen's circle stands at one place on the screen: with the
 /// dispatch panel open or closed, one circle up or three, any kind of call, and that place is free of the game's own
 /// screen in both states.
 /// </summary>
@@ -104,11 +104,12 @@ public class InnCirclesFixedTests(ITestOutputHelper output)
     // ---- Clear of the game's screen ----
 
     /// <summary>
-    /// The row, at the player's default size and the largest (the size slider never grows it past its place): with the panel
-    /// open, over none of what the player needs on it (the dish cards, the kitchen tabs, the queue, the close button: only
-    /// the chefs' portraits and bonus column, which <see cref="InnScreenAreas.PanelLeftColumn"/> allows), and with it closed
-    /// over none of the game's HUD; nor over the gourmands' six spots or the inn's banners at their default place; inside the
-    /// window and in the middle 75% of its width (owner, 2026-10-22: "important things should be at the central view port").
+    /// The row, at the player's default size and the largest (the size slider never grows it past its place): centred, its
+    /// bottom right above the held-dishes tray (owner, 2026-10-22: "that must stay at the middle bottom, above the dishes in
+    /// hands"); with the panel closed over none of the game's HUD, nor the gourmands' six spots or the inn's banners at their
+    /// default place. With the panel open the same row covers the panel's lower part (the owner accepted that over another
+    /// style): how much of the dish cards and the queue it covers is written out, and it never reaches the tabs or the close
+    /// button.
     /// </summary>
     [Theory]
     [InlineData(1920, 1080, 1.0)]
@@ -122,13 +123,22 @@ public class InnCirclesFixedTests(ITestOutputHelper output)
         var row = InnKitchenCircleLayout.Place(width, height, scale);
         output.WriteLine($"{width}x{height} size {size}: x {row.Left / width:F4}-{row.Right / width:F4}, y {row.Top / height:F4}-{row.Bottom / height:F4} "
                          + $"({row.Width * 1080 / height:F0} x {row.Height * 1080 / height:F0} at 1080p)");
-        var avoid = InnScreenAreas.PanelOpen(width, height).Concat(InnScreenAreas.PanelClosed(width, height)).ToList();
+        var avoid = InnScreenAreas.PanelClosed(width, height).ToList();
+        avoid.Add(("the panel's kitchen tabs", InnScreenAreas.Of(InnScreenAreas.Tabs, width, height)));
+        avoid.Add(("the panel's close button", InnScreenAreas.Of(InnScreenAreas.Close, width, height)));
         for (int table = 1; table <= TableCardReader.Tables; table++) avoid.Add(($"gourmand table {table}'s spot", InnGourmandLayout.Spot(table, width, height)));
         avoid.Add(("the inn's banners", InnScreenAreas.Of(InnScreenAreas.Banners, width, height)));
+        foreach (var (what, where) in new[] { ("dish cards", InnScreenAreas.DishCards), ("queue", InnScreenAreas.Queue) })
+        {
+            var both = Rect.Intersect(row, InnScreenAreas.Of(where, width, height));
+            output.WriteLine(both.IsEmpty ? $"  panel open: over none of its {what}"
+                : $"  panel open: over its {what} at x {both.Left / width:F3}-{both.Right / width:F3}, y {both.Top / height:F3}-{both.Bottom / height:F3}");
+        }
 
         Assert.True(row.Left >= 0 && row.Top >= 0 && row.Right <= width && row.Bottom <= height, $"off the window: {row}");
-        Assert.True(row.Left >= 0.15 * width && row.Right <= 0.85 * width, $"not in the middle: x {row.Left / width:F3}-{row.Right / width:F3}");
-        Assert.True(InnScreenAreas.Of(InnScreenAreas.PanelLeftColumn, width, height).Contains(row), $"over the open panel outside its chefs' column: {row}");
+        Assert.True(Math.Abs((row.Left + row.Right) / 2 - width / 2.0) < 1, $"not centred: x {row.Left / width:F3}-{row.Right / width:F3}");
+        double trayTop = InnScreenAreas.Tray.Top * height;
+        Assert.True(row.Bottom <= trayTop && row.Bottom >= trayTop - 0.02 * height, $"not right above the tray: bottom {row.Bottom / height:F3}");
         foreach (var (what, where) in avoid) Assert.True(InnScreenAreas.Overlap(row, where) < 1, $"over {what}: {row} / {where}");
     }
 }

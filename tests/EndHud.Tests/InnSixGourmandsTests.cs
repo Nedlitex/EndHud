@@ -20,8 +20,11 @@ public class InnSixGourmandsTests(ITestOutputHelper output)
     /// <summary>The overlay's frame around the banners: its padding and border (OverlayWindow.xaml).</summary>
     private const double Frame = 6 + 2;
 
-    /// <summary>The game's Full Blaze meter on the right, as fractions of a 16:9 window (owner: about x 0.86–0.98, y 0.48–0.66; widened a little).</summary>
-    private static readonly Rect Meter = new(0.84, 0.47, 0.15, 0.20);
+    /// <summary>
+    /// The game's Full Blaze meter on the right, as fractions of a 16:9 window: from x 0.855 with 开启满堂彩 up
+    /// (session-fire-ready.jpg; 0.872 otherwise, session-fire-meter.jpg), y 0.50–0.645; widened a little in height.
+    /// </summary>
+    private static readonly Rect Meter = new(0.855, 0.47, 0.145, 0.20);
 
     /// <summary>The held-dishes tray, its 派单 button and the bar right of it (session-two-dishes.jpg: x 0.38–0.78, y 0.855–0.94).</summary>
     private static readonly Rect Tray = new(0.38, 0.855, 0.40, 0.085);
@@ -40,13 +43,6 @@ public class InnSixGourmandsTests(ITestOutputHelper output)
     /// <summary>The UID and ping in the lower-left corner (masked on the fixtures: x up to 0.26, y from 0.94).</summary>
     private static readonly Rect UidArea = new(0, 0.94, 0.26, 0.06);
 
-    /// <summary>
-    /// The session's HUD at the top left: 结束经营, the timer, the theme, its objective and the income, guests and dishes counts,
-    /// on every recorded theme down to y 0.475 (session-two-dishes.jpg, session-gourmand-soup-and-drink.jpg,
-    /// session-full-blaze-running.jpg, test_yuanyuan8 at 200 s and 300 s), x up to 0.28.
-    /// </summary>
-    private static readonly Rect TopLeftHud = new(0, 0, 0.285, 0.48);
-
     /// <summary>The status at the top right (the avatar, 结账中/空闲中, the line the avatar says under it): to y 0.195, from x 0.8.</summary>
     private static readonly Rect TopRightHud = new(0.8, 0, 0.2, 0.195);
 
@@ -54,11 +50,11 @@ public class InnSixGourmandsTests(ITestOutputHelper output)
         InnGourmandLayout.Arrange(banners, width, height, scale);
 
     /// <summary>
-    /// Six gourmands at their fixed spots (owner, test_yuanyuan8: "split the 6 gourmand table hints at the 6 corners of the
-    /// window, make the position FIXED"), one and two requests, at the player's default size: every tile inside the window and
-    /// its spot, none over the game's HUD at the top left or the top right, the table cards, the Full Blaze meter, the tray,
-    /// the open dispatch panel, the kitchens' circles in either of their places, the UID or another spot. Since a spot doesn't
-    /// depend on the panel, every one is checked against what the panel closed and the panel open both show.
+    /// Six gourmands at their fixed spots (owner, 2026-10-22: "should be roughly at where I draw"), one and two requests, at
+    /// the player's default size: every tile inside the window and its spot, none over the status at the top right, the table
+    /// cards, the Full Blaze meter, the tray, the kitchens' circles, the inn's banners, the UID or another spot; with the panel
+    /// open, none over its kitchen tabs or close button. The owner's left spots lie over the lower part of the top-left HUD
+    /// (the theme's line and the counts), as drawn.
     /// </summary>
     [Theory]
     [InlineData(1920, 1080)]
@@ -72,7 +68,8 @@ public class InnSixGourmandsTests(ITestOutputHelper output)
         {
             ("the circles", InnKitchenCircleLayout.Place(width, height, scale)),
             ("the inn's banners", InnScreenAreas.Of(InnScreenAreas.Banners, width, height)),
-            ("the UID", Of(UidArea)), ("the table cards", Of(new Rect(0.14, 0, 0.47, 0.135))), ("the HUD at the top left", Of(TopLeftHud)),
+            ("the UID", Of(UidArea)), ("the table cards", Of(new Rect(0.14, 0, 0.47, 0.135))),
+            ("the panel's kitchen tabs", Of(InnScreenAreas.Tabs)), ("the panel's close button", Of(InnScreenAreas.Close)),
             ("the status at the top right", Of(TopRightHud)), ("the Full Blaze meter", Of(Meter)),
             ("the held-dishes tray", Of(Tray)),
         };
@@ -100,10 +97,9 @@ public class InnSixGourmandsTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Owner, live 2026-10-21 (test_yuanyuan8): "split the 6 gourmand table hints at the 6 corners of the window, make the
-    /// position FIXED, so user does not need to chase around and not know what to look at". A table's tile stands at one
-    /// place: alone or with the other five (the panel can't move it: its state isn't an input of the layout). Tables 1–3 down
-    /// the left edge, 4–6 down the right, each column top to bottom.
+    /// Owner, live 2026-10-21 (test_yuanyuan8): "make the position FIXED, so user does not need to chase around and not know
+    /// what to look at". A table's tile stands at one place: alone or with the other five (the panel can't move it: its state
+    /// isn't an input of the layout).
     /// </summary>
     [Theory]
     [InlineData(1920, 1080)]
@@ -127,10 +123,31 @@ public class InnSixGourmandsTests(ITestOutputHelper output)
             Assert.True(places.Distinct().Count() == 1, $"table {all[i].Table} moves: {string.Join(" ", places.Distinct())}");
             at.Add(places[0]);
         }
-        // Two rows of three in the middle: tables 1-3 on top, 4-6 under them, each row left to right.
-        Assert.True(at[0].Y == at[1].Y && at[1].Y == at[2].Y && at[3].Y == at[4].Y && at[4].Y == at[5].Y && at[0].Y < at[3].Y, "two rows");
-        Assert.True(at[0].X < at[1].X && at[1].X < at[2].X && at[3].X < at[4].X && at[4].X < at[5].X, "left to right");
-        Assert.All(at, p => Assert.True(p.X >= 0.2 * width && p.X + InnGourmandLayout.SpotWidth * height / 1080 <= 0.8 * width, $"not in the middle: {p}"));
+    }
+
+    /// <summary>
+    /// Owner, 2026-10-22: "the left 3 banner for gourmand should be table 1-3, right should be 4-6, make sure you do it this
+    /// way"; "the gourmand location IS TOO close to center! should be roughly at where I draw". Tables 1, 2, 3 down the left
+    /// of the screen, top to bottom, x 0.11–0.24 as drawn; 4, 5, 6 down the right, top to bottom, x 0.73–0.91.
+    /// </summary>
+    [Theory]
+    [InlineData(1920, 1080)]
+    [InlineData(3840, 2160)]
+    [InlineData(2560, 1080)]
+    public void Tables_1_to_3_go_down_the_left_and_4_to_6_down_the_right(int width, int height)
+    {
+        double unit = Math.Min(width / 16.0, height / 9.0), areaLeft = (width - unit * 16) / 2, areaWidth = unit * 16;
+        var spots = Enumerable.Range(1, TableCardReader.Tables).Select(t => InnGourmandLayout.Spot(t, width, height)).ToList();
+        double X(double x) => (x - areaLeft) / areaWidth;
+        for (int t = 1; t <= 6; t++)
+            output.WriteLine($"table {t}: x {X(spots[t - 1].Left):F3}-{X(spots[t - 1].Right):F3}, y {spots[t - 1].Top / height:F3}-{spots[t - 1].Bottom / height:F3}");
+        for (int t = 0; t < 3; t++)
+        {
+            Assert.True(spots[t].Right <= width / 2.0 && X(spots[t].Left) >= 0.10 && X(spots[t].Right) <= 0.25, $"table {t + 1} not at the left: {spots[t]}");
+            Assert.True(spots[t + 3].Left >= width / 2.0 && X(spots[t + 3].Left) >= 0.72 && X(spots[t + 3].Right) <= 0.92, $"table {t + 4} not at the right: {spots[t + 3]}");
+        }
+        Assert.True(spots[0].Bottom <= spots[1].Top && spots[1].Bottom <= spots[2].Top, "left column: tables 1, 2, 3 top to bottom");
+        Assert.True(spots[3].Bottom <= spots[4].Top && spots[4].Bottom <= spots[5].Top, "right column: tables 4, 5, 6 top to bottom");
     }
 
     /// <summary>The player's size makes the tiles smaller, never larger than their spot (a larger one would cover the game's HUD or the panel).</summary>

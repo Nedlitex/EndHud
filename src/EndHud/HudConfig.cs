@@ -137,16 +137,18 @@ internal sealed class HudConfig
     public bool InnSwapsEnabled { get; set; } = true;
 
     /// <summary>
-    /// Where the inn's banners (开启满堂彩, the last call) sit (their top-left corner), as a fraction of the game window; by
-    /// default where the combo-ready hint does (it isn't shown in the inn). Settings version 4 moved that default to the
-    /// middle (0.43, 0.52); version 5 puts it back (the middle is the kitchens' circles' and the panel's).
+    /// Where the inn's banners (开启满堂彩, the last call) sit (their top-left corner), as a fraction of the game window. By
+    /// default at the combo-ready hint's height (it isn't shown in the inn), just right of it: the combo hint's own place
+    /// (0.2, 0.36), the default until settings version 4, is over gourmand table 1's tile now (<see cref="InnGourmandLayout"/>,
+    /// to x 0.236), so the banners start at x 0.25. Version 4's default, the middle (0.43, 0.52), is moved here too: the
+    /// middle is the kitchens' circles' and the open panel's.
     /// </summary>
     public double InnCallX { get; set; } = DefaultInnCallX;
 
     public double InnCallY { get; set; } = DefaultInnCallY;
 
     /// <summary>The inn's banners' default place (<see cref="InnCallX"/>, <see cref="InnCallY"/>).</summary>
-    public const double DefaultInnCallX = DefaultComboHintX, DefaultInnCallY = DefaultComboHintY;
+    public const double DefaultInnCallX = 0.25, DefaultInnCallY = DefaultComboHintY;
 
     /// <summary>The banners' default place in settings version 4 only (<see cref="InnCallX"/>): moved back by version 5.</summary>
     public const double Version4InnCallX = 0.43, Version4InnCallY = 0.52;
@@ -236,12 +238,14 @@ internal static class ConfigStore
             // OverlayWindow.Gauges), so a 50% then was never the player's choice.
             if (config.GaugesScale == HudConfig.MinGaugesScale) config.GaugesScale = 1;
         }
-        if (config.SettingsVersion == 4)
+        if (config.SettingsVersion is null or < 5)
         {
-            // Version 4 moved the inn's banners' default to the middle, and every start saved it: that place then was the
-            // default, not the player's choice. Back at the combo hint's place (version 5); before 4 the default was already that.
-            if (config.InnCallX == HudConfig.Version4InnCallX && config.InnCallY == HudConfig.Version4InnCallY)
-                (config.InnCallX, config.InnCallY) = (HudConfig.DefaultInnCallX, HudConfig.DefaultInnCallY);
+            // Every start saved the inn's banners' place, so the default of the version that saved it was never the player's
+            // choice: the combo hint's place up to version 3, the middle in version 4. Both move to version 5's default.
+            bool oldDefault = config.SettingsVersion == 4
+                ? config.InnCallX == HudConfig.Version4InnCallX && config.InnCallY == HudConfig.Version4InnCallY
+                : config.InnCallX == HudConfig.DefaultComboHintX && config.InnCallY == HudConfig.DefaultComboHintY;
+            if (oldDefault) (config.InnCallX, config.InnCallY) = (HudConfig.DefaultInnCallX, HudConfig.DefaultInnCallY);
         }
         config.SettingsVersion = HudConfig.CurrentSettingsVersion;
         // A hand-edited size outside what the slider offers would hide the gauges or fill the screen.

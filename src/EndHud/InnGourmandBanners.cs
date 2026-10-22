@@ -299,12 +299,13 @@ internal sealed class InnWantsHold
 /// 4, 5, 6 down the right. Each tile is centred on its spot's centre (<see cref="Centers"/>, fractions of the window's
 /// centred 16:9 area):
 /// <list type="bullet">
-/// <item>Left, x 0.11–0.24 drawn: tables 1, 2, 3 centred at y 0.35, 0.60, 0.825.</item>
-/// <item>Right, x 0.76–0.91 drawn: tables 4, 6 centred at x 0.835, y 0.35 and 0.795; table 5 at y 0.55, moved left just
-/// enough to end at x 0.865, clear of the game's Full Blaze meter (x 0.87–0.985, y 0.52–0.645 on the 4K frames).</item>
+/// <item>Left, x 0.11–0.24 drawn: tables 1, 2, 3 centred at y 0.36 (just under the open panel's kitchen tabs), 0.60, 0.825.</item>
+/// <item>Right, x 0.76–0.91 drawn: tables 4, 6 centred at x 0.835, y 0.36 and 0.795; table 5 at y 0.55, moved left just
+/// enough to end at x 0.85, clear of the game's Full Blaze meter (from x 0.855 with 开启满堂彩 up, y 0.50–0.645, on the 4K frames).</item>
 /// </list>
 /// The same with the dispatch panel open, and shown there (never put away): the left ones then lie over the panel's chef
-/// column and the right ones over the right edge of its right dish-card column (which ends at x 0.855). The player's size
+/// column and the right ones over the right part of its right dish-card column (to x 0.855: the dishes' names' ends and
+/// their points; accepted for the owner's spots). The player's size
 /// makes the tiles smaller, never larger than their spot.
 /// </summary>
 internal static class InnGourmandLayout
@@ -316,8 +317,8 @@ internal static class InnGourmandLayout
     /// <summary>Each table's spot's centre (tables 1 to 6), as fractions of the 16:9 area.</summary>
     public static readonly IReadOnlyList<Point> Centers =
     [
-        new(0.175, 0.35), new(0.175, 0.60), new(0.175, 0.825),
-        new(0.835, 0.35), new(0.865 - 0.0610, 0.55), new(0.835, 0.795),
+        new(0.175, 0.36), new(0.175, 0.60), new(0.175, 0.825),
+        new(0.835, 0.36), new(0.85 - 0.0610, 0.55), new(0.835, 0.795),
     ];
 
     /// <summary>
