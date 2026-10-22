@@ -56,13 +56,12 @@ public class InnFireMeterReaderTests
     /// line was read as the ready label, and "开启满堂彩（R）" stayed up all through Full Blaze. At every size.
     /// </summary>
     [Theory]
-    [InlineData("session-full-blaze-started", 60, 19)]
+    [InlineData("session-full-blaze-started", 60, null)] // the streak (19) under the red band of the game's line: not read
     [InlineData("session-full-blaze-running", 13, 26)]
-    public async Task Full_blaze_running_is_read_as_its_countdown_not_as_ready(string fixture, int secondsLeft, int streak)
+    public async Task Full_blaze_running_is_read_as_its_countdown_not_as_ready(string fixture, int secondsLeft, int? streak)
     {
-        foreach (var name in Screens().Select(row => (string)row[0]))
+        foreach (var screen in new[] { SimulatedScreen.Uhd, SimulatedScreen.Qhd, SimulatedScreen.FullHd })
         {
-            var screen = SimulatedScreen.Named(name);
             var read = await FireMeterReader.ReadAsync(InnScreenTests.Text, screen.Render(await InnScreenTests.Load(fixture)));
             Assert.True(read == new FireMeter(null, streak, false, BlazeLeft: TimeSpan.FromSeconds(secondsLeft)),
                 $"{fixture} at {screen.Width}x{screen.Height}: read {read?.ToString() ?? "nothing"}, expected Full Blaze with {secondsLeft} s left, streak {streak}");

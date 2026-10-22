@@ -75,6 +75,36 @@ public class FullBlazeTests
         Assert.False(tracker.Running);
     }
 
+    /// <summary>
+    /// test_yuanyuan5 (owner's live session 2026-10-21): Full Blaze started at about 333 s; the meter then showed its
+    /// countdown, which the reader didn't know, so the tracker never saw the ready button go and "开启满堂彩（R）" stayed up to
+    /// the end. The countdown read makes it running for what the countdown says, and a ready read meanwhile (the game's
+    /// "满堂生彩" line over the red circle) changes nothing. Once it's over, a full meter is advised again.
+    /// </summary>
+    [Fact]
+    public void Full_blaze_read_running_takes_the_reminder_down_until_it_is_over()
+    {
+        var tracker = new FullBlazeTracker();
+        tracker.Update(S(320), true, null, true);
+        Assert.Equal(FullBlazeAdvice.StartNow, FullBlazeAdvisor.Advise(100, tracker.Running, S(60), 2, null, tracker.FullFor));
+
+        tracker.Update(S(333), null, null, true); // fading as it starts: nothing read
+        tracker.Update(S(334), false, S(60), true);
+        Assert.True(tracker.Running);
+        Assert.Null(FullBlazeAdvisor.Advise(100, tracker.Running, S(50), 2, null, tracker.FullFor));
+        tracker.Update(S(350), true, null, true); // the game's own line read as the ready label
+        Assert.True(tracker.Running);
+        Assert.Equal(TimeSpan.Zero, tracker.FullFor);
+        tracker.Update(S(380), false, S(14), true);
+        Assert.Equal(S(14), tracker.RunningLeft);
+
+        tracker.Update(S(395), false, null, true);
+        Assert.False(tracker.Running);
+        tracker.Update(S(500), true, null, true); // full again, later
+        Assert.False(tracker.Running);
+        Assert.Equal(FullBlazeAdvice.StartNow, FullBlazeAdvisor.Advise(100, tracker.Running, S(30), 2, null, tracker.FullFor));
+    }
+
     /// <summary>The ready button going because the session ended (the results screen) isn't Full Blaze.</summary>
     [Fact]
     public void The_session_ending_is_not_full_blaze()
