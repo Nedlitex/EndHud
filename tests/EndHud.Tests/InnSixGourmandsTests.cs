@@ -105,6 +105,33 @@ public class InnSixGourmandsTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// Owner, live 2026-10-21 (test_yuanyuan8): "split the 6 gourmand table hints at the 6 corners of the window, make the
+    /// position FIXED, so user does not need to chase around and not know what to look at". A table's tile stands at one
+    /// place: alone or with the other five, with the dispatch panel closed or open.
+    /// </summary>
+    [Theory]
+    [InlineData(1920, 1080)]
+    [InlineData(2560, 1440)]
+    [InlineData(3840, 2160)]
+    public void Each_tables_tile_has_one_fixed_place(int width, int height)
+    {
+        var all = InnGourmandView.Banners(InnKitchenCircleTests.SixGourmandsWants(), Text);
+        double scale = ComboHintLayout.Scale(height, dpiScale: 1);
+        for (int i = 0; i < all.Count; i++)
+        {
+            var places = new List<Point>();
+            foreach (bool panelOpen in new[] { false, true })
+            {
+                places.Add(Arrange(all, width, height, scale, panelOpen).Places[i]);
+                places.Add(Arrange([all[i]], width, height, scale, panelOpen).Places[0]);
+                places.Add(Arrange([.. all.Take(i + 1)], width, height, scale, panelOpen).Places[i]);
+            }
+            output.WriteLine($"table {all[i].Table}: {string.Join("  ", places.Select(p => $"({p.X:F0}, {p.Y:F0})"))}");
+            Assert.True(places.Distinct().Count() == 1, $"table {all[i].Table} moves: {string.Join(" ", places.Distinct())}");
+        }
+    }
+
     private static double Overlap(Rect a, Rect b)
     {
         var both = Rect.Intersect(a, b);
