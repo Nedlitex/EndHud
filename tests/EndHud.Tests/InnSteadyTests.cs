@@ -454,6 +454,38 @@ public class InnSteadyTests
         Assert.Contains(advice.Calls, c => c is { Kind: InnCallKind.Queue, Kitchen: 1, Table: 2 } && c.Dish!.Id == E);
     }
 
+    /// <summary>
+    /// The same when the player puts the dish called in another kitchen than the call's (test_yuanyuan5 at 00:44: 福寿全
+    /// called for kitchen 2, queued in kitchen 1, then "先拿掉福寿全，再排这个" there): it was queued because a call said so.
+    /// </summary>
+    [Fact]
+    public void A_dish_called_for_one_kitchen_and_queued_in_another_is_not_called_out_again()
+    {
+        var session = NewSession();
+        session.Update(SetupScreen(0, 1, 2));
+        session.Update(MenuScreen(1, Dishes));
+        session.Update(Session(10));
+        var told = Assert.Single(session.Advice(S(10))!.Calls, c => c.Kitchen == 2);
+        Assert.Equal(InnCallKind.CookAhead, told.Kind);
+        string x = told.Dish!.Id;
+        var others = Dishes.Where(d => d != x && d != E).Take(KitchenQueue.Slots).ToArray();
+
+        // Kitchen 2 filled with other dishes, and the dish called for kitchen 2 put in kitchen 1.
+        var two = Panel(2, 2, Dishes, [.. others.Select(d => (d, (int?)Dish(d).CookSeconds))]);
+        session.Update(Session(11, panel: two));
+        session.Update(Session(11.3, panel: two));
+        var one = Panel(1, 2, Dishes, (x, Dish(x).CookSeconds - 1));
+        session.Update(Session(11.6, panel: one));
+        session.Update(Session(11.9, panel: one));
+        session.Advice(S(11.9));
+        var closed = new SessionClock(S(296), false) { BelowButton = true };
+        session.Update(Session(13, tables: Tables(Order(2, E))) with { Clock = closed });
+        session.Update(Session(13.3, tables: Tables(Order(2, E))) with { Clock = closed });
+
+        var advice = session.Advice(S(13.3))!;
+        Assert.DoesNotContain(advice.Calls, c => c.Kind == InnCallKind.Swap);
+    }
+
     // ---- The gourmands' banners ----
 
     private static InnAdvice Gourmand(params (string Id, double ReadyIn)[] options) => Gourmand(1, options);

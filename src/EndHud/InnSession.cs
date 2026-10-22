@@ -163,6 +163,9 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     private List<string>? _trayChange;
     // Dishes in a kitchen's queue the player put there because a call said so (InnState.QueuedAsCalled), by kitchen and dish.
     private readonly Dictionary<(int Kitchen, string Id), int> _asCalled = [];
+    // What each kitchen's Queued count was at the last advice (a dish added since is the player's doing), and the calls then shown.
+    private readonly Dictionary<(int Kitchen, string Id), int> _queuedSeen = [];
+    private IReadOnlyList<InnCall> _shownCalls = [];
     // _lateTray: dishes the tray still showed after they were read served (a tray a few frames late).
     private readonly List<(string Id, TimeSpan At)> _leftHand = [], _servedFromHand = [], _lateTray = [];
     private readonly Dictionary<int, GourmandMemory> _gourmands = [];
@@ -364,6 +367,8 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         _servedFromHand.Clear();
         _lateTray.Clear();
         _asCalled.Clear();
+        _queuedSeen.Clear();
+        _shownCalls = [];
         _gourmands.Clear();
         _gourmandLeaving.Clear();
         _gourmandsDone.Clear();
@@ -946,6 +951,19 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
                 unreadable, exact, !_ordersSeen);
 
         var queues = kitchens!.Kitchens.Select(k => Kitchen(k.Number).Queue).ToList();
+        // A dish the player put in a queue while a call named it (in that kitchen or another: test_yuanyuan5 at 00:44, 福寿全
+        // called in kitchen 2 and queued in kitchen 1, then "先拿掉福寿全，再排这个" there) was queued as called.
+        foreach (var kitchen in kitchens!.Kitchens)
+        {
+            var memory = Kitchen(kitchen.Number);
+            foreach (string id in memory.Queue.Dishes.Select(d => d.Dish.Id).Distinct().ToList())
+            {
+                int queued = memory.Queued(id), before = _queuedSeen.GetValueOrDefault((kitchen.Number, id));
+                if (queued > before && _shownCalls.Any(c => c.Kind is InnCallKind.Queue or InnCallKind.CookAhead or InnCallKind.Swap && c.Dish?.Id == id))
+                    _asCalled[(kitchen.Number, id)] = _asCalled.GetValueOrDefault((kitchen.Number, id)) + queued - before;
+                _queuedSeen[(kitchen.Number, id)] = queued;
+            }
+        }
         // Of the dishes queued as a call said, those still in their queue (a dish taken out, or the estimate's queue put
         // right by the panel, leaves fewer).
         foreach (var ((k, id), n) in _asCalled.ToList())
@@ -1005,9 +1023,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             notes.Add(new InnGourmandNote(table, new GourmandAdvisor(advisor).Advise(memory.Requests, state, drinks), null, drinksUnknown));
         }
         var calls = _calls.Update(dispatch, blaze, view, now);
-        // A call done: its dish is in its kitchen's queue as the call said, never to be swapped out again by the advice.
-        foreach (var done in _calls.DoneCalls)
-            if (done is { Kitchen: { } k, Dish: { } d }) _asCalled[(k, d.Id)] = _asCalled.GetValueOrDefault((k, d.Id)) + 1;
+        _shownCalls = calls;
         return new InnAdvice(dispatch, null, blaze, _blaze.Running, notes, unreadable, exact, !_ordersSeen)
         {
             Calls = calls,
