@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Windows.Media.Imaging;
 using EndHud.Vision;
 using EndHud.Vision.Operators;
@@ -7,20 +8,26 @@ namespace EndHud;
 
 /// <summary>
 /// What the gauges show for a reading: first the team buffs seen this battle (Link), lit while
-/// active, with their stacks (one ring segment each, the count in the corner); then per recognised operator, in slot order, their ultimate's charge and their own
-/// counters (Zhuang Fangyi's Sunderblade, Typhoeus's Hunting Arrow and Sign, …). An operator not recognised yet has no
+/// active, with their stacks (one ring segment each, the count in the corner); then per recognised operator, in slot order, their ultimate's charge,
+/// a lasting battle skill's time left while it runs (Si's), and their own
+/// counters (Zhuang Fangyi's Sunderblade, Typhoeus's Hunting Arrow and Sign, Si's damage stacks, …). An operator not recognised yet has no
 /// gauges: there'd be no avatar or counter to show. A buff shows once it has been seen in the battle,
 /// so a squad that never gets it isn't shown an empty circle for it.
 /// </summary>
 internal static class GaugesView
 {
+    /// <summary>
+    /// For a replay of readings that has no battle-skill buttons in it (the README's demo): no
+    /// skill timers, because none can be known.
+    /// </summary>
     public static GaugeBoard Build(PartyState state, IReadOnlyList<RememberedCounter> counters, IReadOnlyList<string> buffsSeen,
-        IReadOnlyDictionary<string, SkillTimerView> timers,
         Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, Func<string, BitmapSource?> statusIcon) =>
-        Build(state, counters, buffsSeen, skillIcon, avatar, statusIcon);
+        Build(state, counters, buffsSeen, new Dictionary<string, SkillTimerView>(), skillIcon, avatar, statusIcon);
 
     /// <param name="buffsSeen">Buffs seen so far this battle (the reading's own included), in the order first seen.</param>
+    /// <param name="timers">Lasting battle skills running now (Si's), by operator id (see <see cref="SkillTimer"/>).</param>
     public static GaugeBoard Build(PartyState state, IReadOnlyList<RememberedCounter> counters, IReadOnlyList<string> buffsSeen,
+        IReadOnlyDictionary<string, SkillTimerView> timers,
         Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, Func<string, BitmapSource?> statusIcon)
     {
         var gauges = new List<Gauge>();
@@ -49,14 +56,25 @@ internal static class GaugesView
                     state.UltimateTimeLeft, false) { Running = true, Fallen = slot.Dead, FirstOfOperator = true }
                 : new Gauge(GaugeKind.Ultimate, face, skillIcon(op, StepAction.Ultimate), Loc.Get("Gauge.Ultimate"),
                     slot.Ultimate?.Progress, slot.Ultimate?.Ready == true) { Fallen = slot.Dead, FirstOfOperator = true });
+            // A lasting battle skill running (Si's): its time left, draining; the seconds in the corner,
+            // "≈" when estimated because the ring couldn't be read.
+            if (timers.TryGetValue(op.Id, out var timer))
+                gauges.Add(new Gauge(GaugeKind.SkillTimer, face, null, Loc.Get("Gauge.SkillRunning"), timer.LeftShare, false)
+                {
+                    Running = true,
+                    Number = (timer.Estimated ? "≈" : "") + Math.Ceiling(timer.SecondsLeft).ToString(CultureInfo.InvariantCulture),
+                    Fallen = slot.Dead,
+                });
             foreach (var counter in counters.Where(c => c.OperatorId == op.Id))
             {
+                // Uncapped (Si's stacks): the number alone, large; no ring of segments out of a maximum.
+                bool uncapped = counter.Counter.Uncapped;
                 int max = counter.Counter.Max;
                 gauges.Add(new Gauge(GaugeKind.Counter, face, null, counter.Counter.NameZh,
-                    counter.Value is { } v ? v / (double)max : null, counter.Value == max)
+                    uncapped ? null : counter.Value is { } v ? v / (double)max : null, !uncapped && counter.Value == max)
                 {
-                    Number = counter.Value?.ToString() ?? "?",
-                    Segments = max,
+                    Number = counter.Value?.ToString(CultureInfo.InvariantCulture) ?? "?",
+                    Segments = uncapped ? 0 : max,
                     Live = counter.Live,
                     Fallen = slot.Dead,
                 });

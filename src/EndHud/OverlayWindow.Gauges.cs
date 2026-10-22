@@ -18,6 +18,10 @@ public partial class OverlayWindow
 {
     private readonly CounterMemory _counterMemory = new();
     private readonly List<string> _buffsSeen = []; // this battle, in the order first seen
+    // Lasting battle skills (Si's), by operator id: when each started, across readings; and what the
+    // last reading showed, for a redraw between readings.
+    private readonly Dictionary<string, SkillTimer> _skillTimers = [];
+    private IReadOnlyDictionary<string, SkillTimerView> _timerViews = new Dictionary<string, SkillTimerView>();
     private readonly Dictionary<string, BitmapSource?> _statusIcons = [];
     private GaugeBoard? _gauges;
     private string? _gaugeKey;
@@ -36,12 +40,26 @@ public partial class OverlayWindow
             // A new battle starts from what it shows.
             _counterMemory.Clear();
             _buffsSeen.Clear();
+            _skillTimers.Clear();
         }
         if (state is not null && inBattle) _buffsSeen.AddRange(state.Buffs.Select(b => b.Id).Except(_buffsSeen).ToList());
+        _timerViews = state is not null && inBattle ? TrackSkillTimers(state) : new Dictionary<string, SkillTimerView>();
         _gauges = state is not null && inBattle && _config.GaugesEnabled && _config.PartyOcrEnabled
-            ? GaugesView.Build(state, _counterMemory.Update(state), _buffsSeen, SkillIcon, Avatar, StatusIcon)
+            ? GaugesView.Build(state, _counterMemory.Update(state), _buffsSeen, _timerViews, SkillIcon, Avatar, StatusIcon)
             : null;
         RenderGauges();
+    }
+
+    /// <summary>Each lasting battle skill in the squad (Si's) given this reading of its button: what to show now.</summary>
+    private Dictionary<string, SkillTimerView> TrackSkillTimers(PartyState state)
+    {
+        var views = new Dictionary<string, SkillTimerView>();
+        foreach (string id in state.Slots.Select(s => s.Operator?.Operator.Id).OfType<string>().Where(id => id == "Si").Distinct())
+        {
+            if (!_skillTimers.TryGetValue(id, out var timer)) _skillTimers[id] = timer = new SkillTimer(Vision.SkillRing.SiDuration);
+            if (timer.Update(state.SkillRings.FirstOrDefault(r => r.OperatorId == id), _clock.Elapsed) is { } view) views[id] = view;
+        }
+        return views;
     }
 
     private void RenderGauges()
@@ -62,7 +80,7 @@ public partial class OverlayWindow
     {
         if (_lastState is { } state && _gauges is not null)
         {
-            _gauges = GaugesView.Build(state, _counterMemory.Update(state), _buffsSeen, SkillIcon, Avatar, StatusIcon);
+            _gauges = GaugesView.Build(state, _counterMemory.Update(state), _buffsSeen, _timerViews, SkillIcon, Avatar, StatusIcon);
             RenderGauges();
         }
     }

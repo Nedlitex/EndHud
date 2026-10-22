@@ -26,6 +26,7 @@
     <sys:String x:Key="Gauge.Combo">连携技</sys:String>
     <sys:String x:Key="Gauge.Ultimate">终结技</sys:String>
     <sys:String x:Key="Gauge.UltimateRunning">持续中</sys:String>
+    <sys:String x:Key="Gauge.SkillRunning">战技持续</sys:String>
     <sys:String x:Key="Gauge.Counter">计数</sys:String>
     <sys:String x:Key="Gauge.Buff">连击</sys:String>
     <sys:String x:Key="Gauge.Sample">示例</sys:String>
