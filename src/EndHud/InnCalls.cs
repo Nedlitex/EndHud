@@ -113,8 +113,9 @@ internal sealed class InnCallHold
     public IReadOnlyList<string> Changes => _changes;
 
     /// <param name="Queued">The kitchen's <see cref="InnKitchenView.Queued"/> for the call's dish when it was first shown.</param>
+    /// <param name="ShownAt">When it was first shown.</param>
     /// <param name="InvalidSince">When it was first found no longer valid (and has been since); null while it stands.</param>
-    private sealed record Held(InnCall Call, int Queued, TimeSpan? InvalidSince = null);
+    private sealed record Held(InnCall Call, int Queued, TimeSpan ShownAt, TimeSpan? InvalidSince = null);
 
     /// <summary>
     /// The calls on screen for the advice to keep (<see cref="DispatchAdvisor.Advise(InnState, bool, IReadOnlyList{KeptCall})"/>):
@@ -203,9 +204,11 @@ internal sealed class InnCallHold
             _changes.Add($"{held.Call.Key} dropped: {why}");
         }
 
+        // A dish another kitchen's circle shows (owner, 2026-10-21: one dish in one circle, unless two tables each need it).
+        bool ShownElsewhere(string dish, int kitchen) => _held.Any(h => h.Key != kitchen && h.Value.Call.Dish?.Id == dish);
         foreach (var advice in dispatch.Kitchens.OrderBy(k => k.Kitchen))
         {
-            var candidate = Candidate(advice, wanted);
+            var candidate = Candidate(advice, wanted, dish => ShownElsewhere(dish, advice.Kitchen));
             if (_held.TryGetValue(advice.Kitchen, out var held))
             {
                 if (candidate is null || candidate.Key == held.Call.Key) continue;
@@ -216,7 +219,7 @@ internal sealed class InnCallHold
                 _changes.Add($"{held.Call.Key} beaten by {candidate.Key}");
             }
             if (candidate is null || !Claim(candidate)) continue;
-            _held[advice.Kitchen] = new Held(candidate, candidate.Dish is { } dish ? view.Queued(advice.Kitchen, dish.Id) : 0);
+            _held[advice.Kitchen] = new Held(candidate, candidate.Dish is { } dish ? view.Queued(advice.Kitchen, dish.Id) : 0, now);
         }
 
         // An order the advice sends to a kitchen whose call stands for something else: a kitchen with no call, one only
@@ -239,7 +242,30 @@ internal sealed class InnCallHold
                 _changes.Add(kept.InvalidSince is null ? $"{kept.Call.Key} replaced by {call.Key}, an order before a dish to cook ahead"
                     : $"{kept.Call.Key} replaced by {call.Key}, an order (it no longer stood)");
             }
-            _held[free.Kitchen] = new Held(call, view.Queued(free.Kitchen, order.Dish.Id));
+            _held[free.Kitchen] = new Held(call, view.Queued(free.Kitchen, order.Dish.Id), now);
+        }
+
+        // One dish in one circle (owner, 2026-10-21, test_yuanyuan7 at 00:46: 八宝饭 for table 3 in kitchen 1 and to cook ahead in
+        // kitchen 3, "duplicated in multiple kitchens"): a dish to cook ahead whose dish another circle shows gives way, to an
+        // order or swap, or to a dish to cook ahead shown before it; its kitchen takes the next dish its advice cooks ahead that
+        // no circle shows, or shows nothing. Two orders of a dish for two tables stay: each names its own table.
+        foreach (var (number, held) in _held.Where(h => h.Value.Call.Kind == InnCallKind.CookAhead)
+                     .OrderByDescending(h => h.Value.ShownAt).ThenByDescending(h => h.Key).ToList())
+        {
+            var other = _held.Where(o => o.Key != number && o.Value.Call.Dish?.Id == held.Call.Dish!.Id
+                                         && (o.Value.Call.Kind != InnCallKind.CookAhead || o.Value.ShownAt < held.ShownAt || (o.Value.ShownAt == held.ShownAt && o.Key < number)))
+                .Select(o => (int?)o.Key).FirstOrDefault();
+            if (other is null) continue;
+            if (claimed.Remove(number)) Release(held.Call);
+            _held.Remove(number);
+            var next = cooking.TryGetValue(number, out var advice) ? Candidate(advice, wanted, dish => ShownElsewhere(dish, number)) : null;
+            if (next is not null && view.HasRoom(number) && Claim(next))
+            {
+                _held[number] = new Held(next, next.Dish is { } dish ? view.Queued(number, dish.Id) : 0, now);
+                claimed.Add(number);
+                _changes.Add($"{held.Call.Key} replaced by {next.Key}: {DishShown} {other}");
+            }
+            else _changes.Add($"{held.Call.Key} dropped: {DishShown} {other}");
         }
 
         var calls = new List<InnCall>();
@@ -250,8 +276,14 @@ internal sealed class InnCallHold
         return [.. calls.OrderBy(c => c.Order.Group).ThenBy(c => c.Order.Number)];
     }
 
-    /// <summary>The kitchen's first call in this moment's advice: a swap, else the first dish to queue, an order not called elsewhere.</summary>
-    private static InnCall? Candidate(KitchenAdvice advice, Dictionary<(string Dish, int Table), int> wanted)
+    /// <summary>Why a dish to cook ahead gave way: the kitchen named after it shows the same dish ("dropped: …", the replay's trace).</summary>
+    public const string DishShown = "its dish is shown in kitchen";
+
+    /// <summary>
+    /// The kitchen's first call in this moment's advice: a swap, else the first dish to queue, an order not called elsewhere, a
+    /// dish to cook ahead that no other circle shows (<paramref name="shownElsewhere"/>).
+    /// </summary>
+    private static InnCall? Candidate(KitchenAdvice advice, Dictionary<(string Dish, int Table), int> wanted, Func<string, bool> shownElsewhere)
     {
         foreach (var swap in advice.Replaces)
             if (wanted.GetValueOrDefault((swap.Put.Id, swap.Table)) > 0)
@@ -259,6 +291,7 @@ internal sealed class InnCallHold
         foreach (var q in advice.Queue)
         {
             if (wanted.GetValueOrDefault((q.Dish.Id, q.Table ?? -advice.Kitchen)) <= 0) continue; // called in another kitchen
+            if (q.Table is null && shownElsewhere(q.Dish.Id)) continue; // one dish in one circle
             return q.Table is { } table ? new InnCall(InnCallKind.Queue, advice.Kitchen, q.Dish, table) : new InnCall(InnCallKind.CookAhead, advice.Kitchen, q.Dish);
         }
         return null;

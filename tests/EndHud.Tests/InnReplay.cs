@@ -244,8 +244,9 @@ internal sealed class InnReplay
                 bool done = step.Why.Contains($"{held.Call.Key} dropped: done", StringComparison.Ordinal);
                 bool order = now is { Kind: InnCallKind.Queue or InnCallKind.Swap };
                 bool full = step.Why.Contains($"{held.Call.Key} dropped: the kitchen", StringComparison.Ordinal);
+                bool gaveWay = GaveWayToSameDish(step, held.Call);
                 bool over = !step.CooksAhead || step.AheadTooLate.Contains(k);
-                if (!done && !order && !full && !over)
+                if (!done && !order && !full && !gaveWay && !over)
                     list.Add((step.At, k, held.Call.Dish!.Id, (step.At - held.At).TotalSeconds, now is null ? "gone" : $"-> {now.Key}"));
             }
             foreach (var (k, call) in step.Kitchens)
@@ -629,6 +630,7 @@ internal sealed class InnReplay
         var step = Steps[i];
         if (step.Why.Contains($"{call.Key} dropped: done", StringComparison.Ordinal)) return true;
         if (step.Why.Contains($"{call.Key} dropped: the kitchen", StringComparison.Ordinal)) return true;
+        if (GaveWayToSameDish(step, call)) return true;
         // The advice stopped altogether (the inn closing: the last call).
         if (step.Open.Count == 0 && !step.CooksAhead && call.Kind is InnCallKind.Queue or InnCallKind.Swap) return true;
         // Its order: its dish out on the counter now, or served (a table's card read with that dish newly served), or the
@@ -647,6 +649,15 @@ internal sealed class InnReplay
         // is out first; so the call may go that long after.
         return QueuedWithin(i, step.At - TimeSpan.FromSeconds(DispatchAdvisor.BarelyStartedSeconds) - InnCallHold.GraceSeconds - TimeSpan.FromSeconds(0.5), kitchen);
     }
+
+    /// <summary>
+    /// A dish to cook ahead gave way on that step because another kitchen's circle shows the same dish (one dish in one circle,
+    /// <see cref="InnCallHold.DishShown"/>; owner, 2026-10-21, test_yuanyuan7): the hold's own words, for that call only.
+    /// </summary>
+    private static bool GaveWayToSameDish(CallStep step, InnCall call) =>
+        call.Kind == InnCallKind.CookAhead
+        && (step.Why.Contains($"{call.Key} dropped: {InnCallHold.DishShown}", StringComparison.Ordinal)
+            || System.Text.RegularExpressions.Regex.IsMatch(step.Why, $@"{System.Text.RegularExpressions.Regex.Escape(call.Key)} replaced by \S+: {InnCallHold.DishShown}"));
 
     /// <summary>
     /// A queue (<paramref name="kitchen"/>'s, or any) added to between <paramref name="since"/> and step <paramref name="i"/>:

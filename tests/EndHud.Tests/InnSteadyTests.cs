@@ -333,6 +333,8 @@ public class InnSteadyTests
     /// keeps it there while it can, so near-equal dishes no longer swap places), and stands for that kitchen only: the
     /// advice cooking the same dish ahead in another kitchen doesn't hold it up. On test_yuanyuan4 at 167.7 s kitchen 2's
     /// soup, no longer to be cooked ahead there, claimed the soup the advice had put in kitchen 3, whose call went instead.
+    /// Since 2026-10-21 one dish is in one circle only (owner, test_yuanyuan7: "duplicated in multiple kitchens"): with the
+    /// advice cooking A ahead in both, kitchen 1 shows it, kitchen 2 nothing; once kitchen 1's is gone, kitchen 2's shows.
     /// </summary>
     [Fact]
     public void A_dish_to_cook_ahead_stands_for_its_own_kitchen_only()
@@ -340,8 +342,8 @@ public class InnSteadyTests
         var hold = new InnCallHold();
         var both = Advice(Kitchen(1, new QueueAdvice(Dish(A), null, 40)), Kitchen(2, new QueueAdvice(Dish(A), null, 40)));
         var shown = hold.Update(both, null, View(), S(0));
-        Assert.Equal([(1, A), (2, A)], shown.Select(c => (c.Kitchen!.Value, c.Dish!.Id)));
-        Assert.Equal([(1, A), (2, A)], hold.Kept(View()).Select(k => (k.Kitchen, k.Dish.Id)));
+        Assert.Equal([(1, A)], shown.Select(c => (c.Kitchen!.Value, c.Dish!.Id)));
+        Assert.Equal([(1, A)], hold.Kept(View()).Select(k => (k.Kitchen, k.Dish.Id)));
 
         // Kitchen 1 no longer open to cooking ahead; the advice keeps kitchen 2's.
         var onlyTwo = Advice(Kitchen(1), Kitchen(2, new QueueAdvice(Dish(A), null, 40)));
