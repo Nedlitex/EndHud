@@ -63,6 +63,28 @@ public class SkillRingTests(ITestOutputHelper output)
         }
     }
 
+    private static PartyState Squad(Frame frame, int siSlot, HudLayout layout = HudLayout.KeyboardMouse, int readingsSinceSeen = 0)
+    {
+        var si = new Operators.OperatorMatch(new Operators.OperatorInfo("Si", "Si", "Si", "Si.png"), 1, true);
+        var slots = Enumerable.Range(1, PartyLayout.SlotCount)
+            .Select(n => new PartySlot(n, null, 1.0, "", frame) { Operator = n == siSlot ? si : null }).ToList();
+        return new PartyState(slots, 7, readingsSinceSeen) { Layout = layout };
+    }
+
+    /// <summary>Si's button found from where she is in the squad; nothing for the controller layout or a squad panel out of sight.</summary>
+    [Fact]
+    public async Task Reads_Sis_button_wherever_the_squad_has_her()
+    {
+        var frame = await SiFixtures.LoadAsync("skill-24_5s.jpg");
+
+        var reading = Assert.Single(SkillRing.Read(frame, Squad(frame, siSlot: 1)));
+        Assert.Equal(("Si", SkillIcon.Changed), (reading.OperatorId, reading.Icon));
+        Assert.NotEqual(SkillIcon.Changed, Assert.Single(SkillRing.Read(frame, Squad(frame, siSlot: 2))).Icon); // button 2 is another operator's
+        Assert.Empty(SkillRing.Read(frame, Squad(frame, siSlot: 0)));
+        Assert.Empty(SkillRing.Read(frame, Squad(frame, siSlot: 1, HudLayout.Controller)));
+        Assert.Empty(SkillRing.Read(frame, Squad(frame, siSlot: 1, readingsSinceSeen: 1)));
+    }
+
     [Fact]
     public void The_fixtures_cover_before_during_hidden_and_after()
     {
