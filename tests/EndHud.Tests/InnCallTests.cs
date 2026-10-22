@@ -150,6 +150,24 @@ public class InnCallTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// A swap whose advice has become a plain order in the same kitchen (the dish it would take out has cooked out, a slot is
+    /// free) shows as that order: test_yuanyuan7 from 261 s, "先拿掉界龙肉卷" stood over table 6's 福寿全 for 100 s after the
+    /// 界龙肉卷 was out, and the player queued another dish in that kitchen's free slot.
+    /// </summary>
+    [Fact]
+    public void A_swap_with_nothing_left_to_take_out_shows_as_its_order()
+    {
+        var hold = new InnCallHold();
+        var view = new InnKitchenView((_, _) => 0, _ => true, (_, _) => 20);
+        var swap = new KitchenAdvice(1, [], [new ReplaceAdvice(1, 0, Dish(E), Dish(A), 6, 40, null)]);
+        var shown = hold.Update(new DispatchAdvice([swap], [], [], []), null, view, S(10));
+        var plain = hold.Update(new DispatchAdvice([new KitchenAdvice(1, [new QueueAdvice(Dish(A), 6, 40)], [])], [], [], []), null, view, S(11));
+
+        Assert.Equal($"Swap:1:{A}:6:{E}", Keys(shown));
+        Assert.Equal($"Queue:1:{A}:6:", Keys(plain));
+    }
+
+    /// <summary>
     /// Two kitchens told to cook the same dish ahead (test_yuanyuan7 91.5 s, 八宝饭 in kitchens 1 and 3; 7 times on that session):
     /// the one shown first keeps it, the other takes its next dish to cook ahead, or shows nothing.
     /// </summary>
