@@ -76,7 +76,7 @@
                         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                             <Button Content="↑" Click="PhaseUp_Click" ToolTip="{DynamicResource Editor.MoveUp}" />
                             <Button Content="↓" Click="PhaseDown_Click" ToolTip="{DynamicResource Editor.MoveDown}" />
-                            <Button Content="{DynamicResource Editor.NewPhase}" Click="NewPhase_Click" />
+                            <Button x:Name="NewPhaseButton" Content="{DynamicResource Editor.NewPhase}" Click="NewPhase_Click" />
                             <Button Content="{DynamicResource Editor.DeletePhase}" Click="DeletePhase_Click" />
                         </StackPanel>
                         <CheckBox x:Name="LastMatchWinsBox" Content="{DynamicResource Editor.LastMatchWins}" Margin="0,6,0,0"
@@ -104,7 +104,7 @@
                     </Grid.ColumnDefinitions>
                     <DockPanel Grid.Column="0">
                         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,6,0,0">
-                            <Button Content="{DynamicResource Editor.AddStep}" Click="AddStep_Click" />
+                            <Button x:Name="AddStepButton" Content="{DynamicResource Editor.AddStep}" Click="AddStep_Click" />
                             <Button Content="↑" Click="StepUp_Click" ToolTip="{DynamicResource Editor.MoveUp}" />
                             <Button Content="↓" Click="StepDown_Click" ToolTip="{DynamicResource Editor.MoveDown}" />
                             <Button Content="{DynamicResource Editor.DeleteStep}" Click="DeleteStep_Click" />
@@ -121,6 +121,8 @@
                                 <TextBlock Text="{DynamicResource Editor.Action}" Style="{StaticResource Label}" Width="70" />
                                 <ComboBox x:Name="StepActionPicker" MinWidth="140" SelectionChanged="StepField_Changed" />
                             </StackPanel>
+                            <TextBlock x:Name="BasicAttackHint" Text="{DynamicResource Editor.BasicAttackHint}" Foreground="#888" TextWrapping="Wrap"
+                                       Margin="70,0,0,6" Visibility="Collapsed" />
                             <CheckBox x:Name="StepWithPrevious" Margin="70,0,0,6" Click="StepField_Changed"
                                       Content="{DynamicResource Editor.WithPrevious}" />
                             <DockPanel Margin="0,0,0,6">

@@ -165,6 +165,52 @@ public sealed class RotationEditorTests : IDisposable
         Assert.Equal(new SkillPointsCondition(Comparison.AtMost, 1.85), saved.Phases[1].When[2]);
     }
 
+    private static void Pick(ComboBox picker, object value) =>
+        picker.SelectedItem = picker.Items.Cast<ComboBoxItem>().Single(i => Equals(i.Tag, value));
+
+    /// <summary>
+    /// The owner's example (2026-10-22), built with the editor's own buttons and lists: a phase 普攻轴
+    /// shown while 技力 is less than 2, holding one 普攻 (basic attack) step. Saved in format 4.
+    /// </summary>
+    [Fact]
+    public void A_basic_attack_phase_gated_on_less_than_two_skill_points_is_built_with_the_pickers()
+    {
+        var library = new RotationLibrary(_folder);
+        library.Own.Save(Published() with { Id = "mine" });
+
+        string said = "";
+        bool hintShown = false;
+        OnEditor(library, _ => { }, editor =>
+        {
+            Click(editor, "NewPhaseButton");
+            ((TextBox)editor.FindName("PhaseNameBox")).Text = "普攻轴";
+            Click(editor, "AddGateButton");
+            var gate = (StackPanel)editor.FindName("GateRows");
+            Pick(((Panel)gate.Children[0]).Children.OfType<ComboBox>().First(), "SkillPoints");
+            var pickers = RowOf(gate.Children[0]).Children.OfType<ComboBox>().ToList(); // kind, compare, value
+            Pick(pickers[1], Comparison.Below);
+            Pick(pickers[2], 2.0);
+            Click(editor, "AddStepButton");
+            Pick((ComboBox)editor.FindName("StepActionPicker"), StepAction.BasicAttack);
+            hintShown = ((TextBlock)editor.FindName("BasicAttackHint")).Visibility == Visibility.Visible;
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        });
+
+        var saved = Assert.Single(library.Own.Load().Rotations);
+        Assert.True(saved.Phases.Count == 2, $"editor said: {said}");
+        Assert.True(hintShown);
+        var phase = saved.Phases[1];
+        Assert.Equal("普攻轴", phase.Name);
+        Assert.Equal(new SkillPointsCondition(Comparison.Below, 2), Assert.Single(phase.When));
+        Assert.Equal(StepAction.BasicAttack, Assert.Single(phase.Steps).Action);
+        Assert.Equal(4, saved.Format);
+        string file = File.ReadAllText(Directory.GetFiles(_folder, "*.json").Single());
+        Assert.Contains("\"format\": 4", file);
+        Assert.Contains("\"action\": \"BasicAttack\"", file);
+        Assert.Contains("\"is\": \"Below\"", file);
+    }
+
     /// <summary>The items (text, value) of the last picker of a new entry condition of this kind, on the second phase (爆发轴).</summary>
     private List<(string Text, object Value)> NewGateValues(string kind)
     {
