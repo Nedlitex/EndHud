@@ -144,10 +144,10 @@ public class InnGourmandTests(ITestOutputHelper output)
 
     /// <summary>
     /// Readable (owner, 2026-10-21: "the banner for gormand suggestion is too small for human to read, make at least the
-    /// picture bigger, at least same size as the circule today"): a one-request gourmand's picture is the kitchen circle's (112
-    /// at 1080p, the old banner's 40); two side by side are as large as the spot beside the open panel holds (90: two of 112
-    /// need 234 of its 201), the names under them smaller (16) rather than the pictures. The tile, with the longest dish
-    /// names, is exactly <see cref="InnGourmandView.Width"/> × <see cref="InnGourmandView.Height"/>.
+    /// picture bigger, at least same size as the circule today"): every picture of a tile is 112 at 1080p (the old banner's
+    /// 40), alone or two side by side, the names under them 20. Its own size, not the kitchen circles': when the circles
+    /// shrank to 60 % (owner, 2026-10-22) the tiles' pictures shrank with them to 67 until a1c844b. The tile, with the
+    /// longest dish names, is exactly <see cref="InnGourmandView.Width"/> × <see cref="InnGourmandView.Height"/>.
     /// </summary>
     [Theory]
     [InlineData(1)]
@@ -169,7 +169,9 @@ public class InnGourmandTests(ITestOutputHelper output)
         });
         output.WriteLine($"{requests}: pictures {string.Join(",", pictures)}, fonts {string.Join(",", fonts)}, tile {size.Width:F0}x{size.Height:F0}");
         Assert.Equal(requests, pictures.Count);
-        Assert.All(pictures, p => Assert.Equal(InnKitchenCircleView.PictureSize, p));
+        Assert.Equal(112, InnGourmandView.PictureSize);
+        Assert.All(pictures, p => Assert.Equal(112, p));
+        Assert.All(pictures, p => Assert.True(p > InnKitchenCircleView.PictureSize, $"a picture {p}, no bigger than a kitchen circle's"));
         Assert.All(fonts, f => Assert.True(f >= 20, $"a word {f} units tall"));
         Assert.Equal((InnGourmandView.Width(requests), InnGourmandView.Height(requests)), (size.Width, size.Height));
         Assert.True(size.Width <= InnGourmandLayout.SpotWidth && size.Height <= InnGourmandLayout.SpotHeight);

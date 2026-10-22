@@ -122,7 +122,8 @@ public class InnKitchenCircleTests(ITestOutputHelper output)
 
     /// <summary>
     /// An empty row draws nothing: its dark backing shows only under circles (the owner's screenshot, 2026-10-22: a dark
-    /// box left on the floor out of a session).
+    /// box left on the floor out of a session). The backing is half see-through (owner, 2026-10-22: "make sure the
+    /// transparency is not 100%").
     /// </summary>
     [Fact]
     public void The_rows_backing_shows_only_while_a_circle_is_up()
@@ -131,9 +132,13 @@ public class InnKitchenCircleTests(ITestOutputHelper output)
         {
             var grid = InnCircleRow.NewGrid();
             var row = new InnCircleRow(grid, m => InnKitchenCircleView.Circle(m, _ => null));
-            Border Backing() => grid.Children.OfType<Border>().Single(b => b.Background is SolidColorBrush { Color.A: 0xC8 });
+            Border Backing() => grid.Children.OfType<Border>().Single(b => Equals(b.Tag, InnCircleRow.BackingTag));
+            var brush = Assert.IsType<SolidColorBrush>(Backing().Background);
+            Assert.InRange(brush.Color.A, 0x70, 0x90);
             Assert.Equal(Visibility.Collapsed, Backing().Visibility);
             row.Update([InnKitchenCircleView.Of(Order(1, A, 4), Text), null, null]);
+            Assert.Equal(Visibility.Visible, Backing().Visibility);
+            row.Update([null, null, InnKitchenCircleView.Of(Order(3, B, 2), Text)]);
             Assert.Equal(Visibility.Visible, Backing().Visibility);
             row.Update([null, null, null]);
             Assert.Equal(Visibility.Collapsed, Backing().Visibility);
@@ -142,26 +147,41 @@ public class InnKitchenCircleTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Readable at a glance: the dish's picture clearly bigger than the banner's (<see cref="InnCallView.PictureSize"/>), and
-    /// no word smaller than the banner's title (20). The drawn circle fits its slot.
+    /// The owner's style and size (2026-10-22: "USE the original circle style", the ring with its words beside it as v0.6.0
+    /// drew it under the open panel; "the bottom circle default size should be around 60%", the words too): the ring 82 and
+    /// the dish's picture 67 at 1080p (v0.6.0's 136 and 112), the kitchen, the dish and the reason 13, 13 and 12 (v0.6.0's
+    /// 22, 22 and 20), all of them to the right of the ring, and the circle inside its 180-wide slot and its row with the
+    /// longest dish names.
     /// </summary>
     [Fact]
-    public void A_circles_picture_is_bigger_than_the_banners_and_its_words_as_large_as_the_banners_title()
+    public void A_circle_is_its_ring_with_the_words_beside_it_at_60_percent()
     {
+        Assert.Equal((82.0, 67.0, 180.0, 82.0), (InnKitchenCircleView.CircleSize, InnKitchenCircleView.PictureSize, InnKitchenCircleView.SlotWidth, InnKitchenCircleView.RowHeight));
+        Assert.Equal((13.0, 13.0, 12.0), (InnKitchenCircleView.LabelFont, InnKitchenCircleView.DishFont, InnKitchenCircleView.ReasonFont));
         var swap = InnKitchenCircleView.Of(Swap(3, LongestDish(0), LongestDish(1), 5), Text);
-        var (picture, fonts, size) = OnSta(() =>
+        var (picture, ring, words, size) = OnSta(() =>
         {
             var element = InnKitchenCircleView.Circle(swap, PackagePicture);
             element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             element.Arrange(new Rect(element.DesiredSize));
+            element.UpdateLayout();
             var image = Descendants(element).OfType<Image>().Single();
-            return (image.ActualHeight, Descendants(element).OfType<TextBlock>().Select(t => t.FontSize).ToList(), element.DesiredSize);
+            var disc = Descendants(element).OfType<System.Windows.Shapes.Ellipse>().First();
+            var ringAt = new Rect(disc.TranslatePoint(new Point(0, 0), element), new Size(disc.ActualWidth, disc.ActualHeight));
+            var texts = Descendants(element).OfType<TextBlock>()
+                .Select(t => (t.Text, t.FontSize, Left: t.TranslatePoint(new Point(0, 0), element).X, Right: t.TranslatePoint(new Point(t.ActualWidth, 0), element).X)).ToList();
+            return (image.ActualHeight, ringAt, texts, element.DesiredSize);
         });
-        output.WriteLine($"picture {picture:F0}, fonts {string.Join(",", fonts)}, circle {size.Width:F0}x{size.Height:F0}");
+        output.WriteLine($"picture {picture:F0}, ring x {ring.Left:F0}-{ring.Right:F0} ({ring.Width:F0}), circle {size.Width:F0}x{size.Height:F0}; "
+                         + string.Join(", ", words.Select(w => $"{w.Text} {w.FontSize} x {w.Left:F0}-{w.Right:F0}")));
 
-        Assert.True(picture >= 1.3 * InnCallView.PictureSize, $"the dish's picture is {picture:F0} units (the banner's {InnCallView.PictureSize})");
-        Assert.NotEmpty(fonts);
-        Assert.All(fonts, f => Assert.True(f >= 20, $"a word {f} units tall"));
+        Assert.Equal(InnKitchenCircleView.PictureSize, picture);
+        Assert.Equal(InnKitchenCircleView.CircleSize, ring.Width);
+        Assert.Equal(0, ring.Left);
+        Assert.Equal(4, words.Count); // the kitchen, the kind's word, the dish, the reason
+        Assert.All(words, w => Assert.True(w.Left >= ring.Right, $"\"{w.Text}\" at x {w.Left:F0}, over the ring (to {ring.Right:F0})"));
+        Assert.All(words, w => Assert.True(w.Right <= InnKitchenCircleView.SlotWidth + 0.5, $"\"{w.Text}\" ends at x {w.Right:F0}, past the slot"));
+        Assert.Equal([13.0, 12.0, 13.0, 12.0], words.Select(w => w.FontSize));
         Assert.True(size.Width <= InnKitchenCircleView.SlotWidth, $"{size.Width:F0} wide in a {InnKitchenCircleView.SlotWidth} slot");
         Assert.True(size.Height <= InnKitchenCircleView.RowHeight, $"{size.Height:F0} tall in a {InnKitchenCircleView.RowHeight} row");
     }

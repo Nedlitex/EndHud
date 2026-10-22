@@ -232,7 +232,8 @@ internal sealed class InnCircleRow(Grid row, Func<InnCircleModel, FrameworkEleme
     private static readonly IEasingFunction Pop = Frozen(new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.4 });
     // Half see-through: the game shows behind the row (owner, 2026-10-22: "make sure the transparency is not 100%").
     private static readonly Brush Backing = Frozen(new SolidColorBrush(Color.FromArgb(0x80, 0x12, 0x14, 0x18)));
-    private const string BackingTag = "circle-row-backing";
+    /// <summary>The row's dark backing's tag (the tests find it by it).</summary>
+    internal const string BackingTag = "circle-row-backing";
     private static readonly Brush MarkFill = Frozen(new SolidColorBrush(Color.FromArgb(0x38, 0xFF, 0xC8, 0x3C)));
 
     private readonly (string Key, FrameworkElement Element)?[] _shown = new (string, FrameworkElement)?[InnKitchenCircleView.Slots];

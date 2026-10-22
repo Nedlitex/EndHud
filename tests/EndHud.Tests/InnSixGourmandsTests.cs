@@ -26,8 +26,11 @@ public class InnSixGourmandsTests(ITestOutputHelper output)
     /// </summary>
     private static readonly Rect Meter = new(0.855, 0.47, 0.145, 0.20);
 
-    /// <summary>The held-dishes tray, its 派单 button and the bar right of it (session-two-dishes.jpg: x 0.38–0.78, y 0.855–0.94).</summary>
-    private static readonly Rect Tray = new(0.38, 0.855, 0.40, 0.085);
+    /// <summary>The held-dishes tray and its 派单 button (session-two-dishes.jpg: x 0.38–0.726, y 0.855–0.94).</summary>
+    private static readonly Rect Tray = new(0.38, 0.855, 0.346, 0.085);
+
+    /// <summary>The green bar right of 派单 (session-two-dishes.jpg: to x 0.78, y 0.86–0.883).</summary>
+    private static readonly Rect TrayBar = new(0.726, 0.86, 0.054, 0.023);
 
     [Fact]
     public void Six_gourmands_each_get_a_banner_in_table_order()
@@ -52,9 +55,11 @@ public class InnSixGourmandsTests(ITestOutputHelper output)
     /// <summary>
     /// Six gourmands at their fixed spots (owner, 2026-10-22: "should be roughly at where I draw"), one and two requests, at
     /// the player's default size: every tile inside the window and its spot, none over the status at the top right, the table
-    /// cards, the Full Blaze meter, the tray, the kitchens' circles, the inn's banners, the UID or another spot; with the panel
-    /// open, none over its kitchen tabs or close button. The owner's left spots lie over the lower part of the top-left HUD
-    /// (the theme's line and the counts), as drawn.
+    /// cards, the Full Blaze meter, the tray and 派单, the kitchens' circles, the inn's banners, the UID or another spot; with
+    /// the panel open, none over its kitchen tabs or close button. The owner's left spots lie over the lower part of the
+    /// top-left HUD (the theme's line and the counts), as drawn; table 6's tile, its pictures 112 (a1c844b), reaches down to y
+    /// 0.871 at the owner's spot and covers the last 0.6 % of the green bar right of 派单 (x 0.774–0.78, its top half): at most
+    /// that, never the dishes or 派单.
     /// </summary>
     [Theory]
     [InlineData(1920, 1080)]
@@ -88,6 +93,12 @@ public class InnSixGourmandsTests(ITestOutputHelper output)
                 Assert.True(spot.Contains(rect.TopLeft) && rect.Right <= spot.Right + 0.5 && rect.Bottom <= spot.Bottom + 0.5, $"table {banners[i].Table} outside its spot {spot}: {rect}");
                 foreach (var (what, where) in avoid)
                     Assert.False(Overlap(rect, where) > 1, $"table {banners[i].Table} over {what}: {rect} / {where}");
+                var onBar = Rect.Intersect(rect, Of(TrayBar));
+                if (!onBar.IsEmpty)
+                {
+                    output.WriteLine($"  over the bar right of 派单: x {onBar.Left / width:F4}-{onBar.Right / width:F4}, y {onBar.Top / height:F4}-{onBar.Bottom / height:F4}");
+                    Assert.True(banners[i].Table == 6 && onBar.Width <= 0.007 * width && onBar.Height <= 0.012 * height, $"table {banners[i].Table} over the bar right of 派单: {onBar}");
+                }
                 if (requests == 2) spots.Add(spot);
             }
         }
