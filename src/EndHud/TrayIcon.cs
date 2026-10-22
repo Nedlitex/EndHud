@@ -69,6 +69,7 @@ internal sealed class TrayIcon : IDisposable
             _releaseNotes,
             _checkUpdates,
             new ToolStripMenuItem(Loc.Get("Tray.EditRotations"), null, (_, _) => _overlay.OpenRotationEditor()),
+            new ToolStripMenuItem(Loc.Get("Tray.EditAlerts"), null, (_, _) => _overlay.OpenAlertEditor()),
             new ToolStripMenuItem(Loc.Get("Tray.OpenConfig"), null, (_, _) => OpenConfigFolder()),
             new ToolStripMenuItem(Loc.Get("Tray.ExportDiagnostics"), null, async (_, _) => await ExportDiagnosticsAsync(DiagnosticSize.Mini)),
             new ToolStripMenuItem(Loc.Get("Tray.ExportFullDiagnostics"), null, async (_, _) => await ExportDiagnosticsAsync(DiagnosticSize.Full)),

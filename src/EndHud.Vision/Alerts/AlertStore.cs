@@ -175,9 +175,16 @@ public sealed class AlertStore(string file)
                 _refuseSave = true;
                 return new AlertLoad([], null, false, ex.Message);
             }
+            RenamedEarlier = renamed;
             return new AlertLoad([], renamed, false);
         }
     }
+
+    /// <summary>
+    /// An unreadable file this store renamed during this run (null if none): a later load (the editor
+    /// opened after the overlay's) can still say where the player's old rules went.
+    /// </summary>
+    public string? RenamedEarlier { get; private set; }
 
     private string UnreadableName()
     {

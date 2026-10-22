@@ -79,6 +79,11 @@
                 <StackPanel x:Name="ComboHintStack" />
             </StackPanel>
         </Border>
+        <!-- Alert pop-ups (the player's alert rules): the combo hints' mirror image, right edge at the window's width
+             less the combo hints' left edge, same top; they follow the combo hints. Never hit-tested, never dragged. -->
+        <Border x:Name="AlertFrame" BorderThickness="2" Padding="6" IsHitTestVisible="False" SizeChanged="AlertFrame_SizeChanged">
+            <StackPanel x:Name="AlertStack" />
+        </Border>
         <!-- The rotation strip (排轴), centred on config RotationCenterX, top at RotationY. -->
         <Border x:Name="RotationFrame" BorderThickness="2" Padding="6" CornerRadius="4" Background="Transparent"
                 Visibility="Collapsed" SizeChanged="RotationFrame_SizeChanged"
@@ -316,6 +321,26 @@
                         <Button x:Name="RotationResetButton" Padding="10,2"
                                 Content="{DynamicResource Menu.Rotation.ResetPosition}" Click="RotationResetButton_Click" />
                     </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Feature: alert pop-ups (the player's rules, alerts.json). -->
+            <Border Style="{StaticResource FeatureCard}">
+                <StackPanel>
+                    <DockPanel>
+                        <CheckBox x:Name="AlertsCheckBox" DockPanel.Dock="Right" Click="AlertsCheckBox_Click" Margin="0">
+                            <TextBlock Text="{DynamicResource Menu.Feature.On}" />
+                        </CheckBox>
+                        <TextBlock Text="{DynamicResource Menu.Alerts}" Style="{StaticResource FeatureTitle}" />
+                    </DockPanel>
+                    <TextBlock x:Name="AlertsNeedsPartyOcr" Text="{DynamicResource Menu.Feature.NeedsPartyOcr}"
+                               Style="{StaticResource FeatureNote}" Visibility="Collapsed" />
+                    <TextBlock Text="{DynamicResource Menu.Alerts.Hint}" Foreground="#99FFFFFF" FontSize="11"
+                               TextWrapping="Wrap" Margin="0,4,0,4" />
+                    <TextBlock x:Name="AlertsCountText" Foreground="#CCFFFFFF" Margin="0,2,0,4" />
+                    <!-- Editing works with the pop-ups off: rules can be prepared before turning them on. -->
+                    <Button x:Name="EditAlertsButton" HorizontalAlignment="Left" Padding="10,2"
+                            Content="{DynamicResource Menu.Alerts.Edit}" Click="EditAlertsButton_Click" />
                 </StackPanel>
             </Border>
 

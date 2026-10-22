@@ -238,6 +238,7 @@ public partial class OverlayWindow
     {
         double scale = ComboHintLayout.Scale(HintCanvas.ActualHeight, VisualTreeHelper.GetDpi(this).DpiScaleY);
         ComboHintFrame.LayoutTransform = new ScaleTransform(scale, scale);
+        ScaleAlerts(ComboHintFrame.LayoutTransform);
         PlaceComboHintsFromConfig();
         ScaleRotationStrip(scale);
         ScaleGauges(scale);
@@ -252,6 +253,7 @@ public partial class OverlayWindow
         (left, top) = ComboHintLayout.Place(left, top, HintCanvas.ActualWidth, HintCanvas.ActualHeight);
         Canvas.SetLeft(ComboHintFrame, left);
         Canvas.SetTop(ComboHintFrame, top);
+        PlaceAlerts(); // the alerts are the combo hints' mirror image, and follow them
     }
 
     private void ComboHint_MouseDown(object sender, MouseButtonEventArgs e)

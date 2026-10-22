@@ -59,7 +59,9 @@ public partial class OverlayWindow
     {
         var follow = _rotationFollower.Update(state, _config.RotationEnabled && _config.PartyOcrEnabled, RotationFor);
         _rotationPosition = follow.Position;
-        _party.ReadBossStatuses = follow.ReadBossStatuses;
+        // The boss's statuses are read when the rotation or an alert rule asks about them.
+        bool alertsNeedStatuses = TrackAlerts(state, follow.InBattle);
+        _party.ReadBossStatuses = follow.ReadBossStatuses || alertsNeedStatuses;
         RenderRotation();
         TrackGauges(state, follow.InBattle);
     }

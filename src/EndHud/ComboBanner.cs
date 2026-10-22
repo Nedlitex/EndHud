@@ -21,7 +21,10 @@ internal static class ComboBanner
     /// <summary>The overlay's gold (the Accent resource in OverlayWindow.xaml).</summary>
     public static readonly Brush Accent = Frozen(new SolidColorBrush(Color.FromRgb(0xE6, 0xC2, 0x29)));
 
-    private static readonly Brush TextBrush = Frozen(new SolidColorBrush(Color.FromArgb(0xEE, 0xFF, 0xFF, 0xFF)));
+    /// <summary>The alert pop-ups' edge (<see cref="AlertPopUp"/>): orange, apart from the combo banners' gold.</summary>
+    public static readonly Brush AlertEdge = Frozen(new SolidColorBrush(Color.FromRgb(0xFF, 0x8A, 0x3D)));
+
+    private static readonly Brush TextBrush =Frozen(new SolidColorBrush(Color.FromArgb(0xEE, 0xFF, 0xFF, 0xFF)));
 
     // A combo about to be ready (counting down) is drawn muted, in a cool grey-blue, so it reads
     // apart from a ready one at a glance; turning ready plays a gold pulse (BecomeReady).

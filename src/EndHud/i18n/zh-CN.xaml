@@ -443,6 +443,7 @@
     <sys:String x:Key="Alerts.Unreadable">提示规则文件无法读取，已改名保存为 {0}（在设置文件夹里），现在从空白开始。</sys:String>
     <sys:String x:Key="Alerts.Newer">提示规则来自更新版本的 EndHud，请先更新。这里的修改不会被保存。</sys:String>
     <sys:String x:Key="Alerts.OpenFailed">提示规则文件暂时无法打开（{0}），这里的修改不会被保存。请关闭这个窗口，稍后再试。</sys:String>
+    <sys:String x:Key="Alerts.NoLibrary">干员库还没有下载完成，请稍后再打开战斗提示。</sys:String>
     <sys:String x:Key="Menu.Alerts">战斗提示</sys:String>
     <sys:String x:Key="Menu.Alerts.Hint">按你写的条件在战斗中弹出提示，例如技力 至少 1.8、寒冷附着 至少 3 层。提示出现在屏幕右侧，和连携提示左右对称，拖动连携提示时一起移动。</sys:String>
     <sys:String x:Key="Menu.Alerts.Count">已有 {0} 条提示</sys:String>

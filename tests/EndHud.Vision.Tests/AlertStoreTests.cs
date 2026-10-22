@@ -89,10 +89,14 @@ public sealed class AlertStoreTests : IDisposable
         Directory.CreateDirectory(_folder);
         File.WriteAllText(FilePath, "{ this is not json");
 
-        var load = new AlertStore(FilePath).Load();
+        var store = new AlertStore(FilePath);
+        var load = store.Load();
 
         Assert.Empty(load.Rules);
         Assert.NotNull(load.RenamedUnreadable);
+        // A later load (the editor, opened after the overlay's) can still say where the old rules went.
+        Assert.Null(store.Load().RenamedUnreadable);
+        Assert.Equal(load.RenamedUnreadable, store.RenamedEarlier);
         Assert.StartsWith("alerts.unreadable-", Path.GetFileName(load.RenamedUnreadable));
         Assert.Equal("{ this is not json", File.ReadAllText(load.RenamedUnreadable!));
         Assert.False(File.Exists(FilePath));

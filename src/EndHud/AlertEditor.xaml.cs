@@ -10,7 +10,7 @@ using Microsoft.Win32;
 namespace EndHud;
 
 /// <summary>
-/// The alert rules editor (战斗提示): one list of rules for every fight. A rule's conditions are picked
+/// The alert rules editor: one list of rules for every fight. A rule's conditions are picked
 /// with the rotation editor's pickers (<see cref="ConditionEditor"/>); only its text is typed. Every
 /// way the store changes is here: new, copy, correct (edit and save: same id, same place), delete
 /// (asks first), and share codes and files in and out (imports never replace).
@@ -66,7 +66,7 @@ public partial class AlertEditor : Window
         _rules.AddRange(load.Rules.Select(RuleDraft.From));
         // Never lost, never overwritten: say what happened to the file, and refuse to save over one we can't read.
         _canSave = !load.Newer && load.Failed is null;
-        string? said = load.RenamedUnreadable is { } renamed ? Loc.Format("Alerts.Unreadable", Path.GetFileName(renamed))
+        string? said = (load.RenamedUnreadable ?? _store.RenamedEarlier) is { } renamed ?Loc.Format("Alerts.Unreadable", Path.GetFileName(renamed))
             : load.Newer ? Loc.Get("Alerts.Newer")
             : load.Failed is { } why ? Loc.Format("Alerts.OpenFailed", why)
             : null;
@@ -78,7 +78,7 @@ public partial class AlertEditor : Window
     }
 
     /// <summary>The words a rule is listed (and named in messages) by: its text, or its conditions and "(no text)".</summary>
-    private string Title(RuleDraft rule) =>
+    private string RuleName(RuleDraft rule) =>
         rule.Message.Trim().Length > 0 ? rule.Message.Trim()
         : rule.When.Count == 0 ? Loc.Format("Alerts.Numbered", _rules.IndexOf(rule) + 1)
         : Loc.Format("Alerts.NoText", AlertText.Describe(rule.When, _library));
@@ -87,7 +87,7 @@ public partial class AlertEditor : Window
     {
         _loading = true;
         RuleList.Items.Clear();
-        foreach (var rule in _rules) RuleList.Items.Add(ConditionEditor.Item(Title(rule), rule.Id));
+        foreach (var rule in _rules) RuleList.Items.Add(ConditionEditor.Item(RuleName(rule), rule.Id));
         RuleList.SelectedItem = RuleList.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == _rule?.Id);
         _loading = false;
         EmptyText.Visibility = _rules.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -145,7 +145,7 @@ public partial class AlertEditor : Window
     internal void DeleteSelected(bool confirm)
     {
         if (_rule is null) return;
-        if (confirm && MessageBox.Show(this, Loc.Format("Alerts.ConfirmDelete", Title(_rule)), Loc.Get("Alerts.Title"),
+        if (confirm && MessageBox.Show(this, Loc.Format("Alerts.ConfirmDelete", RuleName(_rule)), Loc.Get("Alerts.Title"),
                 MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
             return;
         int at = _rules.IndexOf(_rule);
@@ -192,7 +192,7 @@ public partial class AlertEditor : Window
         if (_rule is null) return;
         int index = _rules.IndexOf(_rule);
         _loading = true;
-        if (index >= 0 && index < RuleList.Items.Count) ((ComboBoxItem)RuleList.Items[index]).Content = Title(_rule);
+        if (index >= 0 && index < RuleList.Items.Count) ((ComboBoxItem)RuleList.Items[index]).Content = RuleName(_rule);
         _loading = false;
     }
 
@@ -200,7 +200,7 @@ public partial class AlertEditor : Window
 
     /// <summary>What's wrong, in words (each rule named); empty when it can be saved.</summary>
     private List<string> Problems() =>
-        _rules.SelectMany(r => r.ToRule().Problems().Select(p => Loc.Format($"Alerts.Problem.{p}", Title(r)))).ToList();
+        _rules.SelectMany(r => r.ToRule().Problems().Select(p => Loc.Format($"Alerts.Problem.{p}", RuleName(r)))).ToList();
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {

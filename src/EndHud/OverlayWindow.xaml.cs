@@ -73,6 +73,7 @@ public partial class OverlayWindow : Window
         ReloadRotations();
         InitRotationSettings();
         InitGaugeSettings();
+        InitAlertSettings();
         VersionText.Text = ReleaseChecker.DisplayVersion;
 
         _party = new PartyMonitor(TimeSpan.FromMilliseconds(Math.Max(250, config.OcrIntervalMs))) { UpdatesEnabled = () => _config.CheckForUpdates };
@@ -136,6 +137,7 @@ public partial class OverlayWindow : Window
         PartyText.Text = Loc.Get("Party.Waiting");
         ApplyComboHintSettings();
         ApplyRotationSettings();
+        ApplyAlertSettings();
         _rotationPosition = null;
         RenderRotation();
         ApplyGaugeSettings();
@@ -232,6 +234,7 @@ public partial class OverlayWindow : Window
         MenuPanel.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
         SetComboHintEditing(open);
         SetRotationEditing(open);
+        SetAlertsEditing(open);
         SetGaugesEditing(open);
         SetInnEditing(open);
         SetPanelDragging(open);
@@ -334,6 +337,7 @@ public partial class OverlayWindow : Window
         ClockText.Text = DateTime.Now.ToString("HH:mm:ss");
         UpdateComboHints(); // timed hints end on time even when no new reading arrives
         TickInn();
+        ExpireAlerts(); // a pop-up leaves after 3 s even when no new reading arrives
         Refresh(reassertTopmost: true);
     }
 
