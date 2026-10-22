@@ -93,6 +93,7 @@ public partial class OverlayWindow
     /// <summary>The operator's icon for this action, from the library; loaded once, in the background.</summary>
     private BitmapSource? SkillIcon(OperatorInfo op, StepAction action)
     {
+        if (action == StepAction.BasicAttack) return null; // no skill icon: never borrow the battle skill's
         var kind = action switch
         {
             StepAction.Combo => SkillKind.Combo,
@@ -317,6 +318,7 @@ internal sealed class RotationFollower
 {
     private readonly StripVisibility _visibility = new();
     private readonly Dictionary<string, PhaseSelector> _selectors = [];
+    private bool _wasInBattle;
 
     /// <summary>The phase selector of each rotation followed since the rotations were last loaded.</summary>
     internal IReadOnlyDictionary<string, PhaseSelector> Selectors => _selectors;
@@ -332,6 +334,10 @@ internal sealed class RotationFollower
         (Rotation, RotationPosition)? position = null;
         // In battle only (through short gaps: see StripVisibility), for a rotation made for the recognised squad.
         bool inBattle = state is not null && _visibility.Update(state);
+        // The fight ended (StripVisibility already rides over short gaps): every phase-shown count back to 0.
+        if (_wasInBattle && !inBattle)
+            foreach (var each in _selectors.Values) each.EndFight();
+        _wasInBattle = inBattle;
         if (state is not null && inBattle && enabled)
         {
             rotation = rotationFor(state.Slots.Select(s => s.Operator?.Operator.Id).ToList());
@@ -341,8 +347,8 @@ internal sealed class RotationFollower
                 position = (rotation, selector.Update(state));
             }
         }
-        // The boss's statuses take a while to read: only when this rotation asks about them.
-        bool statuses = rotation?.Phases.Any(p => p.Steps.Any(s => s.Expect.Any(c => c is BossStatusCondition))) == true;
-        return new RotationFollowing(inBattle, position, statuses);
+        // The boss's statuses take a while to read: only when this rotation asks about them, anywhere: a
+        // phase's entry condition (what the strip follows) or a step, at any depth of and/or/not.
+        return new RotationFollowing(inBattle, position, ConditionWalk.NeedsBossStatuses(rotation));
     }
 }
