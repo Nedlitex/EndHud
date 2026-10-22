@@ -87,6 +87,36 @@ public class InnReplayTests(ITestOutputHelper output)
     /// (8.6 a minute), 1 flash, 3 jumps (<see cref="InnReplay.Steadiness"/>); and every banner slid out and in again each
     /// time the dispatch panel opened and closed.
     /// </summary>
+    /// <summary>
+    /// Owner, live 2026-10-21 (test_yuanyuan8): the swap circles ("先拿掉X，再排Y") are "really too fast for user to follow, I
+    /// think this can be a check box feature, default on". Over the five recorded sessions through the real session and views:
+    /// with swaps on (the setting's default) swaps are called; with them off no circle, card mark or call ever says to take a
+    /// dish out, and the orders are still called (a plain order where a kitchen has room).
+    /// </summary>
+    [Fact]
+    public void With_swaps_off_nothing_ever_says_to_take_a_dish_out()
+    {
+        string[] fixtures = ["test-yuanyuan3-readings.jsonl.gz", "test-yuanyuan4-readings.jsonl.gz", "test-yuanyuan5-readings.jsonl.gz",
+            "test-yuanyuan6-readings.jsonl.gz", "test-yuanyuan7-readings.jsonl.gz"];
+        Assert.True(new HudConfig().InnSwapsEnabled, "swaps are on by default");
+        int swapsOn = 0;
+        foreach (string fixture in fixtures)
+        {
+            var events = InnReplay.Load(Path.Combine(AppContext.BaseDirectory, "Fixtures", "inn-replay", fixture)).ToList();
+            var on = InnReplay.Run(events, suggestSwaps: true);
+            var off = InnReplay.Run(events, suggestSwaps: false);
+            int Swaps(InnReplay r) => r.Draws.Sum(d => d.Calls.Values.Count(c => c.Kind == InnCallKind.Swap)) + r.Steps.Sum(s => s.Kitchens.Values.Count(c => c.Kind == InnCallKind.Swap));
+            int Orders(InnReplay r) => r.Steps.Sum(s => s.Kitchens.Values.Count(c => c.Kind == InnCallKind.Queue));
+            int swapMarks = off.Changes.Count(c => c.Display == "mark" && c.What.Contains("先拿掉", StringComparison.Ordinal));
+            output.WriteLine($"{fixture}: swaps on {Swaps(on)}, off {Swaps(off)} (marks {swapMarks}); order calls on {Orders(on)}, off {Orders(off)}");
+            swapsOn += Swaps(on);
+            Assert.Equal(0, Swaps(off));
+            Assert.Equal(0, swapMarks);
+            Assert.True(Orders(off) > 0, $"{fixture}: no order called with swaps off");
+        }
+        Assert.True(swapsOn > 0, "no swap called on any recorded session with swaps on");
+    }
+
     [Theory]
     [InlineData("test-yuanyuan3-readings.jsonl.gz")]
     [InlineData("test-yuanyuan4-readings.jsonl.gz")]

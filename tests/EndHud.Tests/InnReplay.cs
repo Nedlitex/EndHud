@@ -54,9 +54,11 @@ internal sealed class InnReplay
     /// <summary>The span the session's overlays could show (first to last session reading), for the rate per minute.</summary>
     public TimeSpan SessionSpan => _sessionFrom is { } from && _sessionTo is { } to ? to - from : TimeSpan.Zero;
 
-    public static InnReplay Run(IEnumerable<InnReplayEvent> events)
+    /// <param name="suggestSwaps">The swaps setting (HudConfig.InnSwapsEnabled), as the overlay hands it to the session.</param>
+    public static InnReplay Run(IEnumerable<InnReplayEvent> events, bool suggestSwaps = true)
     {
         var replay = new InnReplay();
+        replay._session.SuggestSwaps = suggestSwaps;
         TimeSpan? lastTick = null;
         foreach (var e in events)
         {

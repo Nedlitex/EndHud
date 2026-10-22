@@ -124,6 +124,14 @@ internal sealed class HudConfig
     /// </summary>
     public bool InnCallsEnabled { get; set; } = true;
 
+    /// <summary>
+    /// Whether the session's advice may say to take a dish cooked ahead out of a queue to put an order in its place (the
+    /// swap circle "先拿掉X", its card mark). Off, an order is called as a plain order in a kitchen with room, or waits. The
+    /// "建议换菜" switch in the inn helper's card; on by default (owner, test_yuanyuan8: "this can be a check box feature,
+    /// default on").
+    /// </summary>
+    public bool InnSwapsEnabled { get; set; } = true;
+
     /// <summary>Where the inn's banners (Full Blaze, the last call) sit (their top-left corner), as a fraction of the game window; by default where the combo-ready hint does (it isn't shown in the inn).</summary>
     public double InnCallX { get; set; } = DefaultComboHintX;
 

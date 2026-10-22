@@ -313,6 +313,13 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         _log($"inn: corrected {how}");
     }
 
+    /// <summary>
+    /// Whether the advice may say to take a dish out to put an order in its place (<see cref="DispatchAdvisor.SuggestSwaps"/>):
+    /// the player's setting (HudConfig.InnSwapsEnabled), handed over by the overlay when the session is made and whenever it
+    /// changes. On unless set: the setting's own default.
+    /// </summary>
+    public bool SuggestSwaps { get; set; } = true;
+
     /// <summary>A session is on (its frames seen within <see cref="EndAfter"/>).</summary>
     public bool Active { get; private set; }
 
