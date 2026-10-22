@@ -519,8 +519,9 @@ is cooking, plus the dishes waiting behind it, plus this dish's cook time there;
 "idle kitchen first" rule, an idle kitchen wins only when that makes it the earliest. It also and suggests taking a dish cooked
 ahead out for an order only when that wins by more than 5 s (a cooking dish only when barely
 started, since its progress is taken as lost), and never a dish the player queued because a call said so while it still
-comes out before serving ends (`InnState.QueuedAsCalled`; test_yuanyuan5 at 04:16: "厨房二 预做：界龙肉卷" followed, then
-10 s later "先拿掉界龙肉卷，再排这个" for a new order; the advice doesn't undo its own word). A dish in the player's hand
+comes out before serving ends (`InnState.QueuedAsCalled`: a dish put in any kitchen's queue while a call names it;
+test_yuanyuan5 at 04:16: "厨房二 预做：界龙肉卷" followed, then 10 s later "先拿掉界龙肉卷，再排这个" for a new order; at 00:44
+福寿全, called for kitchen 2 and queued in kitchen 1, called out of kitchen 1; the advice doesn't undo its own word). A dish in the player's hand
 (the tray, `InnState.Carried`) covers an order of it first. A kitchen with no chef cannot cook (owner): one rule,
 `KitchenMath.Cooks`, which the planner, the advisor and the session all go by; such a kitchen gets no
 advice and isn't listed (a kitchen whose chefs weren't seen, `Kitchen.ChefsUnknown`, is taken to
@@ -953,7 +954,18 @@ kitchen-seconds, as before). `Following_the_calls_shown_keeps_the_kitchens_busy`
 a kitchen, the advice keeping the calls shown; acting at once, every 10 s, every 20 s): 132.0 idle kitchen-seconds and
 an average wait of 35.34 s, against 132.0 and 35.33 s when the order moved to a kitchen 8 s sooner.
 
-`InnReplayTests.Over_the_owners_recorded_sessions_nothing_flashes_or_jumps` replays both fixtures on every run;
+**test_yuanyuan5, replayed** (2026-10-21; the owner's 群鳞会 session, its readings the third fixture, 0–415 s: the
+recording's last seconds can show the desktop and are never read). Its readings are the first with the tray of held
+dishes, Full Blaze's countdown and where the timer was read. The code before that day's fixes over the same readings, then
+after: calls 58 → 68 changes (10.7 → 12.5 a minute), flashes 0 → 0, jumps 1 → 0, new orders a kitchen could take 14 → 10
+(the others now covered by a dish in hand), shown at once wherever a kitchen was free of another order's call (3 of 3 both
+times; before, one never shown). Swaps calling out a dish the player had queued as called: 3 → 0 (128.7 s 界龙肉卷 and
+白瓜肉丸汤, 335.7 s 福寿全, queued in kitchen 1 when the call named kitchen 2: a dish put in any queue while a call names
+it counts). One swap is left, at 348.0 s: a "勺里游" the player queued on their own while holding one for table 1's order.
+"开启满堂彩（R）" was up 331.5–392.1 s over the readings of that day's build (Full Blaze running read as nothing), 331.5–332.7 s
+now. The replay of y3 and y4 with these changes: no flash and no jump; calls 15.9 and 12.0 changes a minute.
+
+`InnReplayTests.Over_the_owners_recorded_sessions_nothing_flashes_or_jumps` replays the three fixtures on every run;
 `InnSteadyTests`, `InnSessionTests` and `InnCallTests` have one test per hold. To trace another recording (text only, to
 a folder of your choice):
 `ENDHUD_INN_RECORDING=<recording.mp4> ENDHUD_INN_TRACE_OUT=<folder> [ENDHUD_INN_RECORDING_TO=<seconds>] dotnet test

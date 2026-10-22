@@ -29,8 +29,9 @@ public sealed record OrderedDish(int Table, Dish Dish);
 /// null when the timer hasn't been read. No default: a caller says what it knows.
 /// </param>
 /// <param name="QueuedAsCalled">
-/// Dishes in the queues the player put there because a call said so (an order's or a dish to cook ahead), by kitchen: the
-/// advice never suggests taking one out again while it still comes out before serving ends (owner's live session
+/// Dishes in the queues the player put there because a call said so (put in while a call named the dish, in that kitchen
+/// or another), by kitchen: the advice never suggests taking one out again while it still comes out before serving ends
+/// (owner's live session
 /// 2026-10-21, test_yuanyuan5 at 04:15: "厨房二 预做：界龙肉卷" followed, then 10 s later "先拿掉界龙肉卷，再排这个"). No default:
 /// a caller says what it knows (none, where nothing is shown to a player).
 /// </param>

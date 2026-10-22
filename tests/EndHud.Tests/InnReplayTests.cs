@@ -73,6 +73,11 @@ public class InnReplayTests(ITestOutputHelper output)
     /// back within a second.</item>
     /// <item>test_yuanyuan4 (2026-10-21, 0–470 s; owner: "the recommended dish flashes heavily and it jumps around ... the
     /// recommendation should stay steady").</item>
+    /// <item>test_yuanyuan5 (2026-10-21, 0–415 s, the last seconds of the recording left out; the first fixture with the tray
+    /// of held dishes, Full Blaze's countdown and where the timer was read). Before that day's fixes (the code of ebf2b77 over
+    /// these readings): 58 changes (10.7 a minute), 0 flashes, 1 jump (367.8 s, an order moved off a kitchen it could no
+    /// longer come out of in time), 14 new orders of which 1 was never shown; swaps calling out dishes queued as called at
+    /// 128.7 s (界龙肉卷, 白瓜肉丸汤) and 335.7 s (福寿全).</item>
     /// </list>
     /// Before 2026-10-21's fixes, the kitchens' calls: y3 88 changes (16.2 a minute), 3 flashes, 1 jump; y4 46 changes
     /// (8.6 a minute), 1 flash, 3 jumps (<see cref="InnReplay.Steadiness"/>); and every banner slid out and in again each
