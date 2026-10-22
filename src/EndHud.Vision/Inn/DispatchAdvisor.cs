@@ -199,7 +199,16 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
         foreach (var keep in kept.Where(k => k.Table is not null))
         {
             int i = pending.FindIndex(o => o.Table == keep.Table && o.Dish.Id == keep.Dish.Id);
-            if (i < 0 || !plan.InStock(pending[i].Dish) || !plan.CanQueue(keep.Kitchen) || !onScreen.Add(keep.Kitchen)) continue;
+            if (i < 0 || !plan.InStock(pending[i].Dish)) continue;
+            // A swap shown stays a swap while the dish it takes out is there to take out and the order is still out in time; as a
+            // plain order it would wait behind that dish, which is what the swap was shown to avoid (test_yuanyuan5: a swap and a
+            // plain order 0.3 s apart, five times).
+            if (keep.Remove is { } remove && plan.TrySwap(keep.Kitchen, remove, pending[i], state.ServingSecondsLeft) && onScreen.Add(keep.Kitchen))
+            {
+                pending.RemoveAt(i);
+                continue;
+            }
+            if (!plan.CanQueue(keep.Kitchen) || !onScreen.Add(keep.Kitchen)) continue;
             if (state.ServingSecondsLeft is { } left && plan.ReadyIn(keep.Kitchen, keep.Dish) > left)
             {
                 onScreen.Remove(keep.Kitchen);
@@ -480,6 +489,28 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
                 }
             }
             return best;
+        }
+
+        /// <summary>
+        /// The swap shown in <paramref name="kitchen"/> made again: <paramref name="remove"/> taken out (a dish cooked ahead there,
+        /// the same rules as <see cref="BestSwap"/>: not claimed, barely started if cooking, not queued as a call said while it
+        /// comes out in time) and <paramref name="order"/> queued instead, if that has it out before serving ends. False: it can't be.
+        /// </summary>
+        public bool TrySwap(int kitchen, Dish remove, OrderedDish order, double? servingLeft)
+        {
+            if (!_queues.TryGetValue(kitchen, out var slots)) return false;
+            for (int i = 0; i < slots.Count; i++)
+            {
+                var slot = slots[i];
+                if (slot.Dish.Id != remove.Id || slot.Claimed || slot.RealSlot is null) continue;
+                if (slot.Cooking && Cook(kitchen, slot.Dish) - slot.SecondsLeft > BarelyStartedSeconds) continue;
+                if (slot.AsCalled && (servingLeft is not { } serving || OutIn(kitchen, i) <= serving)) continue;
+                double readyIn = Left(kitchen) - slot.SecondsLeft + Cook(kitchen, order.Dish);
+                if (servingLeft is { } left && readyIn > left) return false;
+                Replace((kitchen, i, readyIn), order, Soonest(order.Dish)?.ReadyIn);
+                return true;
+            }
+            return false;
         }
 
         public void Replace((int Kitchen, int Index, double ReadyIn) swap, OrderedDish order, double? otherwise)

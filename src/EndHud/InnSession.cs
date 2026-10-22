@@ -1116,12 +1116,13 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         // On the counter: the dishes out for an order, which cover it (owner, 2026-10-21: it was that order's dish in its
         // queue), and those cooked ahead, which cover no order: they're where the estimate drifts.
         var outForOrders = _counter.OutForOrders.Select(id => DishOf(id)!).ToList();
-        // A dish that just left the hand, not yet read served nor settled as put back (HandSettlesAfter), is still to hand out:
-        // until 2026-10-21 it counted nowhere for those 3 s, and the last call's choices shifted and shifted back as the player
-        // put dishes down (test_yuanyuan7 365-370 s, three 界龙肉卷 one by one).
-        var counter = _counter.All.Concat(_leftHand.Select(h => h.Id)).Select(id => DishOf(id)!).ToList();
-        // In hand: what the tray shows (a dish in hand covers an order of it first, DispatchAdvisor's Cover).
-        var carried = _carried.Select(id => DishOf(id)!).ToList();
+        var counter = _counter.All.Select(id => DishOf(id)!).ToList();
+        // In hand: what the tray shows (a dish in hand covers an order of it first, DispatchAdvisor's Cover). A dish that just left
+        // the hand, not yet read served nor settled (put back, or a gourmand's: HandSettlesAfter), is where it was last known,
+        // in hand: until 2026-10-21 it counted nowhere for those 3 s, so the last call's choices shifted and shifted back as the
+        // player put dishes down (test_yuanyuan7 365-370 s, three 界龙肉卷 one by one), and an order it covered was called again
+        // for a moment (210.3-210.9 s, 福寿全 handed to a gourmand).
+        var carried = _carried.Concat(_leftHand.Select(h => h.Id)).Select(id => DishOf(id)!).ToList();
         var state = new InnState(queues, counter, outForOrders, carried, outstanding, menu, ServingLeft(now), asCalled, ThemeItems());
 
         var left = TimeLeft(now) ?? TimeSpan.FromMinutes(5);
