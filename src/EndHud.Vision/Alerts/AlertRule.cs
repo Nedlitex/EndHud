@@ -1,0 +1,65 @@
+using System.Text.Json.Serialization;
+using EndHud.Vision.Rotations;
+
+namespace EndHud.Vision.Alerts;
+
+/// <summary>
+/// One alert rule: when every condition holds (they can be and/or groups and "not", as in
+/// rotations), a pop-up with <see cref="Message"/> shows. Global: for every fight and every squad.
+/// </summary>
+/// <param name="Id">Kept for the rule's whole life: correcting a rule rewrites it under the same id.</param>
+/// <param name="When">All must hold. Every rotation condition kind except "phase shown" (there is no rotation).</param>
+/// <param name="Message">What the pop-up says; empty: the condition itself in words.</param>
+public sealed record AlertRule(string Id, IReadOnlyList<StateCondition> When, string Message)
+{
+    public IReadOnlyList<StateCondition> When { get; init; } = When ?? [];
+
+    public string Message { get; init; } = Message ?? "";
+
+    /// <summary>A new rule, under a new id.</summary>
+    public static AlertRule New(IReadOnlyList<StateCondition> when, string message) => new(NewId(), when, message);
+
+    public static string NewId() => Guid.NewGuid().ToString("N");
+
+    /// <summary>The same conditions and the same words (the id aside): what an import skips as a duplicate.</summary>
+    public bool SameAs(AlertRule other) => When.SequenceEqual(other.When) && Message == other.Message;
+
+    public bool Equals(AlertRule? other) => other is not null && Id == other.Id && SameAs(other);
+
+    public override int GetHashCode() => HashCode.Combine(Id, Message, When.Count);
+
+    /// <summary>What's wrong with it, if anything (the editor turns these into sentences).</summary>
+    public IReadOnlyList<AlertProblem> Problems()
+    {
+        var problems = new List<AlertProblem>();
+        if (When.Count == 0) problems.Add(AlertProblem.NoConditions);
+        var all = ConditionWalk.Flatten(When).ToList();
+        if (all.Any(c => c is AllCondition { Of.Count: 0 } or AnyCondition { Of.Count: 0 })) problems.Add(AlertProblem.EmptyConditionGroup);
+        if (all.Any(c => c is PhaseShownCondition)) problems.Add(AlertProblem.PhaseShownNotAllowed);
+        return problems;
+    }
+}
+
+public enum AlertProblem
+{
+    /// <summary>The rule has no condition: it would never be told when to show.</summary>
+    NoConditions,
+
+    /// <summary>An and/or group with nothing in it.</summary>
+    EmptyConditionGroup,
+
+    /// <summary>"Phase shown N times" belongs to a rotation; an alert has none (from a hand-edited or shared file).</summary>
+    PhaseShownNotAllowed,
+}
+
+/// <summary>The alerts file: every rule, in the player's order.</summary>
+public sealed record AlertFile(int Format, IReadOnlyList<AlertRule> Rules)
+{
+    public const int CurrentFormat = 1;
+
+    /// <summary>The most rules kept: "new" and imports stop here.</summary>
+    public const int MaxRules = 100;
+
+    [JsonIgnore]
+    public bool Readable => Rules is not null && Rules.All(r => r is not null && r.Id is not null && r.When is not null);
+}
