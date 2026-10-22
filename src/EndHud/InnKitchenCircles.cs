@@ -60,10 +60,10 @@ internal static class InnKitchenCircleView
     /// their screenshot of that row: "USE the original circle style"); the ring and picture at 60 % of v0.6.0's, the words as they were
     /// (owner, 2026-10-22: "the bottom circle default size should be around 60%", "ONLY ... SHRINK THE CIRCLE").
     /// </summary>
-    public const double CircleSize = 82, PictureSize = 67, SlotWidth = 300, RowHeight = 100, LabelFont = 22, DishFont = 22, ReasonFont = 20;
+    public const double CircleSize = 82, PictureSize = 67, SlotWidth = 180, RowHeight = 82, LabelFont = 13, DishFont = 13, ReasonFont = 12;
 
     /// <summary>The words' column beside the ring.</summary>
-    private const double WordsWidth = SlotWidth - CircleSize - 10;
+    private const double WordsWidth = SlotWidth - CircleSize - 6;
 
     private const double RingThickness = 6;
 
@@ -134,9 +134,9 @@ internal static class InnKitchenCircleView
         header.Children.Add(new Border
         {
             Background = brush,
-            CornerRadius = new CornerRadius(12),
-            Padding = new Thickness(9, 0, 9, 1),
-            Margin = new Thickness(8, 0, 0, 0),
+            CornerRadius = new CornerRadius(7),
+            Padding = new Thickness(5, 0, 5, 1),
+            Margin = new Thickness(5, 0, 0, 0),
             VerticalAlignment = VerticalAlignment.Center,
             Child = new TextBlock { Text = model.KindWord, FontSize = ReasonFont, FontWeight = FontWeights.Bold, Foreground = PillText, FontFamily = Font },
         });
@@ -173,7 +173,7 @@ internal static class InnKitchenCircleView
         header.HorizontalAlignment = HorizontalAlignment.Left;
         dish.HorizontalAlignment = reason.HorizontalAlignment = HorizontalAlignment.Left;
         ring.VerticalAlignment = VerticalAlignment.Center;
-        var beside = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0), Width = WordsWidth, Children = { header, dish, reason } };
+        var beside = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(5, 0, 0, 0), Width = WordsWidth, Children = { header, dish, reason } };
         return new StackPanel
         {
             Orientation = Orientation.Horizontal,
