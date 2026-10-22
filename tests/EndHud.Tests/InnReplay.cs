@@ -244,7 +244,7 @@ internal sealed class InnReplay
                 bool done = step.Why.Contains($"{held.Call.Key} dropped: done", StringComparison.Ordinal);
                 bool order = now is { Kind: InnCallKind.Queue or InnCallKind.Swap };
                 bool full = step.Why.Contains($"{held.Call.Key} dropped: the kitchen", StringComparison.Ordinal);
-                bool over = !step.CooksAhead;
+                bool over = !step.CooksAhead || step.AheadTooLate.Contains(k);
                 if (!done && !order && !full && !over)
                     list.Add((step.At, k, held.Call.Dish!.Id, (step.At - held.At).TotalSeconds, now is null ? "gone" : $"-> {now.Key}"));
             }
@@ -401,6 +401,25 @@ internal sealed class InnReplay
 
         /// <summary>Dishes tables wait for that neither the hand nor a queue holds, a kitchen could take (<see cref="InnReplay.Unattended"/>).</summary>
         public IReadOnlyDictionary<string, int> Unattended { get; init; } = new Dictionary<string, int>();
+
+        /// <summary>
+        /// Kitchens whose dish to cook ahead, as called on the step before, could no longer come out there before serving ends
+        /// (<see cref="DispatchAdvisor.NoCookAheadSeconds"/>, or its queue + its cook time past the serving left): the end
+        /// rule took it, nothing else.
+        /// </summary>
+        public IReadOnlySet<int> AheadTooLate { get; init; } = new HashSet<int>();
+    }
+
+    /// <summary>The kitchens of <paramref name="calls"/> whose dish to cook ahead can no longer come out in time at <paramref name="at"/> (<see cref="CallStep.AheadTooLate"/>).</summary>
+    private HashSet<int> AheadTooLate(IReadOnlyDictionary<int, InnCall> calls, TimeSpan at)
+    {
+        var late = new HashSet<int>();
+        if (_session.ServingLeft(at) is not { } serving) return late;
+        foreach (var (k, call) in calls)
+            if (call is { Kind: InnCallKind.CookAhead, Dish: { } dish }
+                && (serving < DispatchAdvisor.NoCookAheadSeconds || _session.ReadyIn(k, dish.Id) is { } readyIn && readyIn > serving))
+                late.Add(k);
+        return late;
     }
 
     /// <summary>A call that flashed (gone and back) or jumped (switched dish or kitchen with nothing done to cause it).</summary>
@@ -431,7 +450,7 @@ internal sealed class InnReplay
         }
         string queues = advice is null ? "" : _session.QueueSignature();
         var before = Steps.Count > 0 ? Steps[^1].Kitchens : new Dictionary<int, InnCall>();
-        string state = $"{why} [queues {queues}; open {string.Join(",", open.Select(o => $"{o.Item1}@{o.Item2}"))}; counter {(advice is null ? "" : _session.CounterSignature())}; advised {Advised(advice)}]";
+        string state = $"{why} [queues {queues}; open {string.Join(",", open.Select(o => $"{o.Item1}@{o.Item2}"))}; counter {(advice is null ? "" : _session.CounterSignature())}; covering {(advice is null ? "" : _session.CoverSignature())}; advised {Advised(advice)}]";
         foreach (int k in before.Keys.Union(kitchens.Keys).Order())
         {
             string? was = before.GetValueOrDefault(k)?.Key, now = kitchens.GetValueOrDefault(k)?.Key;
@@ -447,7 +466,7 @@ internal sealed class InnReplay
                                                     && _session.ReadyIn(k.Kitchen, q.Dish.Id) is { } readyIn && readyIn <= q.ReadyIn + InnCallHold.ShowElsewhereWithinSeconds))
                 freeFor.Add((q.Dish.Id, table));
         }
-        Steps.Add(new CallStep(at, kitchens, open, queues, ahead, why, state[(state.LastIndexOf('[') + 1)..^1]) { Sendable = sendable, FreeFor = freeFor, Unattended = advice is null ? [] : Unattended(queues) });
+        Steps.Add(new CallStep(at, kitchens, open, queues, ahead, why, state[(state.LastIndexOf('[') + 1)..^1]) { Sendable = sendable, FreeFor = freeFor, Unattended = advice is null ? [] : Unattended(queues), AheadTooLate = AheadTooLate(before, at) });
     }
 
     /// <summary>
@@ -504,7 +523,8 @@ internal sealed class InnReplay
 
     /// <summary>This moment's advice per kitchen, before the hold: "1:dish@table(ready in),… 2:…".</summary>
     private static string Advised(InnAdvice? advice) => advice?.Dispatch is not { } d ? "" : string.Join(" ", d.Kitchens.Select(k =>
-        $"{k.Kitchen}:{string.Join(",", k.Replaces.Select(s => $"swap {s.Remove.Id}->{s.Put.Id}@{s.Table}").Concat(k.Queue.Select(q => $"{q.Dish.Id}@{q.Table?.ToString(CultureInfo.InvariantCulture) ?? "ahead"}({q.ReadyIn:F0})")))}"));
+        $"{k.Kitchen}:{string.Join(",", k.Replaces.Select(s => $"swap {s.Remove.Id}->{s.Put.Id}@{s.Table}").Concat(k.Queue.Select(q => $"{q.Dish.Id}@{q.Table?.ToString(CultureInfo.InvariantCulture) ?? "ahead"}({q.ReadyIn:F0})")))}")
+        .Concat(d.Leftovers.Count > 0 ? [$"last call {string.Join(",", d.Leftovers.Select(l => $"{l.Dish.Id}@{l.Table}"))}"] : []));
 
     /// <summary>
     /// The kitchens' calls that flashed or jumped (owner, 2026-10-21: "the recommended dish flashes heavily and it jumps
@@ -594,7 +614,7 @@ internal sealed class InnReplay
         if (call.Kind is InnCallKind.Queue or InnCallKind.Swap && !step.Open.Contains((call.Dish!.Id, call.Table!.Value))
             && (OnCounter(step, call.Dish.Id) || ServedWithin(i, call.Table.Value, call.Dish.Id) || DoneWithin(i, call.Table.Value)
                 || QueuedWithin(i, grace, kitchen: null, dish: call.Dish.Id))) return true;
-        if (call.Kind == InnCallKind.CookAhead && !step.CooksAhead) return true;
+        if (call.Kind == InnCallKind.CookAhead && (!step.CooksAhead || step.AheadTooLate.Contains(kitchen))) return true;
         // Nothing done elsewhere excuses a call going (owner, 2026-10-21: "the recommendation should stay steady"): a dish
         // served to another table or queued in another kitchen leaves this call as possible as it was, so its going is a jump.
         // Another dish the player queued in this very kitchen: the advice suggests swapping it out for the order while it
@@ -732,11 +752,14 @@ internal sealed class InnReplay
             sb.AppendLine(CultureInfo.InvariantCulture, $"# order {o.At.TotalSeconds,7:F1} {o.Dish}@{o.Table}: {(o.ShownAfter is { } after ? $"shown after {after:F1} s" : "never shown")}{(o.KitchenFree ? "" : " (every kitchen showing another order)")}");
         foreach (var c in Changes)
             sb.AppendLine(CultureInfo.InvariantCulture, $"{c.At.TotalSeconds,7:F1} {c.Display,-6} {c.Change} {c.What}  <= {c.Why}");
-        // Every 10 s of the session: what the calls were worked out from.
+        // Every 10 s of the session: what the calls were worked out from; every step within ENDHUD_REPLAY_DETAIL ("from-to", s).
         double next = 0;
+        var detail = Environment.GetEnvironmentVariable("ENDHUD_REPLAY_DETAIL") is { } d && d.Split('-') is [var from, var to]
+            ? (From: double.Parse(from, CultureInfo.InvariantCulture), To: double.Parse(to, CultureInfo.InvariantCulture)) : (From: -1.0, To: -1.0);
         foreach (var step in Steps.Where(s => s.State.Length > 0 && s.Queues.Length > 0))
         {
-            if (step.At.TotalSeconds < next) continue;
+            bool inDetail = step.At.TotalSeconds >= detail.From && step.At.TotalSeconds <= detail.To;
+            if (step.At.TotalSeconds < next && !inDetail) continue;
             next = Math.Floor(step.At.TotalSeconds / 10) * 10 + 10;
             sb.AppendLine(CultureInfo.InvariantCulture, $"{step.At.TotalSeconds,7:F1} state  calls {string.Join(" ", step.Kitchens.Values.Select(c => c.Key))}; {step.State}");
         }
