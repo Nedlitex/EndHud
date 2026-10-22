@@ -219,10 +219,18 @@ public sealed class TrayReader(InnPictures pictures)
         // Every other pixel at 4K (plenty), every one below.
         int step = s >= 0.9 ? 2 : 1;
         var solids = pictures.Solids(size);
+        // The panel's colour behind a see-through part of the art (a bottle's glass): the slot's sides, their median.
+        var sides = new List<(byte R, byte G, byte B)>();
+        int inset = Math.Max(2, (int)Math.Round(6 * s));
+        foreach (int x in new[] { area.X + inset, area.Right - 1 - inset })
+        for (int y = area.Y + area.Height / 3; y < area.Y + area.Height * 5 / 6; y++)
+            if (x >= 0 && y >= 0 && x < frame.Width && y < frame.Height) sides.Add(frame.GetPixel(x, y));
+        int Median(Func<(byte R, byte G, byte B), byte> channel) => sides.Count == 0 ? 0 : sides.Select(channel).Order().ElementAt(sides.Count / 2);
+        int bgR = Median(c => c.R), bgG = Median(c => c.G), bgB = Median(c => c.B);
 
         double Difference(InnPictures.Solid p, int shiftX, int shiftY)
         {
-            long sum = 0;
+            double sum = 0;
             int n = 0;
             for (int y = 0; y < size; y += step)
             for (int x = 0; x < size; x += step)
@@ -234,11 +242,12 @@ public sealed class TrayReader(InnPictures pictures)
                 if (inSlotY < cornerH && (inSlotX < cornerW || inSlotX > area.Width - cornerW)) continue;
                 if (fx < 0 || fy < 0 || fx >= frame.Width || fy >= frame.Height) continue;
                 var (r, g, b) = frame.GetPixel(fx, fy);
-                sum += Math.Abs(r - p.Rgb[i * 3]) + Math.Abs(g - p.Rgb[i * 3 + 1]) + Math.Abs(b - p.Rgb[i * 3 + 2]);
+                double rest = 1 - p.Alpha[i] / 255.0;
+                sum += Math.Abs(r - (p.Rgb[i * 3] + bgR * rest)) + Math.Abs(g - (p.Rgb[i * 3 + 1] + bgG * rest)) + Math.Abs(b - (p.Rgb[i * 3 + 2] + bgB * rest));
                 n++;
             }
-            // A picture with almost nothing solid left to compare says nothing.
-            return n < size * size / (4 * step * step) ? double.MaxValue : sum / (3.0 * n);
+            // A picture with almost nothing solid left to compare says nothing (a bottle covers about a tenth of its square).
+            return n < size * size / (16 * step * step) ? double.MaxValue : sum / (3.0 * n);
         }
 
         int reach = Math.Max(1, (int)Math.Round(3 * s));

@@ -27,6 +27,14 @@ public class InnTrayReaderTests(ITestOutputHelper output)
         { "session-tray-picking-up", "melon-meatball-soup, immortal-galore-of-fortune, -, -, -" },
         { "session-tray-one-choice-dish", "spoon-swimmer*, -, -, -, -" },
         { "session-full-blaze-running", "-, -, -, -, -" },
+        // The owner's earlier recordings: drinks are held too (a bottle's glass is see-through).
+        { "session-closed", "spoon-swimmer, bottled-duskberry-juice, -, -, -" },
+        { "session-fire-ready", "pre-tide-lungjing, spoon-swimmer, spoon-swimmer, -, -" },
+        { "session-gourmand-arrives", "spoon-swimmer, goldfloss-chiffon, sweetbeans-on-snow, -, -" },
+        { "session-gourmand-soup-and-drink-near", "boundary-lung-roll, sweetbeans-on-snow, fin-mato-soup, sourberry-pudding, melon-meatball-soup*" },
+        { "session-gourmand-two-lines", "melon-meatball-soup, clay-jar-meat, -, -, -" },
+        // The HUD fading back in: the pictures too faint to tell apart, never guessed.
+        { "session-gourmand-still-open", "?, ?, -, -, -" },
         // The dispatch panel covers the tray.
         { "session-dispatch-panel", null },
         { "dispatch-panel-banners", null },

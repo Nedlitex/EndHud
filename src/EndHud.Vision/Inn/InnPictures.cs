@@ -46,8 +46,11 @@ public sealed class InnPictures
         }
     }
 
-    /// <summary>A picture drawn <paramref name="Size"/> pixels square, with which of its pixels are solid (the art, not its see-through edge): RGB, row by row.</summary>
-    internal sealed record Solid(string Id, int Size, byte[] Rgb, bool[] Opaque);
+    /// <summary>
+    /// A picture drawn <paramref name="Size"/> pixels square: its colour premultiplied by its <paramref name="Alpha"/> (RGB, row
+    /// by row), and which pixels are at least half covered (<paramref name="Opaque"/>: the art, not the space around it).
+    /// </summary>
+    internal sealed record Solid(string Id, int Size, byte[] Rgb, byte[] Alpha, bool[] Opaque);
 
     private readonly Dictionary<int, Solid[]> _solid = [];
 
@@ -64,6 +67,7 @@ public sealed class InnPictures
             {
                 var small = size * 2 > p.Value.Width ? p.Value.ResizeSmooth(size, size) : p.Value.Resize(size, size);
                 var rgb = new byte[size * size * 3];
+                var alpha = new byte[size * size];
                 var opaque = new bool[size * size];
                 for (int i = 0; i < size * size; i++)
                 {
@@ -71,9 +75,11 @@ public sealed class InnPictures
                     rgb[i * 3] = small.Bgra[o + 2];
                     rgb[i * 3 + 1] = small.Bgra[o + 1];
                     rgb[i * 3 + 2] = small.Bgra[o];
-                    opaque[i] = small.Bgra[o + 3] >= 250;
+                    alpha[i] = small.Bgra[o + 3];
+                    // A bottle's glass is see-through (瓶装霞莓饮): half covered counts, the background estimated under it.
+                    opaque[i] = small.Bgra[o + 3] >= 128;
                 }
-                return new Solid(p.Key, size, rgb, opaque);
+                return new Solid(p.Key, size, rgb, alpha, opaque);
             }).ToArray();
             if (_solid.Count > 16) _solid.Clear();
             _solid[size] = solids;
