@@ -8,9 +8,10 @@ namespace EndHud.Vision;
 /// both bands, at the same place; a "V" is two runs in the upper band (its arms) that close into one
 /// in the lower band, between them. The runs must spell I, II, III or IV; anything else is null.
 /// At level I the game draws no badge at all (the owner's answer, 2026-10-22), so a corner that clearly
-/// has no badge reads 1: no numeral, hardly any dark, and the inner corner showing the square's own
-/// background (<see cref="BossStatusReader.Background"/>). A corner that is dark (a badge, or a dark
-/// scene that could hide one) or covered by something else (an effect) is null, never 1.
+/// has no badge reads 1: no numeral, little dark, the part inside the square showing the square's own
+/// background (<see cref="BossStatusReader.Background"/>) and the icon's art in full colour. A corner
+/// that is dark (a badge, or a dark scene that could hide one), covered by something else (an effect)
+/// or washed out (an icon still appearing, a flash) is null, never 1.
 /// Only reactions whose badge has been seen are read (<see cref="Measured"/>).
 /// </summary>
 public static class ReactionLevel
@@ -29,15 +30,30 @@ public static class ReactionLevel
     internal const double MinInkHue = 35, MaxInkHue = 95, MinInkSaturation = 0.45, MinInkValue = 0.5;
 
     // The badge's background: of the box's pixels that aren't ink, the share darker than DarkBelow
-    // (max channel). Measured below in MinDarkShare's comment.
+    // (max channel). Measured: 0.65-0.95 on the badges in Fixtures/reactions, 0.01-0.26 where the icon
+    // has no badge. A badge needs MinDarkShare.
     internal const int DarkBelow = 100;
     internal const double MinDarkShare = 0.5;
 
-    // No badge (level I). Of the box's pixels inside the square (from BadgeFrom to the square's edge)
-    // that aren't ink, the share within BackgroundNear (sum of |R|,|G|,|B| differences) of the square's
-    // background, and the box's DarkShare. Measured: see MinAbsentBackgroundShare's comment.
+    // No badge (level I): no numeral, and all three of
+    // - DarkShare at most MaxAbsentDarkShare;
+    // - of the box's pixels inside the square (BadgeFrom to the square's edge) that aren't ink, the
+    //   share within BackgroundNear (sum of the R, G, B differences) of the square's background: at
+    //   least MinAbsentBackgroundShare (the square is translucent, so a dim or busy scene behind it
+    //   lowers this: unknown);
+    // - of all the pixels there, the share of ink (the icon's own art in full colour): at least
+    //   MinAbsentInk.
+    // Measured on every Corrosion and Electrification BossStatusReader named in the four recordings,
+    // every 0.2 s (never the last 5 s; .tracking/changes/20261022-R1-MEASUREMENTS.txt): 542 badged
+    // readings (Si's Corrosion III, Laevatain's Electrification IV, Zhuang's II and III) had dark share
+    // 0.45-0.98 and background share 0.00-0.38, so none comes within 0.05 (dark) and 0.12 (background)
+    // of reading I; nor does any lose its numeral (16-25 px of 40, threshold 12). Of 599 readings with no
+    // badge, 331 read I: dark 0.00-0.40, background 0.50-0.89, art 0.11-0.51 (Electrification's waves
+    // 0.11-0.28, Corrosion's flask 0.27-0.51). The rest stay unknown: a dark or busy scene behind the
+    // square, an icon still fading in (art 0.00-0.09, washed white while its badge, if any, is already
+    // dark), Corrosion's dark outlines.
     internal const int BackgroundNear = 45;
-    internal const double MaxAbsentDarkShare = 0.45, MinAbsentBackgroundShare = 0.45;
+    internal const double MaxAbsentDarkShare = 0.4, MinAbsentBackgroundShare = 0.5, MinAbsentInk = 0.1;
 
     // The numeral is at least this tall (fraction of the square's width; 18-19 px of 40 at 4K).
     internal const double MinNumeralHeight = 0.3;
@@ -55,30 +71,36 @@ public static class ReactionLevel
     public static int? ReadLevel(Frame frame, PixelRect square) => Measure(frame, square).Level;
 
     /// <summary>What the reading is based on, for measuring thresholds.</summary>
-    internal static (double DarkShare, double BackgroundShare, int Height, double[] Upper, double[] Lower, int? Level) Measure(Frame frame, PixelRect square)
+    internal static (double DarkShare, double BackgroundShare, double InkShare, int Height, double[] Upper, double[] Lower, int? Level) Measure(Frame frame, PixelRect square)
     {
         int x0 = square.X + (int)Math.Round(square.Width * BadgeFrom), x1 = square.X + (int)Math.Round(square.Width * BadgeTo);
         int y0 = square.Y + (int)Math.Round(square.Height * BadgeFrom), y1 = square.Y + (int)Math.Round(square.Height * BadgeTo);
-        if (square.X < 0 || square.Y < 0 || x1 > frame.Width || y1 > frame.Height || x1 - x0 < 6) return (0, 0, 0, [], [], null);
+        if (square.X < 0 || square.Y < 0 || x1 > frame.Width || y1 > frame.Height || x1 - x0 < 6) return (0, 0, 0, 0, [], [], null);
 
         var background = BossStatusReader.Background(frame, square);
         int w = x1 - x0, h = y1 - y0;
         var ink = new bool[w, h];
-        int dark = 0, other = 0, inside = 0, near = 0;
+        int dark = 0, other = 0, inside = 0, insideInk = 0, near = 0;
         for (int y = 0; y < h; y++)
         for (int x = 0; x < w; x++)
         {
             var (r, g, b) = frame.GetPixel(x0 + x, y0 + y);
             ink[x, y] = IsInk(r, g, b);
-            if (ink[x, y]) continue;
+            bool inSquare = x0 + x < square.Right && y0 + y < square.Bottom;
+            if (ink[x, y])
+            {
+                if (inSquare) insideInk++;
+                continue;
+            }
             other++;
             if (Math.Max(r, Math.Max(g, b)) < DarkBelow) dark++;
-            if (x0 + x >= square.Right || y0 + y >= square.Bottom) continue;
+            if (!inSquare) continue;
             inside++;
             if (Math.Abs(r - background.R) + Math.Abs(g - background.G) + Math.Abs(b - background.B) <= BackgroundNear) near++;
         }
         double darkShare = other == 0 ? 0 : dark / (double)other;
         double backgroundShare = inside == 0 ? 0 : near / (double)inside;
+        double inkShare = inside + insideInk == 0 ? 0 : insideInk / (double)(inside + insideInk);
 
         int top = -1, bottom = -1;
         for (int y = 0; y < h; y++)
@@ -93,13 +115,13 @@ public static class ReactionLevel
         bool numeral = height >= square.Width * MinNumeralHeight;
         if (!numeral)
         {
-            bool absent = darkShare <= MaxAbsentDarkShare && backgroundShare >= MinAbsentBackgroundShare;
-            return (darkShare, backgroundShare, height, [], [], absent ? 1 : null);
+            bool absent = darkShare <= MaxAbsentDarkShare && backgroundShare >= MinAbsentBackgroundShare && inkShare >= MinAbsentInk;
+            return (darkShare, backgroundShare, inkShare, height, [], [], absent ? 1 : null);
         }
         var upper = Runs(ink, w, top + (int)Math.Round(height * UpperFrom), top + (int)Math.Round(height * UpperTo));
         var lower = Runs(ink, w, top + (int)Math.Round(height * LowerFrom), top + (int)Math.Round(height * LowerTo));
         bool badge = darkShare >= MinDarkShare;
-        return (darkShare, backgroundShare, height, upper, lower, badge ? Spell(upper, lower, square.Width * SameColumn) : null);
+        return (darkShare, backgroundShare, inkShare, height, upper, lower, badge ? Spell(upper, lower, square.Width * SameColumn) : null);
     }
 
     /// <summary>
