@@ -288,8 +288,13 @@ internal sealed class InnCallHold
             // Still this kitchen's dish to cook ahead: the advice keeps it there while that's possible (KeptCall), so its
             // going means it no longer is (no stock, the end, an order sent to this kitchen).
             InnCallKind.CookAhead => view.HasRoom(kitchen) && wanted.GetValueOrDefault((call.Dish!.Id, -kitchen)) > 0,
+            // Still this kitchen's swap, or its order still sent to this kitchen (the advice keeps a swap's order there while it is
+            // possible, Kept). Until 2026-10-21 any kitchen wanting the order kept the swap: test_yuanyuan7 at 341.5 s the order
+            // could no longer come out of kitchen 2 in time, the advice sent it to kitchen 1, and the swap went on claiming it,
+            // so kitchen 1 never showed it.
             InnCallKind.Swap => advice.Replaces.Any(s => s.Remove.Id == call.Remove!.Id && s.Put.Id == call.Dish!.Id && s.Table == call.Table)
-                                || (view.HasRoom(kitchen) && wanted.GetValueOrDefault((call.Dish!.Id, call.Table!.Value)) > 0),
+                                || (view.HasRoom(kitchen) && wanted.GetValueOrDefault((call.Dish!.Id, call.Table!.Value)) > 0
+                                    && advice.Queue.Any(q => q.Table == call.Table && q.Dish.Id == call.Dish.Id)),
             _ => false,
         };
     }
