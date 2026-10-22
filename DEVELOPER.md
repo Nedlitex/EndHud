@@ -791,13 +791,18 @@ the last one's words; a HUD fade (every card read empty) says nothing about any 
 
 **test_yuanyuan8** (owner, 2026-10-21: "MOST of the gourmand requirement IS NOT recognized"; the feast mode, every
 guest a gourmand of the feast pool): 14 gourmands and 28 requests, read off the frames by eye (table by the number post
-under each bubble, resolved by each icon's face), held in `InnGourmandTruthTests.Y8` and measured against the tiles
+under each bubble; resolved when its card's pip turned, read by a fixed-pixel script), held in `InnGourmandTruthTests.Y8` and measured against the tiles
 replayed from the recording's readings (`InnReplay.AgainstTruth`: shown on its own table within 3 s of the bubble, and
-kept until resolved; 8 requests resolved within 3 s of the bubble aren't judged). Before (main's readers and session, c4ad20f):
-13 of 20 shown within 3 s, 8 kept. Missed: words given to a table whose gourmand was still choosing or only arrived, and kept
-there (D2, F1, F2, K2; J2, whose card hadn't turned yet, went to a table that had lost its words in a fade); a drink said in
-three letters never matched (A2, H2). Not kept: HUD fades of 3.6–3.9 s forgot the words (H1, I1, I2, L2); a misread line
-(another of the gourmand's requests) replaced them (G2). The labels are the truth table's. After: below (the replay check). Without the setup screens, the kitchens and chefs
+kept until resolved; a request resolved, by its card's pip, within 3 s of its bubble isn't judged: 9 of 28). Before (main's
+readers and session, c4ad20f): 12 of 19 shown within 3 s, 7 kept. Missed: words given to a table whose gourmand was still
+choosing or only arrived, and kept there (D2, F1, F2, K2; J2, whose card hadn't turned yet, went to a table that had lost its
+words in a fade); a drink said in three letters never matched (A2, H2). Not kept: HUD fades of 3.6–3.9 s forgot the words
+(H1, I1, I2, L2); a misread line (another of the gourmand's requests) replaced them (G2). After (the recording's readings
+through the new readers, `Fixtures/inn-replay/test-yuanyuan8-readings.jsonl.gz`): 19 of 19 shown within 3 s (0.65–1.3 s
+after the bubble) and kept until resolved, none on another table; 27 of the 28 requests shown at all (the 28th was failed
+1 s after it was said). `InnGourmandTruthTests.Over_test_yuanyuan8_…` holds it. On test_yuanyuan3–7 the gourmands' tiles are
+as before but two: test_yuanyuan5's table 3 no longer shows another table's half-read words as "not recognised" for 9 s
+before its own, and test_yuanyuan3's table 4 goes 1.8 s sooner, when both pips read resolved. The labels are the truth table's. Without the setup screens, the kitchens and chefs
 come from the dispatch panel, and the Inn Rating from the cook times it shows. A kitchen the setup
 screen showed with every place empty is left out (it cannot cook) unless the dispatch panel has since
 named its chefs; one whose chefs were never seen is advised at base speed. A session ends after
