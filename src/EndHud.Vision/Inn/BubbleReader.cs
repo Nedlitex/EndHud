@@ -182,12 +182,10 @@ public sealed class BubbleReader(InnText text)
         bool cut = bubble.X <= Math.Max(2, (int)Math.Round(Step * s));
         int left = cut ? whole.X : bubble.X + (int)(TextStartsAt * glyph);
         var region = new PixelRect(left, whole.Y, whole.Right - left, whole.Height);
-        var placed = (await text.ReadPlacedLinesAsync(frame, region, Ink, s))
+        var placed = Rows((await text.ReadPlacedLinesAsync(frame, region, Ink, s))
             .Where(l => l.Place.Height >= LeastLineHeight * glyph)
             .Select(l => (Text: l.Text.Replace(" ", ""), l.Place))
-            .Where(l => l.Text.Length > 0)
-            .OrderBy(l => l.Place.Y)
-            .ToList();
+            .Where(l => l.Text.Length > 0), glyph);
         var lines = placed.Select(l => l.Text).ToList();
         string joined = string.Concat(lines);
         if (joined.Count(char.IsLetter) < 3) return null;
@@ -205,6 +203,31 @@ public sealed class BubbleReader(InnText text)
             resolved.Add(icons[i].Face);
         }
         return new GourmandBubble(joined, lines) { Place = bubble, Starts = starts, Resolved = resolved };
+    }
+
+    /// <summary>
+    /// The lines read put back into the bubble's rows, top to bottom: the engine can return one row as two lines (an orange key
+    /// word apart from the dark text before it, test_yuanyuan8 at 2560x1440: the drink's key word read as a line above the
+    /// rest of its row), and a line's middle within
+    /// half a character of another's is the same row, its parts joined left to right.
+    /// </summary>
+    internal static List<(string Text, PixelRect Place)> Rows(IEnumerable<(string Text, PixelRect Place)> lines, int glyph)
+    {
+        var rows = new List<List<(string Text, PixelRect Place)>>();
+        foreach (var line in lines.OrderBy(l => l.Place.Y + l.Place.Height / 2.0))
+        {
+            double middle = line.Place.Y + line.Place.Height / 2.0;
+            var row = rows.LastOrDefault();
+            if (row is not null && Math.Abs(row.Average(l => l.Place.Y + l.Place.Height / 2.0) - middle) <= glyph / 2.0) row.Add(line);
+            else rows.Add([line]);
+        }
+        return [.. rows.Select(row =>
+        {
+            var parts = row.OrderBy(l => l.Place.X).ToList();
+            int left = parts.Min(l => l.Place.X), top = parts.Min(l => l.Place.Y);
+            int right = parts.Max(l => l.Place.Right), bottom = parts.Max(l => l.Place.Bottom);
+            return (string.Concat(parts.Select(l => l.Text)), new PixelRect(left, top, right - left, bottom - top));
+        })];
     }
 
     /// <summary>An icon before a request: its middle (window pixels, down) and whether it has turned into a face.</summary>
