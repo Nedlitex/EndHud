@@ -801,15 +801,15 @@ that contradicts it puts it right; each correction is logged ("inn: corrected �
 | — how many | | the counter holds 8: more is a contradiction, the oldest dish cooked ahead goes first | counter 0 / 1 / 0 / 0 / 0 |
 | — a dish leaving the hand with no guest's card read served | back on the counter after `HandSettlesAfter` (3 s); meanwhile still in hand | a gourmand waiting (arrived, ordered, or read eating since): it went to them, their card shows no pips | gourmand 0 / 0 / 6 / 5 / 5 |
 | The timer | run on from its last reading | a reading more than a second off (it shows whole seconds), or closing | timer 0 everywhere |
-| Stock (`MenuDish.Stock`) | the menu screen's stock less the dishes cooked out | nothing yet: the dispatch panel's cards show 可烹饪N, not read (a gap) | |
+| Stock (`MenuDish.Stock`) | the menu screen's stock less the dishes cooked out | nothing yet: the dispatch panel's cards show each dish's stock left, not read (a gap) | |
 
 Read on every frame, not estimated: the orders (held through the HUD's fades, above), the tray, the panel, the fire meter.
 Until 2026-10-21 nothing took a phantom off the counter: on test_yuanyuan7 the estimate held up to 20 dishes on a counter
 of 8 (before → after, the largest estimate on each replay: 7 / 9 / 11 / 7 / 20 → 7 / 8 / 4 / 3 / 5). Two leaks made them:
 `Align` reading a queue with a dish taken out of its middle as every dish out and the rest queued anew (y7 157.5 s:
-[福寿全, 八宝饭, 千果珍珠圆] read as [福寿全 9 s, 千果珍珠圆] put three dishes on the counter and cooked 福寿全 out twice; five times on
-y7), and every dish served to a gourmand taken as put back. The phantoms covered real orders: table 6's 福寿全 had no call
-from 227.7 s to 361.5 s (02:28 → 00:15), and tables 4 and 5 waited on 白鳞高汤 while the advice told the player to take a
+[immortal-galore-of-fortune, eight-treasure-rice, pearly-fruit-punch] read as [immortal-galore-of-fortune 9 s, pearly-fruit-punch] put three dishes on the counter and cooked immortal-galore-of-fortune out twice; five times on
+y7), and every dish served to a gourmand taken as put back. The phantoms covered real orders: table 6's immortal-galore-of-fortune had no call
+from 227.7 s to 361.5 s (02:28 → 00:15), and tables 4 and 5 waited on white-fin-broth while the advice told the player to take a
 soup out of kitchen 2 (310 s, owner: "stuck behind a lot of soups but the kitchen recommendation is not even picking that up").
 
 The dispatch advice is worked out afresh on every frame, so on its own it flips with every queue time read a
@@ -843,15 +843,15 @@ suggestion per kitchen changed 19 times when the advice was worked out afresh, 0
 screen; the calls 0 times.
 
 **One dish in one circle** (owner, 2026-10-21, test_yuanyuan7 at 00:46: "the recommended queue will be duplicated in
-multiple kitchens": 八宝饭 for table 3's order in kitchen 1 and to cook ahead in kitchen 3). A dish to cook ahead is never
+multiple kitchens": eight-treasure-rice for table 3's order in kitchen 1 and to cook ahead in kitchen 3). A dish to cook ahead is never
 one another kitchen's circle shows: it gives way to an order or swap of that dish, or to the same dish cooked ahead shown
 before it, and its kitchen takes the next dish its advice cooks ahead that no circle shows, or shows nothing
 (`InnCallHold.DishShown`). Two orders of one dish for two tables stay, each naming its table. **A swap** stays only while the
 advice keeps its order in that kitchen (until 2026-10-21 it stayed while any kitchen wanted the order: y7 341.5 s, the order
 moved to kitchen 1 and kitchen 2's swap went on claiming it); it is kept as a swap while the dish it takes out is there to
 take out (`KeptCall.Remove`, `DispatchAdvisor`'s `TrySwap`; before, the next frame's advice made it a plain order queued
-behind that dish), and shown as a plain order once the advice makes it one (y7 from 261 s: "先拿掉界龙肉卷" stood 100 s over
-table 6's 福寿全 after the 界龙肉卷 was out). The last call's wrong dish for a table is chosen by the dish, not by its place
+behind that dish), and shown as a plain order once the advice makes it one (y7 from 261 s: "take out boundary-lung-roll first" (the swap circle) stood 100 s over
+table 6's immortal-galore-of-fortune after the boundary-lung-roll was out). The last call's wrong dish for a table is chosen by the dish, not by its place
 among what's left, so one dish leaving the hand no longer reshuffles every table (y7 375.3 s).
 
 The calls are banners (owner, live 2026-10-20: "remove all hints from the current panel, use the combo instead.
@@ -1040,7 +1040,7 @@ replay test on any tab without its circle, kitchen with a call shown on the pane
 tab with no card mark, dish to cook ahead called with the circles not drawn or gone with nothing done, gourmand hidden or
 taken down while their table still waits.
 
-**test_yuanyuan7, replayed** (2026-10-21; the owner's 八方美馔 session, its readings the fifth fixture, 0–390 s; the timer
+**test_yuanyuan7, replayed** (2026-10-21; the owner's Luxurious Banquet session, its readings the fifth fixture, 0–390 s; the timer
 reads 5:00 at 76 s, so 00:46 is 330 s). The owner: "sometimes the recommended queue will be duplicated in multiple
 kitchens", and at 5–6 min "we ended up stuck behind a lot of soups but the kitchen recommendation is not even picking that
 up". Two checks were added for it (`InnReplay.DuplicateCircles`, `InnReplay.UncalledWaits`), measured on main's code of that
@@ -1049,7 +1049,7 @@ day with the final checks, then after:
 | Measured (y3 / y4 / y5 / y6 / y7) | Before | After |
 |---|---|---|
 | one dish in two circles (not two tables' orders) | 6 / 9 / 4 / 0 / 9 (91 / 170 / 26 / 0 / 82 s) | 0 everywhere |
-| a dish tables wait for, not in hand nor queued, a kitchen able to have it out in time, no circle naming it, over 10 s, not ended by the dish picked up or served | 1 / 1 / 0 / 1 / 2 (y7: 福寿全 133.8 s from 227.7 s, 白鳞高汤 21.6 s from 318.0 s) | 1 / 1 / 0 / 0 / 0 (y3 莓果甜汤 17.4 s, y4 酸莓布丁 17.4 s: each covered by a dish taken to be out for it, inside the 45 s trust) |
+| a dish tables wait for, not in hand nor queued, a kitchen able to have it out in time, no circle naming it, over 10 s, not ended by the dish picked up or served | 1 / 1 / 0 / 1 / 2 (y7: immortal-galore-of-fortune 133.8 s from 227.7 s, white-fin-broth 21.6 s from 318.0 s) | 1 / 1 / 0 / 0 / 0 (y3 berry-sweet-sip 17.4 s, y4 sourberry-pudding 17.4 s: each covered by a dish taken to be out for it, inside the 45 s trust) |
 | the largest counter estimate (a counter of 8) | 7 / 9 / 11 / 7 / 20 | 7 / 8 / 4 / 3 / 5 |
 | calls a minute; flashes, jumps | 13.6 / 11.7 / 10.0 / 3.6 / 14.4; 0, 0 | 12.9 / 12.8 / 14.4 / 5.2 / 16.0; 0, 0 |
 

@@ -8,7 +8,7 @@ namespace EndHud.Tests;
 /// What the session only estimates (each kitchen's queue, the counter, which counter dish covers which order) is simulated
 /// from the last state known and put right by every reading that contradicts it (owner, 2026-10-21, test_yuanyuan7: "it
 /// should be simulated from the last known state whenever possible and refreshed when see the latest state"). On that
-/// session the counter estimate held 15-20 dishes on a counter of 8, and two 福寿全 and two 白鳞高汤 taken to be out for orders
+/// session the counter estimate held 15-20 dishes on a counter of 8, and two immortal-galore-of-fortune and two white-fin-broth taken to be out for orders
 /// kept tables 4, 5 and 6 waiting with no call for over a minute ("we ended up stuck behind a lot of soups").
 /// </summary>
 public class InnStateCorrectionTests
@@ -42,9 +42,9 @@ public class InnStateCorrectionTests
         advice.Dispatch!.Kitchens.Any(k => k.Queue.Any(q => q.Dish.Id == dish && q.Table == table) || k.Replaces.Any(r => r.Put.Id == dish && r.Table == table));
 
     /// <summary>
-    /// test_yuanyuan7 at 157.5 s: kitchen 1 was taken to hold [福寿全, 八宝饭, 千果珍珠圆]; the panel read [福寿全 9 s, 千果珍珠圆] (the player
-    /// had taken 八宝饭 out). Read as "all three came out and the player queued 福寿全 and 千果珍珠圆 anew", it put three dishes on the
-    /// counter that weren't there and counted 福寿全 out a second time 9 s later. A dish cooking with 9 s left can't have come
+    /// test_yuanyuan7 at 157.5 s: kitchen 1 was taken to hold [immortal-galore-of-fortune, eight-treasure-rice, pearly-fruit-punch]; the panel read [immortal-galore-of-fortune 9 s, pearly-fruit-punch] (the player
+    /// had taken eight-treasure-rice out). Read as "all three came out and the player queued immortal-galore-of-fortune and pearly-fruit-punch anew", it put three dishes on the
+    /// counter that weren't there and counted immortal-galore-of-fortune out a second time 9 s later. A dish cooking with 9 s left can't have come
     /// out, nor the two behind it: the queue is taken as read and nothing goes on the counter.
     /// </summary>
     [Fact]
@@ -74,9 +74,9 @@ public class InnStateCorrectionTests
     }
 
     /// <summary>
-    /// test_yuanyuan7 at 208.5 s: the tray picked up 福寿全 and dropped it 2 s later, and table 1's gourmand read eating at 212.7 s.
+    /// test_yuanyuan7 at 208.5 s: the tray picked up immortal-galore-of-fortune and dropped it 2 s later, and table 1's gourmand read eating at 212.7 s.
     /// A gourmand's card shows no served pips, so no table read served with it, and the dish was taken as put back on the counter,
-    /// where it covered table 5's and then table 6's 福寿全 for over 100 s. A dish leaving the hand while a gourmand waits for their
+    /// where it covered table 5's and then table 6's immortal-galore-of-fortune for over 100 s. A dish leaving the hand while a gourmand waits for their
     /// order went to the gourmand.
     /// </summary>
     [Fact]
@@ -97,7 +97,7 @@ public class InnStateCorrectionTests
         Assert.Contains(log, l => l.Contains("gourmand", StringComparison.Ordinal) && l.Contains(D, StringComparison.Ordinal));
     }
 
-    /// <summary>With no gourmand waiting, a dish leaving the hand with no table read served was put back on the counter (放回出餐台), as before.</summary>
+    /// <summary>With no gourmand waiting, a dish leaving the hand with no table read served was put back on the counter (the game's "put back on the counter"), as before.</summary>
     [Fact]
     public void A_dish_leaving_the_hand_with_no_gourmand_waiting_is_back_on_the_counter()
     {
@@ -114,7 +114,7 @@ public class InnStateCorrectionTests
 
     /// <summary>
     /// A dish out for an order whose table still reads it unserved long after: the estimate is wrong about it (test_yuanyuan7:
-    /// 福寿全 "out for" table 6's order for 111 s, white-fin soups for 45 s, while the tables waited and nothing was called). Once
+    /// immortal-galore-of-fortune "out for" table 6's order for 111 s, white-fin soups for 45 s, while the tables waited and nothing was called). Once
     /// it has been out <see cref="InnSession.CoverTrustedFor"/>, the order is no longer taken as covered: it is called again,
     /// and the correction is logged.
     /// </summary>

@@ -304,7 +304,7 @@ internal sealed class InnReplay
     }
 
     /// <summary>
-    /// One dish in two circles at once (owner, 2026-10-21, test_yuanyuan7 at 00:46: 八宝饭 called for table 3's order in kitchen 1
+    /// One dish in two circles at once (owner, 2026-10-21, test_yuanyuan7 at 00:46: eight-treasure-rice called for table 3's order in kitchen 1
     /// and to cook ahead in kitchen 3 at the same moment, "the recommended queue will be duplicated in multiple kitchens"). A
     /// dish may show in two circles only when each is an order (or a swap) naming its own table: two tables genuinely waiting
     /// for it. Anything else (an order and a dish to cook ahead, two dishes to cook ahead, one table twice) is a duplicate.
@@ -602,7 +602,7 @@ internal sealed class InnReplay
             {
                 // Back in its kitchen after going a moment ago, unless the player queued it (then advised again: the
                 // next of the same dish, new advice).
-                // Nor when the player picked its order's dish up and put it elsewhere meanwhile (test_yuanyuan7 208.8-210.6 s: 福寿全
+                // Nor when the player picked its order's dish up and put it elsewhere meanwhile (test_yuanyuan7 208.8-210.6 s: immortal-galore-of-fortune
                 // picked up covered table 5's order, then went to a gourmand): the tray read it, two things done.
                 if (gone.Any(g => g.Kitchen == k && g.Call.Key == now.Key && g.At < step.At && !g.Done && !HandMoved(g.At, i, now.Dish?.Id)))
                 {

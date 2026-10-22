@@ -1,7 +1,7 @@
 namespace EndHud;
 
 /// <summary>
-/// The dishes the session takes to be on the counter (出餐台): an estimate, since the counter is never read off the screen.
+/// The dishes the session takes to be on the counter: an estimate, since the counter is never read off the screen.
 /// Each dish is kept with when it came out of its kitchen and whether it came out for an order still waiting (it was that
 /// order's dish in the queue, so it covers that order until served) or was cooked ahead. Dishes come on as the kitchens'
 /// estimate cooks them out and go as a table is read served or the tray reads them picked up; what nothing observed takes

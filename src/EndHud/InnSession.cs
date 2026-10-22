@@ -619,7 +619,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         // agrees: on its first frame the panel reads its queue empty as it draws (test_yuanyuan3: seven times, each taking
         // dishes 30 s from done for out). Dishes added (the player queueing) are taken at once. A queue that doesn't line up
         // (a dish taken out, or a slot misread) only once the panel has read it so for RemovalSettlesAfter: test_yuanyuan7 at
-        // 217.2 s read kitchen 2 as [界龙肉卷, 界龙肉卷] and [界龙肉卷] by turns for 3 s.
+        // 217.2 s read kitchen 2 as [boundary-lung-roll, boundary-lung-roll] and [boundary-lung-roll] by turns for 3 s.
         bool same = kitchen.LastRead is { } last && last.SequenceEqual(seen);
         if (!same) kitchen.LastReadSince = at;
         kitchen.LastRead = seen;
@@ -656,7 +656,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// <paramref name="outEarlyWithin"/> s (<see cref="OutEarlyWithinSeconds"/>, more while Full Blaze runs; <paramref name="estimateOutIn"/>:
     /// seconds until each is out): until 2026-10-21 a queue
     /// read with a dish taken out of its middle was read as every dish out and the rest queued anew (test_yuanyuan7 157.5 s:
-    /// [福寿全, 八宝饭, 千果珍珠圆] read as [福寿全 9 s, 千果珍珠圆] put three dishes on the counter, 福寿全 out twice; five times on that
+    /// [immortal-galore-of-fortune, eight-treasure-rice, pearly-fruit-punch] read as [immortal-galore-of-fortune 9 s, pearly-fruit-punch] put three dishes on the counter, immortal-galore-of-fortune out twice; five times on that
     /// session). <c>Fits</c> false: nothing lines up (a dish taken out, a slot misread).
     /// </summary>
     internal static (int CameOut, int NotOut, bool Fits) Align(IReadOnlyList<string> estimate, IReadOnlyList<double> estimateOutIn, IReadOnlyList<string> seen,
@@ -862,7 +862,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// The table whose gourmand a dish leaving the hand at <paramref name="left"/> went to: one seated and waiting for their
     /// order (arrived or ordered) or read eating since. A gourmand's card shows no served pips, so serving them is never read
     /// on it; until 2026-10-21 such a dish was taken as put back on the counter, where it covered other tables' orders of it
-    /// (test_yuanyuan7: 福寿全 served to table 1's gourmand at 210.6 s "out for" tables 5 and 6 for 111 s). Null: none waiting.
+    /// (test_yuanyuan7: immortal-galore-of-fortune served to table 1's gourmand at 210.6 s "out for" tables 5 and 6 for 111 s). Null: none waiting.
     /// </summary>
     private int? GourmandTook(TimeSpan left) =>
         _tables.OfType<TableMemory>().FirstOrDefault(t => t.Card.State is TableState.GourmandArrived or TableState.GourmandOrder
@@ -1112,7 +1112,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         // A dish out for an order no longer waiting for one (the order gone, or misread) was cooked ahead after all.
         foreach (string id in _counter.OutForOrders.Distinct().ToList()) _counter.KeepForOrders(id, outstanding.Count(o => o.Dish.Id == id));
         // A dish out for an order whose table still reads it unserved CoverTrustedFor after it came out isn't there (the counter
-        // is never read; test_yuanyuan7: 福寿全 "out for" table 6 for 111 s while it waited, no call): the order is called again.
+        // is never read; test_yuanyuan7: immortal-galore-of-fortune "out for" table 6 for 111 s while it waited, no call): the order is called again.
         foreach (var stale in _counter.Entries.Where(e => e.ForOrder && now - e.OutAt >= CoverTrustedFor).ToList())
         {
             _counter.Remove(stale);
@@ -1125,8 +1125,8 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         // In hand: what the tray shows (a dish in hand covers an order of it first, DispatchAdvisor's Cover). A dish that just left
         // the hand, not yet read served nor settled (put back, or a gourmand's: HandSettlesAfter), is where it was last known,
         // in hand: until 2026-10-21 it counted nowhere for those 3 s, so the last call's choices shifted and shifted back as the
-        // player put dishes down (test_yuanyuan7 365-370 s, three 界龙肉卷 one by one), and an order it covered was called again
-        // for a moment (210.3-210.9 s, 福寿全 handed to a gourmand).
+        // player put dishes down (test_yuanyuan7 365-370 s, three boundary-lung-roll one by one), and an order it covered was called again
+        // for a moment (210.3-210.9 s, immortal-galore-of-fortune handed to a gourmand).
         var carried = _carried.Concat(_leftHand.Select(h => h.Id)).Select(id => DishOf(id)!).ToList();
         var state = new InnState(queues, counter, outForOrders, carried, outstanding, menu, ServingLeft(now), asCalled, ThemeItems());
 

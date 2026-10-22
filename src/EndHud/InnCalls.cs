@@ -191,8 +191,8 @@ internal sealed class InnCallHold
                 var standing = held with { InvalidSince = null };
                 _held[number] = standing;
                 // A swap the advice no longer makes, its order still sent here as a plain dish to queue (what it would take out
-                // has cooked out, a slot is free): shown as that order. test_yuanyuan7 from 261 s, "先拿掉界龙肉卷" stood 100 s
-                // over table 6's 福寿全 after the 界龙肉卷 was out.
+                // has cooked out, a slot is free): shown as that order. test_yuanyuan7 from 261 s, "take out boundary-lung-roll first" (the swap circle) stood 100 s
+                // over table 6's immortal-galore-of-fortune after the boundary-lung-roll was out.
                 if (held.Call.Kind == InnCallKind.Swap && !advice!.Replaces.Any(s => s.Remove.Id == held.Call.Remove!.Id && s.Put.Id == held.Call.Dish!.Id && s.Table == held.Call.Table))
                 {
                     var order = new InnCall(InnCallKind.Queue, number, held.Call.Dish, held.Call.Table);
@@ -255,7 +255,7 @@ internal sealed class InnCallHold
             _held[free.Kitchen] = new Held(call, view.Queued(free.Kitchen, order.Dish.Id), now);
         }
 
-        // One dish in one circle (owner, 2026-10-21, test_yuanyuan7 at 00:46: 八宝饭 for table 3 in kitchen 1 and to cook ahead in
+        // One dish in one circle (owner, 2026-10-21, test_yuanyuan7 at 00:46: eight-treasure-rice for table 3 in kitchen 1 and to cook ahead in
         // kitchen 3, "duplicated in multiple kitchens"): a dish to cook ahead whose dish another circle shows gives way, to an
         // order or swap, or to a dish to cook ahead shown before it; its kitchen takes the next dish its advice cooks ahead that
         // no circle shows, or shows nothing. Two orders of a dish for two tables stay: each names its own table.

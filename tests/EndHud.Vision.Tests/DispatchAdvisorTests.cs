@@ -597,14 +597,17 @@ public class DispatchAdvisorTests
     [Fact]
     public void A_swap_shown_stays_a_swap_while_its_dish_is_there_to_take_out()
     {
-        var outstanding = new[] { Order(1, "果味沙拉"), Order(2, "白瓜肉丸汤"), Order(3, "“勺里游”") };
-        var shown = new[] { new KeptCall(1, Dish("“勺里游”"), 3, Remove: Dish("坛子肉")) };
+        // The dishes of A_swap_must_win_by_a_margin, named by id (this file's helpers take the game's names).
+        static string Named(string id) => InnTestData.Inn.Dishes.Single(d => d.Id == id).Zh;
+        string salad = Named("berry-fruity-toss"), soup = Named("melon-meatball-soup"), spoon = Named("spoon-swimmer"), jar = Named("clay-jar-meat");
+        var outstanding = new[] { Order(1, salad), Order(2, soup), Order(3, spoon) };
+        var shown = new[] { new KeptCall(1, Dish(spoon), 3, Remove: Dish(jar)) };
 
-        var kept = Advisor(2).Advise(State([Queue(1, ("果味沙拉", 20), ("坛子肉", 27)), Queue(2, ("白瓜肉丸汤", 30))], outstanding), fillEverySlot: false, shown);
-        Assert.Equal(new ReplaceAdvice(1, 1, Dish("坛子肉"), Dish("“勺里游”"), 3, 47, 62), Assert.Single(kept.For(1).Replaces));
+        var kept = Advisor(2).Advise(State([Queue(1, (salad, 20), (jar, 27)), Queue(2, (soup, 30))], outstanding), fillEverySlot: false, shown);
+        Assert.Equal(new ReplaceAdvice(1, 1, Dish(jar), Dish(spoon), 3, 47, 62), Assert.Single(kept.For(1).Replaces));
         Assert.DoesNotContain(Sent(kept), s => s.Advice.Table == 3);
 
-        var cookedOut = Advisor(2).Advise(State([Queue(1, ("果味沙拉", 20)), Queue(2, ("白瓜肉丸汤", 30))], outstanding), fillEverySlot: false, shown);
+        var cookedOut = Advisor(2).Advise(State([Queue(1, (salad, 20)), Queue(2, (soup, 30))], outstanding), fillEverySlot: false, shown);
         Assert.Empty(cookedOut.For(1).Replaces);
         Assert.Equal(1, Assert.Single(Sent(cookedOut), s => s.Advice.Table == 3).Kitchen);
     }

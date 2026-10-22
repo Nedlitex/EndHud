@@ -81,7 +81,7 @@ public class InnReplayTests(ITestOutputHelper output)
     /// <item>test_yuanyuan6 (2026-10-21, 0–515 s).</item>
     /// <item>test_yuanyuan7 (2026-10-21, 0–390 s; owner: the recommended dish "duplicated in multiple kitchens", and "stuck
     /// behind a lot of soups but the kitchen recommendation is not even picking that up"). Before that day's fixes: 9
-    /// duplicates (82 s), table 6's 福寿全 with no call for 133.8 s, a counter estimate of up to 20 on a counter of 8.</item>
+    /// duplicates (82 s), table 6's immortal-galore-of-fortune with no call for 133.8 s, a counter estimate of up to 20 on a counter of 8.</item>
     /// </list>
     /// Before 2026-10-21's fixes, the kitchens' calls: y3 88 changes (16.2 a minute), 3 flashes, 1 jump; y4 46 changes
     /// (8.6 a minute), 1 flash, 3 jumps (<see cref="InnReplay.Steadiness"/>); and every banner slid out and in again each
@@ -139,7 +139,7 @@ public class InnReplayTests(ITestOutputHelper output)
         // but the kitchen recommendation is not even picking that up"): a dish tables wait for, not in hand nor queued, a kitchen
         // able to have it out in time, and no circle naming it never waits longer than a dish out for an order is trusted
         // (InnSession.CoverTrustedFor), unless the player then picks it up or serves it (it was on the counter). Before:
-        // y7 福寿全 143.1 s with no call (227.7 s), white-fin soups 21.6 s (318.0 s).
+        // y7 immortal-galore-of-fortune 143.1 s with no call (227.7 s), white-fin soups 21.6 s (318.0 s).
         var uncalled = replay.UncalledWaits(InnReplay.UncalledAfterSeconds).Where(u => u.Counts).ToList();
         Assert.True(uncalled.All(u => u.Seconds <= InnSession.CoverTrustedFor.TotalSeconds),
             string.Join("; ", uncalled.Select(u => $"{u.Dish} from {u.From.TotalSeconds:F1} s for {u.Seconds:F1} s ({u.Ended})")));

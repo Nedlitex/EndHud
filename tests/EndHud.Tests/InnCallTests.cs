@@ -133,7 +133,7 @@ public class InnCallTests(ITestOutputHelper output)
 
     /// <summary>
     /// One dish in one circle (owner, 2026-10-21, test_yuanyuan7 at 00:46: "the recommended queue will be duplicated in multiple
-    /// kitchens": 八宝饭 called for table 3 in kitchen 1 and to cook ahead in kitchen 3). A dish to cook ahead is never one another
+    /// kitchens": eight-treasure-rice called for table 3 in kitchen 1 and to cook ahead in kitchen 3). A dish to cook ahead is never one another
     /// kitchen's circle shows: kitchen 3 takes the next dish its advice cooks ahead instead, or shows nothing.
     /// </summary>
     [Fact]
@@ -151,8 +151,8 @@ public class InnCallTests(ITestOutputHelper output)
 
     /// <summary>
     /// A swap whose advice has become a plain order in the same kitchen (the dish it would take out has cooked out, a slot is
-    /// free) shows as that order: test_yuanyuan7 from 261 s, "先拿掉界龙肉卷" stood over table 6's 福寿全 for 100 s after the
-    /// 界龙肉卷 was out, and the player queued another dish in that kitchen's free slot.
+    /// free) shows as that order: test_yuanyuan7 from 261 s, "take out boundary-lung-roll first" (the swap circle) stood over table 6's immortal-galore-of-fortune for 100 s after the
+    /// boundary-lung-roll was out, and the player queued another dish in that kitchen's free slot.
     /// </summary>
     [Fact]
     public void A_swap_with_nothing_left_to_take_out_shows_as_its_order()
@@ -168,7 +168,7 @@ public class InnCallTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Two kitchens told to cook the same dish ahead (test_yuanyuan7 91.5 s, 八宝饭 in kitchens 1 and 3; 7 times on that session):
+    /// Two kitchens told to cook the same dish ahead (test_yuanyuan7 91.5 s, eight-treasure-rice in kitchens 1 and 3; 7 times on that session):
     /// the one shown first keeps it, the other takes its next dish to cook ahead, or shows nothing.
     /// </summary>
     [Fact]
