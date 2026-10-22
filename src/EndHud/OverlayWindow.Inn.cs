@@ -11,8 +11,8 @@ namespace EndHud;
 
 /// <summary>
 /// The inn helper's overlays. During an inn session (<see cref="InnSession"/>), shown only on the session's frames
-/// (never in a fight): banners for which dishes to queue in each kitchen and when to start Full Blaze
-/// (<see cref="InnCallView"/>), the marks on the open dispatch panel, and the gourmands' banners on the right
+/// (never in a fight): a big circle per kitchen for the dish to queue there, above the held dishes
+/// (<see cref="InnKitchenCircleView"/>), banners for when to start Full Blaze and the last call (<see cref="InnCallView"/>), the marks on the open dispatch panel, and the gourmands' banners on the right
 /// (<see cref="InnGourmandView"/>); the two stacks shown as samples and draggable while the menu is open out of the inn.
 /// The setup advice: small panels where the game shows the choice they're about (<see cref="InnSetupView"/>, placed by
 /// <see cref="InnAdviceLayout"/>): under each kitchen's card on the setup screen, in a chef picker, on the menu screen;
@@ -120,7 +120,7 @@ public partial class OverlayWindow
     private void TickInn()
     {
         _innSession?.Tick(InnClock.Now);
-        if (_innDisplay.OnSession || _innDisplay.SetupScreen is not null || _innGourmandBanners.Count > 0 || _innCallBannersStack?.Count > 0 || _innSetupKey is not null) RenderInn();
+        if (_innDisplay.OnSession || _innDisplay.SetupScreen is not null || _innGourmandBanners.Count > 0 || _innCallBannersStack?.Count > 0 || _innCircleRow?.Count > 0 || _innSetupKey is not null) RenderInn();
     }
 
     private void RenderInn()
@@ -128,6 +128,7 @@ public partial class OverlayWindow
         RenderInnSetup();
         var views = _config.InnHelperEnabled ? _innDisplay.Views(_innSession, InnClock.Now, _config.InnCallsEnabled, Loc.Get) : InnViews.None;
         _innSessionMarks = views.Marks;
+        RenderInnCircles(views);
         RenderInnCalls(views);
         RenderInnMarks(_innSessionMarks);
         RenderInnGourmands(views.Wants, views.Away);
@@ -248,6 +249,7 @@ public partial class OverlayWindow
         _config.InnStripOpacity = Math.Clamp(Math.Round(e.NewValue, 2), HudConfig.MinInnStripOpacity, HudConfig.MaxInnStripOpacity);
         InnOpacityText.Text = Loc.Format("Menu.Gauges.SizeValue", _config.InnStripOpacity * 100);
         InnCallStack.Opacity = _config.InnStripOpacity;
+        InnCircleSlots.Opacity = _config.InnStripOpacity;
         foreach (var frame in _innAdviceFrames.Values) frame.Opacity = _config.InnStripOpacity;
         foreach (var mark in _innMarks) mark.Opacity = _config.InnStripOpacity;
         InnGourmandStack.Opacity = _config.InnStripOpacity;
@@ -260,7 +262,10 @@ public partial class OverlayWindow
         _config.InnCallY = HudConfig.DefaultComboHintY;
         _config.InnGourmandRight = HudConfig.DefaultInnGourmandRight;
         _config.InnGourmandTop = HudConfig.DefaultInnGourmandTop;
+        _config.InnCircleX = InnKitchenCircleLayout.DefaultCenterX;
+        _config.InnCircleY = InnKitchenCircleLayout.DefaultBottomY;
         ConfigStore.Save(_config);
+        PlaceInnCirclesFromConfig();
         PlaceInnCallsFromConfig();
         PlaceInnGourmandsFromConfig();
     }
@@ -269,6 +274,7 @@ public partial class OverlayWindow
 
     private void SetInnEditing(bool editing)
     {
+        SetInnCircleEditing(editing);
         SetInnCallEditing(editing);
         SetInnGourmandEditing(editing);
         RenderInn();
@@ -278,6 +284,7 @@ public partial class OverlayWindow
     private void ScaleInnStrip(double scale)
     {
         _innWindowScale = scale;
+        ScaleInnCircles(scale * _config.InnStripScale);
         ScaleInnCalls(scale * _config.InnStripScale);
         ScaleInnGourmands(scale * _config.InnStripScale);
         // The advice panels and the marks follow the game's layout and the size: drawn again.

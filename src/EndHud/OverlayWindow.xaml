@@ -90,7 +90,19 @@
                 <ContentControl x:Name="RotationContent" />
             </StackPanel>
         </Border>
-        <!-- The inn session's banners (each kitchen's next dish, the last call, Full Blaze), styled like the
+        <!-- The kitchens' circles (each kitchen's next dish, one column per kitchen), above the held-dishes tray; centre and
+             bottom at config InnCircleX/InnCircleY (InnKitchenCircleLayout), draggable while the menu is open. The drag
+             label sits above the row without moving it. -->
+        <Border x:Name="InnCircleFrame" BorderThickness="2" Padding="6" CornerRadius="4" Background="Transparent"
+                MouseLeftButtonDown="InnCircle_MouseDown" MouseMove="InnCircle_MouseMove"
+                MouseLeftButtonUp="InnCircle_MouseUp">
+            <Grid>
+                <TextBlock x:Name="InnCircleDragLabel" Visibility="Collapsed" Text="{DynamicResource Inn.Circle.Drag}"
+                           Foreground="{StaticResource Accent}" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,-26,0,0" />
+                <Grid x:Name="InnCircleSlots" />
+            </Grid>
+        </Border>
+        <!-- The inn session's banners (the last call, Full Blaze), styled like the
              combo-ready hints; top-left corner at config InnCallX/InnCallY, draggable while the menu is open. -->
         <Border x:Name="InnCallFrame" BorderThickness="2" Padding="6" CornerRadius="4" Background="Transparent"
                 MouseLeftButtonDown="InnCall_MouseDown" MouseMove="InnCall_MouseMove"

@@ -118,15 +118,24 @@ internal sealed class HudConfig
     public const double MinInnStripOpacity = 0.2, MaxInnStripOpacity = 1;
 
     /// <summary>
-    /// During an inn session, show each kitchen's next dish to queue, the last call and Full Blaze as banners like
-    /// the combo-ready hint (the "派单提示横幅" switch in the inn helper's card). On by default, like every feature.
+    /// During an inn session, show each kitchen's next dish to queue as a big circle above the held dishes, and the last
+    /// call and Full Blaze as banners like the combo-ready hint (the "派单提示" switch in the inn helper's card). On by
+    /// default, like every feature.
     /// </summary>
     public bool InnCallsEnabled { get; set; } = true;
 
-    /// <summary>Where the inn's banners sit (their top-left corner), as a fraction of the game window; by default where the combo-ready hint does (it isn't shown in the inn).</summary>
+    /// <summary>Where the inn's banners (Full Blaze, the last call) sit (their top-left corner), as a fraction of the game window; by default where the combo-ready hint does (it isn't shown in the inn).</summary>
     public double InnCallX { get; set; } = DefaultComboHintX;
 
     public double InnCallY { get; set; } = DefaultComboHintY;
+
+    /// <summary>
+    /// Where the kitchens' circles sit: their row's centre and bottom, as fractions of the game window's centred 16:9 area
+    /// (InnKitchenCircleLayout); by default centred, right above the held-dishes tray.
+    /// </summary>
+    public double InnCircleX { get; set; } = InnKitchenCircleLayout.DefaultCenterX;
+
+    public double InnCircleY { get; set; } = InnKitchenCircleLayout.DefaultBottomY;
 
     /// <summary>Where the gourmands' banners sit: their stack's right edge and top, as fractions of the game window (by default at the right, below the status at the top right).</summary>
     public double InnGourmandRight { get; set; } = DefaultInnGourmandRight;
@@ -242,6 +251,8 @@ internal static class ConfigStore
         config.InnCallY = double.IsFinite(config.InnCallY) ? Math.Clamp(config.InnCallY, 0, 1) : HudConfig.DefaultComboHintY;
         config.InnGourmandRight = double.IsFinite(config.InnGourmandRight) ? Math.Clamp(config.InnGourmandRight, 0, 1) : HudConfig.DefaultInnGourmandRight;
         config.InnGourmandTop = double.IsFinite(config.InnGourmandTop) ? Math.Clamp(config.InnGourmandTop, 0, 1) : HudConfig.DefaultInnGourmandTop;
+        config.InnCircleX = double.IsFinite(config.InnCircleX) ? Math.Clamp(config.InnCircleX, 0, 1) : InnKitchenCircleLayout.DefaultCenterX;
+        config.InnCircleY = double.IsFinite(config.InnCircleY) ? Math.Clamp(config.InnCircleY, 0, 1) : InnKitchenCircleLayout.DefaultBottomY;
         return config;
     }
 

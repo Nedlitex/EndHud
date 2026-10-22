@@ -6,12 +6,12 @@ using System.Windows.Media;
 namespace EndHud;
 
 /// <summary>
-/// The inn session's banners (owner, live 2026-10-20: "the notification should be more obvious when a dish should
-/// be added to a kitchen, try to use the same ui as combo ready"; "remove all hints from the current panel, use the
-/// combo instead"): each call of <see cref="InnAdvice.Calls"/> as a <see cref="ComboBanner"/> with the dish's picture,
-/// up for as long as the call stands (the calls are held steady, <see cref="InnCallHold"/>), sliding in when it's
-/// new and out when it's done. Stacked in a fixed order (the kitchens by number, each in a row kept for the session;
-/// then Full Blaze and the last call), hidden in place while the dispatch panel is open. Only
+/// The inn session's banners (owner, live 2026-10-20: "remove all hints from the current panel, use the combo instead"):
+/// Full Blaze and the last call of <see cref="InnAdvice.Calls"/> as <see cref="ComboBanner"/>s (a last call with the dish's
+/// picture), up for as long as the call stands, sliding in when it's new and out when it's done. The kitchens' calls
+/// are big circles above the held dishes instead (owner, live 2026-10-21: the kitchens' banners were "very hard to read";
+/// <see cref="InnKitchenCircleView"/>). Stacked in a fixed order (Full Blaze, then the last calls by table), hidden in
+/// place while the dispatch panel is open. Only
 /// during a session; at the combo hint's place by default, draggable while the menu is open (a sample banner shows
 /// then); the inn helper's size and opacity apply.
 /// </summary>
@@ -35,7 +35,8 @@ public partial class OverlayWindow
         var (calls, away) = (views.Calls, views.Away);
         bool on = _config.InnHelperEnabled && _config.InnCallsEnabled;
         if (!on || !views.Session) _innCallRows.Clear();
-        var rows = on && views.Session ? _innCallRows.Rows(views.Kitchens, calls, Loc.Get).ToList() : [];
+        // The kitchens' calls are their circles (RenderInnCircles); the banners are Full Blaze's and the last call's.
+        var rows = on && views.Session ? _innCallRows.Rows(views.Kitchens, calls, Loc.Get).Where(r => !r.IsKitchen).ToList() : [];
         // Something to drag while placing it.
         if (_menuOpen && rows.Count == 0 && on)
             rows.Add(new InnBannerRow("sample", InnCallView.Sample(_party.Identifier?.Library.Inn, Loc.Get)));

@@ -226,9 +226,13 @@ internal sealed class InnCircleRow(Grid row, Func<InnCircleModel, FrameworkEleme
     public FrameworkElement? CircleIn(int kitchen) => kitchen is >= 1 and <= InnKitchenCircleView.Slots ? _shown[kitchen - 1]?.Element : null;
 
     /// <summary>A row's grid: one fixed column per kitchen, as tall as the tallest circle; the circles stand on its bottom.</summary>
-    public static Grid NewGrid()
+    public static Grid NewGrid() => Shape(new Grid());
+
+    /// <summary>Gives <paramref name="grid"/> (the overlay's, from its XAML) the row's columns and height.</summary>
+    public static Grid Shape(Grid grid)
     {
-        var grid = new Grid { Height = InnKitchenCircleView.RowHeight, IsHitTestVisible = true };
+        grid.Height = InnKitchenCircleView.RowHeight;
+        grid.ColumnDefinitions.Clear();
         for (int i = 0; i < InnKitchenCircleView.Slots; i++) grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(InnKitchenCircleView.SlotWidth) });
         return grid;
     }
@@ -265,7 +269,7 @@ internal sealed class InnCircleRow(Grid row, Func<InnCircleModel, FrameworkEleme
     {
         foreach (var gone in _leaving) row.Children.Remove(gone);
         _leaving.Clear();
-        foreach (var (_, element) in _shown.OfType<(string, FrameworkElement)>())
+        foreach (var element in _shown.Where(s => s is not null).Select(s => s!.Value.Element))
         {
             element.BeginAnimation(UIElement.OpacityProperty, null);
             element.Opacity = 1;
