@@ -302,7 +302,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
 
     /// <summary>
     /// How often the estimate was put right where a reading contradicted it, by what was put right ("queue", "cover",
-    /// "counter", "gourmand"), over every session since this object was made: the drift made visible (the replay's report).
+    /// "counter", "gourmand", "timer"), over every session since this object was made: the drift made visible (the replay's report).
     /// Each is also logged ("inn: corrected …").
     /// </summary>
     public IReadOnlyDictionary<string, int> Corrections => _corrections;
@@ -389,14 +389,19 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
 
     /// <summary>
     /// The timer, run on from its last reading (<see cref="TimeLeft"/>) and taken anew only when a reading differs from that by
-    /// a second or more (it shows whole seconds) or it closes. Until 2026-10-21 the time left stood still between readings while
+    /// more than a second (it shows whole seconds) or it closes. Until 2026-10-21 the time left stood still between readings while
     /// the kitchens' estimate ran on, so a dish due out just as serving ends was in time and too late by turns: test_yuanyuan7's
     /// last call to table 1 went and came back at 375.3 s.
     /// </summary>
     private void TakeClock(SessionClock? clock, TimeSpan at)
     {
         if (clock is null) return;
-        if (_clock is { } before && before.Closed == clock.Closed && Math.Abs((clock.Left - TimeLeft(at)!.Value).TotalSeconds) < 1) return;
+        if (_clock is { } before && before.Closed == clock.Closed)
+        {
+            var ranOn = TimeLeft(at)!.Value;
+            if (Math.Abs((clock.Left - ranOn).TotalSeconds) <= 1) return; // it shows whole seconds
+            Corrected("timer", $"timer: run on to {ranOn.TotalSeconds:F1} s, read {clock.Left.TotalSeconds:F0} s");
+        }
         _clock = clock;
         _clockAt = at;
     }

@@ -341,7 +341,7 @@ internal sealed class InnReplay
         var sb = new StringBuilder();
         sb.AppendLine(CultureInfo.InvariantCulture, $"# one dish in two circles (not two tables' orders): {dupes}");
         foreach (var d in dupeList) sb.AppendLine(CultureInfo.InvariantCulture, $"#   duplicate {d}");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"# corrections (the estimate put right by a reading): {string.Join(", ", new[] { "queue", "cover", "counter", "gourmand" }.Select(k => $"{k} {_session.Corrections.GetValueOrDefault(k)}"))}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"# corrections (the estimate put right by a reading): {string.Join(", ", new[] { "queue", "cover", "counter", "gourmand", "timer" }.Select(k => $"{k} {_session.Corrections.GetValueOrDefault(k)}"))}");
         foreach (string line in CorrectionLog) sb.AppendLine(CultureInfo.InvariantCulture, $"#   {line}");
         var uncalled = UncalledWaits(UncalledAfterSeconds);
         var counted = uncalled.Where(u => u.Counts).ToList();
