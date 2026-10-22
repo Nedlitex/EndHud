@@ -493,7 +493,19 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// of its kind out soonest, oldest order first, so this dish was the next order's still waiting for one not yet out
     /// (<see cref="WaitingFor"/>): out for that order, it covers it until served. With no such order, it was cooked ahead.
     /// </summary>
-    private void PutOnCounter(string id, TimeSpan at) => _counter.Put(id, at, forOrder: _counter.ForOrders(id) < WaitingFor(id));
+    private void PutOnCounter(string id, TimeSpan at)
+    {
+        _counter.Put(id, at, forOrder: _counter.ForOrders(id) < WaitingFor(id));
+        // The counter holds 8 (owner): an estimate of more contradicts the game (test_yuanyuan7 held 15-20 from 250 s). The
+        // oldest dish cooked ahead goes first (where the estimate drifts: what nothing read took off stays), else the oldest
+        // out for an order.
+        while (_counter.Count > InnCounter.Capacity)
+        {
+            var oldest = _counter.Entries.FirstOrDefault(e => !e.ForOrder) ?? _counter.Entries[0];
+            _counter.Remove(oldest);
+            Corrected("counter", $"counter: {_counter.Count + 1} dishes on a counter of {InnCounter.Capacity}; {oldest.Id}, out {(at - oldest.OutAt).TotalSeconds:F0} s ago{(oldest.ForOrder ? " for an order" : "")}, taken as not there");
+        }
+    }
 
     /// <summary>A dish off the counter (served, or a panel reading putting it back in its queue): one out for an order first.</summary>
     private bool TakeOffCounter(string id) => _counter.TakeOff(id);
@@ -1094,6 +1106,13 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         }
         // A dish out for an order no longer waiting for one (the order gone, or misread) was cooked ahead after all.
         foreach (string id in _counter.OutForOrders.Distinct().ToList()) _counter.KeepForOrders(id, outstanding.Count(o => o.Dish.Id == id));
+        // A dish out for an order whose table still reads it unserved CoverTrustedFor after it came out isn't there (the counter
+        // is never read; test_yuanyuan7: 福寿全 "out for" table 6 for 111 s while it waited, no call): the order is called again.
+        foreach (var stale in _counter.Entries.Where(e => e.ForOrder && now - e.OutAt >= CoverTrustedFor).ToList())
+        {
+            _counter.Remove(stale);
+            Corrected("cover", $"counter: {stale.Id} out for an order {(now - stale.OutAt).TotalSeconds:F0} s ago and the order still waits: taken as not there, the order called again");
+        }
         // On the counter: the dishes out for an order, which cover it (owner, 2026-10-21: it was that order's dish in its
         // queue), and those cooked ahead, which cover no order: they're where the estimate drifts.
         var outForOrders = _counter.OutForOrders.Select(id => DishOf(id)!).ToList();

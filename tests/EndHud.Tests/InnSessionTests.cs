@@ -381,7 +381,8 @@ public class InnSessionTests
                 session.Update(Session(at, panel: Panel(kitchen, 3, Menu[..5], (E, 15), (E, null), (E, null))));
         }
         session.Update(Session(at + 60));
-        Assert.Equal($"{E}x9", session.CounterSignature());
+        // Nine came out; the estimate holds the counter's eight (InnStateCorrectionTests: more contradicts the game).
+        Assert.Equal($"{E}x{InnCounter.Capacity}", session.CounterSignature());
 
         session.Update(Session(at + 60.3, tables: Tables(Order(3, E))));
         session.Update(Session(at + 60.6, tables: Tables(Order(3, E))));
