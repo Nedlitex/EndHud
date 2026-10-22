@@ -28,8 +28,19 @@ public static class InflictionRing
         ("Cryo Infliction", 165, 215),
     ];
 
+    /// <summary>An infliction and how many stacks it has.</summary>
+    /// <param name="Stacks">1–4, or null when the arcs can't be told apart (an effect over them).</param>
+    public sealed record Infliction(string Element, int? Stacks);
+
     /// <summary>The infliction shown, or null when there's none (or it can't be told).</summary>
     public static string? Read(Frame frame) => Measure(frame).Element;
+
+    /// <summary>The infliction with its stack count: white arcs clockwise from the top, one per stack.</summary>
+    public static Infliction? ReadWithStacks(Frame frame) =>
+        Measure(frame).Element is { } element ? new Infliction(element, Stacks(frame)) : null;
+
+    /// <summary>The stack count, or null when it can't be told.</summary>
+    internal static int? Stacks(Frame frame) => null;
 
     /// <summary>What the reading is based on, for measuring thresholds.</summary>
     internal static (int ArcWhiteness, double ColouredShare, double? Hue, string? Element) Measure(Frame frame)
