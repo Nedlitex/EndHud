@@ -569,7 +569,8 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
             foreach (var keep in kept)
             {
                 int k = keep.Kitchen;
-                if (!_queues.ContainsKey(k) || !HasFreeSlot(k) || (!everySlot && !NothingOrderedFor(k)) || !InStock(keep.Dish) || !AheadInTime(k, keep.Dish)) continue;
+                if (!_queues.ContainsKey(k) || !HasFreeSlot(k) || (!everySlot && !NothingOrderedFor(k)) || !InStock(keep.Dish) || !AheadInTime(k, keep.Dish)
+                    || CookingNow(k, keep.Dish)) continue;
                 Queue(k, keep.Dish, null);
                 spares[keep.Dish.Id] = spares.GetValueOrDefault(keep.Dish.Id) + 1;
             }
@@ -579,7 +580,7 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
                 var open = _queues.Keys.Where(k => everySlot ? HasFreeSlot(k) : OpenToCookAhead(k)).ToList();
                 var pick = _state.Menu
                     .Where(m => InStock(m.Dish))
-                    .Select(m => (m.Dish, Kitchen: FirstOut(open, m.Dish)))
+                    .Select(m => (m.Dish, Kitchen: FirstOut(open.Where(k => !CookingNow(k, m.Dish)), m.Dish)))
                     .Where(p => p.Kitchen is not null)
                     .OrderByDescending(p => InnPlanner.ThemeMatches(_state.ThemeItems, p.Dish))
                     .ThenBy(p => spares.GetValueOrDefault(p.Dish.Id))
@@ -592,6 +593,12 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
                 spares[pick.Dish.Id] = spares.GetValueOrDefault(pick.Dish.Id) + 1;
             }
         }
+
+        /// <summary>
+        /// The kitchen is cooking <paramref name="dish"/> right now: another of it isn't cooked ahead there (owner, live
+        /// 2026-10-22: kitchen 1 told to cook boundary-lung-roll ahead with one cooking, 5 s left).
+        /// </summary>
+        private bool CookingNow(int kitchen, Dish dish) => _queues[kitchen] is [{ Cooking: true } first, ..] && first.Dish.Id == dish.Id;
 
         /// <summary>A kitchen nothing was ordered for this time (nor swapped), with more than one slot free.</summary>
         private bool OpenToCookAhead(int kitchen) => NothingOrderedFor(kitchen) && _queues[kitchen].Count < KitchenQueue.Slots - 1;
