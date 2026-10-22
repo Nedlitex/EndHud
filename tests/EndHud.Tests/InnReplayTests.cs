@@ -99,7 +99,7 @@ public class InnReplayTests(ITestOutputHelper output)
         string[] fixtures = ["test-yuanyuan3-readings.jsonl.gz", "test-yuanyuan4-readings.jsonl.gz", "test-yuanyuan5-readings.jsonl.gz",
             "test-yuanyuan6-readings.jsonl.gz", "test-yuanyuan7-readings.jsonl.gz"];
         Assert.True(new HudConfig().InnSwapsEnabled, "swaps are on by default");
-        int swapsOn = 0;
+        int swapsOn = 0, swapMarksOn = 0;
         foreach (string fixture in fixtures)
         {
             var events = InnReplay.Load(Path.Combine(AppContext.BaseDirectory, "Fixtures", "inn-replay", fixture)).ToList();
@@ -107,14 +107,17 @@ public class InnReplayTests(ITestOutputHelper output)
             var off = InnReplay.Run(events, suggestSwaps: false);
             int Swaps(InnReplay r) => r.Draws.Sum(d => d.Calls.Values.Count(c => c.Kind == InnCallKind.Swap)) + r.Steps.Sum(s => s.Kitchens.Values.Count(c => c.Kind == InnCallKind.Swap));
             int Orders(InnReplay r) => r.Steps.Sum(s => s.Kitchens.Values.Count(c => c.Kind == InnCallKind.Queue));
-            int swapMarks = off.Changes.Count(c => c.Display == "mark" && c.What.Contains("先拿掉", StringComparison.Ordinal));
-            output.WriteLine($"{fixture}: swaps on {Swaps(on)}, off {Swaps(off)} (marks {swapMarks}); order calls on {Orders(on)}, off {Orders(off)}");
+            static int SwapMarks(InnReplay r) => r.Changes.Count(c => c.Display == "mark" && c.What.Contains("先拿掉", StringComparison.Ordinal));
+            int swapMarks = SwapMarks(off);
+            output.WriteLine($"{fixture}: swaps on {Swaps(on)} (marks {SwapMarks(on)}), off {Swaps(off)} (marks {swapMarks}); order calls on {Orders(on)}, off {Orders(off)}");
             swapsOn += Swaps(on);
+            swapMarksOn += SwapMarks(on);
             Assert.Equal(0, Swaps(off));
             Assert.Equal(0, swapMarks);
             Assert.True(Orders(off) > 0, $"{fixture}: no order called with swaps off");
         }
         Assert.True(swapsOn > 0, "no swap called on any recorded session with swaps on");
+        Assert.True(swapMarksOn > 0, "no swap's card mark on any recorded session with swaps on: the marks' check would see nothing");
     }
 
     [Theory]

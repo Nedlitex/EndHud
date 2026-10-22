@@ -173,6 +173,14 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
 
     public InnKitchens Kitchens { get; } = kitchens;
 
+    /// <summary>
+    /// Whether a dish cooked ahead may be suggested for removal to put an order in its place (<see cref="ReplaceAdvice"/>). Off
+    /// (the player's setting, owner, test_yuanyuan8: the swaps are "really too fast for user to follow"), nothing is ever taken
+    /// out: an order goes to a kitchen with room, or waits, and a swap on screen is kept as a plain order. On unless set,
+    /// as the setting is.
+    /// </summary>
+    public bool SuggestSwaps { get; init; } = true;
+
     /// <summary>The advice for <paramref name="state"/>, with nothing shown to the player yet.</summary>
     /// <param name="fillEverySlot">
     /// Cook ahead into every free slot of every kitchen, not only idle ones: at the session's start
@@ -203,7 +211,7 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
             // A swap shown stays a swap while the dish it takes out is there to take out and the order is still out in time; as a
             // plain order it would wait behind that dish, which is what the swap was shown to avoid (test_yuanyuan5: a swap and a
             // plain order 0.3 s apart, five times).
-            if (keep.Remove is { } remove && plan.TrySwap(keep.Kitchen, remove, pending[i], state.ServingSecondsLeft) && onScreen.Add(keep.Kitchen))
+            if (SuggestSwaps && keep.Remove is { } remove && plan.TrySwap(keep.Kitchen, remove, pending[i], state.ServingSecondsLeft) && onScreen.Add(keep.Kitchen))
             {
                 pending.RemoveAt(i);
                 continue;
@@ -226,7 +234,7 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
                 continue;
             }
             var best = plan.Soonest(order.Dish);
-            var swap = plan.BestSwap(order.Dish);
+            var swap = SuggestSwaps ? plan.BestSwap(order.Dish) : null;
             if (swap is { } s && (best is null || s.ReadyIn + ReplaceMarginSeconds < best.Value.ReadyIn))
                 plan.Replace(s, order, best?.ReadyIn);
             else if (best is { } b)

@@ -68,6 +68,7 @@ public partial class OverlayWindow
         _loadingInnSettings = true;
         InnCheckBox.IsChecked = _config.InnHelperEnabled;
         InnCallsCheckBox.IsChecked = _config.InnCallsEnabled;
+        InnSwapsCheckBox.IsChecked = _config.InnSwapsEnabled;
         InnSizeSlider.Value = _config.InnStripScale;
         InnSizeText.Text = Loc.Format("Menu.Gauges.SizeValue", _config.InnStripScale * 100);
         InnOpacitySlider.Value = _config.InnStripOpacity;
@@ -80,6 +81,7 @@ public partial class OverlayWindow
     {
         InnResetButton.IsEnabled = _config.InnHelperEnabled;
         InnCallsCheckBox.IsEnabled = _config.InnHelperEnabled;
+        InnSwapsCheckBox.IsEnabled = _config.InnHelperEnabled;
         InnSizeRow.IsEnabled = _config.InnHelperEnabled;
         InnOpacityRow.IsEnabled = _config.InnHelperEnabled;
     }
@@ -105,7 +107,7 @@ public partial class OverlayWindow
         {
             _innLibrary = library;
             _innPictures.Clear();
-            _innSession = new InnSession(data, library.Operators, _party.Reading.At);
+            _innSession = new InnSession(data, library.Operators, _party.Reading.At) { SuggestSwaps = _config.InnSwapsEnabled };
             var planner = new InnPlanner(data);
             // The model's advice first (sub-second), the simulator's after (seconds) where it differs.
             // A plan on screen stays until it no longer fits or another is clearly better (InnPlanJudge).

@@ -382,6 +382,10 @@
                     <CheckBox x:Name="InnCallsCheckBox" Click="InnCallsCheckBox_Click" Margin="0,4,0,0">
                         <TextBlock Text="{DynamicResource Menu.Inn.Calls}" />
                     </CheckBox>
+                    <CheckBox x:Name="InnSwapsCheckBox" Click="InnSwapsCheckBox_Click" Margin="0,4,0,0"
+                              ToolTip="{DynamicResource Menu.Inn.Swaps.Hint}">
+                        <TextBlock Text="{DynamicResource Menu.Inn.Swaps}" TextWrapping="Wrap" />
+                    </CheckBox>
                     <DockPanel x:Name="InnSizeRow" Margin="0,4,0,0">
                         <TextBlock Text="{DynamicResource Menu.Gauges.Size}" VerticalAlignment="Center" Margin="0,0,8,0" />
                         <TextBlock x:Name="InnSizeText" DockPanel.Dock="Right" Width="44" TextAlignment="Right"

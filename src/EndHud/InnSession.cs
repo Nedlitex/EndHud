@@ -1144,7 +1144,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             : null;
         bool fillEverySlot = !_ordersSeen || blaze == FullBlazeAdvice.GetReady || _blaze.Running;
 
-        var advisor = new DispatchAdvisor(kitchens);
+        var advisor = new DispatchAdvisor(kitchens) { SuggestSwaps = SuggestSwaps };
         var view = new InnKitchenView((k, id) => Kitchen(k).Queued(id), k => Kitchen(k).Queue.HasFreeSlot,
             (k, dish) => Kitchen(k).Queue.SecondsUntilEmpty + kitchens.CookSeconds(k, dish));
         // The calls on screen are kept while possible: the advice plans around them (owner, 2026-10-21: "the recommendation

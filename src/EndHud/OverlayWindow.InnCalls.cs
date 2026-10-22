@@ -51,6 +51,15 @@ public partial class OverlayWindow
         RenderInn();
     }
 
+    /// <summary>The swaps setting (建议换菜): handed to the session at once, so the next advice follows it.</summary>
+    private void InnSwapsCheckBox_Click(object sender, RoutedEventArgs e)
+    {
+        _config.InnSwapsEnabled = InnSwapsCheckBox.IsChecked == true;
+        ConfigStore.Save(_config);
+        if (_innSession is not null) _innSession.SuggestSwaps = _config.InnSwapsEnabled;
+        RenderInn();
+    }
+
     // ---- Placing the banners ----
 
     private void SetInnCallEditing(bool editing)
