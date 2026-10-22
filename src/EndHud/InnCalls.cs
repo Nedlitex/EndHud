@@ -121,11 +121,17 @@ internal sealed class InnCallHold
     /// each kitchen's order or dish to cook ahead not yet done, so the advice plans around what the player was told
     /// instead of the hold arguing with it afterwards.
     /// </summary>
+    /// <remarks>
+    /// A swap shown is its order kept in its kitchen too: the advice otherwise sent that order to another kitchen and took
+    /// that kitchen's dish to cook ahead from it, while the swap went on claiming the order, so the other kitchen's dish to
+    /// cook ahead was dropped for nothing (test_yuanyuan4 206.1 s: kitchen 1's cyan circle gone for 3.6 s, the order still
+    /// kitchen 2's swap).
+    /// </remarks>
     public IReadOnlyList<KeptCall> Kept(InnKitchenView view) =>
     [
-        .. _held.Values.Where(h => !Done(h, view) && h.Call is { Kind: InnCallKind.Queue or InnCallKind.CookAhead, Kitchen: not null, Dish: not null })
+        .. _held.Values.Where(h => !Done(h, view) && h.Call is { Kind: InnCallKind.Queue or InnCallKind.CookAhead or InnCallKind.Swap, Kitchen: not null, Dish: not null })
             .OrderBy(h => h.Call.Kitchen)
-            .Select(h => new KeptCall(h.Call.Kitchen!.Value, h.Call.Dish!, h.Call.Kind == InnCallKind.Queue ? h.Call.Table : null)),
+            .Select(h => new KeptCall(h.Call.Kitchen!.Value, h.Call.Dish!, h.Call.Kind == InnCallKind.CookAhead ? null : h.Call.Table)),
     ];
 
     /// <summary>Forgets every call (the session ended).</summary>

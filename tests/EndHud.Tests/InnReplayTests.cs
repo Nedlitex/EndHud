@@ -114,6 +114,11 @@ public class InnReplayTests(ITestOutputHelper output)
         Assert.Equal(0, callNoCard.Count);
         Assert.Empty(switchNoCard);
         Assert.Equal(0, aheadHidden.Count);
+        // A dish to cook ahead stays until done or impossible, or an order takes its kitchen (owner, 2026-10-21: "the blue
+        // circle just shows very indeterministically"). Before: y4 206.1 s, kitchen 1's dish dropped as "no longer advised"
+        // while the order that displaced it in the advice was shown as kitchen 2's swap (the advice didn't keep a swap shown).
+        var (_, aheadFlickers, flickerList) = replay.CookAheadFlicker();
+        Assert.True(aheadFlickers == 0, string.Join("; ", flickerList));
 
         Assert.True(replay.SessionSpan > TimeSpan.FromMinutes(5), "the whole session was replayed");
         // The kitchens' calls: none gone and back, none switched with nothing done to it.
