@@ -92,6 +92,27 @@ public class InnScreenTests
     [InlineData("营业设定", null)]
     public void A_pickers_title_names_its_kitchen(string title, int? kitchen) => Assert.Equal(kitchen, InnScreen.PickerKitchen(title));
 
+    /// <summary>
+    /// Where the timer was read says whether the dispatch panel can be open: under the "结束经营" button only with the panel
+    /// closed (test_yuanyuan5 252.6 s, the panel just closed and the Full Blaze meter not faded in yet), at the top with it
+    /// open. At every size.
+    /// </summary>
+    [Theory]
+    [InlineData("session-panel-just-closed", true)]
+    [InlineData("session-tray-two-dishes", true)]
+    [InlineData("session-full-blaze-running", true)]
+    [InlineData("dispatch-panel-queue", false)]
+    [InlineData("session-dispatch-panel", false)]
+    [InlineData("dispatch-panel-banners", false)]
+    public async Task The_timer_under_its_button_is_told_from_the_timer_at_the_top(string fixture, bool belowButton)
+    {
+        foreach (var screen in new[] { SimulatedScreen.Uhd, SimulatedScreen.Qhd, SimulatedScreen.FullHd })
+        {
+            var clock = InnScreen.ReadClock(screen.Render(await Load(fixture)));
+            Assert.True(clock is not null && clock.BelowButton == belowButton, $"{fixture} at {screen.Width}x{screen.Height}: read {clock?.ToString() ?? "no timer"}");
+        }
+    }
+
     private static async Task AssertRead(Frame frame, InnScreenKind kind, string? time, string what)
     {
         Assert.True(await InnScreen.DetectAsync(Text, frame) == kind, $"{what}: read {await InnScreen.DetectAsync(Text, frame)}, expected {kind}");

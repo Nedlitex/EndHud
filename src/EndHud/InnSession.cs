@@ -290,7 +290,12 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         // tabs misread on an open panel; on older readings, the dark bar behind the theme line taken for a panel).
         var panelRead = reading.Panel is { } seenPanel && seenPanel.Kitchens >= _panelKitchens ? seenPanel : null;
         if (panelRead is not null) TakePanel(panelRead, reading.At);
-        TakePanelOpen(panelRead, reading.At, closedForSure: reading.Panel is null && reading.Fire is not null);
+        // Closed for sure: something the open panel covers or moves was read. The Full Blaze meter; the timer in its pill under
+        // the "结束经营" button (the open panel puts it at the top); the tray of held dishes. The meter alone (until 2026-10-21)
+        // fades in last after the panel closes, and wasn't read at all through Full Blaze: a mark stayed over the dining room
+        // (test_yuanyuan5 252.6 s).
+        bool closedForSure = reading.Panel is null && (reading.Fire is not null || reading.Clock is { BelowButton: true } || reading.Tray is not null);
+        TakePanelOpen(panelRead, reading.At, closedForSure);
         if (reading.TableCards.Count > 0) TakeTables(reading.TableCards, reading.At);
         if (reading.Tray is { } tray) TakeTray(tray, reading.At);
         SettleHand(reading.At);

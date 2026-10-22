@@ -91,6 +91,35 @@ public class InnSteadyTests
     }
 
     /// <summary>
+    /// The panel just closed, the HUD fading back in (owner's live session 2026-10-21, test_yuanyuan5 252.6 s: "预做这个" left
+    /// over the dining room): the Full Blaze meter fades in last (and through Full Blaze, until 2026-10-21, wasn't read at
+    /// all), but the timer back in its pill under the "结束经营" button (the open panel puts it at the top) or the tray of
+    /// held dishes (the panel covers it) shows the panel is closed just as surely: the marks go at once. A frame reading the
+    /// timer at the top, no meter and no tray, says nothing: the panel's tabs misread while it's open.
+    /// </summary>
+    [Theory]
+    [InlineData("timer under the button")]
+    [InlineData("tray")]
+    public void The_timer_back_under_its_button_or_the_tray_shows_the_panel_closed(string seen)
+    {
+        var session = Prepared();
+        var display = new InnDisplay();
+        display.Show(session, Session(10, panel: KitchenOne()), S(10));
+        display.Show(session, Session(10.3, panel: KitchenOne()), S(10.3));
+        Assert.NotEmpty(display.Views(session, S(10.3), callsEnabled: true, Text).Marks);
+
+        display.Show(session, Session(10.6), S(10.6));
+        Assert.NotEmpty(display.Views(session, S(10.6), callsEnabled: true, Text).Marks);
+
+        var frame = Session(10.9);
+        frame = seen == "tray"
+            ? frame with { Tray = [.. Enumerable.Repeat<HeldDish?>(null, TrayReader.Slots)] }
+            : frame with { Clock = frame.Clock! with { BelowButton = true } };
+        display.Show(session, frame, S(10.9));
+        Assert.Empty(display.Views(session, S(10.9), callsEnabled: true, Text).Marks);
+    }
+
+    /// <summary>
     /// While the dispatch panel is open the banners and the gourmands' banners are put away in place, not taken down: the
     /// views keep every call and request and say they are away (<see cref="InnViews.Away"/>), so the overlay hides the
     /// stacks and shows the same banners again when the panel closes, with no slide-in (owner, 2026-10-21: "the recommended
