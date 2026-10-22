@@ -44,16 +44,21 @@ public sealed class BossStatusReader(OperatorLibrary library)
 
     /// <summary>
     /// The statuses recognised in the row (empty when there's no row or none is recognised), then the
-    /// elemental infliction if there is one (<see cref="InflictionRing"/>).
+    /// elemental infliction if there is one (<see cref="InflictionRing"/>). Each carries its count where
+    /// EndHud reads one: the infliction's stacks, a measured reaction's level (<see cref="ReactionLevel"/>).
     /// </summary>
     public IReadOnlyList<BossStatusReading> Read(Frame frame)
     {
         var found = new List<BossStatusReading>();
+        var ui = new UiScaler(frame.Width, frame.Height);
         foreach (var (position, best, _) in Scores(frame))
         {
-            if (best is { } b) found.Add(new BossStatusReading(b.Id, position, b.Score, null));
+            if (best is not { } b) continue;
+            int? level = ReactionLevel.Measured.Contains(b.Id) ? ReactionLevel.ReadLevel(frame, ui.TopCenter(FirstSquare.Offset(position * Pitch, 0))) : null;
+            found.Add(new BossStatusReading(b.Id, position, b.Score, level));
         }
-        if (InflictionRing.Read(frame) is { } infliction) found.Add(new BossStatusReading(infliction, BossStatusReading.RingPosition, 1, null));
+        if (InflictionRing.ReadWithStacks(frame) is { } infliction)
+            found.Add(new BossStatusReading(infliction.Element, BossStatusReading.RingPosition, 1, infliction.Stacks));
         return found;
     }
 
