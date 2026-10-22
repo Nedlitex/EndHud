@@ -24,12 +24,13 @@ internal sealed record AlertSubject(AlertSubjectKind Kind, string? Id = null);
 
 /// <summary>
 /// An alert's conditions in words (what the pop-up says when the player wrote no text, and how the
-/// editor lists such a rule), e.g. "技力 ≥ 1.8", "寒冷附着 ≥ 3 层", "莱万汀 终结技就绪"; and its subject,
+/// editor lists such a rule), e.g. "skill points ≥ 1.8", "Cryo Infliction ≥ 3 stacks", "Laevatain's ultimate ready" (in the
+/// player's language); and its subject,
 /// which picks the pop-up's icon. Every word comes from the i18n strings (keys <c>Alert.Describe.*</c>).
 /// </summary>
 internal static class AlertText
 {
-    /// <summary>The conditions in words, joined; groups as "A 或 B" and "（A 且 B）".</summary>
+    /// <summary>The conditions in words, joined; groups as "A or B" and "(A and B)" in the strings' words.</summary>
     /// <param name="text">The strings (default: the app's, <see cref="Loc.Get"/>).</param>
     public static string Describe(IReadOnlyList<StateCondition> when, OperatorLibrary? library, Func<string, string>? text = null)
     {
@@ -66,7 +67,7 @@ internal static class AlertText
 
         string Group(IReadOnlyList<StateCondition> parts, string joiner)
         {
-            // "{0} 或 {1}", folded: the words around the joiner live in the string, not in code.
+            // "{0} or {1}" (Alert.Describe.Or), folded: the words around the joiner live in the string, not in code.
             string joined = parts.Count == 0 ? "" : parts.Select(p => One(p, library, text, nested: true)).Aggregate((a, b) => F(joiner, a, b));
             return parts.Count > 1 && (nested || joiner == "Alert.Describe.And") ? F("Alert.Describe.Group", joined) : joined;
         }

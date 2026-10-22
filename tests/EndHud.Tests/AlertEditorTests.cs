@@ -42,7 +42,7 @@ public sealed class AlertEditorTests : IDisposable
 
     private static string Said(AlertEditor editor) => ((TextBlock)editor.FindName("ProblemsText")).Text;
 
-    /// <summary>The owner's first example: 技力 至少 1.8 → "Cast now", built with 新建 and the pickers, saved in alerts.json.</summary>
+    /// <summary>The owner's first example: skill points at least 1.8 → "Cast now", built with the New button and the pickers, saved in alerts.json.</summary>
     [Fact]
     public void Builds_a_skill_point_alert_and_saves_it()
     {
@@ -66,7 +66,7 @@ public sealed class AlertEditorTests : IDisposable
         Assert.Equal(1, saves); // the overlay reloads
     }
 
-    /// <summary>The owner's second example: 敌人有 寒冷附着 至少 3 层, picked from lists.</summary>
+    /// <summary>The owner's second example: the enemy has Cryo Infliction at 3 or more stacks, picked from lists.</summary>
     [Fact]
     public void Builds_a_cryo_three_stacks_alert()
     {
@@ -269,7 +269,7 @@ public sealed class AlertEditorTests : IDisposable
             string file = Path.Combine(dir.FullName, "src", "EndHud", "i18n", "zh-CN.xaml");
             if (!File.Exists(file)) continue;
             var match = Regex.Match(File.ReadAllText(file), $"x:Key=\"{Regex.Escape(key)}\">([^<]*)<");
-            return match.Success && (!withPlaceholder || match.Groups[1].Value.Contains("{0}")) && match.Groups[1].Value.Any(c => c >= '一' && c <= '鿿');
+            return match.Success && (!withPlaceholder || match.Groups[1].Value.Contains("{0}")) && match.Groups[1].Value.Any(c => c >= '\u4e00' && c <= '\u9fff');
         }
         throw new DirectoryNotFoundException("src/EndHud/i18n");
     }

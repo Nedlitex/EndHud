@@ -59,7 +59,7 @@ public class AlertTextTests
         string expected = F("Alert.Describe.Ultimate.Ready", "Laevatain") + S("Alert.Describe.Separator")
             + F("Alert.Describe.Or", F("Alert.Describe.SkillPoints", "≥", "2.0"), F("Alert.Describe.Not", F("Alert.Describe.Controlling", "Ardelia")));
         Assert.Equal(expected, text);
-        Assert.Contains(text, c => c >= '一' && c <= '鿿'); // in Chinese, not keys
+        Assert.Contains(text, c => c >= '\u4e00' && c <= '\u9fff'); // in Chinese, not keys
     }
 
     [Fact]

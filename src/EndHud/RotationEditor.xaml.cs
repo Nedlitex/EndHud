@@ -465,7 +465,7 @@ public partial class RotationEditor : Window
     private IEnumerable<CounterDefinition> Counters() =>
         OperatorCounters.Definitions.Where(d => _draft?.Squad.Contains(d.OperatorId) == true);
 
-    /// <summary>The rotation's phases by the strip's own names ("充能轴 II"), for "phase shown" conditions.</summary>
+    /// <summary>The rotation's phases by the strip's own names (name and Roman numeral), for "phase shown" conditions.</summary>
     private IReadOnlyList<(string Id, string Label)> PhaseChoices()
     {
         if (_draft is null) return [];

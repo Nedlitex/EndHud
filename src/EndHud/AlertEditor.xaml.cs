@@ -246,7 +246,7 @@ public partial class AlertEditor : Window
         ImportCode(text);
     }
 
-    /// <summary>Adds the rules of a share code (what 粘贴分享码 does with the clipboard's text).</summary>
+    /// <summary>Adds the rules of a share code (what the paste-code button does with the clipboard's text).</summary>
     internal void ImportCode(string code) => Import(() => AlertFormat.FromShareCode(code));
 
     private void ImportFile_Click(object sender, RoutedEventArgs e)
