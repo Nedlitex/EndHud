@@ -104,6 +104,10 @@ internal static class InnGourmandView
     /// <summary>A banner's height, at 1080p: its title and a row per request.</summary>
     public static double Height(InnGourmandBanner banner) => 2 * Padding + TitleHeight + banner.Rows.Count * RowHeight;
 
+    public static double Height(InnGourmandBanner banner, bool compact) => throw new NotImplementedException();
+
+    public static Border Banner(InnGourmandBanner banner, Func<string, BitmapSource?> picture, bool compact) => throw new NotImplementedException();
+
     private static readonly FontFamily Font = new("Microsoft YaHei UI, Segoe UI");
     private static readonly Brush TextBrush = Frozen(new SolidColorBrush(Color.FromArgb(0xEE, 0xFF, 0xFF, 0xFF)));
 
@@ -246,4 +250,11 @@ internal static class InnGourmandLayout
     /// <summary>The stack's distance from the window's right edge and its top, in a window of <paramref name="width"/> × <paramref name="height"/>.</summary>
     public static (double FromRight, double Top) Place(double width, double height, double right, double top) =>
         (Math.Clamp((1 - right) * width, 0, width), Math.Clamp(top * height, 0, height));
+
+    /// <summary>Work in progress.</summary>
+    public static InnGourmandArrangement Arrange(IReadOnlyList<InnGourmandBanner> banners, double width, double height, double scale, double right, double top) =>
+        throw new NotImplementedException();
 }
+
+/// <summary>Work in progress.</summary>
+internal sealed record InnGourmandArrangement(bool Compact, double Scale, IReadOnlyList<double> Tops, double Height);
