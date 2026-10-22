@@ -69,7 +69,7 @@ internal static class GaugesView
             {
                 // Uncapped (Si's stacks): the number alone, large; no ring of segments out of a maximum.
                 bool uncapped = counter.Counter.Uncapped;
-                int max = counter.Counter.Max;
+                int max = counter.Counter.Max ?? 0;
                 gauges.Add(new Gauge(GaugeKind.Counter, face, null, counter.Counter.NameZh,
                     uncapped ? null : counter.Value is { } v ? v / (double)max : null, !uncapped && counter.Value == max)
                 {
