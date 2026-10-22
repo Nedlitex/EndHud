@@ -124,7 +124,7 @@ public sealed class RotationEditorTests : IDisposable
     }
 
     /// <summary>
-    /// BUG1: a rotation file holding 技力 至少 1.8 opened in the editor, and once the row was touched
+    /// BUG1: a rotation file holding "skill points at least 1.8" opened in the editor, and once the row was touched
     /// it saved back as 0.5 (the picker fell back to its first item: 1.8 wasn't in its list).
     /// </summary>
     [Fact]
@@ -137,7 +137,7 @@ public sealed class RotationEditorTests : IDisposable
             Phases =
             [
                 .. mine.Phases,
-                new RotationPhase("burst", "爆发轴", [new RotationStep("Laevatain", StepAction.Ultimate)],
+                new RotationPhase("burst", "Burst", [new RotationStep("Laevatain", StepAction.Ultimate)],
                     [new SkillPointsCondition(Comparison.AtLeast, 1.8), new UltimateChargeCondition("Laevatain", Comparison.AtLeast, 37),
                      new SkillPointsCondition(Comparison.AtLeast, 1.85)]), // finer than the list: kept too
             ],
@@ -150,7 +150,7 @@ public sealed class RotationEditorTests : IDisposable
             var gate = (StackPanel)editor.FindName("GateRows");
             foreach (var shown in gate.Children.OfType<UIElement>().ToList())
             {
-                // The player changes the comparison (至少 → 至多): the value must stay what the file said.
+                // The player changes the comparison (at least -> at most): the value must stay what the file said.
                 var compare = RowOf(shown).Children.OfType<ComboBox>().First(p => p.Items.Cast<ComboBoxItem>().Any(i => Equals(i.Tag, Comparison.AtMost)));
                 compare.SelectedItem = compare.Items.Cast<ComboBoxItem>().Single(i => Equals(i.Tag, Comparison.AtMost));
             }
@@ -169,8 +169,8 @@ public sealed class RotationEditorTests : IDisposable
         picker.SelectedItem = picker.Items.Cast<ComboBoxItem>().Single(i => Equals(i.Tag, value));
 
     /// <summary>
-    /// The owner's example (2026-10-22), built with the editor's own buttons and lists: a phase 普攻轴
-    /// shown while 技力 is less than 2, holding one 普攻 (basic attack) step. Saved in format 4.
+    /// The owner's example (2026-10-22), built with the editor's own buttons and lists: a phase of basic
+    /// attacks shown while skill points are below 2, holding one basic-attack step. Saved in format 4.
     /// </summary>
     [Fact]
     public void A_basic_attack_phase_gated_on_less_than_two_skill_points_is_built_with_the_pickers()
@@ -183,7 +183,7 @@ public sealed class RotationEditorTests : IDisposable
         OnEditor(library, _ => { }, editor =>
         {
             Click(editor, "NewPhaseButton");
-            ((TextBox)editor.FindName("PhaseNameBox")).Text = "普攻轴";
+            ((TextBox)editor.FindName("PhaseNameBox")).Text = "Basic attacks";
             Click(editor, "AddGateButton");
             var gate = (StackPanel)editor.FindName("GateRows");
             Pick(((Panel)gate.Children[0]).Children.OfType<ComboBox>().First(), "SkillPoints");
@@ -201,7 +201,7 @@ public sealed class RotationEditorTests : IDisposable
         Assert.True(saved.Phases.Count == 2, $"editor said: {said}");
         Assert.True(hintShown);
         var phase = saved.Phases[1];
-        Assert.Equal("普攻轴", phase.Name);
+        Assert.Equal("Basic attacks", phase.Name);
         Assert.Equal(new SkillPointsCondition(Comparison.Below, 2), Assert.Single(phase.When));
         Assert.Equal(StepAction.BasicAttack, Assert.Single(phase.Steps).Action);
         Assert.Equal(4, saved.Format);
@@ -211,16 +211,23 @@ public sealed class RotationEditorTests : IDisposable
         Assert.Contains("\"is\": \"Below\"", file);
     }
 
-    /// <summary>"mine": 充能轴 (id p), then 爆发轴 (id burst) with this entry condition.</summary>
+    /// <summary>"mine": Charge (id p), then Burst (id burst) with this entry condition.</summary>
     private RotationLibrary TwoPhases(params StateCondition[] burstGate)
     {
         var library = new RotationLibrary(_folder);
-        var mine = Published() with { Id = "mine" };
-        library.Own.Save(mine with { Phases = [.. mine.Phases, new RotationPhase("burst", "爆发轴", [new RotationStep("Laevatain", StepAction.Ultimate)], burstGate)] });
+        library.Own.Save(Published() with
+        {
+            Id = "mine",
+            Phases =
+            [
+                new RotationPhase("p", "Charge", [new RotationStep("Ardelia", StepAction.BattleSkill)]),
+                new RotationPhase("burst", "Burst", [new RotationStep("Laevatain", StepAction.Ultimate)], burstGate),
+            ],
+        });
         return library;
     }
 
-    /// <summary>The owner's ask (2026-10-22): 爆发轴 only once 充能轴 has been shown in this fight, picked from lists (the phase by its strip name).</summary>
+    /// <summary>The owner's ask (2026-10-22): Burst only once Charge has been shown in this fight, picked from lists (the phase by its strip name).</summary>
     [Fact]
     public void A_phase_shown_gate_built_with_the_pickers_is_saved()
     {
@@ -231,7 +238,7 @@ public sealed class RotationEditorTests : IDisposable
         bool hint = false;
         OnEditor(library, _ => { }, editor =>
         {
-            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;               // 爆发轴
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;               // Burst
             Click(editor, "AddGateButton");
             var gate = (StackPanel)editor.FindName("GateRows");
             Pick(((Panel)gate.Children[0]).Children.OfType<ComboBox>().First(), "PhaseShown");
@@ -242,7 +249,7 @@ public sealed class RotationEditorTests : IDisposable
             said = ((TextBlock)editor.FindName("ProblemsText")).Text;
         });
 
-        Assert.Equal(["充能轴 I", "爆发轴 II"], offered);
+        Assert.Equal(["Charge I", "Burst II"], offered);
         Assert.True(hint);
         var saved = Assert.Single(library.Own.Load().Rotations);
         Assert.True(saved.Phases[1].When.Count == 1, $"editor said: {said}");
@@ -264,14 +271,14 @@ public sealed class RotationEditorTests : IDisposable
             var gate = (StackPanel)editor.FindName("GateRows");
             Pick(((Panel)gate.Children[0]).Children.OfType<ComboBox>().First(), "PhaseShown");
             var phase = RowOf(gate.Children[0]).Children.OfType<ComboBox>().ToList()[1];
-            phase.SelectedItem = phase.Items.Cast<ComboBoxItem>().Single(i => (string)i.Content == "爆发轴 II"); // itself
+            phase.SelectedItem = phase.Items.Cast<ComboBoxItem>().Single(i => (string)i.Content == "Burst II"); // itself
             Click(editor, "SaveButton");
             said = ((TextBlock)editor.FindName("ProblemsText")).Text;
         });
 
         Assert.Contains("Rotation.Problem.PhaseShownOwnGate", said);
         Assert.Empty(library.Own.Load().Rotations.Single().Phases[1].When); // not saved
-        Assert.Contains("轴段“{0}”的进入条件用了它自己的显示次数：它一出现，次数就变了，条件也跟着变。请改用其他轴段的次数。", ZhCn());
+        Assert.True(Translated("Rotation.Problem.PhaseShownOwnGate"));
     }
 
     /// <summary>A count of a phase that was deleted: the picker says so instead of showing an id, and saving explains what to do.</summary>
@@ -296,10 +303,10 @@ public sealed class RotationEditorTests : IDisposable
         Assert.Equal("Editor.PhaseMissing", shown);
         Assert.Equal(12, times);
         Assert.Contains("Rotation.Problem.PhaseShownMissingPhase", said);
-        Assert.Contains("轴段“{0}”的条件引用了一个已删除的轴段，请重新选择轴段或删除这个条件。", ZhCn());
+        Assert.True(Translated("Rotation.Problem.PhaseShownMissingPhase"));
     }
 
-    /// <summary>The owner's ask (2026-10-22, "轴可以复制"): 复制轴段 puts a copy of the selected phase right after it.</summary>
+    /// <summary>The owner's ask (2026-10-22, "rotations can be copied"): the copy-phase button puts a copy of the selected phase right after it.</summary>
     [Fact]
     public void Copying_a_phase_puts_the_copy_after_it_and_saves_both()
     {
@@ -310,18 +317,18 @@ public sealed class RotationEditorTests : IDisposable
         OnEditor(library, _ => { }, editor =>
         {
             Assert.NotNull(editor.FindName("CopyPhaseButton"));
-            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 0;               // 充能轴
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 0;               // Charge
             Click(editor, "CopyPhaseButton");
             listed = ((ListBox)editor.FindName("PhaseList")).Items.Cast<ComboBoxItem>().Select(i => (string)i.Content).ToList();
             Click(editor, "SaveButton");
             said = ((TextBlock)editor.FindName("ProblemsText")).Text;
         });
 
-        // Outside the app the list shows its keys; the copy's name is Editor.CopyName ("{0}（副本）").
+        // Outside the app the list shows its keys; the copy's name is Editor.CopyName.
         Assert.Equal(3, listed.Count);
         var saved = Assert.Single(library.Own.Load().Rotations);
         Assert.True(saved.Phases.Count == 3, $"editor said: {said}");
-        Assert.Equal(["充能轴", "Editor.CopyName", "爆发轴"], saved.Phases.Select(p => p.Name));
+        Assert.Equal(["Charge", "Editor.CopyName", "Burst"], saved.Phases.Select(p => p.Name));
         Assert.NotEqual(saved.Phases[0].Id, saved.Phases[1].Id);
         Assert.Equal(Shape(saved.Phases[0]), Shape(saved.Phases[1]));
         Assert.Equal(saved.Phases[0].When, saved.Phases[1].When);
@@ -335,7 +342,7 @@ public sealed class RotationEditorTests : IDisposable
 
         OnEditor(library, _ => { }, editor =>
         {
-            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;               // 爆发轴
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;               // Burst
             Click(editor, "CopyPhaseButton");
             Click(editor, "SaveButton");
         });
@@ -350,20 +357,28 @@ public sealed class RotationEditorTests : IDisposable
     private static List<string> Shape(RotationPhase phase) =>
         phase.Steps.Select(s => $"{s.OperatorId}|{s.Action}|{s.Label}|{s.Note}|{s.WithPrevious}|{string.Join(",", s.Expect)}").ToList();
 
-    /// <summary>The player-facing strings, as written (tests run without the app's resources, so Loc gives keys).</summary>
-    private static string ZhCn()
+    /// <summary>
+    /// The sentence the player reads is in the zh-CN strings, in Chinese, naming the phase (tests run
+    /// without the app's resources, so Loc gives keys).
+    /// </summary>
+    private static bool Translated(string key)
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
-            if (File.Exists(Path.Combine(dir.FullName, "EndHud.sln"))) return File.ReadAllText(Path.Combine(dir.FullName, "src", "EndHud", "i18n", "zh-CN.xaml"));
-        throw new DirectoryNotFoundException("EndHud.sln");
+        {
+            string file = Path.Combine(dir.FullName, "src", "EndHud", "i18n", "zh-CN.xaml");
+            if (!File.Exists(file)) continue;
+            var match = System.Text.RegularExpressions.Regex.Match(File.ReadAllText(file), $"x:Key=\"{System.Text.RegularExpressions.Regex.Escape(key)}\">([^<]*)<");
+            return match.Success && match.Groups[1].Value.Contains("{0}") && match.Groups[1].Value.Any(c => c >= '\u4e00' && c <= '\u9fff');
+        }
+        throw new DirectoryNotFoundException("src/EndHud/i18n");
     }
 
-    /// <summary>The items (text, value) of the last picker of a new entry condition of this kind, on the second phase (爆发轴).</summary>
+    /// <summary>The items (text, value) of the last picker of a new entry condition of this kind, on the second phase (Burst).</summary>
     private List<(string Text, object Value)> NewGateValues(string kind)
     {
         var library = new RotationLibrary(_folder);
         var mine = Published() with { Id = "mine" };
-        library.Own.Save(mine with { Phases = [.. mine.Phases, new RotationPhase("burst", "爆发轴", [new RotationStep("Laevatain", StepAction.Ultimate)])] });
+        library.Own.Save(mine with { Phases = [.. mine.Phases, new RotationPhase("burst", "Burst", [new RotationStep("Laevatain", StepAction.Ultimate)])] });
         List<(string Text, object Value)> values = [];
         OnEditor(library, _ => { }, editor =>
         {

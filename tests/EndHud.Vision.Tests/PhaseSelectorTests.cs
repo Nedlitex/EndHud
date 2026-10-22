@@ -214,11 +214,11 @@ public class PhaseSelectorTests
 
     // ---- "Phase shown N times this fight" (format 4): counted when a phase comes onto the strip ----
 
-    /// <summary>A: 爆发轴 while Arcane's ultimate is ready; B: 充能轴 otherwise.</summary>
+    /// <summary>A: Burst while Arcane's ultimate is ready; B: Charge otherwise.</summary>
     private static PhaseSelector ChargeAndBurst() => new(new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
     [
-        new RotationPhase("a", "爆发轴", [new RotationStep("Arcane", StepAction.Ultimate)], [new UltimateCondition("Arcane", true)]),
-        new RotationPhase("b", "充能轴", [new RotationStep("Liino", StepAction.Combo)]),
+        new RotationPhase("a", "Burst", [new RotationStep("Arcane", StepAction.Ultimate)], [new UltimateCondition("Arcane", true)]),
+        new RotationPhase("b", "Charge", [new RotationStep("Liino", StepAction.Combo)]),
     ]));
 
     private static PartyState Charging => Reading(4, 4, arcane: 0.5, liino: 0.5);
@@ -259,25 +259,25 @@ public class PhaseSelectorTests
 
         Assert.Equal(0, selector.TimesShown("a"));
         Assert.Equal(0, selector.TimesShown("b"));
-        // 爆发轴 isn't remembered as shown: with Arcane's ultimate unreadable (it would keep the phase
+        // Burst isn't remembered as shown: with Arcane's ultimate unreadable (it would keep the phase
         // shown), the next fight starts on the otherwise phase.
-        Assert.Equal("充能轴 II", Shown(selector, Bursting with { Slots = [] }));
+        Assert.Equal("Charge II", Shown(selector, Bursting with { Slots = [] }));
         Assert.Equal(1, selector.TimesShown("b"));
     }
 
-    /// <summary>The owner's ask (2026-10-22), "has this phase been played yet": 爆发轴 waits until 充能轴 has been shown once.</summary>
+    /// <summary>The owner's ask (2026-10-22), "has this phase been played yet": Burst waits until Charge has been shown once.</summary>
     [Fact]
     public void A_gate_on_another_phase_count_opens_after_it_was_shown()
     {
         var selector = new PhaseSelector(new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
         [
-            new RotationPhase("burst", "爆发轴", [new RotationStep("Arcane", StepAction.Ultimate)], [new PhaseShownCondition("charge", Comparison.AtLeast, 1)]),
-            new RotationPhase("charge", "充能轴", [new RotationStep("Liino", StepAction.Combo)]),
+            new RotationPhase("burst", "Burst", [new RotationStep("Arcane", StepAction.Ultimate)], [new PhaseShownCondition("charge", Comparison.AtLeast, 1)]),
+            new RotationPhase("charge", "Charge", [new RotationStep("Liino", StepAction.Combo)]),
         ]));
 
-        Assert.Equal("充能轴 II", Shown(selector, Charging));
-        Assert.Equal("爆发轴 I", Shown(selector, Charging));
+        Assert.Equal("Charge II", Shown(selector, Charging));
+        Assert.Equal("Burst I", Shown(selector, Charging));
         selector.EndFight();
-        Assert.Equal("充能轴 II", Shown(selector, Charging)); // a new fight: not shown yet
+        Assert.Equal("Charge II", Shown(selector, Charging)); // a new fight: not shown yet
     }
 }

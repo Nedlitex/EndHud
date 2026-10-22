@@ -14,8 +14,8 @@ public class ConditionWalkTests
     private static Rotation With(IReadOnlyList<StateCondition> gate, IReadOnlyList<StateCondition>? expect = null) => new(
         Rotation.CurrentFormat, "r", "r", Squad,
         [
-            new RotationPhase("charge", "充能轴", [new RotationStep("Ardelia", StepAction.BattleSkill, expect)]),
-            new RotationPhase("burst", "爆发轴", [new RotationStep("Laevatain", StepAction.Ultimate)], gate),
+            new RotationPhase("charge", "Charge", [new RotationStep("Ardelia", StepAction.BattleSkill, expect)]),
+            new RotationPhase("burst", "Burst", [new RotationStep("Laevatain", StepAction.Ultimate)], gate),
         ]);
 
     /// <summary>The overlay's rule before 2026-10-22: only a step's expected state turned the boss's statuses on.</summary>

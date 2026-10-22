@@ -377,7 +377,7 @@ public class RotationTrackerTests
         Assert.Equal(0, tracker.Update(new Reading { ComboReady = CombosExcept(2) }.ToState())!.Step.Index);
     }
 
-    /// <summary>小于 is strictly less: "技力 小于 2" holds at 1.95 and not at 2 (format 4).</summary>
+    /// <summary>"Below" is strictly less: "skill points below 2" holds at 1.95 and not at 2 (format 4).</summary>
     [Fact]
     public void Below_two_skill_points_holds_at_1_95_and_not_at_2()
     {

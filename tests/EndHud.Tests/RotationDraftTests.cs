@@ -82,20 +82,20 @@ public class RotationDraftTests
         Assert.Contains("Rotation.Problem.StepOperator", draft.Problems());
     }
 
-    /// <summary>A copied phase (复制轴段) has its own id and its own steps: changing the copy leaves the original as it was.</summary>
+    /// <summary>A copied phase (the editor's copy-phase button) has its own id and its own steps: changing the copy leaves the original as it was.</summary>
     [Fact]
     public void A_copied_phase_is_independent()
     {
         var draft = RotationDraft.From(Guide());
         var original = draft.Phases[1];
 
-        var copy = original.Copy("爆发轴（副本）");
+        var copy = original.Copy("Burst (copy)");
         copy.Steps[0].Action = StepAction.Combo;
         copy.Steps[0].Expect.Add(new ControllingCondition("Laevatain"));
         copy.When.Clear();
 
         Assert.NotEqual(original.Id, copy.Id);
-        Assert.Equal("爆发轴（副本）", copy.Name);
+        Assert.Equal("Burst (copy)", copy.Name);
         Assert.Equal(StepAction.Ultimate, original.Steps[0].Action);
         Assert.Empty(original.Steps[0].Expect);
         Assert.Single(original.When);

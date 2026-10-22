@@ -314,7 +314,7 @@ public sealed class RotationFormatTests : IDisposable
     }
 
     /// <summary>
-    /// Format 4 adds basic-attack steps, "phase shown" conditions and the 小于/大于 comparisons. A
+    /// Format 4 adds basic-attack steps, "phase shown" conditions and the below/above comparisons. A
     /// rotation that uses none of them is still saved as format 2 or 3.
     /// </summary>
     [Fact]
@@ -388,8 +388,8 @@ public sealed class RotationFormatTests : IDisposable
 
         var problems = rotation.Problems();
 
-        Assert.Contains(new RotationProblem(RotationProblemKind.PhaseShownOwnGate, "爆发轴"), problems);
-        Assert.Contains(new RotationProblem(RotationProblemKind.PhaseShownMissingPhase, "充能轴", 1), problems);
+        Assert.Contains(new RotationProblem(RotationProblemKind.PhaseShownOwnGate, guide.Phases[2].Name), problems);
+        Assert.Contains(new RotationProblem(RotationProblemKind.PhaseShownMissingPhase, guide.Phases[1].Name, 1), problems);
         Assert.Equal(2, problems.Count);
         // A step may count its own phase (only an entry condition flips on it).
         var own = guide with { Phases = [guide.Phases[0] with { Steps = [guide.Phases[0].Steps[0] with { Expect = [new PhaseShownCondition("charge", Comparison.AtLeast, 2)] }] }] };

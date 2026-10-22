@@ -320,7 +320,7 @@ public partial class RotationEditor : Window
         RefreshPhases();
     }
 
-    /// <summary>复制轴段: a copy of the selected phase (steps and entry condition), right after it, selected.</summary>
+    /// <summary>Copy phase: a copy of the selected phase (steps and entry condition), right after it, selected.</summary>
     private void CopyPhase_Click(object sender, RoutedEventArgs e)
     {
         if (_draft is null || _phase is null) return;
@@ -699,7 +699,7 @@ public partial class RotationEditor : Window
             }
             case PhaseShownCondition c:
             {
-                // The rotation's phases by the strip's own names ("充能轴 II"), never ids; a deleted one stays listed as missing.
+                // The rotation's phases by the strip's own names (name and Roman numeral), never ids; a deleted one stays listed as missing.
                 var rotation = _draft!.ToRotation();
                 var phases = rotation.Phases.Select((p, i) => (p.Id, Label: rotation.PhaseLabel(i))).ToList();
                 if (!phases.Any(p => p.Id == c.PhaseId)) phases.Insert(0, (c.PhaseId, Loc.Get("Editor.PhaseMissing")));
@@ -787,7 +787,7 @@ public partial class RotationEditor : Window
         var picker = new ComboBox { MinWidth = 64 };
         foreach (var value in values) picker.Items.Add(Item(text(value), value!));
         // A value from a file that isn't in the list is added and kept, never swapped for the first item
-        // (a 技力 1.8 used to save as 0.5).
+        // (skill points 1.8 used to save as 0.5).
         if (selected is not null && !values.Any(v => Equals(v, selected)))
             picker.Items.Add(Item(text(selected), selected));
         picker.SelectedItem = picker.Items.Cast<ComboBoxItem>().FirstOrDefault(i => Equals(i.Tag, selected)) ?? picker.Items.Cast<ComboBoxItem>().FirstOrDefault();

@@ -16,7 +16,7 @@ public enum StepAction
     Ultimate,
 
     /// <summary>
-    /// Basic attack (普攻): drawn only. EndHud doesn't detect basic attacks, so it's never "used" and
+    /// Basic attack: drawn only. EndHud doesn't detect basic attacks, so it's never "used" and
     /// its availability is unknown; the phase's entry condition says when it shows. Format 4.
     /// </summary>
     BasicAttack,
@@ -29,7 +29,7 @@ public enum Comparison
     AtMost,
     Exactly,
 
-    /// <summary>Strictly less ("技力 小于 2": 1.95 counts, 2 doesn't). Format 4.</summary>
+    /// <summary>Strictly less ("skill points below 2": 1.95 counts, 2 doesn't). Format 4.</summary>
     Below,
 
     /// <summary>Strictly more. Format 4.</summary>
@@ -189,7 +189,7 @@ public sealed record Rotation(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool LastMatchWins = false)
 {
     /// <summary>
-    /// 4: basic-attack steps, "phase shown" conditions, the 小于/大于 (<see cref="Comparison.Below"/>,
+    /// 4: basic-attack steps, "phase shown" conditions, the "below"/"above" (<see cref="Comparison.Below"/>,
     /// <see cref="Comparison.Above"/>) comparisons. 3: "not" and "ultimate active" conditions, and <see cref="LastMatchWins"/>. 2: phases with entry conditions, all/any
     /// groups. 1 (read, converted): a fixed sequence. A rotation is saved in the lowest format that
     /// holds it (<see cref="FormatNeeded"/>), so one that uses nothing new stays readable by builds

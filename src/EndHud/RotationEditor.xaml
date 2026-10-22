@@ -104,7 +104,7 @@
             <GroupBox Grid.Column="2" x:Name="StepsGroup">
                 <Grid>
                     <!-- Shared by ratio, not a fixed 300 for the list: at the window's smallest width the step
-                         details (operator, action, the 普攻 hint, 与上一步连放) were cut off on the right. -->
+                         details (operator, action, the basic-attack hint, "with the previous step") were cut off on the right. -->
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="2*" MinWidth="200" MaxWidth="300" />
                         <ColumnDefinition Width="12" />
