@@ -918,12 +918,42 @@ dish's picture at 112 units (the banner's 76) inside a 136-unit ring, the dish's
 leaving its column empty, so no circle moves sideways ([`InnCircleRow`](src/EndHud/InnKitchenCircles.cs): the same element
 while the call stands, a new call fading the old one out and popping in, in the same column). The calls are
 `InnCallHold`'s as before; only the look changed. Placed by
-[`InnKitchenCircleLayout`](src/EndHud/InnKitchenCircles.cs): the row centred on `InnCircleX` and standing on `InnCircleY`,
-fractions of the window's centred 16:9 area, by default 0.5 and 0.845, right above the held-dishes tray (its slots from
-y 0.855, x 0.38–0.62, on the 4K fixtures): x 0.29–0.71, y 0.61–0.845 at 1080p, 1440p and 4K. Drawn by
-[`OverlayWindow.InnCircles`](src/EndHud/OverlayWindow.InnCircles.cs), dragged while the menu is open (three sample
-circles, one of each kind, show then). InnKitchenCircleTests renders the row and six gourmands' banners over
-session-two-dishes.jpg into `.tracking/changes/2026-10-21-inn-circles-4k.png` (local only) for a person to look at.
+[`InnKitchenCircleLayout`](src/EndHud/InnKitchenCircles.cs) at one fixed place (below). Drawn by
+[`OverlayWindow.InnCircles`](src/EndHud/OverlayWindow.InnCircles.cs); three sample circles, one of each kind, show at that
+place while the menu is open. Since 2026-10-22 the ring is 136 units in a 140-unit column, the words 20 units, and a
+swap's reason is the dish to take out, struck through in the swap's colour ("先拿掉X · 桌5" didn't fit a column).
+
+**Important things in the middle of the screen, at fixed places** (owner, 2026-10-22: "do not change the circle
+location, keep them at fixed location, like gourmand banners. user is very hard to trace things that are flying
+around"; "the gormand table is too small and too at the side, make it more closer to the center so human can focus";
+"important things should be at the central view port, so human can focus, things on the corner is really impossible
+for human to notice"). The rule for every inn overlay: one place each, the same with the dispatch panel open or closed
+and whatever else is up, as near the middle of the screen as the game allows; never at an edge or a corner. Where the
+middle meets the open dispatch panel, an overlay may stand over the panel's chefs' portraits and bonus column (nothing
+the player needs while dispatching), never over its dish cards, kitchen tabs, queue or close button; never over the
+table cards, the timer, the tray and 派单, or the Full Blaze meter. Measured on the 4K frames as fractions of the
+window's centred 16:9 area (the tests' `InnScreenAreas`): the panel x 0.109–0.891, y 0.194–0.856; its dish cards from x
+0.3827, y 0.29–0.80; its tabs to x 0.67; its queue from y 0.697; its left column (portraits y 0.307–0.467, bonus y
+0.518–0.653) x 0.112–0.38; with it closed the top-left block down to y 0.487 (x to 0.285), the table cards to y 0.132
+and the game's last-call bar to x 0.6194, y 0.167. So:
+- **The kitchens' circles** (`InnKitchenCircleLayout`): one row at x 0.153–0.372, y 0.49–0.69 (420 × 216 at 1080p):
+  with the panel open over its bonus column, right above the selected kitchen's queue (the selected tab's kitchen gets
+  a gold frame around its column, in place); with it closed on the floor left of the middle. The only stretch free in
+  both states that is wide enough is either this or the top of the screen right of the table cards (x 0.62–0.81, y
+  0–0.19, 365 × 209); the floor under the open panel is not (the tray takes x 0.30–0.78 of it, the UID the lower left).
+  No drag: `InnCircleX`/`InnCircleY` are gone (an old config with them still loads).
+- **The gourmands' tiles** (`InnGourmandLayout`): two rows of three centred on the screen, tables 1–3 on top and 4–6
+  under them, x 0.311–0.689, y 0.175–0.488, pictures 112 (the circles'), names and badges 20. Six tiles of two requests
+  at 112 do not fit anywhere the open panel leaves free near the middle, so they are put away in place while it is
+  open (`InnViews.Away`, as the banners are) and are back where they were when it closes. This reverses the 2026-10-21
+  choice to keep them up beside the open panel ("gourmand's requirement window still flashes always"): they no longer
+  move or blink while the panel stays shut, but they are not on screen while it is open.
+- **The banners** (开启满堂彩, the last call): by default top-left at (0.43, 0.52) of the window, under the tiles and
+  right of the circles (`HudConfig.DefaultInnCallX/Y`; settings version 4 moves the old default 0.2, 0.36), still
+  draggable, put away while the panel is open.
+The player's size makes the circles and the tiles smaller, never larger than their place. InnKitchenCircleTests renders
+three circles and one, three and six gourmands over session-two-dishes.jpg and dispatch-panel-queue.jpg into
+`.tracking/changes/2026-10-22-inn-circles-fixed-AFTER-*.png` (local only) for a person to look at.
 
 **The open dispatch panel** (owner, live 2026-10-20: "is it possible to ALSO have a suggestion marker by the dish
 itself on the right side?"; the banners covered the panel's chef column). While the panel counts as open (below), or
@@ -933,12 +963,9 @@ on the replays 10 and 12 such frames before, 0 since; a frame reading fewer tabs
 test_yuanyuan3, and hiding on it would blink everything), the banners (Full Blaze, the last call) are hidden in place
 (`InnViews.Away`; shown again as they were when it closes, with no slide-in: until 2026-10-21 every opening took every
 banner down and every closing slid them all in again with the gold flare, which the owner saw as "flashes heavily"),
-the kitchens' circles stand in a row just below the panel (`InnCirclePlace.BelowPanel`, `InnKitchenCircleLayout.BelowPanel`:
-the panel spans y 0.194–0.853 of the 16:9 area and covers the tray, the floor below it is free; each circle the same,
-its words beside it instead of over and under, `InnKitchenCircleView.PanelCircle`; the selected tab's kitchen with a gold
-bar under it), and the gourmands' tiles beside it (below). Until 2026-10-21 the circles and the gourmands were hidden too
-(owner, test_yuanyuan6 at 6:10: "the kitchen shows 有菜要排, BUT there is no circle under"; "gourmand's requirement window
-still flashes always"); both rows of circles are kept up to date and one is shown, so nothing pops in on opening. And
+the gourmands' tiles are put away in place too, and the kitchens' circles stay where they always are (above),
+the selected tab's kitchen framed. Until 2026-10-21 the circles were hidden over the panel (owner, test_yuanyuan6 at
+6:10: "the kitchen shows 有菜要排, BUT there is no circle under"), until 2026-10-22 they moved to a row below it. And
 [`InnPanelMarks`](src/EndHud/InnPanelMarks.cs) takes over: the call for the kitchen the panel shows is a glowing
 gold outline just outside its dish's card with a label in the card's blank lower right (`Inn.Mark.Queue`
 "queue this (table N)", `Inn.Mark.CookAhead`, `Inn.Mark.Swap` "take out X, then queue this"), only on a card read as
@@ -948,7 +975,7 @@ change in a session and a dish's card is the same in every kitchen, measured on 
 `Inn.Mark.Tab` ("a dish to queue") on its tab, so the tab always opens on a marked card (owner, test_yuanyuan6: "the
 kitchen shows 有菜要排, but when we go to the kitchen, there is no recommendation"; until 2026-10-21 cards were remembered
 per kitchen, so a kitchen opened for the first time showed no mark until its own cards were read); a call whose card isn't
-known shows only as its circle below the panel. The tabs, the card's mark and the circles are one picture: all three are
+known shows only as its circle. The tabs, the card's mark and the circles are one picture: all three are
 the same `InnAdvice.Calls` of the same moment. Placed by the reader's card and tab places on the window's centred
 16:9 area (`OverlayWindow.InnMarks`); they follow the game's layout, so nothing is dragged or kept in config. Full
 Blaze and the last call wait for the panel to close. The marks go the moment the panel is seen closed
@@ -1143,12 +1170,11 @@ gourmands: `InnKitchenCircleTests.The_circles_and_gourmands_drawn_over_a_4K_fram
 [`OverlayWindow.Inn`](src/EndHud/OverlayWindow.Inn.cs) shows these only on session frames, and samples (three
 circles, a banner, a gourmand's banner) while the menu is open out of the inn (then they are dragged). Settings:
 `InnHelperEnabled` (on), `InnCallsEnabled` (on; the switch 派单提示（厨房圆圈和横幅） in the card: the circles, the banners
-and the panel's marks), `InnCircleX/Y` (the circles' centre and bottom on the 16:9 area, default 0.5 and 0.845),
-`InnSwapsEnabled` (on; the switch 建议换菜 in the card: whether the advice may say to take a dish cooked ahead out for an
-order, below), `InnCallX/Y` (the banners; default: the combo hint's place, which isn't shown in the
-inn), `InnStripScale` and `InnStripOpacity` (the circles, the banners, the gourmands' tiles (smaller only), the marks and
-the setup advice); the card's reset puts the circles and the banners back. The gourmands' tiles have fixed spots (below):
-nothing to drag, and a config still holding the old `InnGourmandRight/Top` loads.
+and the panel's marks), `InnSwapsEnabled` (on; the switch 建议换菜 in the card: whether the advice may say to take a dish cooked ahead out for an
+order, below), `InnCallX/Y` (the banners; default 0.43, 0.52: the middle of the screen), `InnStripScale` and `InnStripOpacity` (the
+circles and the gourmands' tiles (smaller only), the banners, the marks and the setup advice); the card's reset puts the
+banners back. The circles and the gourmands' tiles have fixed places (above): nothing to drag, and a config still holding
+the old `InnCircleX/Y` or `InnGourmandRight/Top` loads.
 
 **What's remembered of the setup** ([`InnSetupMemory`](src/EndHud/InnSetupMemory.cs); owner, live
 test 2026-10-19: "remember which theme, cook, menu etc currently picked, UNTIL go back to pick
