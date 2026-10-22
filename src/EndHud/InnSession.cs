@@ -274,6 +274,9 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         /// <summary>Requests whose icon on the bubble turned into a face (served, imperfect or failed).</summary>
         public HashSet<GourmandRequest> Resolved { get; } = [];
 
+        /// <summary>Readings in a row of the whole bubble with each request's icon a face.</summary>
+        public Dictionary<GourmandRequest, int> FaceReads { get; } = [];
+
         public IReadOnlyList<GourmandRequest> Requests =>
             _readings.Count == 0 ? [] : _readings
                 .OrderByDescending(r => _readings.Where(o => o.Requests.All(r.Requests.Contains)).Sum(o => o.Count))
@@ -867,8 +870,13 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             case TableState.GourmandOrder:
                 _gourmandLeaving.Remove(card.Table);
                 return;
-            case TableState.GourmandEating or TableState.GourmandArrived or TableState.GourmandOrdering:
+            case TableState.GourmandEating:
                 ForgetGourmand(card.Table, at);
+                return;
+            // Another gourmand at the table, once the cards as read say their order is over (this card is confirmed a reading
+            // later, so it can still be the one before the order).
+            case TableState.GourmandArrived or TableState.GourmandOrdering:
+                if (!_gourmandOrdered.ContainsKey(card.Table)) ForgetGourmand(card.Table, at);
                 return;
             case TableState.Empty when faded:
                 return;
@@ -1115,8 +1123,17 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         void Take(GourmandMemory memory)
         {
             memory.Read(requests);
+            // A face on the bubble counts only on a reading of all the gourmand's words, as they stand: a bubble half read, cut
+            // by the screen's edge or with our own tiles over it (test_yuanyuan8 255.3 s) can put a face against the wrong line.
+            // And two readings in a row must say so, as for the pips (test_yuanyuan8 255.3 s: a bubble half behind our own tile
+            // read a face on the line above the one that had it).
+            if (!requests.SequenceEqual(memory.Requests)) return;
             foreach (var (match, resolved) in said)
-                if (resolved) memory.Resolved.Add(match.Request);
+            {
+                int reads = resolved ? memory.FaceReads.GetValueOrDefault(match.Request) + 1 : 0;
+                memory.FaceReads[match.Request] = reads;
+                if (reads >= 2) memory.Resolved.Add(match.Request);
+            }
         }
     }
 

@@ -24,25 +24,26 @@ public class InnGourmandTruthTests(ITestOutputHelper output)
     /// <summary>
     /// test_yuanyuan8 (2026-10-21, 3838x2158), 14 gourmands and 28 requests, from frames at 1 s and 0.25 s (t &lt;= 480 s):
     /// each request by its gourmand in the data's feast pool (number, request index), its table (the number post under the
-    /// bubble's tail), when its words first showed, and when its icon turned into a face (green served, yellow imperfect,
-    /// red failed). The full table with the lines as shown is in the developer's notes (.tracking, local only).
+    /// bubble's tail), when its words first showed, and when it was resolved: its pip on the table's card turned mint green
+    /// (served), yellow-green (imperfect) or red (failed), read at 0.25 s by a script of its own (fixed pixels, not EndHud's
+    /// reader) and agreeing with the bubble's icon turning into a face where the bubble was in view. The full table with the lines as shown is in the developer's notes (.tracking, local only).
     /// </summary>
     internal static IReadOnlyList<InnReplay.TruthRequest> Y8 { get; } =
     [
-        Feast("A1", 1, 184.5, 266, 10, 1), Feast("A2", 1, 184.5, 192, 10, 3),
-        Feast("B1", 2, 203.25, 291, 7, 0), Feast("B2", 2, 203.25, 206, 7, 3),
-        Feast("C1", 5, 224.25, 231, 11, 0), Feast("C2", 5, 224.25, 305, 11, 4),
-        Feast("D1", 4, 247.0, 249, 12, 0), Feast("D2", 4, 247.0, 297, 12, 4),
-        Feast("E1", 3, 272.0, 280.5, 13, 2), Feast("E2", 3, 272.0, 323, 13, 4),
-        Feast("F1", 6, 299.0, 364, 14, 1), Feast("F2", 6, 299.0, 365, 14, 3),
-        Feast("G1", 1, 310.25, 313, 5, 2), Feast("G2", 1, 310.25, 375, 5, 4),
-        Feast("H1", 2, 332.5, 418, 10, 1), Feast("H2", 2, 332.5, 392, 10, 3),
-        Feast("I1", 4, 359.0, 395, 11, 2), Feast("I2", 4, 359.0, 403, 11, 3),
-        Feast("J1", 5, 405.25, 408, 4, 4), Feast("J2", 5, 405.25, 409, 4, 0),
-        Feast("K1", 3, 410.0, 411.5, 9, 1), Feast("K2", 3, 410.0, 439, 9, 3),
-        Feast("L1", 6, 423.25, 424, 13, 2), Feast("L2", 6, 423.25, 442, 13, 4),
-        Feast("M1", 4, 444.5, 445.75, 6, 2), Feast("M2", 4, 444.5, 448, 6, 3),
-        Feast("N1", 1, 458.5, 461, 15, 2), Feast("N2", 1, 458.5, 467, 15, 3),
+        Feast("A1", 1, 184.5, 265.75, 10, 1), Feast("A2", 1, 184.5, 192.25, 10, 3),
+        Feast("B1", 2, 203.25, 290.75, 7, 0), Feast("B2", 2, 203.25, 205.75, 7, 3),
+        Feast("C1", 5, 224.25, 230.5, 11, 0), Feast("C2", 5, 224.25, 305.25, 11, 4),
+        Feast("D1", 4, 247.0, 249.25, 12, 0), Feast("D2", 4, 247.0, 297.5, 12, 4),
+        Feast("E1", 3, 272.0, 273.0, 13, 2), Feast("E2", 3, 272.0, 323.25, 13, 4),
+        Feast("F1", 6, 299.0, 363.5, 14, 1), Feast("F2", 6, 299.0, 365.0, 14, 3),
+        Feast("G1", 1, 310.25, 313.25, 5, 2), Feast("G2", 1, 310.25, 375.25, 5, 4),
+        Feast("H1", 2, 332.5, 418.0, 10, 1), Feast("H2", 2, 332.5, 387.75, 10, 3),
+        Feast("I1", 4, 359.0, 394.75, 11, 2), Feast("I2", 4, 359.0, 403.5, 11, 3),
+        Feast("J1", 5, 405.25, 407.5, 4, 4), Feast("J2", 5, 405.25, 408.75, 4, 0),
+        Feast("K1", 3, 410.0, 411.5, 9, 1), Feast("K2", 3, 410.0, 439.0, 9, 3),
+        Feast("L1", 6, 423.25, 424.25, 13, 2), Feast("L2", 6, 423.25, 442.25, 13, 4),
+        Feast("M1", 4, 444.5, 445.75, 6, 2), Feast("M2", 4, 444.5, 448.0, 6, 3),
+        Feast("N1", 1, 458.5, 461.0, 15, 2), Feast("N2", 1, 458.5, 467.25, 15, 3),
     ];
 
     private static InnReplay.TruthRequest Feast(string label, int table, double from, double resolved, int gourmand, int request) =>
@@ -110,7 +111,7 @@ public class InnGourmandTruthTests(ITestOutputHelper output)
         var (judged, recognised, kept, lines) = Measure(replay, Y8);
         foreach (string line in lines) output.WriteLine(line);
 
-        Assert.Equal(20, judged);
+        Assert.Equal(19, judged);
         Assert.Equal(judged, recognised);
         Assert.Equal(judged, kept);
         var outcomes = replay.AgainstTruth(Y8);

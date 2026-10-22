@@ -187,8 +187,11 @@ public class InnFeastGourmandTests
         session.Update(Session(9, tables: Tables(Gourmand(2, TableState.GourmandArrived))));
         session.Update(Session(10, tables: Tables(Gourmand(2, TableState.GourmandOrder)), bubble: Says(7, [0, 3])));
         session.Update(Session(12, tables: Tables(Gourmand(2, TableState.GourmandOrder)), bubble: Says(7, [0, 3], [false, true])));
+        // Two readings in a row (test_yuanyuan8 255.3 s: a bubble half behind our own tile read a face one line off).
+        Assert.Equal(Texts(7, 0, 3), Shown(session, 12, 2));
+        session.Update(Session(12.3, tables: Tables(Gourmand(2, TableState.GourmandOrder)), bubble: Says(7, [0, 3], [false, true])));
 
-        Assert.Equal(Texts(7, 0), Shown(session, 12, 2));
+        Assert.Equal(Texts(7, 0), Shown(session, 12.3, 2));
     }
 
     /// <summary>
