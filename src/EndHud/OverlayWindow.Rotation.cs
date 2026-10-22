@@ -21,10 +21,9 @@ public partial class OverlayWindow
     private readonly RotationLibrary _rotationLibrary;
     private readonly PublishedRotationService _publishedRotations;
     private IReadOnlyList<Rotation> _rotations = [];
-    private readonly Dictionary<string, PhaseSelector> _trackers = [];
+    private readonly RotationFollower _rotationFollower = new();
     private readonly Dictionary<string, BitmapSource?> _skillIcons = [];
 
-    private readonly StripVisibility _stripVisibility = new();
     private (Rotation Rotation, RotationPosition Position)? _rotationPosition;
     private readonly DrawnKey _stripKey = new();
     private Point? _rotationDragOffset;
@@ -36,7 +35,7 @@ public partial class OverlayWindow
     internal void ReloadRotations()
     {
         _rotations = _rotationLibrary.Load().Rotations.Select(r => r.Rotation).ToList();
-        _trackers.Clear();
+        _rotationFollower.Forget();
         _rotationPosition = null;
         RenderRotation();
     }
@@ -58,23 +57,11 @@ public partial class OverlayWindow
     /// <summary>A new reading: move the tracker on, then redraw.</summary>
     private void TrackRotation(PartyState? state)
     {
-        Rotation? rotation = null;
-        _rotationPosition = null;
-        // In battle only (through short gaps: see StripVisibility), for a rotation made for the recognised squad.
-        bool inBattle = state is not null && _stripVisibility.Update(state);
-        if (state is not null && inBattle && _config.RotationEnabled && _config.PartyOcrEnabled)
-        {
-            rotation = RotationFor(state.Slots.Select(s => s.Operator?.Operator.Id).ToList());
-            if (rotation is not null)
-            {
-                if (!_trackers.TryGetValue(rotation.Id, out var tracker)) _trackers[rotation.Id] = tracker = new PhaseSelector(rotation);
-                if (tracker.Update(state) is { } position) _rotationPosition = (rotation, position);
-            }
-        }
-        // The boss's statuses take a while to read: only when this rotation asks about them.
-        _party.ReadBossStatuses = rotation?.Phases.Any(p => p.Steps.Any(s => s.Expect.Any(c => c is BossStatusCondition))) == true;
+        var follow = _rotationFollower.Update(state, _config.RotationEnabled && _config.PartyOcrEnabled, RotationFor);
+        _rotationPosition = follow.Position;
+        _party.ReadBossStatuses = follow.ReadBossStatuses;
         RenderRotation();
-        TrackGauges(state, inBattle);
+        TrackGauges(state, follow.InBattle);
     }
 
     private void RenderRotation()
@@ -313,5 +300,49 @@ public partial class OverlayWindow
         _config.RotationCenterX = (System.Windows.Controls.Canvas.GetLeft(RotationFrame) + RotationWidth() / 2) / HintCanvas.ActualWidth;
         _config.RotationY = System.Windows.Controls.Canvas.GetTop(RotationFrame) / HintCanvas.ActualHeight;
         ConfigStore.Save(_config);
+    }
+}
+
+/// <summary>What the overlay's rotation following decided for a reading.</summary>
+/// <param name="InBattle">In battle, riding over short gaps (<see cref="StripVisibility"/>).</param>
+/// <param name="Position">The rotation and where the strip is in it; null when nothing is shown.</param>
+/// <param name="ReadBossStatuses">The squad's rotation asks about the boss's statuses, so they must be read.</param>
+internal sealed record RotationFollowing(bool InBattle, (Rotation Rotation, RotationPosition Position)? Position, bool ReadBossStatuses);
+
+/// <summary>
+/// The overlay's rotation following, without the drawing (<see cref="OverlayWindow"/> draws what it
+/// says): in battle, the phase selector of the rotation for the recognised squad, one per rotation.
+/// </summary>
+internal sealed class RotationFollower
+{
+    private readonly StripVisibility _visibility = new();
+    private readonly Dictionary<string, PhaseSelector> _selectors = [];
+
+    /// <summary>The phase selector of each rotation followed since the rotations were last loaded.</summary>
+    internal IReadOnlyDictionary<string, PhaseSelector> Selectors => _selectors;
+
+    /// <summary>The rotations changed (the editor saved one): start every rotation afresh.</summary>
+    public void Forget() => _selectors.Clear();
+
+    /// <param name="enabled">The strip is on and the squad panel is read.</param>
+    /// <param name="rotationFor">The rotation for a squad (operator ids by slot, null where unrecognised), if any.</param>
+    public RotationFollowing Update(PartyState? state, bool enabled, Func<IReadOnlyList<string?>, Rotation?> rotationFor)
+    {
+        Rotation? rotation = null;
+        (Rotation, RotationPosition)? position = null;
+        // In battle only (through short gaps: see StripVisibility), for a rotation made for the recognised squad.
+        bool inBattle = state is not null && _visibility.Update(state);
+        if (state is not null && inBattle && enabled)
+        {
+            rotation = rotationFor(state.Slots.Select(s => s.Operator?.Operator.Id).ToList());
+            if (rotation is not null)
+            {
+                if (!_selectors.TryGetValue(rotation.Id, out var selector)) _selectors[rotation.Id] = selector = new PhaseSelector(rotation);
+                position = (rotation, selector.Update(state));
+            }
+        }
+        // The boss's statuses take a while to read: only when this rotation asks about them.
+        bool statuses = rotation?.Phases.Any(p => p.Steps.Any(s => s.Expect.Any(c => c is BossStatusCondition))) == true;
+        return new RotationFollowing(inBattle, position, statuses);
     }
 }
