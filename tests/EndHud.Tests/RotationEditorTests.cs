@@ -211,6 +211,102 @@ public sealed class RotationEditorTests : IDisposable
         Assert.Contains("\"is\": \"Below\"", file);
     }
 
+    /// <summary>"mine": 充能轴 (id p), then 爆发轴 (id burst) with this entry condition.</summary>
+    private RotationLibrary TwoPhases(params StateCondition[] burstGate)
+    {
+        var library = new RotationLibrary(_folder);
+        var mine = Published() with { Id = "mine" };
+        library.Own.Save(mine with { Phases = [.. mine.Phases, new RotationPhase("burst", "爆发轴", [new RotationStep("Laevatain", StepAction.Ultimate)], burstGate)] });
+        return library;
+    }
+
+    /// <summary>The owner's ask (2026-10-22): 爆发轴 only once 充能轴 has been shown in this fight, picked from lists (the phase by its strip name).</summary>
+    [Fact]
+    public void A_phase_shown_gate_built_with_the_pickers_is_saved()
+    {
+        var library = TwoPhases();
+
+        string said = "";
+        List<string> offered = [];
+        bool hint = false;
+        OnEditor(library, _ => { }, editor =>
+        {
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;               // 爆发轴
+            Click(editor, "AddGateButton");
+            var gate = (StackPanel)editor.FindName("GateRows");
+            Pick(((Panel)gate.Children[0]).Children.OfType<ComboBox>().First(), "PhaseShown");
+            var pickers = RowOf(gate.Children[0]).Children.OfType<ComboBox>().ToList(); // kind, phase, compare, times
+            offered = pickers[1].Items.Cast<ComboBoxItem>().Select(i => (string)i.Content).ToList();
+            hint = gate.Children[0] is StackPanel { Children: [_, TextBlock { Text: "Editor.PhaseShownHint" }] };
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        });
+
+        Assert.Equal(["充能轴 I", "爆发轴 II"], offered);
+        Assert.True(hint);
+        var saved = Assert.Single(library.Own.Load().Rotations);
+        Assert.True(saved.Phases[1].When.Count == 1, $"editor said: {said}");
+        Assert.Equal(new PhaseShownCondition("p", Comparison.AtLeast, 1), saved.Phases[1].When[0]);
+        Assert.Equal(4, saved.Format);
+    }
+
+    /// <summary>A gate on its own phase's count is refused in words (it would flip the moment the phase shows).</summary>
+    [Fact]
+    public void A_gate_on_its_own_count_is_refused_in_words()
+    {
+        var library = TwoPhases();
+
+        string said = "";
+        OnEditor(library, _ => { }, editor =>
+        {
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;
+            Click(editor, "AddGateButton");
+            var gate = (StackPanel)editor.FindName("GateRows");
+            Pick(((Panel)gate.Children[0]).Children.OfType<ComboBox>().First(), "PhaseShown");
+            var phase = RowOf(gate.Children[0]).Children.OfType<ComboBox>().ToList()[1];
+            phase.SelectedItem = phase.Items.Cast<ComboBoxItem>().Single(i => (string)i.Content == "爆发轴 II"); // itself
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        });
+
+        Assert.Contains("Rotation.Problem.PhaseShownOwnGate", said);
+        Assert.Empty(library.Own.Load().Rotations.Single().Phases[1].When); // not saved
+        Assert.Contains("轴段“{0}”的进入条件用了它自己的显示次数：它一出现，次数就变了，条件也跟着变。请改用其他轴段的次数。", ZhCn());
+    }
+
+    /// <summary>A count of a phase that was deleted: the picker says so instead of showing an id, and saving explains what to do.</summary>
+    [Fact]
+    public void A_count_of_a_deleted_phase_shows_the_missing_sentence()
+    {
+        var library = TwoPhases(new PhaseShownCondition("gone", Comparison.AtLeast, 12));
+
+        string said = "", shown = "";
+        object? times = null;
+        OnEditor(library, _ => { }, editor =>
+        {
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;
+            var gate = (StackPanel)editor.FindName("GateRows");
+            var pickers = RowOf(gate.Children[0]).Children.OfType<ComboBox>().ToList();
+            shown = (string)((ComboBoxItem)pickers[1].SelectedItem).Content;
+            times = ((ComboBoxItem)pickers[3].SelectedItem).Tag; // off the 0-9 list: kept, not swapped for 0
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        });
+
+        Assert.Equal("Editor.PhaseMissing", shown);
+        Assert.Equal(12, times);
+        Assert.Contains("Rotation.Problem.PhaseShownMissingPhase", said);
+        Assert.Contains("轴段“{0}”的条件引用了一个已删除的轴段，请重新选择轴段或删除这个条件。", ZhCn());
+    }
+
+    /// <summary>The player-facing strings, as written (tests run without the app's resources, so Loc gives keys).</summary>
+    private static string ZhCn()
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+            if (File.Exists(Path.Combine(dir.FullName, "EndHud.sln"))) return File.ReadAllText(Path.Combine(dir.FullName, "src", "EndHud", "i18n", "zh-CN.xaml"));
+        throw new DirectoryNotFoundException("EndHud.sln");
+    }
+
     /// <summary>The items (text, value) of the last picker of a new entry condition of this kind, on the second phase (爆发轴).</summary>
     private List<(string Text, object Value)> NewGateValues(string kind)
     {
