@@ -6,7 +6,9 @@ namespace EndHud.Vision;
 /// <param name="Position">Its place in the row, from 0 (the row reflows as statuses come and go);
 /// <see cref="RingPosition"/> for the elemental infliction (<see cref="InflictionRing"/>).</param>
 /// <param name="Score">How well the icon matched (normalised correlation, 1 = identical).</param>
-public sealed record BossStatusReading(string StatusId, int Position, double Score)
+/// <param name="Stacks">Stacks (inflictions, 1–4) or level (reactions, I–IV as 1–4); null when not read
+/// (covered, no badge, or a status whose count EndHud doesn't read yet: see <see cref="BossStatusReader.CountsRead"/>).</param>
+public sealed record BossStatusReading(string StatusId, int Position, double Score, int? Stacks)
 {
     public const int RingPosition = -1;
 }
@@ -49,11 +51,15 @@ public sealed class BossStatusReader(OperatorLibrary library)
         var found = new List<BossStatusReading>();
         foreach (var (position, best, _) in Scores(frame))
         {
-            if (best is { } b) found.Add(new BossStatusReading(b.Id, position, b.Score));
+            if (best is { } b) found.Add(new BossStatusReading(b.Id, position, b.Score, null));
         }
-        if (InflictionRing.Read(frame) is { } infliction) found.Add(new BossStatusReading(infliction, BossStatusReading.RingPosition, 1));
+        if (InflictionRing.Read(frame) is { } infliction) found.Add(new BossStatusReading(infliction, BossStatusReading.RingPosition, 1, null));
         return found;
     }
+
+    /// <summary>Statuses whose stack count or level EndHud reads (the editor offers a count only for these).</summary>
+    public static IReadOnlySet<string> CountsRead { get; } =
+        new HashSet<string>(["Heat Infliction", "Cryo Infliction", "Electric Infliction", "Nature Infliction", .. ReactionLevel.Measured], StringComparer.Ordinal);
 
     /// <summary>For each position: the accepted status (if any) and the two best scores (for measuring thresholds).</summary>
     internal IEnumerable<(int Position, (string Id, double Score)? Accepted, ((string Id, double Score) First, (string Id, double Score) Second) Top)> Scores(Frame frame)

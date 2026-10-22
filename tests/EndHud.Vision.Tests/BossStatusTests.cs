@@ -41,6 +41,49 @@ public sealed class BossStatusTests : IDisposable
         Assert.Equal(label.BossStatuses, statuses.Select(s => s.StatusId));
     }
 
+    [Fact]
+    public async Task The_reading_carries_infliction_stacks()
+    {
+        var frame = await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("infliction", "si-cryo-57_5s.jpg")));
+
+        var ring = Assert.Single((await ReaderAsync()).Read(frame), s => s.Position == BossStatusReading.RingPosition);
+
+        Assert.Equal(("Cryo Infliction", 4), (ring.StatusId, ring.Stacks));
+    }
+
+    [Fact]
+    public async Task The_reading_carries_a_reaction_level()
+    {
+        var frame = await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("reactions", "corrosion-III-84s.jpg")));
+
+        var statuses = (await ReaderAsync()).Read(frame);
+
+        var corrosion = Assert.Single(statuses, s => s.StatusId == "Corrosion");
+        Assert.Equal((1, 3), (corrosion.Position, corrosion.Stacks));
+    }
+
+    /// <summary>A reaction shown with no badge is named, and its level is unknown (not guessed as I).</summary>
+    [Fact]
+    public async Task A_reaction_without_a_badge_has_no_level()
+    {
+        var frame = await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("reactions", "other-typhoeus-30s.jpg")));
+
+        var electrification = Assert.Single((await ReaderAsync()).Read(frame), s => s.StatusId == "Electrification");
+
+        Assert.Null(electrification.Stacks);
+    }
+
+    [Fact]
+    public void Counts_are_offered_only_for_inflictions_and_measured_reactions()
+    {
+        Assert.Contains("Cryo Infliction", BossStatusReader.CountsRead);
+        Assert.Contains("Corrosion", BossStatusReader.CountsRead);
+        Assert.Contains("Electrification", BossStatusReader.CountsRead);
+        Assert.DoesNotContain("Vulnerable", BossStatusReader.CountsRead);
+        Assert.DoesNotContain("Combustion", BossStatusReader.CountsRead);
+        Assert.DoesNotContain("Solidification", BossStatusReader.CountsRead);
+    }
+
     public static TheoryData<string> Screens() => [SimulatedScreen.Qhd.Name, SimulatedScreen.FullHd.Name];
 
     /// <summary>Smaller screens draw the icons smaller: a status may go unrecognised, but never wrongly named.</summary>
