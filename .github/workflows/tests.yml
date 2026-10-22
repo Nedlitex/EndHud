@@ -45,15 +45,17 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      # EndHud reads text with the OCR engine built into Windows, which needs an OCR language.
-      - name: Install Windows OCR (English)
+      # EndHud reads text with the OCR engine built into Windows, which needs an OCR language: English for the squad
+      # and battle readers, Simplified Chinese for the inn helper (its tests refuse to run without it).
+      - name: Install Windows OCR (English, Simplified Chinese)
         shell: pwsh
         run: |
-          $name = 'Language.OCR~~~en-US~0.0.1.0'
-          if ((Get-WindowsCapability -Online -Name $name).State -ne 'Installed') {
-            Add-WindowsCapability -Online -Name $name | Out-Null
+          foreach ($name in 'Language.OCR~~~en-US~0.0.1.0', 'Language.OCR~~~zh-CN~0.0.1.0') {
+            if ((Get-WindowsCapability -Online -Name $name).State -ne 'Installed') {
+              Add-WindowsCapability -Online -Name $name | Out-Null
+            }
+            Get-WindowsCapability -Online -Name $name | Select-Object Name, State
           }
-          Get-WindowsCapability -Online -Name $name | Select-Object Name, State
 
       # The recordings are decoded with Windows' media stack (Media Foundation).
       - name: Install Media Foundation (video decoding)
