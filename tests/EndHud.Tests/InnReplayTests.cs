@@ -88,6 +88,7 @@ public class InnReplayTests(ITestOutputHelper output)
     [InlineData("test-yuanyuan4-readings.jsonl.gz")]
     [InlineData("test-yuanyuan5-readings.jsonl.gz")]
     [InlineData("test-yuanyuan6-readings.jsonl.gz")]
+    [InlineData("test-yuanyuan7-readings.jsonl.gz")]
     public void Over_the_owners_recorded_sessions_nothing_flashes_or_jumps(string fixture)
     {
         var replay = InnReplay.Run(InnReplay.Load(Path.Combine(AppContext.BaseDirectory, "Fixtures", "inn-replay", fixture)));

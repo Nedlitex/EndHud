@@ -159,9 +159,11 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     private readonly TableMemory?[] _tables = new TableMemory?[TableCardReader.Tables];
     private readonly TableCard?[] _tableChange = new TableCard?[TableCardReader.Tables]; // an order's card read otherwise once, awaiting a second reading
     private readonly TimeSpan?[] _tableEmptySince = new TimeSpan?[TableCardReader.Tables]; // an open order's card read empty since then (OrderGoneAfter)
-    // On the counter, by dish: cooked ahead (no order claimed it), and out for an order (it was that order's dish in a
-    // queue, so it covers that order until served). Both are an estimate: the counter is never read off the screen.
-    private readonly Dictionary<string, int> _spares = [], _outForOrders = [], _cooked = [], _servedBefore = [];
+    // On the counter: dishes cooked ahead (no order claimed them), and out for an order (it was that order's dish in a
+    // queue, so it covers that order until served), each with when it came out. An estimate: the counter is never read
+    // off the screen.
+    private readonly CounterEstimate _counter = new();
+    private readonly Dictionary<string, int> _cooked = [], _servedBefore = [];
     private readonly HashSet<string> _dishesSeen = [], _drinksSeen = [];
     // The dispatch panel's card each dish was read on. The same in every kitchen (measured: on all four recorded sessions every
     // dish was read on one card, in all three kitchens), and the menu doesn't change in a session.
@@ -245,8 +247,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
 
     /// <summary>The dishes the estimate has on the counter, cooked ahead or out for an order, and those in hand ("@hand"; the replay's trace).</summary>
     public string CounterSignature() =>
-        string.Join(",", _spares.Keys.Union(_outForOrders.Keys).Select(id => (id, n: _spares.GetValueOrDefault(id) + _outForOrders.GetValueOrDefault(id)))
-            .Where(c => c.n > 0).Select(c => $"{c.id}x{c.n}")
+        string.Join(",", _counter.Entries.GroupBy(e => e.Id).Select(g => $"{g.Key}x{g.Count()}")
             .Concat(_carried.GroupBy(id => id).Select(g => $"{g.Key}x{g.Count()}@hand")));
 
     /// <summary>
@@ -364,8 +365,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         Array.Clear(_tables);
         Array.Clear(_tableChange);
         Array.Clear(_tableEmptySince);
-        _spares.Clear();
-        _outForOrders.Clear();
+        _counter.Clear();
         _cooked.Clear();
         _servedBefore.Clear();
         _dishesSeen.Clear();
@@ -416,7 +416,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
                 kitchen.OutSinceRead.Add((dish.Id, now));
                 kitchen.Out[dish.Id] = kitchen.Out.GetValueOrDefault(dish.Id) + 1;
                 _cooked[dish.Id] = _cooked.GetValueOrDefault(dish.Id) + 1;
-                PutOnCounter(dish.Id);
+                PutOnCounter(dish.Id, now);
             }
         }
     }
@@ -426,20 +426,10 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// of its kind out soonest, oldest order first, so this dish was the next order's still waiting for one not yet out
     /// (<see cref="WaitingFor"/>): out for that order, it covers it until served. With no such order, it was cooked ahead.
     /// </summary>
-    private void PutOnCounter(string id)
-    {
-        if (_outForOrders.GetValueOrDefault(id) < WaitingFor(id)) _outForOrders[id] = _outForOrders.GetValueOrDefault(id) + 1;
-        else _spares[id] = _spares.GetValueOrDefault(id) + 1;
-    }
+    private void PutOnCounter(string id, TimeSpan at) => _counter.Put(id, at, forOrder: _counter.ForOrders(id) < WaitingFor(id));
 
     /// <summary>A dish off the counter (served, or a panel reading putting it back in its queue): one out for an order first.</summary>
-    private bool TakeOffCounter(string id)
-    {
-        if (_outForOrders.GetValueOrDefault(id) > 0) _outForOrders[id]--;
-        else if (_spares.GetValueOrDefault(id) > 0) _spares[id]--;
-        else return false;
-        return true;
-    }
+    private bool TakeOffCounter(string id) => _counter.TakeOff(id);
 
     /// <summary>Dishes of an id the open orders are still waiting for (not served).</summary>
     private int WaitingFor(string id) =>
@@ -546,7 +536,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         foreach (string id in estimate.Take(cameOut))
         {
             kitchen.Out[id] = kitchen.Out.GetValueOrDefault(id) + 1;
-            PutOnCounter(id);
+            PutOnCounter(id, at);
             _cooked[id] = _cooked.GetValueOrDefault(id) + 1;
         }
         foreach (string id in seen.Take(notOut))
@@ -776,7 +766,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         foreach (var (id, since) in _leftHand.Where(h => at - h.At >= HandSettlesAfter).ToList())
         {
             _leftHand.Remove((id, since));
-            PutOnCounter(id);
+            PutOnCounter(id, at);
         }
         _servedFromHand.RemoveAll(s => at - s.At >= HandSettlesAfter);
         // A dish the tray kept showing after it was read served, for longer than a late frame: a second one, picked up.
@@ -1000,17 +990,11 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
                 if (DishOf(item.Id) is { } dish) outstanding.Add(new OrderedDish(table.Card.Table, dish)); // a drink: no kitchen
         }
         // A dish out for an order no longer waiting for one (the order gone, or misread) was cooked ahead after all.
-        foreach (var (id, n) in _outForOrders.ToList())
-        {
-            int excess = n - outstanding.Count(o => o.Dish.Id == id);
-            if (excess <= 0) continue;
-            _outForOrders[id] = n - excess;
-            _spares[id] = _spares.GetValueOrDefault(id) + excess;
-        }
+        foreach (string id in _counter.OutForOrders.Distinct().ToList()) _counter.KeepForOrders(id, outstanding.Count(o => o.Dish.Id == id));
         // On the counter: the dishes out for an order, which cover it (owner, 2026-10-21: it was that order's dish in its
         // queue), and those cooked ahead, which cover no order: they're where the estimate drifts.
-        var outForOrders = _outForOrders.Where(s => s.Value > 0).SelectMany(s => Enumerable.Repeat(DishOf(s.Key)!, s.Value)).ToList();
-        var counter = outForOrders.Concat(_spares.Where(s => s.Value > 0).SelectMany(s => Enumerable.Repeat(DishOf(s.Key)!, s.Value))).ToList();
+        var outForOrders = _counter.OutForOrders.Select(id => DishOf(id)!).ToList();
+        var counter = _counter.All.Select(id => DishOf(id)!).ToList();
         // In hand: what the tray shows (a dish in hand covers an order of it first, DispatchAdvisor's Cover).
         var carried = _carried.Select(id => DishOf(id)!).ToList();
         var state = new InnState(queues, counter, outForOrders, carried, outstanding, menu, ServingLeft(now), asCalled, ThemeItems());
