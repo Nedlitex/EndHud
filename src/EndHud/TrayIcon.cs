@@ -70,7 +70,8 @@ internal sealed class TrayIcon : IDisposable
             _checkUpdates,
             new ToolStripMenuItem(Loc.Get("Tray.EditRotations"), null, (_, _) => _overlay.OpenRotationEditor()),
             new ToolStripMenuItem(Loc.Get("Tray.OpenConfig"), null, (_, _) => OpenConfigFolder()),
-            new ToolStripMenuItem(Loc.Get("Tray.ExportDiagnostics"), null, async (_, _) => await ExportDiagnosticsAsync()),
+            new ToolStripMenuItem(Loc.Get("Tray.ExportDiagnostics"), null, async (_, _) => await ExportDiagnosticsAsync(DiagnosticSize.Mini)),
+            new ToolStripMenuItem(Loc.Get("Tray.ExportFullDiagnostics"), null, async (_, _) => await ExportDiagnosticsAsync(DiagnosticSize.Full)),
             new ToolStripMenuItem(Loc.Get("Tray.Quit"), null, (_, _) => System.Windows.Application.Current.Shutdown()),
         });
         menu.Opening += (_, _) => RefreshItems();
@@ -226,9 +227,9 @@ internal sealed class TrayIcon : IDisposable
     }
 
     /// <summary>Write the diagnostic zip to the desktop and show it in Explorer (see DiagnosticExport).</summary>
-    private async Task ExportDiagnosticsAsync()
+    private async Task ExportDiagnosticsAsync(DiagnosticSize size)
     {
-        string? path = await _overlay.ExportDiagnosticsAsync();
+        string? path = await _overlay.ExportDiagnosticsAsync(size);
         if (path is null)
         {
             Notify(Loc.Get("Diagnostics.ExportFailed"), OpenConfigFolder);

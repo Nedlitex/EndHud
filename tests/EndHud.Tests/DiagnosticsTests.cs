@@ -88,7 +88,7 @@ public class DiagnosticsTests : IDisposable
         Array.Fill(white, (byte)255);
         string zip = Path.Combine(_folder, "out", "diagnostics.zip");
 
-        await OnSta(() => DiagnosticExport.WriteAsync(zip, "game window: 1600x900", new Frame(1600, 900, white), config,
+        await OnSta(() => DiagnosticExport.WriteAsync(DiagnosticSize.Mini, zip, "game window: 1600x900", new Frame(1600, 900, white), config,
             [new RecentFrame(new DateTime(2026, 10, 16, 21, 5, 7), new Frame(1600, 900, white), "panel not seen, 0/8 marks, from window capture")]));
 
         using var archive = ZipFile.OpenRead(zip);
@@ -131,7 +131,7 @@ public class DiagnosticsTests : IDisposable
         var game = await ImageFile.LoadAsync(Path.Combine(AppContext.BaseDirectory, "Fixtures", "combat-combos-nearly-refilled.jpg"));
         string zip = Path.Combine(_folder, "out", "diagnostics.zip");
 
-        await OnSta(() => DiagnosticExport.WriteAsync(zip, "game window: 3840x2160", game, config, []));
+        await OnSta(() => DiagnosticExport.WriteAsync(DiagnosticSize.Mini, zip, "game window: 3840x2160", game, config, []));
 
         Assert.InRange(new FileInfo(zip).Length, 1, DiagnosticExport.MaxZipBytes);
         using var archive = ZipFile.OpenRead(zip);
@@ -143,6 +143,46 @@ public class DiagnosticsTests : IDisposable
         Assert.DoesNotContain("THE FIRST LINE", kept);
         Assert.StartsWith("(earlier lines left out", kept);
     }
+
+    /// <summary>The full export: every log file whole, the game picture full size and the recent
+    /// pictures, each with the UID blacked out; no size limit.</summary>
+    [Fact]
+    public async Task The_full_export_holds_every_log_whole_and_the_pictures_with_the_uid_blacked_out()
+    {
+        Directory.CreateDirectory(DiagnosticLog.Folder);
+        string older = string.Concat(Enumerable.Range(0, 20000).Select(i => $"older line {i}{Environment.NewLine}"));
+        File.WriteAllText(Path.Combine(DiagnosticLog.Folder, "endhud.1.log"), older);
+        DiagnosticLog.Info("reading on");
+        string config = Path.Combine(_folder, "config.json");
+        File.WriteAllText(config, "{ \"PartyOcrEnabled\": true }");
+        var white = new byte[1600 * 900 * 4];
+        Array.Fill(white, (byte)255);
+        string zip = Path.Combine(_folder, "out", "diagnostics.zip");
+
+        await OnSta(() => DiagnosticExport.WriteAsync(DiagnosticSize.Full, zip, "game window: 1600x900", new Frame(1600, 900, white), config,
+            [new RecentFrame(new DateTime(2026, 10, 16, 21, 5, 7), new Frame(1600, 900, white), "panel not seen, 0/8 marks, from window capture")]));
+
+        using var archive = ZipFile.OpenRead(zip);
+        Assert.Equal(["config.json", "game.png", "hud.jpg", "logs/endhud.1.log", "logs/endhud.log", "recent/01-210507.png", "recent/readings.txt", "summary.txt"],
+            archive.Entries.Select(e => e.FullName.Replace('\\', '/')).Order());
+        using (var log = new StreamReader(archive.GetEntry("logs/endhud.1.log")!.Open()))
+            Assert.Equal(older, log.ReadToEnd());
+        using (var readings = new StreamReader(archive.GetEntry("recent/readings.txt")!.Open()))
+            Assert.Equal("01-210507.png: 21:05:07.000, panel not seen, 0/8 marks, from window capture", readings.ReadToEnd().Trim());
+        foreach (string entry in new[] { "game.png", "recent/01-210507.png" })
+        {
+            string extracted = Path.Combine(_folder, Path.GetFileName(entry));
+            archive.GetEntry(entry)!.ExtractToFile(extracted);
+            var picture = await ImageFile.LoadAsync(extracted);
+            var uid = DiagnosticExport.UidArea(picture.Width, picture.Height);
+            Assert.Equal((byte)0, picture.GetPixel(uid.X + uid.Width / 2, uid.Y + uid.Height / 2).R);
+            Assert.Equal((byte)255, picture.GetPixel(picture.Width / 2, picture.Height / 2).R);
+        }
+    }
+
+    [Fact]
+    public void The_two_sizes_have_their_own_file_names() =>
+        Assert.NotEqual(Path.GetFileName(DiagnosticExport.NewPath(DiagnosticSize.Mini))[..23], Path.GetFileName(DiagnosticExport.NewPath(DiagnosticSize.Full))[..23]);
 
     [Fact]
     public void A_network_failure_is_explained_down_to_its_socket_error()

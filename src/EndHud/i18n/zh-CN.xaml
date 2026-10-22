@@ -237,8 +237,9 @@
     <sys:String x:Key="Menu.AutoStart.Failed">无法修改开机启动设置。请稍后重试；如仍无法修改，请导出诊断信息发给开发者。</sys:String>
     <sys:String x:Key="Menu.PartyOcr">识别小队栏</sys:String>
     <sys:String x:Key="Menu.DebugPanel">显示调试面板（识别到的等级、生命值和技能）</sys:String>
-    <sys:String x:Key="Menu.ExportDiagnostics">导出诊断信息</sys:String>
-    <sys:String x:Key="Menu.ExportDiagnostics.Hint">在桌面生成诊断压缩包（小于 20 KB），包含最近的运行日志、设置和游戏画面左下、右下角的小截图（UID 已遮挡）。反馈问题（例如一直显示“正在识别小队栏”）时请附上该文件。</sys:String>
+    <sys:String x:Key="Menu.ExportDiagnostics">导出精简诊断</sys:String>
+    <sys:String x:Key="Menu.ExportFullDiagnostics">导出完整诊断</sys:String>
+    <sys:String x:Key="Menu.ExportDiagnostics.Hint">在桌面生成诊断压缩包，UID 已遮挡。精简版小于 20 KB，包含最近的运行日志、设置和游戏画面左下、右下角的小截图，适合在只能传小文件的地方上传；完整版有几 MB，包含全部日志和完整游戏截图，可通过 GitHub 或网盘发送。反馈问题（例如一直显示“正在识别小队栏”）时请附上其中一个。</sys:String>
     <sys:String x:Key="Diagnostics.Exported">已导出到桌面：{0}</sys:String>
     <sys:String x:Key="Diagnostics.ExportFailed">导出失败，请稍后再试，或打开配置文件夹，把其中的 logs 文件夹发给开发者。</sys:String>
     <sys:String x:Key="Menu.CheckForUpdates">自动检查更新（每天一次）：EndHud 新版本、推荐排轴和干员头像库</sys:String>
@@ -300,7 +301,8 @@
     <sys:String x:Key="Operators.CheckedRecently">干员头像库 {0} 分钟前刚检查过，已是最新。</sys:String>
     <sys:String x:Key="Operators.AlreadyChecking">正在检查干员头像库，请稍候。</sys:String>
     <sys:String x:Key="Tray.OpenConfig">打开配置文件所在文件夹</sys:String>
-    <sys:String x:Key="Tray.ExportDiagnostics">导出诊断信息（遇到问题时发给开发者）</sys:String>
+    <sys:String x:Key="Tray.ExportDiagnostics">导出精简诊断（小于 20 KB，遇到问题时发给开发者）</sys:String>
+    <sys:String x:Key="Tray.ExportFullDiagnostics">导出完整诊断（全部日志和截图）</sys:String>
     <sys:String x:Key="Tray.Quit">退出</sys:String>
     <sys:String x:Key="Tray.Started">EndHud 已在系统托盘中运行。切换到游戏后会自动显示，按 Ctrl+Shift+M 或 Ctrl+F9 打开菜单，右键托盘图标可更改设置。</sys:String>
     <sys:String x:Key="Tray.Started.Manual">EndHud 已在系统托盘中运行。按 Ctrl+Shift+H 或 Ctrl+F10 显示 HUD，右键托盘图标可更改设置。</sys:String>

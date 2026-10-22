@@ -225,6 +225,8 @@
             <DockPanel Margin="0,6,0,0" LastChildFill="True">
                 <Button x:Name="ExportDiagnosticsButton" DockPanel.Dock="Left" Padding="10,2"
                         Content="{DynamicResource Menu.ExportDiagnostics}" Click="ExportDiagnosticsButton_Click" />
+                <Button x:Name="ExportFullDiagnosticsButton" DockPanel.Dock="Left" Padding="10,2" Margin="6,0,0,0"
+                        Content="{DynamicResource Menu.ExportFullDiagnostics}" Click="ExportFullDiagnosticsButton_Click" />
                 <TextBlock x:Name="DiagnosticsStatus" Foreground="{StaticResource Accent}" FontSize="11"
                            VerticalAlignment="Center" Margin="10,0,0,0" TextWrapping="Wrap" />
             </DockPanel>

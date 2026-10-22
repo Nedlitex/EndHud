@@ -8,13 +8,13 @@ namespace EndHud;
 public partial class OverlayWindow
 {
     /// <summary>Write the diagnostic zip to the desktop; its path, or null (and why, logged) if it couldn't be written.</summary>
-    internal async Task<string?> ExportDiagnosticsAsync()
+    internal async Task<string?> ExportDiagnosticsAsync(DiagnosticSize size)
     {
-        string path = DiagnosticExport.NewPath();
+        string path = DiagnosticExport.NewPath(size);
         try
         {
-            DiagnosticLog.Info("diagnostics exported by the player");
-            await DiagnosticExport.WriteAsync(path, DiagnosticSummary(), _party.LatestFrame, ConfigStore.FilePath, _party.RecentFrames);
+            DiagnosticLog.Info($"diagnostics exported by the player ({size})");
+            await DiagnosticExport.WriteAsync(size, path, DiagnosticSummary(), _party.LatestFrame, ConfigStore.FilePath, _party.RecentFrames);
             return path;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -46,18 +46,22 @@ public partial class OverlayWindow
         return sb.ToString();
     }
 
-    private async void ExportDiagnosticsButton_Click(object sender, RoutedEventArgs e)
+    private void ExportDiagnosticsButton_Click(object sender, RoutedEventArgs e) => ExportFromMenu(DiagnosticSize.Mini);
+
+    private void ExportFullDiagnosticsButton_Click(object sender, RoutedEventArgs e) => ExportFromMenu(DiagnosticSize.Full);
+
+    private async void ExportFromMenu(DiagnosticSize size)
     {
-        ExportDiagnosticsButton.IsEnabled = false;
+        ExportDiagnosticsButton.IsEnabled = ExportFullDiagnosticsButton.IsEnabled = false;
         try
         {
-            string? path = await ExportDiagnosticsAsync();
+            string? path = await ExportDiagnosticsAsync(size);
             DiagnosticsStatus.Text = path is null ? Loc.Get("Diagnostics.ExportFailed") : Loc.Format("Diagnostics.Exported", Path.GetFileName(path));
             if (path is not null) DiagnosticExport.Reveal(path);
         }
         finally
         {
-            ExportDiagnosticsButton.IsEnabled = true;
+            ExportDiagnosticsButton.IsEnabled = ExportFullDiagnosticsButton.IsEnabled = true;
         }
     }
 }

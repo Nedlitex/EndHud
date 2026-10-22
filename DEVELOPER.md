@@ -121,7 +121,8 @@ can't be captured), panel marks, controlled slot, skill points, and each slot's 
 ultimate. Repeats are written once per 30 s with a count. It rolls
 over at 1 MB and keeps three files; the user's profile folder is written as `%USERPROFILE%`.
 
-"Export diagnostics" (tray, or the menu's General card) writes `EndHud-diagnostics-<time>.zip` to the
+"Export diagnostics" (tray, or the menu's General card) comes in two sizes, each its own button and
+tray item. The mini one writes `EndHud-diagnostics-mini-<time>.zip` to the
 desktop ([`DiagnosticExport`](src/EndHud/DiagnosticExport.cs)): `summary.txt` (version, PC, the game
 window, what reading is doing, the last reading per slot, the operator library on disk),
 `logs/endhud.log`, `config.json`, `hud.jpg` (the bottom corners of the last game picture read, squad
@@ -130,8 +131,13 @@ bottom, blacked out) and `recent/readings.txt`, what was read over the last ~12 
 to sites that take small files (a 19 KB zip was too large for one), so it stays under 20 KB
 (`MaxZipBytes`): the text gets about 11 KB, the log cut to its end until it fits (all three files
 joined, oldest first; a player's 250 KB log kept its last 80 KB), and the picture takes the largest
-size that still fits, or is left out. The summary also lists the graphics. Learned portraits aren't
-included.
+size that still fits, or is left out. The full one, `EndHud-diagnostics-full-<time>.zip` (several
+MB, for GitHub or a file share), has the same summary, settings and `hud.jpg`, plus every log file
+whole, `game.png` (the last picture read, full size) and `recent/`: the pictures read over the last
+~12 s (one every 2 s, six, at most 960 px wide), with `readings.txt` naming what was read from each;
+the UID is blacked out in every picture. JPEGs are written with WPF's encoder: WinRT's takes its
+quality in a property set whose factory belongs to the thread that first made one, and failed once
+that thread had ended. The summary also lists the graphics. Learned portraits aren't included.
 
 **Network.** Every GitHub request (EndHud updates, recommended rotations, the operator package)
 goes through [`GitHubHttp`](src/EndHud/GitHubHttp.cs), which logs the host and path, the status and

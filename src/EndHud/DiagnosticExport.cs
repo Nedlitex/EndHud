@@ -8,8 +8,9 @@ namespace EndHud;
 
 /// <summary>
 /// "Export diagnostics": one zip a player can send when something doesn't work, so the cause is
-/// read rather than guessed. Players upload it where files are small (20 KB was too much for one),
-/// so it is kept to <see cref="MaxZipBytes"/>. It holds:
+/// read rather than guessed. Two sizes (<see cref="DiagnosticSize"/>): the mini one, for sites that
+/// take small files (a 19 KB zip was too much for one), is kept to <see cref="MaxZipBytes"/>; the
+/// full one has every log and the pictures, for GitHub or a file share. The mini one holds:
 /// <list type="bullet">
 /// <item><c>summary.txt</c>: EndHud's version, the PC (Windows, CPU, screens, OCR languages), the
 /// game window as EndHud sees it, what reading is doing, and the operator library on disk.</item>
@@ -19,6 +20,9 @@ namespace EndHud;
 /// skill buttons), UID blacked out, as large as fits; left out when even the smallest doesn't.</item>
 /// <item><c>recent/readings.txt</c>: what was read from each picture over the last ~12 s.</item>
 /// </list>
+/// The full one holds the summary, the settings and <c>hud.jpg</c> too, with every log file whole
+/// (<c>logs/</c>), <c>game.png</c> (the last game picture read, full size) and the pictures read over
+/// the last ~12 s in <c>recent/</c>, all with the UID blacked out.
 /// Learned portraits and downloaded art stay out (only their counts are listed).
 /// </summary>
 internal static class DiagnosticExport
@@ -39,9 +43,14 @@ internal static class DiagnosticExport
     private static readonly (double Scale, double Quality)[] PictureSizes = [(0.5, 0.6), (0.4, 0.5), (0.3, 0.45), (0.22, 0.4)];
 
     /// <summary>Write the zip to <paramref name="zipPath"/>, with the settings in <paramref name="configFile"/>.</summary>
-    public static async Task WriteAsync(string zipPath, string summary, Frame? gamePicture, string configFile,
+    public static async Task WriteAsync(DiagnosticSize size, string zipPath, string summary, Frame? gamePicture, string configFile,
         IReadOnlyList<RecentFrame> recent)
     {
+        if (size == DiagnosticSize.Full)
+        {
+            await WriteFullAsync(zipPath, summary, gamePicture, configFile, recent);
+            return;
+        }
         string staging = Path.Combine(Path.GetTempPath(), "endhud-diagnostics-" + Guid.NewGuid().ToString("N")[..8]);
         try
         {
@@ -75,7 +84,7 @@ internal static class DiagnosticExport
             {
                 foreach (var (scale, quality) in PictureSizes)
                 {
-                    await ImageFile.SaveJpegAsync(Corners(WithoutUid(gamePicture), scale), pictureFile, quality);
+                    SaveJpeg(Corners(WithoutUid(gamePicture), scale), pictureFile, quality);
                     if (Zip(staging, zipPath) <= MaxZipBytes) return;
                 }
                 File.Delete(pictureFile);
@@ -86,6 +95,61 @@ internal static class DiagnosticExport
         {
             try { Directory.Delete(staging, recursive: true); } catch (IOException) { }
         }
+    }
+
+    /// <summary>Everything: every log whole, the full game picture and the recent ones (UID blacked out).</summary>
+    private static async Task WriteFullAsync(string zipPath, string summary, Frame? gamePicture, string configFile,
+        IReadOnlyList<RecentFrame> recent)
+    {
+        string staging = Path.Combine(Path.GetTempPath(), "endhud-diagnostics-" + Guid.NewGuid().ToString("N")[..8]);
+        try
+        {
+            Directory.CreateDirectory(staging);
+            File.WriteAllText(Path.Combine(staging, "summary.txt"), DiagnosticLog.Redact(summary), Encoding.UTF8);
+            if (Directory.Exists(DiagnosticLog.Folder))
+            {
+                string logs = Directory.CreateDirectory(Path.Combine(staging, "logs")).FullName;
+                foreach (string log in Directory.GetFiles(DiagnosticLog.Folder, "*.log"))
+                    CopyShared(log, Path.Combine(logs, Path.GetFileName(log)));
+            }
+            if (File.Exists(configFile)) CopyShared(configFile, Path.Combine(staging, "config.json"));
+            if (gamePicture is not null)
+            {
+                var picture = WithoutUid(gamePicture);
+                await ImageFile.SavePngAsync(picture, Path.Combine(staging, "game.png"));
+                SaveJpeg(Corners(picture, PictureSizes[0].Scale), Path.Combine(staging, "hud.jpg"), PictureSizes[0].Quality);
+            }
+            if (recent.Count > 0)
+            {
+                string folder = Directory.CreateDirectory(Path.Combine(staging, "recent")).FullName;
+                var list = new StringBuilder();
+                for (int i = 0; i < recent.Count; i++)
+                {
+                    string name = $"{i + 1:D2}-{recent[i].At:HHmmss}.png";
+                    await ImageFile.SavePngAsync(WithoutUid(recent[i].Picture), Path.Combine(folder, name));
+                    list.AppendLine($"{name}: {recent[i].At:HH:mm:ss.fff}, {recent[i].Read}");
+                }
+                File.WriteAllText(Path.Combine(folder, "readings.txt"), list.ToString(), Encoding.UTF8);
+            }
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(zipPath))!);
+            Zip(staging, zipPath);
+        }
+        finally
+        {
+            try { Directory.Delete(staging, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    /// <summary>Save as JPEG at <paramref name="quality"/> (0–1), with WPF's encoder: WinRT's needs its quality in a
+    /// property set whose factory belongs to the thread that first made one, and failed once that thread had ended.</summary>
+    private static void SaveJpeg(Frame frame, string path, double quality)
+    {
+        var source = System.Windows.Media.Imaging.BitmapSource.Create(frame.Width, frame.Height, 96, 96,
+            System.Windows.Media.PixelFormats.Bgra32, null, frame.Bgra, frame.Width * 4);
+        var encoder = new System.Windows.Media.Imaging.JpegBitmapEncoder { QualityLevel = (int)Math.Round(quality * 100) };
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(source));
+        using var file = File.Create(path);
+        encoder.Save(file);
     }
 
     /// <summary>Zip <paramref name="folder"/> to <paramref name="zipPath"/>; the zip's size.</summary>
@@ -207,10 +271,20 @@ internal static class DiagnosticExport
     }
 
     /// <summary>A file name on the desktop for a new export.</summary>
-    public static string NewPath() => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
-        $"EndHud-diagnostics-{DateTime.Now:yyyyMMdd-HHmmss}.zip");
+    public static string NewPath(DiagnosticSize size) => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
+        $"EndHud-diagnostics-{(size == DiagnosticSize.Mini ? "mini" : "full")}-{DateTime.Now:yyyyMMdd-HHmmss}.zip");
 
     /// <summary>Show the zip in Explorer, selected.</summary>
     public static void Reveal(string zipPath) =>
         Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{zipPath}\"") { UseShellExecute = true });
+}
+
+/// <summary>Which diagnostics zip: see <see cref="DiagnosticExport"/>.</summary>
+internal enum DiagnosticSize
+{
+    /// <summary>Under 20 KB: the log's end, the settings, the summary and the HUD corners.</summary>
+    Mini,
+
+    /// <summary>Every log whole and the game pictures too: several MB.</summary>
+    Full,
 }
