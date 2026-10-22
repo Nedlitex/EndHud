@@ -1072,12 +1072,17 @@ delete the recommend pannel"), the text panels stay.
   0.4 s after; with the 0.5 s reading cadence and ~0.3 s of OCR, the advice follows a click in about
   1–1.2 s where it took 2–3 s of reading plus 7–11 s of planning.
   A plan on screen stays (owner, live 2026-10-20: "the recommended recipe keeps changing, it is very hard to
-  follow"): [`InnPlanJudge`](src/EndHud/InnSetupPanel.cs) keeps it while it fits the inputs (the chefs it
-  worked around still placed, chefs placed since being ones it named, everything it names offered, the rules
-  still met) and lets a newer plan, quick or refined, replace it only when clearly better: a better theme match,
-  the objective it misses reached, or at least 5 % more income (`InnPlanJudge.ClearlyMoreIncome`; in the
-  simulator when the newer plan is the simulator's). With nothing fitting on screen, a refined plan ready within
-  1 s is shown directly (`InnSetupPlanning.RefinedWithin`). While the menu screen keeps showing cards not seen
+  follow"; test_yuanyuan6, 2026-10-21: "the recommendation should not change, unless some kitchen is filled"):
+  [`InnPlanJudge`](src/EndHud/InnSetupPanel.cs) keeps it while it fits the inputs (the same theme: hot types,
+  preference, objective; the same kitchens and places; the chefs it worked around still placed, chefs placed since
+  being ones it named, everything it names offered, the rules still met), and while it fits no newer plan replaces
+  it, however much better. Only a plan put on screen less than 1 s ago (`InnSetupPlanning.RefinedWithin`) may still
+  give way to a clearly better one: a better theme match, the objective it misses reached, or at least 5 % more
+  income (`InnPlanJudge.ClearlyMoreIncome`; in the simulator when the newer plan is the simulator's). In
+  test_yuanyuan6 the simulator's plan came 8.4 s after the quick one and replaced kitchen 1's 安塔尔+狼卫 with
+  秋栗+昼雪 while the player was in kitchen 1's picker placing 狼卫 (InnSetupSteadyTests replays it on two of the
+  recording's frames). The cost: when the simulator takes longer than 1 s, the quick search's plan is the one that
+  stays. With nothing fitting on screen, a refined plan ready within 1 s is shown directly. While the menu screen keeps showing cards not seen
   before (scrolling), a fitting plan isn't worked out again until no new card has shown for 1.5 s
   (`InnSetupPlanning.ScrollSettle`). Which cards are on the menu never was in the key: the player following the
   advice only moves the ticks. Measured (InnSetupStabilityTests, a scripted scroll then pick of 19 readings):
