@@ -299,6 +299,57 @@ public sealed class RotationEditorTests : IDisposable
         Assert.Contains("轴段“{0}”的条件引用了一个已删除的轴段，请重新选择轴段或删除这个条件。", ZhCn());
     }
 
+    /// <summary>The owner's ask (2026-10-22, "轴可以复制"): 复制轴段 puts a copy of the selected phase right after it.</summary>
+    [Fact]
+    public void Copying_a_phase_puts_the_copy_after_it_and_saves_both()
+    {
+        var library = TwoPhases(new UltimateCondition("Laevatain", true));
+
+        string said = "";
+        List<string> listed = [];
+        OnEditor(library, _ => { }, editor =>
+        {
+            Assert.NotNull(editor.FindName("CopyPhaseButton"));
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 0;               // 充能轴
+            Click(editor, "CopyPhaseButton");
+            listed = ((ListBox)editor.FindName("PhaseList")).Items.Cast<ComboBoxItem>().Select(i => (string)i.Content).ToList();
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        });
+
+        // Outside the app the list shows its keys; the copy's name is Editor.CopyName ("{0}（副本）").
+        Assert.Equal(3, listed.Count);
+        var saved = Assert.Single(library.Own.Load().Rotations);
+        Assert.True(saved.Phases.Count == 3, $"editor said: {said}");
+        Assert.Equal(["充能轴", "Editor.CopyName", "爆发轴"], saved.Phases.Select(p => p.Name));
+        Assert.NotEqual(saved.Phases[0].Id, saved.Phases[1].Id);
+        Assert.Equal(Shape(saved.Phases[0]), Shape(saved.Phases[1]));
+        Assert.Equal(saved.Phases[0].When, saved.Phases[1].When);
+    }
+
+    /// <summary>The copy of a gated phase keeps its entry condition.</summary>
+    [Fact]
+    public void A_copied_gated_phase_keeps_its_entry_condition()
+    {
+        var library = TwoPhases(new UltimateCondition("Laevatain", true));
+
+        OnEditor(library, _ => { }, editor =>
+        {
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;               // 爆发轴
+            Click(editor, "CopyPhaseButton");
+            Click(editor, "SaveButton");
+        });
+
+        var saved = Assert.Single(library.Own.Load().Rotations);
+        Assert.Equal(3, saved.Phases.Count);
+        Assert.Equal(new UltimateCondition("Laevatain", true), Assert.Single(saved.Phases[2].When));
+        Assert.Equal(Shape(saved.Phases[1]), Shape(saved.Phases[2]));
+    }
+
+    /// <summary>A phase's steps as comparable text (a step's list of conditions compares by reference).</summary>
+    private static List<string> Shape(RotationPhase phase) =>
+        phase.Steps.Select(s => $"{s.OperatorId}|{s.Action}|{s.Label}|{s.Note}|{s.WithPrevious}|{string.Join(",", s.Expect)}").ToList();
+
     /// <summary>The player-facing strings, as written (tests run without the app's resources, so Loc gives keys).</summary>
     private static string ZhCn()
     {
