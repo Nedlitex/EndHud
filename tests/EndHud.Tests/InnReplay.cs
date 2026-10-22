@@ -131,9 +131,12 @@ internal sealed class InnReplay
     /// the gourmands with a banner, whether those banners were hidden over the panel, and each table's last card.
     /// </summary>
     internal sealed record DrawStep(TimeSpan At, int? PanelKitchen, IReadOnlyDictionary<int, InnCall> Calls, IReadOnlySet<int> Tabs, bool CardMark,
-        InnCirclePlace Circles, IReadOnlySet<int> Gourmands, bool Away, IReadOnlyList<TableState?> Tables);
+        bool CircleDrawn, IReadOnlySet<int> Gourmands, bool Away, IReadOnlyList<TableState?> Tables);
 
     public List<DrawStep> Draws { get; } = [];
+
+    /// <summary>The kitchens' circles are on screen: above the tray, or below the open panel (until 2026-10-21 hidden while it was open).</summary>
+    private static bool CirclesDrawn(InnViews views) => views.Circles is InnCirclePlace.AboveTray or InnCirclePlace.BelowPanel;
 
     private void TakeDraw(TimeSpan at, InnViews views)
     {
@@ -141,7 +144,7 @@ internal sealed class InnReplay
         var calls = views.Calls.Where(c => c.ForKitchen && c.Dish is not null).GroupBy(c => c.Kitchen!.Value).ToDictionary(g => g.Key, g => g.First());
         var tabs = views.Marks.Where(m => !m.OnCard)
             .Select(m => Enumerable.Range(1, KitchenMath.MaxKitchens).FirstOrDefault(k => DispatchPanelReader.TabArea(k) == m.Area)).Where(k => k > 0).ToHashSet();
-        Draws.Add(new DrawStep(at, _display.LastAdvice?.MarkedPanel?.Kitchen, calls, tabs, views.Marks.Any(m => m.OnCard), views.Circles,
+        Draws.Add(new DrawStep(at, _display.LastAdvice?.MarkedPanel?.Kitchen, calls, tabs, views.Marks.Any(m => m.OnCard), CirclesDrawn(views),
             views.Wants.Select(w => w.Table).ToHashSet(), views.Away, [.. _cards.Select(c => c?.State)]));
     }
 
@@ -167,7 +170,7 @@ internal sealed class InnReplay
             var d = Draws[i];
             var before = i > 0 ? Draws[i - 1] : null;
             double step = before is null ? 0 : (d.At - before.At).TotalSeconds;
-            tabNoCircle.Take(d.At, step, d.Tabs.Any(k => d.Circles == InnCirclePlace.Hidden || !d.Calls.ContainsKey(k)));
+            tabNoCircle.Take(d.At, step, d.Tabs.Any(k => !d.CircleDrawn || !d.Calls.ContainsKey(k)));
             callNoCard.Take(d.At, step, d.PanelKitchen is { } k2 && d.Calls.ContainsKey(k2) && !d.CardMark);
             hidden.Take(d.At, step, d.Away && d.Gourmands.Count > 0);
             if (before is { PanelKitchen: { } was } && d.PanelKitchen is { } now && now != was && before.Tabs.Contains(now))

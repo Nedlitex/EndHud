@@ -168,6 +168,71 @@ public class InnKitchenCircleTests(ITestOutputHelper output)
         Assert.Equal((InnKitchenCircleView.Slots * InnKitchenCircleView.SlotWidth + Frame) * scale, row.Width, 3);
     }
 
+    // ---- Below the open dispatch panel ----
+
+    /// <summary>
+    /// While the panel is open the circles stand in a row just below it (owner, 2026-10-21, test_yuanyuan6 at 6:10: "the
+    /// kitchen shows 有菜要排, BUT there is no circle under"): the panel spans y 0.194–0.853 of a 16:9 window on the 4K
+    /// frames and covers the tray, the floor below it is free. The row is centred, under the panel's bottom, inside the
+    /// window, and right of the UID in the lower-left corner (x up to 0.26 from y 0.94).
+    /// </summary>
+    [Theory]
+    [InlineData(1920, 1080)]
+    [InlineData(2560, 1440)]
+    [InlineData(3840, 2160)]
+    public void Below_the_open_panel_the_circles_stand_under_it_inside_the_window(int width, int height)
+    {
+        double scale = ComboHintLayout.Scale(height, dpiScale: 1);
+        var row = InnKitchenCircleLayout.BelowPanel(width, height, scale);
+        output.WriteLine($"{width}x{height}: x {row.Left / width:F3}–{row.Right / width:F3}, y {row.Top / height:F3}–{row.Bottom / height:F3}");
+
+        Assert.Equal(width / 2.0, row.Left + row.Width / 2, 1);
+        Assert.True(row.Top >= 0.853 * height, $"top {row.Top / height:F3}, the panel down to 0.853");
+        Assert.True(row.Bottom <= height, $"bottom {row.Bottom / height:F3}");
+        Assert.True(row.Left >= 0.26 * width, $"left {row.Left / width:F3}, the UID up to 0.26");
+        Assert.Equal((InnKitchenCircleView.Slots * InnKitchenCircleView.PanelSlotWidth + Frame) * scale, row.Width, 3);
+    }
+
+    /// <summary>The circle below the panel: the same picture (112) and words (20–22) beside it, inside its slot.</summary>
+    [Fact]
+    public void A_circle_below_the_panel_keeps_its_picture_and_words_and_fits_its_slot()
+    {
+        var swap = InnKitchenCircleView.Of(Swap(3, LongestDish(0), LongestDish(1), 5), Text);
+        var (picture, fonts, size) = OnSta(() =>
+        {
+            var element = InnKitchenCircleView.PanelCircle(swap, PackagePicture);
+            element.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            element.Arrange(new Rect(element.DesiredSize));
+            var image = Descendants(element).OfType<Image>().Single();
+            return (image.ActualHeight, Descendants(element).OfType<TextBlock>().Select(t => t.FontSize).ToList(), element.DesiredSize);
+        });
+        output.WriteLine($"picture {picture:F0}, fonts {string.Join(",", fonts)}, circle {size.Width:F0}x{size.Height:F0}");
+        Assert.Equal(InnKitchenCircleView.PictureSize, picture);
+        Assert.All(fonts, f => Assert.True(f >= 20, $"a word {f} units tall"));
+        Assert.True(size.Width <= InnKitchenCircleView.PanelSlotWidth, $"{size.Width:F0} wide");
+        Assert.True(size.Height <= InnKitchenCircleView.PanelRowHeight, $"{size.Height:F0} tall");
+    }
+
+    /// <summary>
+    /// The views while the panel is open: the circles below it, the selected tab's kitchen emphasised, the same calls the
+    /// tabs and the card are marked from (one picture).
+    /// </summary>
+    [Fact]
+    public void While_the_panel_is_open_the_circles_move_below_it_with_its_kitchen_emphasised()
+    {
+        var session = Prepared();
+        var display = new InnDisplay();
+        var tables = Tables(InnTestKit.Order(3, A));
+        display.Show(session, Session(10, tables: tables), S(10));
+        var closed = display.Views(session, S(10), callsEnabled: true, Text);
+        Assert.Equal((InnCirclePlace.AboveTray, (int?)null), (closed.Circles, closed.SelectedKitchen));
+
+        display.Show(session, Session(10.3, tables: tables, panel: Panel(2, 2, Menu)), S(10.3));
+        var open = display.Views(session, S(10.3), callsEnabled: true, Text);
+        Assert.Equal((InnCirclePlace.BelowPanel, (int?)2), (open.Circles, open.SelectedKitchen));
+        Assert.Equal(closed.Calls.Select(c => c.Key), open.Calls.Select(c => c.Key));
+    }
+
     // ---- Nothing over the open dispatch panel ----
 
     private static readonly string[] Menu = [A, B, C, D, E];

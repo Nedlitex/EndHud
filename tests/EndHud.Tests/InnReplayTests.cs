@@ -105,6 +105,13 @@ public class InnReplayTests(ITestOutputHelper output)
         foreach (var u in flashes) output.WriteLine($"flash {u.At.TotalSeconds:F1} s kitchen {u.Kitchen}: {u.What} <= {u.Why}");
         foreach (var u in jumps) output.WriteLine($"jump {u.At.TotalSeconds:F1} s kitchen {u.Kitchen}: {u.What} <= {u.Why}");
         output.WriteLine(replay.Consistency());
+        var (tabNoCircle, callNoCard, switchNoCard, _) = replay.Agreement();
+        // One picture (owner, 2026-10-21, test_yuanyuan6): a tab marked 有菜要排 always has its kitchen's circle on screen
+        // (below the open panel), and a kitchen with a call shown on the panel has its card marked. Before: y3 14 (111.3 s),
+        // y4 9 (68.4 s), y5 17 (79.8 s) tabs marked with the circles hidden under the panel.
+        Assert.Equal(0, tabNoCircle.Count);
+        Assert.Equal(0, callNoCard.Count);
+        Assert.Equal(0, switchNoCard);
 
         Assert.True(replay.SessionSpan > TimeSpan.FromMinutes(5), "the whole session was replayed");
         // The kitchens' calls: none gone and back, none switched with nothing done to it.

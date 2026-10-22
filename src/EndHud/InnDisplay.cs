@@ -18,8 +18,11 @@ internal sealed record InnViews(IReadOnlyList<InnCall> Calls, IReadOnlyList<InnP
     /// </summary>
     public bool Away { get; init; }
 
-    /// <summary>Where the kitchens' circles are drawn: their row above the tray, or nowhere while the dispatch panel is open.</summary>
+    /// <summary>Where the kitchens' circles are drawn: their row above the tray, or below the dispatch panel while it's open.</summary>
     public InnCirclePlace Circles { get; init; }
+
+    /// <summary>The kitchen whose tab is selected on the open panel (its circle emphasised); null with the panel closed.</summary>
+    public int? SelectedKitchen { get; init; }
 
     /// <summary>A session's views (<see cref="None"/> is not): the banners' rows are kept while this holds (<see cref="InnBannerRows"/>).</summary>
     public bool Session { get; init; }
@@ -48,6 +51,9 @@ internal sealed class InnDisplay
     /// </summary>
     private int? _panelTabs;
 
+    /// <summary>The kitchen the last fresh frame read the panel showing (with <see cref="_panelTabs"/>).</summary>
+    private int? _panelKitchen;
+
     /// <summary>The most kitchen tabs a panel was read with this session (<see cref="_panelTabs"/>), before the last frame.</summary>
     private int _mostTabs, _mostTabsBefore;
 
@@ -67,7 +73,7 @@ internal sealed class InnDisplay
         {
             OnSession = false;
             SetupScreen = null;
-            _panelTabs = null;
+            _panelTabs = _panelKitchen = null;
             session?.Tick(now);
             return;
         }
@@ -75,6 +81,7 @@ internal sealed class InnDisplay
         if (reading.Fresh)
         {
             _panelTabs = reading.InSession ? reading.Panel?.Kitchens : null;
+            _panelKitchen = reading.InSession ? reading.Panel?.Kitchen : null;
             _mostTabsBefore = _mostTabs;
             _mostTabs = Math.Max(_mostTabs, _panelTabs ?? 0);
         }
@@ -112,7 +119,10 @@ internal sealed class InnDisplay
         {
             Away = away,
             Session = true,
-            Circles = away ? InnCirclePlace.Hidden : InnCirclePlace.AboveTray,
+            // Over the open panel the circles move to the row below it (the panel covers the tray and the row above it), the
+            // kitchen whose tab is selected emphasised: the circles, the tabs' marks and the card's mark are one picture.
+            Circles = away ? InnCirclePlace.BelowPanel : InnCirclePlace.AboveTray,
+            SelectedKitchen = away ? (advice.MarkedPanel ?? advice.Panel)?.Kitchen ?? _panelKitchen : null,
             Kitchens = [.. advice.Dispatch?.Kitchens.Select(k => k.Kitchen) ?? []],
         };
     }

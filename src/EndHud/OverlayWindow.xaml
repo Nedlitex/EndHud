@@ -102,6 +102,12 @@
                 <Grid x:Name="InnCircleSlots" />
             </Grid>
         </Border>
+        <!-- The same circles while the dispatch panel is open, in a row just below it (InnKitchenCircleLayout.BelowPanel):
+             the panel covers the tray and the row above it. Placed by the game's layout, not dragged. -->
+        <Border x:Name="InnCirclePanelFrame" BorderThickness="2" Padding="6" CornerRadius="4" Background="Transparent"
+                Visibility="Hidden" IsHitTestVisible="False">
+            <Grid x:Name="InnCirclePanelSlots" />
+        </Border>
         <!-- The inn session's banners (the last call, Full Blaze), styled like the
              combo-ready hints; top-left corner at config InnCallX/InnCallY, draggable while the menu is open. -->
         <Border x:Name="InnCallFrame" BorderThickness="2" Padding="6" CornerRadius="4" Background="Transparent"

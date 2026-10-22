@@ -28,8 +28,12 @@ internal enum InnCirclePlace
     /// <summary>Their row above the held-dishes tray (<see cref="InnKitchenCircleLayout"/>).</summary>
     AboveTray,
 
-    /// <summary>Not drawn (the dispatch panel is open over their place).</summary>
-    Hidden,
+    /// <summary>
+    /// In a row just below the open dispatch panel, each circle with its words beside it (<see cref="InnKitchenCircleView.PanelCircle"/>):
+    /// the panel covers the tray and the row above it, and the floor below it is free (owner, 2026-10-21, test_yuanyuan6
+    /// at 6:10: "the kitchen shows 有菜要排, BUT there is no circle under").
+    /// </summary>
+    BelowPanel,
 }
 
 /// <summary>One kitchen's circle, as drawn.</summary>
@@ -68,6 +72,12 @@ internal static class InnKitchenCircleView
     /// the row's height, and the words' sizes (the banner's title was 20), at 1080p.
     /// </summary>
     public const double CircleSize = 136, PictureSize = 112, SlotWidth = 260, RowHeight = 240, LabelFont = 22, DishFont = 22, ReasonFont = 20;
+
+    /// <summary>
+    /// Below the open panel (<see cref="InnCirclePlace.BelowPanel"/>): the same circle, the words beside it instead of over
+    /// and under it, so the row is only the circle tall (the floor below the panel is about 0.14 of the window's height).
+    /// </summary>
+    public const double PanelSlotWidth = 300, PanelRowHeight = CircleSize;
 
     private const double RingThickness = 8;
 
@@ -124,11 +134,50 @@ internal static class InnKitchenCircleView
     };
 
     /// <summary>
+    /// A circle as drawn below the open dispatch panel, <see cref="PanelSlotWidth"/> wide and <see cref="PanelRowHeight"/>
+    /// tall at most: the ring with the dish's picture on the left, and beside it the kitchen and the kind's word, the dish
+    /// and the reason. The same model as <see cref="Circle"/>: only where the words go differs.
+    /// </summary>
+    public static FrameworkElement PanelCircle(InnCircleModel model, Func<string, BitmapSource?> picture)
+    {
+        var (header, ring, dish, reason) = Parts(model, picture);
+        const double wordsWidth = PanelSlotWidth - CircleSize - 10;
+        header.HorizontalAlignment = HorizontalAlignment.Left;
+        foreach (var words in new[] { dish, reason })
+        {
+            words.HorizontalAlignment = HorizontalAlignment.Left;
+            words.MaxWidth = wordsWidth;
+        }
+        var beside = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0), Width = wordsWidth, Children = { header, dish, reason } };
+        ring.VerticalAlignment = VerticalAlignment.Center;
+        return new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Width = PanelSlotWidth,
+            Height = PanelRowHeight,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Children = { ring, beside },
+        };
+    }
+
+    /// <summary>
     /// A circle as the overlay draws it, <see cref="SlotWidth"/> wide at most and <see cref="RowHeight"/> tall at most:
     /// the kitchen and the kind's word, the ring with the dish's picture, the dish and the reason.
     /// </summary>
     /// <param name="picture">A dish's picture by id; null when the package has none (the ring is drawn empty).</param>
     public static FrameworkElement Circle(InnCircleModel model, Func<string, BitmapSource?> picture)
+    {
+        var (header, ring, dish, reason) = Parts(model, picture);
+        return new StackPanel
+        {
+            Width = SlotWidth,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Children = { header, ring, dish, reason },
+        };
+    }
+
+    /// <summary>A circle's parts: the kitchen with the kind's word, the ring with the picture, the dish, the reason.</summary>
+    private static (StackPanel Header, Grid Ring, TextBlock Dish, TextBlock Reason) Parts(InnCircleModel model, Func<string, BitmapSource?> picture)
     {
         var color = ColorOf(model.Kind);
         var brush = Frozen(new SolidColorBrush(color));
@@ -173,12 +222,7 @@ internal static class InnKitchenCircleView
         var dish = Words(model.Dish, DishFont, brush, bold: true);
         dish.Margin = new Thickness(0, 4, 0, 0);
         var reason = Words(model.Reason, ReasonFont, TextBrush, bold: false);
-        return new StackPanel
-        {
-            Width = SlotWidth,
-            VerticalAlignment = VerticalAlignment.Bottom,
-            Children = { header, ring, dish, reason },
-        };
+        return (header, ring, dish, reason);
     }
 
     private static TextBlock Words(string words, double size, Brush brush, bool bold) => new()
@@ -223,6 +267,8 @@ internal static class InnKitchenCircleView
 /// <param name="build">A circle's element for its model (<see cref="InnKitchenCircleView.Circle"/>).</param>
 internal sealed class InnCircleRow(Grid row, Func<InnCircleModel, FrameworkElement> build)
 {
+    private readonly Border?[] _marks = new Border?[InnKitchenCircleView.Slots];
+
     private static readonly TimeSpan InTime = TimeSpan.FromMilliseconds(300), OutTime = TimeSpan.FromMilliseconds(180);
     private static readonly IEasingFunction Pop = Frozen(new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.4 });
 
@@ -239,12 +285,50 @@ internal sealed class InnCircleRow(Grid row, Func<InnCircleModel, FrameworkEleme
     public static Grid NewGrid() => Shape(new Grid());
 
     /// <summary>Gives <paramref name="grid"/> (the overlay's, from its XAML) the row's columns and height.</summary>
-    public static Grid Shape(Grid grid)
+    public static Grid Shape(Grid grid) => Shape(grid, InnKitchenCircleView.SlotWidth, InnKitchenCircleView.RowHeight);
+
+    /// <summary>The row below the open panel's grid (<see cref="InnKitchenCircleView.PanelCircle"/>).</summary>
+    public static Grid PanelShape(Grid grid) => Shape(grid, InnKitchenCircleView.PanelSlotWidth, InnKitchenCircleView.PanelRowHeight);
+
+    private static Grid Shape(Grid grid, double slotWidth, double rowHeight)
     {
-        grid.Height = InnKitchenCircleView.RowHeight;
+        grid.Height = rowHeight;
         grid.ColumnDefinitions.Clear();
-        for (int i = 0; i < InnKitchenCircleView.Slots; i++) grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(InnKitchenCircleView.SlotWidth) });
+        for (int i = 0; i < InnKitchenCircleView.Slots; i++) grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(slotWidth) });
         return grid;
+    }
+
+    /// <summary>The kitchen emphasised (the open panel's tab): a gold bar under its slot; null for none.</summary>
+    public int? Emphasised { get; private set; }
+
+    /// <summary>
+    /// Emphasises <paramref name="kitchen"/>'s slot (the kitchen whose tab is selected on the open panel) with a gold bar
+    /// under it, the others as they are; null takes the bar away.
+    /// </summary>
+    public void Emphasise(int? kitchen)
+    {
+        if (Emphasised == kitchen) return;
+        Emphasised = kitchen;
+        for (int i = 0; i < InnKitchenCircleView.Slots; i++)
+        {
+            bool on = kitchen == i + 1;
+            if (on && _marks[i] is null)
+            {
+                var bar = new Border
+                {
+                    Height = 5, CornerRadius = new CornerRadius(2.5), Background = ComboBanner.Accent, VerticalAlignment = VerticalAlignment.Bottom,
+                    Margin = new Thickness(18, 0, 18, -9), IsHitTestVisible = false,
+                };
+                Grid.SetColumn(bar, i);
+                row.Children.Add(bar);
+                _marks[i] = bar;
+            }
+            else if (!on && _marks[i] is { } gone)
+            {
+                row.Children.Remove(gone);
+                _marks[i] = null;
+            }
+        }
     }
 
     /// <summary>Draws <paramref name="slots"/> (left to right; null or missing: that slot empty).</summary>
@@ -335,6 +419,30 @@ internal static class InnKitchenCircleLayout
         var size = Size(scale);
         double x = Math.Clamp(left + centerX * areaWidth - size.Width / 2, 0, Math.Max(0, width - size.Width));
         double y = Math.Clamp(top + bottomY * areaHeight - size.Height, 0, Math.Max(0, height - size.Height));
+        return new Rect(x, y, size.Width, size.Height);
+    }
+
+    /// <summary>
+    /// The open dispatch panel's bottom edge, a fraction of the window's centred 16:9 area (measured on the 4K panel frames:
+    /// the panel spans y 0.194–0.853, the floor below it is free). The row below the panel stands just under it.
+    /// </summary>
+    public const double PanelBottom = 0.856;
+
+    /// <summary>The row below the open panel's size on screen at <paramref name="scale"/>: three slots and the frame.</summary>
+    public static Size PanelSize(double scale) => new(
+        (InnKitchenCircleView.Slots * InnKitchenCircleView.PanelSlotWidth + Frame) * scale,
+        (InnKitchenCircleView.PanelRowHeight + Frame) * scale);
+
+    /// <summary>
+    /// The row below the open panel (<see cref="InnCirclePlace.BelowPanel"/>), centred, its top at <see cref="PanelBottom"/>,
+    /// kept inside the window. It follows the game's layout, so it isn't dragged.
+    /// </summary>
+    public static Rect BelowPanel(double width, double height, double scale)
+    {
+        var (left, top, areaWidth, areaHeight) = Area(width, height);
+        var size = PanelSize(scale);
+        double x = Math.Clamp(left + 0.5 * areaWidth - size.Width / 2, 0, Math.Max(0, width - size.Width));
+        double y = Math.Clamp(top + PanelBottom * areaHeight, 0, Math.Max(0, height - size.Height));
         return new Rect(x, y, size.Width, size.Height);
     }
 

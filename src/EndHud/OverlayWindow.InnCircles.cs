@@ -14,12 +14,15 @@ namespace EndHud;
 /// </summary>
 public partial class OverlayWindow
 {
-    private InnCircleRow? _innCircleRow;
+    private InnCircleRow? _innCircleRow, _innPanelCircleRow;
     private Point? _innCircleDragOffset;
     private double _innCircleScale = 1;
 
     /// <summary>The circles drawn into <c>InnCircleSlots</c> (made on first use: the XAML's elements exist by then).</summary>
     private InnCircleRow InnCircles => _innCircleRow ??= new InnCircleRow(InnCircleRow.Shape(InnCircleSlots), model => InnKitchenCircleView.Circle(model, InnPicture));
+
+    /// <summary>The same circles in the row below the open dispatch panel (<see cref="InnCirclePlace.BelowPanel"/>).</summary>
+    private InnCircleRow InnPanelCircles => _innPanelCircleRow ??= new InnCircleRow(InnCircleRow.PanelShape(InnCirclePanelSlots), model => InnKitchenCircleView.PanelCircle(model, InnPicture));
 
     private void RenderInnCircles(InnViews views)
     {
@@ -27,8 +30,13 @@ public partial class OverlayWindow
         var slots = on && views.Session ? InnKitchenCircleView.Of(views.Calls, Loc.Get) : [];
         // Something to drag while placing them.
         if (_menuOpen && on && slots.All(s => s is null)) slots = InnKitchenCircleView.Sample(_party.Identifier?.Library.Inn, Loc.Get);
-        InnCircleFrame.Visibility = views.Circles == InnCirclePlace.Hidden && views.Session && !_menuOpen ? Visibility.Hidden : Visibility.Visible;
+        // Both rows are kept up to date and one is shown, so a circle standing doesn't pop in again when the panel opens or closes.
+        bool below = views.Session && views.Circles == InnCirclePlace.BelowPanel && !_menuOpen;
+        InnCircleFrame.Visibility = below ? Visibility.Hidden : Visibility.Visible;
+        InnCirclePanelFrame.Visibility = below ? Visibility.Visible : Visibility.Hidden;
         InnCircles.Update(slots);
+        InnPanelCircles.Update(views.Session ? slots : []);
+        InnPanelCircles.Emphasise(below ? views.SelectedKitchen : null);
     }
 
     private void SetInnCircleEditing(bool editing)
@@ -44,6 +52,8 @@ public partial class OverlayWindow
         _innCircleScale = size;
         InnCircleFrame.LayoutTransform = new ScaleTransform(size, size);
         InnCircleSlots.Opacity = _config.InnStripOpacity;
+        InnCirclePanelFrame.LayoutTransform = new ScaleTransform(size, size);
+        InnCirclePanelSlots.Opacity = _config.InnStripOpacity;
         PlaceInnCirclesFromConfig();
     }
 
@@ -52,6 +62,9 @@ public partial class OverlayWindow
         var place = InnKitchenCircleLayout.Place(HintCanvas.ActualWidth, HintCanvas.ActualHeight, _innCircleScale, _config.InnCircleX, _config.InnCircleY);
         Canvas.SetLeft(InnCircleFrame, place.Left);
         Canvas.SetTop(InnCircleFrame, place.Top);
+        var below = InnKitchenCircleLayout.BelowPanel(HintCanvas.ActualWidth, HintCanvas.ActualHeight, _innCircleScale);
+        Canvas.SetLeft(InnCirclePanelFrame, below.Left);
+        Canvas.SetTop(InnCirclePanelFrame, below.Top);
     }
 
     private void InnCircle_MouseDown(object sender, MouseButtonEventArgs e)
