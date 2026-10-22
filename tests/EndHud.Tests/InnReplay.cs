@@ -332,8 +332,9 @@ internal sealed class InnReplay
         foreach (var d in dupeList) sb.AppendLine(CultureInfo.InvariantCulture, $"#   duplicate {d}");
         sb.AppendLine(CultureInfo.InvariantCulture, $"# corrections (the estimate put right by a reading): {string.Join(", ", new[] { "queue", "cover", "counter", "gourmand" }.Select(k => $"{k} {_session.Corrections.GetValueOrDefault(k)}"))}");
         var uncalled = UncalledWaits(UncalledAfterSeconds);
-        sb.AppendLine(CultureInfo.InvariantCulture, $"# a dish tables wait for, not in hand nor queued, no circle naming it for over {UncalledAfterSeconds:F0} s: {uncalled.Count} ({uncalled.Sum(u => u.Seconds):F1} s)");
-        foreach (var u in uncalled) sb.AppendLine(CultureInfo.InvariantCulture, $"#   uncalled {u.From.TotalSeconds,7:F1} {u.Dish} for {u.Seconds:F1} s");
+        var counted = uncalled.Where(u => u.Counts).ToList();
+        sb.AppendLine(CultureInfo.InvariantCulture, $"# a dish tables wait for, not in hand nor queued, no circle naming it for over {UncalledAfterSeconds:F0} s: {counted.Count} ({counted.Sum(u => u.Seconds):F1} s); ended by the dish picked up or served (it was on the counter): {uncalled.Count - counted.Count}");
+        foreach (var u in uncalled) sb.AppendLine(CultureInfo.InvariantCulture, $"#   {(u.Counts ? "uncalled" : "covered ")} {u.From.TotalSeconds,7:F1} {u.Dish} for {u.Seconds:F1} s, ended: {u.Ended}");
         sb.AppendLine(CultureInfo.InvariantCulture, $"# tab marked, no circle drawn for it: {tabNoCircle}");
         sb.AppendLine(CultureInfo.InvariantCulture, $"# panel on a kitchen with a call, no card marked: {callNoCard}");
         sb.AppendLine(CultureInfo.InvariantCulture, $"# switched to a marked tab, no card marked within 1 s: {switchNoCard.Count}{(switchNoCard.Count > 0 ? ": " + string.Join(", ", switchNoCard.Select(t => t.TotalSeconds.ToString("F1", CultureInfo.InvariantCulture))) : "")}");
@@ -403,6 +404,9 @@ internal sealed class InnReplay
         /// <summary>Dishes tables wait for that neither the hand nor a queue holds, a kitchen could take (<see cref="InnReplay.Unattended"/>).</summary>
         public IReadOnlyDictionary<string, int> Unattended { get; init; } = new Dictionary<string, int>();
 
+        /// <summary>Per dish tables wait for: unserved on the cards, in hand, in the queues (<see cref="InnReplay.Supply"/>).</summary>
+        public IReadOnlyDictionary<string, (int Waiting, int Hand, int Queued)> Supply { get; init; } = new Dictionary<string, (int, int, int)>();
+
         /// <summary>
         /// Kitchens whose dish to cook ahead, as called on the step before, could no longer come out there before serving ends
         /// (<see cref="DispatchAdvisor.NoCookAheadSeconds"/>, or its queue + its cook time past the serving left): the end
@@ -467,7 +471,7 @@ internal sealed class InnReplay
                                                     && _session.ReadyIn(k.Kitchen, q.Dish.Id) is { } readyIn && readyIn <= q.ReadyIn + InnCallHold.ShowElsewhereWithinSeconds))
                 freeFor.Add((q.Dish.Id, table));
         }
-        Steps.Add(new CallStep(at, kitchens, open, queues, ahead, why, state[(state.LastIndexOf('[') + 1)..^1]) { Sendable = sendable, FreeFor = freeFor, Unattended = advice is null ? [] : Unattended(queues), AheadTooLate = AheadTooLate(before, at) });
+        Steps.Add(new CallStep(at, kitchens, open, queues, ahead, why, state[(state.LastIndexOf('[') + 1)..^1]) { Sendable = sendable, FreeFor = freeFor, Unattended = advice is null ? [] : Unattended(queues, at), Supply = advice is null ? [] : Supply(queues), AheadTooLate = AheadTooLate(before, at) });
     }
 
     /// <summary>
@@ -477,47 +481,67 @@ internal sealed class InnReplay
     /// and it is in stock. The counter is NOT counted: it is never read off the screen, and a dish taken to be there that
     /// isn't is how an order goes uncalled (test_yuanyuan4 from 250 s; test_yuanyuan7's soups, 01:14–00:20).
     /// </summary>
-    private Dictionary<string, int> Unattended(string queues)
+    private Dictionary<string, int> Unattended(string queues, TimeSpan at)
     {
-        var waiting = new Dictionary<string, int>();
-        foreach (var card in _cards.OfType<TableCard>().Where(c => c.State == TableState.Order))
-            foreach (var item in card.Items.Where(i => !i.Served && i.Id is not null && Inn.Dishes.Any(d => d.Id == i.Id)))
-                waiting[item.Id!] = waiting.GetValueOrDefault(item.Id!) + 1;
-        var queued = queues.Split(' ', StringSplitOptions.RemoveEmptyEntries).SelectMany(q => q[(q.IndexOf(':') + 1)..].Split(',', StringSplitOptions.RemoveEmptyEntries)).ToList();
+        double? serving = _session.ServingLeft(at);
         var result = new Dictionary<string, int>();
-        foreach (var (id, n) in waiting)
+        foreach (var (id, supply) in Supply(queues))
         {
-            int left = n - _tray.Count(t => t == id) - queued.Count(q => q == id);
-            if (left > 0 && _session.InStock(id) && Enumerable.Range(1, KitchenMath.MaxKitchens).Any(k => _session.ReadyIn(k, id) is not null)) result[id] = left;
+            int left = supply.Waiting - supply.Hand - supply.Queued;
+            if (left > 0 && _session.InStock(id) && Enumerable.Range(1, KitchenMath.MaxKitchens).Any(k => _session.ReadyIn(k, id) is { } readyIn && !(readyIn > serving)))
+                result[id] = left;
         }
         return result;
     }
 
-    /// <summary>
-    /// Orders left waiting with no circle (owner, 2026-10-21, test_yuanyuan7: "we ended up stuck behind a lot of soups but the
-    /// kitchen recommendation is not even picking that up"): a dish <see cref="Unattended"/> (tables wait for it, it isn't in
-    /// hand nor in a queue, a kitchen could take it) while no kitchen's circle names it, for more than
-    /// <paramref name="seconds"/> in a row. Each run is listed once, from when it began, with how long it lasted.
-    /// </summary>
+    /// <summary>Per dish tables wait for: its unserved items on the order cards as last read, in hand as the tray last read, in the queues.</summary>
+    private Dictionary<string, (int Waiting, int Hand, int Queued)> Supply(string queues)
+    {
+        var queued = queues.Split(' ', StringSplitOptions.RemoveEmptyEntries).SelectMany(q => q[(q.IndexOf(':') + 1)..].Split(',', StringSplitOptions.RemoveEmptyEntries)).ToList();
+        return _cards.OfType<TableCard>().Where(c => c.State == TableState.Order)
+            .SelectMany(c => c.Items).Where(i => !i.Served && i.Id is not null && Inn.Dishes.Any(d => d.Id == i.Id))
+            .GroupBy(i => i.Id!)
+            .ToDictionary(g => g.Key, g => (g.Count(), _tray.Count(t => t == g.Key), queued.Count(q => q == g.Key)));
+    }
+
     /// <summary>How long a dish may wait uncalled (<see cref="UncalledWaits"/>) before the replay counts it.</summary>
     public const double UncalledAfterSeconds = 10;
 
-    public List<(TimeSpan From, string Dish, double Seconds)> UncalledWaits(double seconds)
+    /// <summary>
+    /// Orders left waiting with no circle (owner, 2026-10-21, test_yuanyuan7: "we ended up stuck behind a lot of soups but the
+    /// kitchen recommendation is not even picking that up"): a dish <see cref="Unattended"/> (tables wait for it, it isn't in
+    /// hand nor in a queue, a kitchen could have it out before serving ends) while no kitchen's circle names it, for more than
+    /// <paramref name="seconds"/> in a row. Each run is listed once, from when it began, with how long it lasted and how it
+    /// ended. A run the player ended by picking the dish up or serving it was covered by a dish really on the counter (the
+    /// advice's out-for-an-order, which needs no circle): listed, not counted. Every other end counts: a call naming it at
+    /// last, the player queueing it on their own, the time running out, or the end of the replay.
+    /// </summary>
+    public List<(TimeSpan From, string Dish, double Seconds, string Ended, bool Counts)> UncalledWaits(double seconds)
     {
-        var list = new List<(TimeSpan, string, double)>();
+        var list = new List<(TimeSpan, string, double, string, bool)>();
         var since = new Dictionary<string, TimeSpan>();
+        CallStep? prior = null;
         foreach (var step in Steps.Append(null))
         {
             var now = step is null ? [] : step.Unattended.Keys.Where(id => !step.Kitchens.Values.Any(c => c.Dish?.Id == id)).ToHashSet();
             foreach (var (id, from) in since.ToList())
             {
                 if (now.Contains(id)) continue;
-                double lasted = ((step?.At ?? Steps[^1].At) - from).TotalSeconds;
-                if (lasted > seconds) list.Add((from, id, lasted));
                 since.Remove(id);
+                double lasted = ((step?.At ?? Steps[^1].At) - from).TotalSeconds;
+                if (lasted <= seconds) continue;
+                var (was, then) = (prior!.Supply.GetValueOrDefault(id), step?.Supply.GetValueOrDefault(id) ?? default);
+                string ended = step is null ? "the replay's end"
+                    : step.Kitchens.Values.Any(c => c.Dish?.Id == id) ? "a call named it"
+                    : then.Hand > was.Hand ? "picked up"
+                    : then.Waiting < was.Waiting ? "served"
+                    : then.Queued > was.Queued ? "queued by the player with no call"
+                    : "no longer possible in time";
+                list.Add((from, id, lasted, ended, ended is not ("picked up" or "served")));
             }
             if (step is null) break;
             foreach (string id in now) since.TryAdd(id, step.At);
+            prior = step;
         }
         return [.. list.OrderBy(l => l.Item1)];
     }

@@ -132,6 +132,47 @@ public class InnCallTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// One dish in one circle (owner, 2026-10-21, test_yuanyuan7 at 00:46: "the recommended queue will be duplicated in multiple
+    /// kitchens": 八宝饭 called for table 3 in kitchen 1 and to cook ahead in kitchen 3). A dish to cook ahead is never one another
+    /// kitchen's circle shows: kitchen 3 takes the next dish its advice cooks ahead instead, or shows nothing.
+    /// </summary>
+    [Fact]
+    public void A_dish_called_for_an_order_is_not_also_called_to_cook_ahead_in_another_kitchen()
+    {
+        var hold = new InnCallHold();
+        var view = new InnKitchenView((_, _) => 0, _ => true, (_, _) => 20);
+        static KitchenAdvice Kitchen(int number, params QueueAdvice[] queue) => new(number, queue, []);
+
+        var calls = hold.Update(new DispatchAdvice([Kitchen(1, new QueueAdvice(Dish(A), 3, 20)), Kitchen(2), Kitchen(3, new QueueAdvice(Dish(A), null, 30), new QueueAdvice(Dish(B), null, 60))],
+            [], [], []), null, view, S(10));
+
+        Assert.Equal($"Queue:1:{A}:3: CookAhead:3:{B}::", Keys(calls));
+    }
+
+    /// <summary>
+    /// Two kitchens told to cook the same dish ahead (test_yuanyuan7 91.5 s, 八宝饭 in kitchens 1 and 3; 7 times on that session):
+    /// the one shown first keeps it, the other takes its next dish to cook ahead, or shows nothing.
+    /// </summary>
+    [Fact]
+    public void Two_kitchens_are_not_told_to_cook_the_same_dish_ahead()
+    {
+        var hold = new InnCallHold();
+        var view = new InnKitchenView((_, _) => 0, _ => true, (_, _) => 20);
+        static KitchenAdvice Kitchen(int number, params QueueAdvice[] queue) => new(number, queue, []);
+
+        var first = hold.Update(new DispatchAdvice([Kitchen(1, new QueueAdvice(Dish(A), null, 30)), Kitchen(2, new QueueAdvice(Dish(C), null, 30))], [], [], []), null, view, S(10));
+        // Kitchen 2's dish went in; the advice now puts A first there too, D after it.
+        var queued = new InnKitchenView((k, id) => k == 2 && id == C ? 1 : 0, _ => true, (_, _) => 20);
+        var after = hold.Update(new DispatchAdvice([Kitchen(1, new QueueAdvice(Dish(A), null, 30)), Kitchen(2, new QueueAdvice(Dish(A), null, 40), new QueueAdvice(Dish(D), null, 70))],
+            [], [], []), null, queued, S(11));
+        var none = hold.Update(new DispatchAdvice([Kitchen(1, new QueueAdvice(Dish(A), null, 30)), Kitchen(2, new QueueAdvice(Dish(A), null, 40))], [], [], []), null, queued, S(12));
+
+        Assert.Equal($"CookAhead:1:{A}:: CookAhead:2:{C}::", Keys(first));
+        Assert.Equal($"CookAhead:1:{A}:: CookAhead:2:{D}::", Keys(after));
+        Assert.Equal($"CookAhead:1:{A}:: CookAhead:2:{D}::", Keys(none)); // D stays while its kitchen is to cook something ahead
+    }
+
+    /// <summary>
     /// A new order the advice puts behind another order in kitchen 1 (one call a kitchen: it can't show there yet) shows at
     /// once in kitchen 2, which shows only a dish to cook ahead, when kitchen 2 has it out no more than
     /// <see cref="InnCallHold.ShowElsewhereWithinSeconds"/> later: 40 s against 38 s. Before, only a kitchen with no call took
