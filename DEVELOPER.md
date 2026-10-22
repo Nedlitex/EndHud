@@ -806,8 +806,33 @@ another comes or goes (2026-10-21; before, Full Blaze came first and every banne
 banner for the same call is the same element, never drawn or slid in again. At most 7 (`InnCallView.MostBanners`), so
 the fullest stack fits from its default place at 1080p, 1440p and 4K.
 
+**The kitchens' calls as circles** (owner, live 2026-10-21, test_yuanyuan5: "the notification of each kitchen is very
+hard to read. try another UI: show the recommended dish for each kitchen with a big circle (like buff) that is placed in
+the middle of the screen above where the currently held dishes are"). Since then the overlay draws only Full Blaze and
+the last calls as banners (the rows above, kitchens' rows filtered out; `InnBannerRows` still makes them, and the replay
+measures them as before). Each kitchen's call is a circle in the gauges' buff look
+([`InnKitchenCircleView`](src/EndHud/InnKitchenCircles.cs)): the kitchen and a pill with what it asks for over it, the
+dish's picture at 112 units (the banner's 76) inside a 136-unit ring, the dish's name and one line of why under it
+(words 20–22 units; the banner's title is 20). The kinds read apart by the ring and the pill: an order gold and glowing
+(`Inn.Circle.Order` 点单, "桌4 点的"), cooking ahead cyan, dashed, not glowing (`Inn.Circle.CookAhead` 预做,
+`Inn.Circle.CookAheadReason`), a swap orange-red and glowing (`Inn.Circle.Swap` 换菜, `Inn.Circle.SwapReason`
+"先拿掉X · 桌5"). One column per kitchen, 260 units wide: kitchen 1 left, 2 middle, 3 right, a kitchen with no call
+leaving its column empty, so no circle moves sideways ([`InnCircleRow`](src/EndHud/InnKitchenCircles.cs): the same element
+while the call stands, a new call fading the old one out and popping in, in the same column). The calls are
+`InnCallHold`'s as before; only the look changed. Placed by
+[`InnKitchenCircleLayout`](src/EndHud/InnKitchenCircles.cs): the row centred on `InnCircleX` and standing on `InnCircleY`,
+fractions of the window's centred 16:9 area, by default 0.5 and 0.845, right above the held-dishes tray (its slots from
+y 0.855, x 0.38–0.62, on the 4K fixtures): x 0.29–0.71, y 0.61–0.845 at 1080p, 1440p and 4K. Drawn by
+[`OverlayWindow.InnCircles`](src/EndHud/OverlayWindow.InnCircles.cs), dragged while the menu is open (three sample
+circles, one of each kind, show then). InnKitchenCircleTests renders the row and six gourmands' banners over
+session-two-dishes.jpg into `.tracking/changes/2026-10-21-inn-circles-4k.png` (local only) for a person to look at.
+
 **The open dispatch panel** (owner, live 2026-10-20: "is it possible to ALSO have a suggestion marker by the dish
-itself on the right side?"; the banners covered the panel's chef column). While the panel counts as open (below), the
+itself on the right side?"; the banners covered the panel's chef column). While the panel counts as open (below), or
+the last fresh frame read it with all its kitchen tabs (as many as the kitchens that cook and as any panel read this
+session: `InnDisplay`; owner, live 2026-10-21: banners over the open panel at 02:25, 01:20 and 00:09 of test_yuanyuan5,
+on the replays 10 and 12 such frames before, 0 since; a frame reading fewer tabs is the old one-frame misreading, 48 on
+test_yuanyuan3, and hiding on it would blink everything), the kitchens' circles, the
 banners and the gourmands' banners are hidden in place (`InnViews.Away`; shown again as they were when it closes, with
 no slide-in: until 2026-10-21 every opening took every banner down and every closing slid them all in again with the
 gold flare, which the owner saw as "flashes heavily") and
@@ -927,19 +952,29 @@ drink's as a drink, `Inn.Gourmand.Drink`), an arrow, and the best item with its 
 requests, the advice's serving (`GourmandAdvice.Serve`) is put back on the requests, so each row's item fills its
 own row when served in the rows' order. A request nothing on the menu meets says so (`Inn.Gourmand.None`), a
 gourmand whose words weren't recognised that (`Inn.Gourmand.Unknown`); a drink request before any drink of the menu
-was seen shows the request alone. At most 3 banners. The stack's right edge and top are the player's
+was seen shows the request alone. Up to six banners, one per table (owner, 2026-10-21: "we need to be prepared to
+support all 6 tables are gourmand"; until then at most 3, a fourth waiting; the session never had a cap, its gourmands
+keyed by table). The stack's right edge and top are the player's
 `InnGourmandRight`/`InnGourmandTop` (default 0.985 and 0.2: right of table 6's card, below the status at the top right),
-draggable while the menu is open (a sample banner shows then); the fullest stack fits at 1080p, 1440p and 4K
-(InnGourmandTests). Up until the order is fulfilled (the request kept as above), held steady (above), and hidden in
+draggable while the menu is open (a sample banner shows then). Each banner is placed by `InnGourmandLayout.Arrange`, by
+table, one under another: one that would reach the Full Blaze meter (`MeterLeft/Top/Bottom`, 16:9-area fractions
+x ≥ 0.82, y 0.465–0.685) goes below it when the stack is at the right, none lower than 0.97 of the window; full banners
+while they fit, else compact ones (the table beside the rows, 36-unit rows, words 15: two requests 82 units instead of
+142); if even those don't fit (a big player size), the stack is drawn smaller. Six of two requests at 1080p, 1440p and 4K:
+compact, tables 1–3 above the meter (y 0.21–0.45), 4–6 below it (0.685–0.92), x 0.78–0.98, clear of the held-dishes
+tray (InnSixGourmandsTests, InnGourmandTests). In the overlay the stack is a canvas: a banner keeps its element, glides to
+its new place when a gourmand above it comes or goes, and is redrawn in place when the stack turns compact. Up until the order is fulfilled (the request kept as above), held steady (above), and hidden in
 place while the dispatch panel is open (`InnViews.Away`): at the right it would cover the panel, as the cooking banners
 would. The circles
 are gone, with the gauges' `Detail` and `PictureShare` they had added and the `Inn.Want.*` strings.
 
-[`OverlayWindow.Inn`](src/EndHud/OverlayWindow.Inn.cs) shows these only on session frames, and a sample banner while
-the menu is open out of the inn (then the banners are dragged). Settings: `InnHelperEnabled` (on), `InnCallsEnabled`
-(on; the dispatch banners' switch in the card), `InnCallX/Y` (default: the combo hint's place, which isn't shown in the
-inn), `InnGourmandRight/Top` (the gourmands' stack), `InnStripScale` and `InnStripOpacity` (the banners, the gourmands'
-banners, the marks and the setup advice); the card's reset puts both stacks back.
+[`OverlayWindow.Inn`](src/EndHud/OverlayWindow.Inn.cs) shows these only on session frames, and samples (three
+circles, a banner, a gourmand's banner) while the menu is open out of the inn (then they are dragged). Settings:
+`InnHelperEnabled` (on), `InnCallsEnabled` (on; the switch 派单提示（厨房圆圈和横幅） in the card: the circles, the banners
+and the panel's marks), `InnCircleX/Y` (the circles' centre and bottom on the 16:9 area, default 0.5 and 0.845),
+`InnCallX/Y` (the banners; default: the combo hint's place, which isn't shown in the
+inn), `InnGourmandRight/Top` (the gourmands' stack), `InnStripScale` and `InnStripOpacity` (the circles, the banners, the gourmands'
+banners, the marks and the setup advice); the card's reset puts the circles and both stacks back.
 
 **What's remembered of the setup** ([`InnSetupMemory`](src/EndHud/InnSetupMemory.cs); owner, live
 test 2026-10-19: "remember which theme, cook, menu etc currently picked, UNTIL go back to pick
@@ -1053,7 +1088,9 @@ delete the recommend pannel"), the text panels stay.
   to the gourmand who said it, not the newest table; a served gourmand's words nobody's new request),
   InnPanelMarksTests and InnPanelMarkLayoutTests (which card is marked, nothing when unsure, the tabs, placement at
   1080p/1440p/4K, no banners while the panel is open), InnSteadyTests (the marks gone the moment the panel is seen
-  closed), InnGourmandTests (the gourmands' banners: a numbered row per request, each item on its own request's row,
+  closed), InnKitchenCircleTests (a slot per kitchen, the kinds
+  apart, sizes, place above the tray, nothing over a panel read with all its tabs over both replays, the 4K picture),
+  InnSixGourmandsTests (six gourmands kept, a banner each, clear of the meter and the tray at every size), InnGourmandTests (the gourmands' banners: a numbered row per request, each item on its own request's row,
   put away over the panel, the fullest stack fitting at every size), InnRealFrameTests (dispatch-panel-banners.jpg:
   the call marked on its card through the real readers; the owner's soup-and-drink gourmand to its banner), I18nTests (no not-seen-yet, kitchens-full or no-stock line in zh-CN.xaml).
 
