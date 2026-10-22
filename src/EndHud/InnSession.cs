@@ -841,18 +841,34 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         }
     }
 
+    /// <summary>
+    /// The table whose gourmand a dish leaving the hand at <paramref name="left"/> went to: one seated and waiting for their
+    /// order (arrived or ordered) or read eating since. A gourmand's card shows no served pips, so serving them is never read
+    /// on it; until 2026-10-21 such a dish was taken as put back on the counter, where it covered other tables' orders of it
+    /// (test_yuanyuan7: 福寿全 served to table 1's gourmand at 210.6 s "out for" tables 5 and 6 for 111 s). Null: none waiting.
+    /// </summary>
+    private int? GourmandTook(TimeSpan left) =>
+        _tables.OfType<TableMemory>().FirstOrDefault(t => t.Card.State is TableState.GourmandArrived or TableState.GourmandOrder
+                                                          || (t.Card.State == TableState.GourmandEating && t.OrderSince >= left))?.Card.Table;
+
     /// <summary>What the tray is taken to show: the dishes in hand, and those it still shows a moment after they were served.</summary>
     private List<string> Shown() => [.. _carried.Concat(_lateTray.Select(l => l.Id)).Order(StringComparer.Ordinal)];
 
     /// <summary>
-    /// A dish that left the hand with no table read served with it for <see cref="HandSettlesAfter"/> was put back on the
-    /// counter; a dish read served while the tray still showed it, the tray never dropping it since, is forgotten.
+    /// A dish that left the hand with no table read served with it for <see cref="HandSettlesAfter"/> went to a gourmand when
+    /// one was waiting (<see cref="GourmandTook"/>), else was put back on the counter; a dish read served while the tray still
+    /// showed it, the tray never dropping it since, is forgotten.
     /// </summary>
     private void SettleHand(TimeSpan at)
     {
         foreach (var (id, since) in _leftHand.Where(h => at - h.At >= HandSettlesAfter).ToList())
         {
             _leftHand.Remove((id, since));
+            if (GourmandTook(since) is { } table)
+            {
+                Corrected("gourmand", $"{id} left the hand with no guest's card read served while table {table}'s gourmand waited: taken as served to them, not put back on the counter");
+                continue;
+            }
             PutOnCounter(id, at);
         }
         _servedFromHand.RemoveAll(s => at - s.At >= HandSettlesAfter);
@@ -1081,7 +1097,10 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         // On the counter: the dishes out for an order, which cover it (owner, 2026-10-21: it was that order's dish in its
         // queue), and those cooked ahead, which cover no order: they're where the estimate drifts.
         var outForOrders = _counter.OutForOrders.Select(id => DishOf(id)!).ToList();
-        var counter = _counter.All.Select(id => DishOf(id)!).ToList();
+        // A dish that just left the hand, not yet read served nor settled as put back (HandSettlesAfter), is still to hand out:
+        // until 2026-10-21 it counted nowhere for those 3 s, and the last call's choices shifted and shifted back as the player
+        // put dishes down (test_yuanyuan7 365-370 s, three 界龙肉卷 one by one).
+        var counter = _counter.All.Concat(_leftHand.Select(h => h.Id)).Select(id => DishOf(id)!).ToList();
         // In hand: what the tray shows (a dish in hand covers an order of it first, DispatchAdvisor's Cover).
         var carried = _carried.Select(id => DishOf(id)!).ToList();
         var state = new InnState(queues, counter, outForOrders, carried, outstanding, menu, ServingLeft(now), asCalled, ThemeItems());
