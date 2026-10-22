@@ -69,8 +69,11 @@ internal sealed class InnReplay
         string why = Describe(_last, e.Reading);
         _display.Show(_session, e.Reading, e.At);
         if (e.Reading is { Fresh: true, InSession: true } fresh)
+        {
             for (int i = 0; i < Math.Min(fresh.TableCards.Count, _cards.Length); i++)
                 if (fresh.TableCards[i] is { } card) _cards[i] = card;
+            if (fresh.Tray is { } tray && tray.All(s => s is null or { Id: not null })) _tray = [.. tray.OfType<HeldDish>().Select(h => h.Id!)];
+        }
         if (e.Reading is { InSession: true })
         {
             _sessionFrom ??= e.At;
@@ -124,6 +127,9 @@ internal sealed class InnReplay
 
     /// <summary>The latest fresh reading of each table's card (null: never read), for the gourmands' lifetimes.</summary>
     private readonly TableCard?[] _cards = new TableCard?[TableCardReader.Tables];
+
+    /// <summary>The dishes the tray last read clearly held (every slot told apart): what the player really carries.</summary>
+    private List<string> _tray = [];
 
     /// <summary>
     /// What the player saw at one draw: the panel's kitchen (null: no marks, the panel not on screen), each kitchen's call
@@ -286,13 +292,47 @@ internal sealed class InnReplay
         return (up, down, unserved, lives);
     }
 
+    /// <summary>
+    /// One dish in two circles at once (owner, 2026-10-21, test_yuanyuan7 at 00:46: 八宝饭 called for table 3's order in kitchen 1
+    /// and to cook ahead in kitchen 3 at the same moment, "the recommended queue will be duplicated in multiple kitchens"). A
+    /// dish may show in two circles only when each is an order (or a swap) naming its own table: two tables genuinely waiting
+    /// for it. Anything else (an order and a dish to cook ahead, two dishes to cook ahead, one table twice) is a duplicate.
+    /// Counted as episodes (a dish duplicated over steps in a row is one) with their seconds.
+    /// </summary>
+    public (Episodes Episodes, List<string> List) DuplicateCircles()
+    {
+        var episodes = new Episodes();
+        var list = new List<string>();
+        string? before = null;
+        for (int i = 0; i < Steps.Count; i++)
+        {
+            var step = Steps[i];
+            double gap = i > 0 ? (step.At - Steps[i - 1].At).TotalSeconds : 0;
+            var dupes = step.Kitchens.Values.Where(c => c.Dish is not null).GroupBy(c => c.Dish!.Id)
+                .Where(g => g.Count() > 1 && !(g.All(c => c.Kind is InnCallKind.Queue or InnCallKind.Swap) && g.Select(c => c.Table).Distinct().Count() == g.Count()))
+                .Select(g => string.Join(" + ", g.OrderBy(c => c.Kitchen).Select(c => c.Key)))
+                .ToList();
+            string? now = dupes.Count > 0 ? string.Join("; ", dupes) : null;
+            episodes.Take(step.At, gap, now is not null);
+            if (now is not null && now != before) list.Add($"{step.At.TotalSeconds,7:F1} {now}");
+            before = now;
+        }
+        return (episodes, list);
+    }
+
     /// <summary>The picture's numbers in one block (the replay test's output, the trace's head).</summary>
     public string Consistency()
     {
         var (tabNoCircle, callNoCard, switchNoCard, hidden, aheadHidden) = Agreement();
         var (shown, flickers, list) = CookAheadFlicker();
         var (up, down, unserved, lives) = GourmandLives();
+        var (dupes, dupeList) = DuplicateCircles();
         var sb = new StringBuilder();
+        sb.AppendLine(CultureInfo.InvariantCulture, $"# one dish in two circles (not two tables' orders): {dupes}");
+        foreach (var d in dupeList) sb.AppendLine(CultureInfo.InvariantCulture, $"#   duplicate {d}");
+        var uncalled = UncalledWaits(UncalledAfterSeconds);
+        sb.AppendLine(CultureInfo.InvariantCulture, $"# a dish tables wait for, not in hand nor queued, no circle naming it for over {UncalledAfterSeconds:F0} s: {uncalled.Count} ({uncalled.Sum(u => u.Seconds):F1} s)");
+        foreach (var u in uncalled) sb.AppendLine(CultureInfo.InvariantCulture, $"#   uncalled {u.From.TotalSeconds,7:F1} {u.Dish} for {u.Seconds:F1} s");
         sb.AppendLine(CultureInfo.InvariantCulture, $"# tab marked, no circle drawn for it: {tabNoCircle}");
         sb.AppendLine(CultureInfo.InvariantCulture, $"# panel on a kitchen with a call, no card marked: {callNoCard}");
         sb.AppendLine(CultureInfo.InvariantCulture, $"# switched to a marked tab, no card marked within 1 s: {switchNoCard.Count}{(switchNoCard.Count > 0 ? ": " + string.Join(", ", switchNoCard.Select(t => t.TotalSeconds.ToString("F1", CultureInfo.InvariantCulture))) : "")}");
@@ -358,6 +398,9 @@ internal sealed class InnReplay
         public IReadOnlySet<(string Dish, int Table)> Sendable { get; init; } = new HashSet<(string, int)>();
 
         public IReadOnlySet<(string Dish, int Table)> FreeFor { get; init; } = new HashSet<(string, int)>();
+
+        /// <summary>Dishes tables wait for that neither the hand nor a queue holds, a kitchen could take (<see cref="InnReplay.Unattended"/>).</summary>
+        public IReadOnlyDictionary<string, int> Unattended { get; init; } = new Dictionary<string, int>();
     }
 
     /// <summary>A call that flashed (gone and back) or jumped (switched dish or kitchen with nothing done to cause it).</summary>
@@ -404,7 +447,59 @@ internal sealed class InnReplay
                                                     && _session.ReadyIn(k.Kitchen, q.Dish.Id) is { } readyIn && readyIn <= q.ReadyIn + InnCallHold.ShowElsewhereWithinSeconds))
                 freeFor.Add((q.Dish.Id, table));
         }
-        Steps.Add(new CallStep(at, kitchens, open, queues, ahead, why, state[(state.LastIndexOf('[') + 1)..^1]) { Sendable = sendable, FreeFor = freeFor });
+        Steps.Add(new CallStep(at, kitchens, open, queues, ahead, why, state[(state.LastIndexOf('[') + 1)..^1]) { Sendable = sendable, FreeFor = freeFor, Unattended = advice is null ? [] : Unattended(queues) });
+    }
+
+    /// <summary>
+    /// The dishes tables are waiting for that nothing real is bringing: each dish's unserved items on the order cards as last
+    /// read (a guest's order; a gourmand's card shows no pips), less those in the player's hand as the tray last read them and
+    /// those in the kitchens' queues (the estimate, put right by every panel reading), when a kitchen has a free slot for it
+    /// and it is in stock. The counter is NOT counted: it is never read off the screen, and a dish taken to be there that
+    /// isn't is how an order goes uncalled (test_yuanyuan4 from 250 s; test_yuanyuan7's soups, 01:14–00:20).
+    /// </summary>
+    private Dictionary<string, int> Unattended(string queues)
+    {
+        var waiting = new Dictionary<string, int>();
+        foreach (var card in _cards.OfType<TableCard>().Where(c => c.State == TableState.Order))
+            foreach (var item in card.Items.Where(i => !i.Served && i.Id is not null && Inn.Dishes.Any(d => d.Id == i.Id)))
+                waiting[item.Id!] = waiting.GetValueOrDefault(item.Id!) + 1;
+        var queued = queues.Split(' ', StringSplitOptions.RemoveEmptyEntries).SelectMany(q => q[(q.IndexOf(':') + 1)..].Split(',', StringSplitOptions.RemoveEmptyEntries)).ToList();
+        var result = new Dictionary<string, int>();
+        foreach (var (id, n) in waiting)
+        {
+            int left = n - _tray.Count(t => t == id) - queued.Count(q => q == id);
+            if (left > 0 && _session.InStock(id) && Enumerable.Range(1, KitchenMath.MaxKitchens).Any(k => _session.ReadyIn(k, id) is not null)) result[id] = left;
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Orders left waiting with no circle (owner, 2026-10-21, test_yuanyuan7: "we ended up stuck behind a lot of soups but the
+    /// kitchen recommendation is not even picking that up"): a dish <see cref="Unattended"/> (tables wait for it, it isn't in
+    /// hand nor in a queue, a kitchen could take it) while no kitchen's circle names it, for more than
+    /// <paramref name="seconds"/> in a row. Each run is listed once, from when it began, with how long it lasted.
+    /// </summary>
+    /// <summary>How long a dish may wait uncalled (<see cref="UncalledWaits"/>) before the replay counts it.</summary>
+    public const double UncalledAfterSeconds = 10;
+
+    public List<(TimeSpan From, string Dish, double Seconds)> UncalledWaits(double seconds)
+    {
+        var list = new List<(TimeSpan, string, double)>();
+        var since = new Dictionary<string, TimeSpan>();
+        foreach (var step in Steps.Append(null))
+        {
+            var now = step is null ? [] : step.Unattended.Keys.Where(id => !step.Kitchens.Values.Any(c => c.Dish?.Id == id)).ToHashSet();
+            foreach (var (id, from) in since.ToList())
+            {
+                if (now.Contains(id)) continue;
+                double lasted = ((step?.At ?? Steps[^1].At) - from).TotalSeconds;
+                if (lasted > seconds) list.Add((from, id, lasted));
+                since.Remove(id);
+            }
+            if (step is null) break;
+            foreach (string id in now) since.TryAdd(id, step.At);
+        }
+        return [.. list.OrderBy(l => l.Item1)];
     }
 
     /// <summary>This moment's advice per kitchen, before the hold: "1:dish@table(ready in),… 2:…".</summary>

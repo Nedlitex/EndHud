@@ -260,6 +260,9 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         return queue.HasFreeSlot ? queue.SecondsUntilEmpty + kitchens.CookSeconds(kitchen, dish) : null;
     }
 
+    /// <summary>The dish can still be cooked, as far as the session knows its stock (the replay's trace).</summary>
+    internal bool InStock(string dishId) => MenuDishes().FirstOrDefault(m => m.Dish.Id == dishId) is not { Stock: <= 0 };
+
     /// <summary>A session is on (its frames seen within <see cref="EndAfter"/>).</summary>
     public bool Active { get; private set; }
 
