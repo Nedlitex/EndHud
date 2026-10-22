@@ -137,6 +137,15 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// </summary>
     public static readonly TimeSpan HandSettlesAfter = TimeSpan.FromSeconds(3);
 
+    /// <summary>
+    /// A dish taken to be on the counter out for an order covers it this long at most while the order's card still reads it
+    /// unserved; after that the estimate is taken to be wrong about it (the counter is never read off the screen) and the
+    /// order is called again. Measured over the five replays (test_yuanyuan3–7): a dish out for an order was served at
+    /// a median 10.5 s after it came out, 90 % within 43 s (60 serves; the slowest, 51–107 s, include dishes the estimate
+    /// only thought were there).
+    /// </summary>
+    public static readonly TimeSpan CoverTrustedFor = TimeSpan.FromSeconds(45);
+
     /// <summary>The timer going up by more than this means a new session started.</summary>
     private static readonly TimeSpan NewSessionJump = TimeSpan.FromSeconds(10);
 
