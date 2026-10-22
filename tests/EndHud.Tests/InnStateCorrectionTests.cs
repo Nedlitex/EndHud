@@ -54,6 +54,7 @@ public class InnStateCorrectionTests
         var tables = Tables();
         PanelTwice(session, 10, tables, 1, (C, 30), (D, null), (E, null));
         PanelTwice(session, 12, tables, 1, (C, 28), (E, null));
+        PanelTwice(session, 13, tables, 1, (C, 27), (E, null)); // read so for a second: taken
 
         Assert.Equal("", session.CounterSignature());
         Assert.Contains($"1:{C},{E}", session.QueueSignature());

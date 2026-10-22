@@ -146,6 +146,20 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// </summary>
     public static readonly TimeSpan CoverTrustedFor = TimeSpan.FromSeconds(45);
 
+    /// <summary>
+    /// A dish the estimate still has cooking is taken as out when a panel reading no longer shows it only if the estimate had
+    /// it out within this long: the estimate runs at normal speed (Full Blaze's faster kitchens aren't modelled), so a dish
+    /// comes out a little early now and then; one with longer left was taken out of the queue, or the queue misread. An
+    /// assumption: a few seconds' drift of a kitchen read every few seconds while the panel is open.
+    /// </summary>
+    public const double OutEarlyWithinSeconds = 10;
+
+    /// <summary>
+    /// A kitchen's queue read without a dish the estimate has (taken out, or a slot misread) is taken only once the panel has
+    /// read it so for this long: a slot flickering for a few frames (test_yuanyuan7, 217.2 s) is not the player's doing.
+    /// </summary>
+    public static readonly TimeSpan RemovalSettlesAfter = TimeSpan.FromSeconds(1);
+
     /// <summary>The timer going up by more than this means a new session started.</summary>
     private static readonly TimeSpan NewSessionJump = TimeSpan.FromSeconds(10);
 
@@ -160,6 +174,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     private TimeSpan _lastSessionFrame, _advancedTo;
     private TimeSpan _lastSessionRead; // _lastSessionFrame in reading time: what ending the session is measured in
     private SessionClock? _clock;
+    private TimeSpan _clockAt; // when _clock was read
     // When the timer first read 00:00: it shows 00:00 from then on, and the inn serves
     // InnState.ServingAfterCloseSeconds more, counted from here.
     private TimeSpan? _closedAt;
@@ -213,6 +228,12 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         /// <summary>The queue's dishes as the panel last read them for this kitchen (taken or not).</summary>
         public List<string>? LastRead;
 
+        /// <summary>When the panel last read this kitchen's queue.</summary>
+        public TimeSpan? ReadAt;
+
+        /// <summary>Since when the panel has read this kitchen's queue as <see cref="LastRead"/>, reading after reading.</summary>
+        public TimeSpan LastReadSince;
+
         /// <summary>Dishes the estimate cooked out of this queue since the panel last showed it, and when, in order (<see cref="Align"/>).</summary>
         public readonly List<(string Id, TimeSpan At)> OutSinceRead = [];
 
@@ -256,9 +277,12 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
 
     /// <summary>The dishes the estimate has on the counter, cooked ahead or out for an order, and those in hand ("@hand"; the replay's trace).</summary>
     public string CounterSignature() =>
-        string.Join(",", _counter.Entries.GroupBy(e => e.Id).Select(g =>
-                $"{g.Key}x{g.Count()}{(g.Any(e => e.ForOrder) ? $"(for orders {string.Join("/", g.Where(e => e.ForOrder).Select(e => $"{(_advancedTo - e.OutAt).TotalSeconds:F0}s"))})" : "")}")
+        string.Join(",", _counter.Entries.GroupBy(e => e.Id).Select(g => $"{g.Key}x{g.Count()}")
             .Concat(_carried.GroupBy(id => id).Select(g => $"{g.Key}x{g.Count()}@hand")));
+
+    /// <summary>The counter's dishes out for an order, each with how long ago it came out ("id 12s"; the replay's trace).</summary>
+    public string CoverSignature() =>
+        string.Join(",", _counter.Entries.Where(e => e.ForOrder).Select(e => $"{e.Id} {(_advancedTo - e.OutAt).TotalSeconds:F0}s"));
 
     /// <summary>
     /// Seconds until a dish would be out in a kitchen if queued now, as the calls count it (what's in its queue + the dish's
@@ -273,6 +297,21 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
 
     /// <summary>The dish can still be cooked, as far as the session knows its stock (the replay's trace).</summary>
     internal bool InStock(string dishId) => MenuDishes().FirstOrDefault(m => m.Dish.Id == dishId) is not { Stock: <= 0 };
+
+    private readonly Dictionary<string, int> _corrections = [];
+
+    /// <summary>
+    /// How often the estimate was put right where a reading contradicted it, by what was put right ("queue", "cover",
+    /// "counter", "gourmand"), over every session since this object was made: the drift made visible (the replay's report).
+    /// Each is also logged ("inn: corrected …").
+    /// </summary>
+    public IReadOnlyDictionary<string, int> Corrections => _corrections;
+
+    private void Corrected(string what, string how)
+    {
+        _corrections[what] = _corrections.GetValueOrDefault(what) + 1;
+        _log($"inn: corrected {how}");
+    }
 
     /// <summary>A session is on (its frames seen within <see cref="EndAfter"/>).</summary>
     public bool Active { get; private set; }
@@ -310,7 +349,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         Advance(reading.At);
         _lastSessionFrame = reading.At;
         _lastSessionRead = read;
-        if (reading.Clock is not null) _clock = reading.Clock;
+        TakeClock(reading.Clock, reading.At);
         if (reading.Clock is { Closed: true } && _closedAt is null) _closedAt = reading.At;
         // A panel read with fewer tabs than this session has read is uncertain: a frame the panel was missed on (the
         // tabs misread on an open panel; on older readings, the dark bar behind the theme line taken for a panel).
@@ -347,6 +386,24 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             _lastInnReading = null;
         }
     }
+
+    /// <summary>
+    /// The timer, run on from its last reading (<see cref="TimeLeft"/>) and taken anew only when a reading differs from that by
+    /// a second or more (it shows whole seconds) or it closes. Until 2026-10-21 the time left stood still between readings while
+    /// the kitchens' estimate ran on, so a dish due out just as serving ends was in time and too late by turns: test_yuanyuan7's
+    /// last call to table 1 went and came back at 375.3 s.
+    /// </summary>
+    private void TakeClock(SessionClock? clock, TimeSpan at)
+    {
+        if (clock is null) return;
+        if (_clock is { } before && before.Closed == clock.Closed && Math.Abs((clock.Left - TimeLeft(at)!.Value).TotalSeconds) < 1) return;
+        _clock = clock;
+        _clockAt = at;
+    }
+
+    /// <summary>The timer's time left at <paramref name="now"/>, run on from its last reading; null when none was read.</summary>
+    private TimeSpan? TimeLeft(TimeSpan now) =>
+        _clock is { } clock ? clock.Closed ? TimeSpan.Zero : TimeSpan.FromTicks(Math.Max(0, (clock.Left - (now - _clockAt)).Ticks)) : null;
 
     private void StartSession(TimeSpan at)
     {
@@ -535,14 +592,26 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         double frontCook = dishes.Count == 0 ? 0
             : kitchen.PanelCookSeconds.TryGetValue(dishes[0].Dish.Id, out int shown) ? shown
             : kitchens?.Kitchens.Any(k => k.Number == panel.Kitchen) == true ? kitchens.CookSeconds(panel.Kitchen, dishes[0].Dish) : dishes[0].Dish.CookSeconds;
-        var (cameOut, notOut, fits) = Align(estimate, seen, kitchen.OutSinceRead, frontLeft, frontCook, at);
+        // Full Blaze's kitchens cook faster than the estimate (not modelled): while it runs, a dish may be out earlier by up to
+        // the time since this kitchen was last read.
+        var estimateOutIn = Enumerable.Range(0, estimate.Count).Select(kitchen.Queue.SecondsUntilOut).ToList();
+        double earlyWithin = OutEarlyWithinSeconds + (_blaze.Running && kitchen.ReadAt is { } readAt ? (at - readAt).TotalSeconds : 0);
+        kitchen.ReadAt = at;
+        var (cameOut, notOut, fits) = Align(estimate, estimateOutIn, seen, kitchen.OutSinceRead, frontLeft, frontCook, at, earlyWithin);
         // Dishes gone from the queue, or a queue that doesn't line up, are taken once the next reading of this kitchen
         // agrees: on its first frame the panel reads its queue empty as it draws (test_yuanyuan3: seven times, each taking
-        // dishes 30 s from done for out). Dishes added (the player queueing) are taken at once.
-        bool confirmed = kitchen.LastRead is { } last && last.SequenceEqual(seen);
+        // dishes 30 s from done for out). Dishes added (the player queueing) are taken at once. A queue that doesn't line up
+        // (a dish taken out, or a slot misread) only once the panel has read it so for RemovalSettlesAfter: test_yuanyuan7 at
+        // 217.2 s read kitchen 2 as [界龙肉卷, 界龙肉卷] and [界龙肉卷] by turns for 3 s.
+        bool same = kitchen.LastRead is { } last && last.SequenceEqual(seen);
+        if (!same) kitchen.LastReadSince = at;
         kitchen.LastRead = seen;
+        bool confirmed = same && (fits || at - kitchen.LastReadSince >= RemovalSettlesAfter);
         if ((cameOut > 0 || !fits) && !confirmed) return;
         if (!fits) cameOut = 0; // a dish taken out, or a slot misread: nothing put on the counter for it
+        if (cameOut > 0 || notOut > 0 || !fits)
+            Corrected("queue", $"kitchen {panel.Kitchen}'s queue: estimate [{string.Join(",", estimate)}], read [{string.Join(",", seen)}]: "
+                + (!fits ? "a dish taken out or misread, nothing out" : cameOut > 0 ? $"{cameOut} out" : $"{notOut} not out yet"));
         foreach (string id in estimate.Take(cameOut))
         {
             kitchen.Out[id] = kitchen.Out.GetValueOrDefault(id) + 1;
@@ -566,10 +635,15 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// the panel's queue, and the rest of it the player queued. Dishes at the front matching ones just cooked out are taken
     /// as not out yet when the seconds left on the first (<paramref name="frontLeft"/>) say it can't be one queued since:
     /// that would have at least its whole cook time (<paramref name="frontCook"/>) less the time since the estimate cooked
-    /// the other out. <c>Fits</c> false: nothing lines up (a dish taken out, a slot misread).
+    /// the other out. A dish of the estimate is taken as out only when the estimate had it out within
+    /// <paramref name="outEarlyWithin"/> s (<see cref="OutEarlyWithinSeconds"/>, more while Full Blaze runs; <paramref name="estimateOutIn"/>:
+    /// seconds until each is out): until 2026-10-21 a queue
+    /// read with a dish taken out of its middle was read as every dish out and the rest queued anew (test_yuanyuan7 157.5 s:
+    /// [福寿全, 八宝饭, 千果珍珠圆] read as [福寿全 9 s, 千果珍珠圆] put three dishes on the counter, 福寿全 out twice; five times on that
+    /// session). <c>Fits</c> false: nothing lines up (a dish taken out, a slot misread).
     /// </summary>
-    internal static (int CameOut, int NotOut, bool Fits) Align(IReadOnlyList<string> estimate, IReadOnlyList<string> seen,
-        IReadOnlyList<(string Id, TimeSpan At)> outSinceRead, double? frontLeft, double frontCook, TimeSpan now)
+    internal static (int CameOut, int NotOut, bool Fits) Align(IReadOnlyList<string> estimate, IReadOnlyList<double> estimateOutIn, IReadOnlyList<string> seen,
+        IReadOnlyList<(string Id, TimeSpan At)> outSinceRead, double? frontLeft, double frontCook, TimeSpan now, double outEarlyWithin)
     {
         bool Follows(int cameOut, int notOut)
         {
@@ -586,7 +660,10 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             if (Follows(0, notOut)) return (0, notOut, true);
         }
         for (int cameOut = 0; cameOut <= estimate.Count; cameOut++)
+        {
+            if (cameOut > 0 && estimateOutIn[cameOut - 1] > outEarlyWithin) break;
             if (Follows(cameOut, 0)) return (cameOut, 0, true);
+        }
         return (estimate.Count, 0, false);
     }
 
@@ -935,9 +1012,9 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// closes, then 18 s from when it first read 00:00 (<see cref="InnState.ServingAfterCloseSeconds"/>);
     /// null when no timer has been read.
     /// </summary>
-    private double? ServingLeft(TimeSpan now) =>
+    internal double? ServingLeft(TimeSpan now) =>
         _closedAt is { } closedAt ? InnState.ServingLeftAfterClose((now - closedAt).TotalSeconds)
-        : _clock is { } clock ? InnState.ServingLeft(clock.Left.TotalSeconds)
+        : TimeLeft(now) is { } left ? InnState.ServingLeft(left.TotalSeconds)
         : null;
 
     /// <summary>The advice now, the kitchens moved on to <paramref name="now"/>; null when no session is on.</summary>
@@ -1009,7 +1086,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         var carried = _carried.Select(id => DishOf(id)!).ToList();
         var state = new InnState(queues, counter, outForOrders, carried, outstanding, menu, ServingLeft(now), asCalled, ThemeItems());
 
-        var left = _clock?.Left ?? TimeSpan.FromMinutes(5);
+        var left = TimeLeft(now) ?? TimeSpan.FromMinutes(5);
         var nextOut = queues.Where(q => q.Dishes.Count > 0).Select(q => (TimeSpan?)TimeSpan.FromSeconds(q.Dishes[0].SecondsLeft)).Min();
         FullBlazeAdvice? blaze = _fire is { } fire || _blaze.Running
             ? FullBlazeAdvisor.Advise(_fire ?? 0, _blaze.Running, left, state.Counter.Count + state.Carried.Count, nextOut, _blaze.FullFor)

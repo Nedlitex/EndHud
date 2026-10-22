@@ -398,17 +398,19 @@ public class InnSessionTests
     /// cooking that the panel no longer shows came out (it's on the counter, for the order it was cooking for); a dish the
     /// estimate had cooked out that the panel still shows isn't on the counter. Before, only the kitchen's count changed, and
     /// an order was sent to a kitchen for a dish already out (test_yuanyuan3, 176.4 s) or taken as covered by one still cooking.
+    /// Since 2026-10-21 a dish is taken as out early only when the estimate had it out within
+    /// <see cref="InnSession.OutEarlyWithinSeconds"/>; one with longer left was taken out (InnStateCorrectionTests).
     /// </summary>
     [Fact]
     public void The_panel_putting_a_queue_right_moves_dishes_on_and_off_the_counter()
     {
-        // Out early: table 3 ordered A, the estimate has it cooking 28 s more, the panel shows the queue empty: it's on the
+        // Out early: table 3 ordered A, the estimate has it cooking 8 s more, the panel shows the queue empty: it's on the
         // counter, out for table 3, which isn't sent to a kitchen again.
         var early = Prepared(1, 2);
         early.Update(Session(9.4, tables: Tables(Order(3, A))));
         early.Update(Session(9.7, tables: Tables(Order(3, A))));
-        early.Update(Session(10, panel: Panel(1, 2, Menu.Take(5).ToList(), (A, 30))));
-        early.Update(Session(10.3, panel: Panel(1, 2, Menu.Take(5).ToList(), (A, 30))));
+        early.Update(Session(10, panel: Panel(1, 2, Menu.Take(5).ToList(), (A, 10))));
+        early.Update(Session(10.3, panel: Panel(1, 2, Menu.Take(5).ToList(), (A, 10))));
         early.Update(Session(12, panel: Panel(1, 2, Menu.Take(5).ToList())));
         early.Update(Session(12.1, panel: Panel(1, 2, Menu.Take(5).ToList()))); // gone: taken once a second reading agrees
         early.Update(Session(12.3, tables: Tables(Order(3, A))));

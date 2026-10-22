@@ -119,11 +119,12 @@ public class InnCallTests(ITestOutputHelper output)
         var shown = Assert.Single(session.Advice(S(10.25))!.Calls, c => c is { Kind: InnCallKind.Queue, Table: 3 });
         Assert.Equal(2, shown.Kitchen);
 
-        // Kitchen 1 read empty twice (a queue read shorter is taken once the next reading agrees).
-        session.Update(Session(11, left: 279, tables: Tables(Order(3, A)), panel: Panel(1, 2, Dishes)));
-        session.Update(Session(11.25, left: 278.75, tables: Tables(Order(3, A)), panel: Panel(1, 2, Dishes)));
+        // Kitchen 1 read empty for a second (its dish taken out: a queue read without a dish far from done is taken once the
+        // panel has read it so for InnSession.RemovalSettlesAfter).
+        for (double t = 11; t <= 12.25; t += 0.25)
+            session.Update(Session(t, left: 280 - (t - 10), tables: Tables(Order(3, A)), panel: Panel(1, 2, Dishes)));
         Assert.True(session.ReadyIn(1, A) + 20 <= session.ReadyIn(2, A), $"kitchen 1 {session.ReadyIn(1, A)} s, kitchen 2 {session.ReadyIn(2, A)} s");
-        for (double t = 11.25; t <= 16; t += 0.25)
+        for (double t = 12.25; t <= 17; t += 0.25)
         {
             session.Update(Session(t, left: 280 - (t - 10), tables: Tables(Order(3, A)), panel: Panel(1, 2, Dishes)));
             Assert.Equal([shown.Key], session.Advice(S(t))!.Calls.Where(c => c.Table == 3).Select(c => c.Key));
