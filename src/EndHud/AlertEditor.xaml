@@ -49,7 +49,7 @@
                         <Button x:Name="DeleteButton" Content="{DynamicResource Editor.Delete}" Click="DeleteButton_Click" />
                     </WrapPanel>
                     <Grid>
-                        <ListBox x:Name="RuleList" SelectionChanged="RuleList_SelectionChanged" />
+                        <ListBox x:Name="RuleList" SelectionChanged="RuleList_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
                         <!-- Empty state: what a rule is, with two examples. -->
                         <TextBlock x:Name="EmptyText" Text="{DynamicResource Alerts.Empty}" Foreground="#666" TextWrapping="Wrap"
                                    Margin="8" IsHitTestVisible="False" />

@@ -83,11 +83,14 @@ public partial class AlertEditor : Window
         : rule.When.Count == 0 ? Loc.Format("Alerts.Numbered", _rules.IndexOf(rule) + 1)
         : Loc.Format("Alerts.NoText", AlertText.Describe(rule.When, _library));
 
+    /// <summary>A rule's line in the list: one line, cut with "…" when long (the whole text is its tooltip).</summary>
+    private TextBlock ListText(RuleDraft rule) => new() { Text = RuleName(rule), TextTrimming = TextTrimming.CharacterEllipsis };
+
     private void RefreshList()
     {
         _loading = true;
         RuleList.Items.Clear();
-        foreach (var rule in _rules) RuleList.Items.Add(ConditionEditor.Item(RuleName(rule), rule.Id));
+        foreach (var rule in _rules) RuleList.Items.Add(new ComboBoxItem { Content = ListText(rule), ToolTip = RuleName(rule), Tag = rule.Id });
         RuleList.SelectedItem = RuleList.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == _rule?.Id);
         _loading = false;
         EmptyText.Visibility = _rules.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -192,7 +195,8 @@ public partial class AlertEditor : Window
         if (_rule is null) return;
         int index = _rules.IndexOf(_rule);
         _loading = true;
-        if (index >= 0 && index < RuleList.Items.Count) ((ComboBoxItem)RuleList.Items[index]).Content = RuleName(_rule);
+        if (index >= 0 && index < RuleList.Items.Count) ((ComboBoxItem)RuleList.Items[index]).Content = ListText(_rule);
+        if (index >= 0 && index < RuleList.Items.Count) ((ComboBoxItem)RuleList.Items[index]).ToolTip = RuleName(_rule);
         _loading = false;
     }
 

@@ -70,7 +70,8 @@ internal static class AlertPopUp
         var words = new TextBlock
         {
             Text = text, FontSize = 20, FontWeight = FontWeights.Bold, Foreground = TextBrush, FontFamily = Font,
-            TextWrapping = TextWrapping.Wrap, MaxWidth = TextMaxWidth, MaxHeight = 56, TextAlignment = TextAlignment.Right,
+            // Two lines at most: a longer text ends in "…" rather than being cut off by the panel.
+            TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = TextMaxWidth, MaxHeight = 56, TextAlignment = TextAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center,
             // The panel is slanted like the game's banners; its words are slanted back upright.
             RenderTransform = new SkewTransform(-12, 0),
