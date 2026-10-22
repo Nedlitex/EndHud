@@ -19,6 +19,18 @@ public static class InflictionRing
     internal const int MinArcWhiteness = 190;
     internal const double MinColouredShare = 0.15;
 
+    // The stack arcs (4K px from the ring's centre): the arc's white peaks at radius 28-35, its dark
+    // outline at 36-39. Each arc spans about ±27° around its centre (gaps 35°-55° between them). An
+    // unlit segment has no track: the scene shows through, as white as 248 on a bright scene, but
+    // without the outline. On the infliction fixtures (Si fight's cryo at 1-4 stacks, the boss fight's
+    // heat and nature) a lit arc stood 90-130 above its outline at every sampled angle, so every lit
+    // segment's share was 1.00; unlit segments 0.00, once 0.27 (0.36 on smaller screens: a streak
+    // across the empty left segment), which reads as unknown.
+    private const double PeakInner = 28, PeakOuter = 35, OutlineInner = 36, OutlineOuter = 39;
+    private const int SegmentHalfWidth = 20;
+    internal const int MinOutlineContrast = 40;
+    internal const double LitShare = 0.7, UnlitShare = 0.3;
+
     /// <summary>The elements, by the hue (degrees) of their icon; ids as the wiki names the statuses.</summary>
     private static readonly (string Id, double From, double To)[] Elements =
     [
@@ -39,8 +51,57 @@ public static class InflictionRing
     public static Infliction? ReadWithStacks(Frame frame) =>
         Measure(frame).Element is { } element ? new Infliction(element, Stacks(frame)) : null;
 
-    /// <summary>The stack count, or null when it can't be told.</summary>
-    internal static int? Stacks(Frame frame) => null;
+    /// <summary>
+    /// Four arc segments, centred at 0° (top), 90°, 180° and 270°. Each is lit (a white arc with its
+    /// dark outline), unlit (no arc: the game draws no track, the scene shows through) or neither
+    /// (null: covered). The lit ones must be the first n clockwise from the top; anything else is null.
+    /// </summary>
+    internal static int? Stacks(Frame frame)
+    {
+        var shares = SegmentShares(frame);
+        var lit = new bool?[4];
+        for (int s = 0; s < 4; s++) lit[s] = shares[s] >= LitShare ? true : shares[s] <= UnlitShare ? false : null;
+        if (lit.Any(l => l is null)) return null;
+        int n = lit.TakeWhile(l => l == true).Count();
+        return n >= 1 && lit.Skip(n).All(l => l == false) ? n : null;
+    }
+
+    /// <summary>
+    /// For each segment (top, right, bottom, left): the share of its angles where a white arc stands
+    /// out of its surroundings, for measuring thresholds.
+    /// </summary>
+    internal static double[] SegmentShares(Frame frame)
+    {
+        var ui = new UiScaler(frame.Width, frame.Height);
+        var area = ui.TopCenter(Area);
+        double k = area.Width / (double)Area.Width;
+        double cx = area.X + CentreX * k, cy = area.Y + CentreY * k;
+        var shares = new double[4];
+        for (int s = 0; s < 4; s++)
+        {
+            int lit = 0, n = 0;
+            for (int a = -SegmentHalfWidth; a <= SegmentHalfWidth; a += 4)
+            {
+                double rad = (s * 90 + a) * Math.PI / 180;
+                int peak = 0, outline = 255;
+                for (double r = PeakInner; r <= PeakOuter; r += 0.5)
+                {
+                    var (pr, pg, pb) = Pixel(frame, cx + r * k * Math.Sin(rad), cy - r * k * Math.Cos(rad));
+                    int min = Math.Min(pr, Math.Min(pg, pb)), max = Math.Max(pr, Math.Max(pg, pb));
+                    peak = Math.Max(peak, max - min < 40 ? min : 0);
+                }
+                for (double r = OutlineInner; r <= OutlineOuter; r += 0.5)
+                {
+                    var (pr, pg, pb) = Pixel(frame, cx + r * k * Math.Sin(rad), cy - r * k * Math.Cos(rad));
+                    outline = Math.Min(outline, Math.Min(pr, Math.Min(pg, pb)));
+                }
+                n++;
+                if (peak >= MinArcWhiteness && peak - outline >= MinOutlineContrast) lit++;
+            }
+            shares[s] = lit / (double)n;
+        }
+        return shares;
+    }
 
     /// <summary>What the reading is based on, for measuring thresholds.</summary>
     internal static (int ArcWhiteness, double ColouredShare, double? Hue, string? Element) Measure(Frame frame)
