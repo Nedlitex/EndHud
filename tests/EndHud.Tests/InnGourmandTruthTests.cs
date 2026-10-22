@@ -25,7 +25,7 @@ public class InnGourmandTruthTests(ITestOutputHelper output)
     /// test_yuanyuan8 (2026-10-21, 3838x2158), 14 gourmands and 28 requests, from frames at 1 s and 0.25 s (t &lt;= 480 s):
     /// each request by its gourmand in the data's feast pool (number, request index), its table (the number post under the
     /// bubble's tail), when its words first showed, and when its icon turned into a face (green served, yellow imperfect,
-    /// red failed). The full table with the lines as shown: .tracking/changes/2026-10-21-inn-y8-gourmands-truth.md.
+    /// red failed). The full table with the lines as shown is in the developer's notes (.tracking, local only).
     /// </summary>
     internal static IReadOnlyList<InnReplay.TruthRequest> Y8 { get; } =
     [
@@ -94,6 +94,28 @@ public class InnGourmandTruthTests(ITestOutputHelper output)
 
         static string Describe(GourmandRequest r) =>
             Inn.Gourmands.Where(g => g.Requests.Contains(r)).Select(g => $"{g.Pool}{g.Number}.{g.Requests.ToList().IndexOf(r)}").FirstOrDefault() ?? "unknown";
+    }
+
+    /// <summary>
+    /// test_yuanyuan8's readings (Fixtures/inn-replay, taken through the real readers a frame every 0.3 s, 0–480 s) replayed through
+    /// the session and the views: every request judged is on its own table's tile within <see cref="ShownWithin"/> of its
+    /// bubble and stays there until it's resolved (gaps of a second at most); no request on a table whose gourmand didn't make
+    /// it. Before 2026-10-21's fixes (main's readers and session): 13 of 20 shown, 8 kept, 6 requests shown on other tables for 3.7 s
+    /// to 49 s.
+    /// </summary>
+    [Fact]
+    public void Over_test_yuanyuan8_every_gourmands_request_is_shown_on_its_table_and_kept()
+    {
+        var replay = InnReplay.Run(InnReplay.Load(Path.Combine(AppContext.BaseDirectory, "Fixtures", "inn-replay", "test-yuanyuan8-readings.jsonl.gz")));
+        var (judged, recognised, kept, lines) = Measure(replay, Y8);
+        foreach (string line in lines) output.WriteLine(line);
+
+        Assert.Equal(20, judged);
+        Assert.Equal(judged, recognised);
+        Assert.Equal(judged, kept);
+        var outcomes = replay.AgainstTruth(Y8);
+        Assert.All(outcomes, o => Assert.True(o.ElsewhereSeconds <= 1, $"{o.Truth.Label} on another table for {o.ElsewhereSeconds:F1} s"));
+        Assert.All(outcomes, o => Assert.True(o.OthersSeconds <= 1, $"{o.Truth.Label}'s table showed another's request for {o.OthersSeconds:F1} s"));
     }
 
     /// <summary>The measurement over a readings file named in ENDHUD_Y8_READINGS (a developer's before/after), printed only.</summary>
