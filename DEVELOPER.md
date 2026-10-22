@@ -670,9 +670,9 @@ corners, and other window shapes are EndHud's assumption, not checked.
 | `InnScreen.ReadClock` | time left, closed at 00:00, and whether it was read in its pill under 结束经营 (`BelowButton`: the panel open puts it at the top) | every session frame; where, on 6 frames at every size |
 | `FireMeterReader` | fire "N/100", streak, ready (red button, 开启满堂彩), Full Blaze running (the red circle's countdown, `BlazeLeft`) | all, at every size; hidden behind the dispatch panel; Full Blaze on 2 frames at every size |
 | `TrayReader` | the tray of what the player holds (five slots at the bottom middle): each slot's dish or drink by picture, the 珍馐 badge, empty; on screen only with the 派单 button beside it | 12 frames of four sessions (and 4 without it) at 4K, 1440p and 1080p: every slot right, right pictures 6.4–12.9 against ≥ 31.6 for the next; the HUD fading in reads "not told apart", never a guess; ~19 ms a frame holding five dishes at 4K (Release), under 1 ms empty |
-| `TableCardReader` | each table's state and, for an order, its dishes and drinks by picture and whether each is served (its pip green, or the blue auto-serve spinner on it) | 56/56 items and 90/90 cards at 4K, 1440p and 1080p |
+| `TableCardReader` | each table's state and, for an order, its dishes and drinks by picture and whether each is served (its pip green, or the blue auto-serve spinner on it); for a gourmand's order, whether each request is resolved (its pip mint green served, yellow-green imperfect, red failed: since 2026-10-21; before, only the order cards' lime green counted and no gourmand request ever read resolved) | 56/56 items and 90/90 cards at 4K, 1440p and 1080p; gourmands' pips on 5 cards of two test_yuanyuan8 frames at every size |
 | `DispatchPanelReader` | whether the panel is open (a dark tab AND the first dish card's light face: 10 of 10 points on every panel frame, at most 3 on a session frame), kitchen shown, chefs, choice-dish chance, each dish's cook time and the card it's on (`KitchenDish.Card`; where each card and tab is: `CardArea`, `TabArea`), the queue (dish, time left) | 114–115 of 115 values per size, none wrong; every dish named on its card, each card's place its outline (3 frames, every size); no panel on 10 session frames with it closed, at every size |
-| `BubbleReader` | a gourmand's speech bubble: each line cut at sentence ends and commas, every run of up to 6 pieces matched on its own with `InnData.MatchSaid` (each piece and request used once), so a request on the second line isn't lost to the first; the text's left edge is measured in character heights, since the bubble's size follows the camera | three recorded bubbles (the owner's soup-and-drink gourmand on three frames), both requests and only them, at every size |
+| `BubbleReader` | every gourmand's speech bubble on screen (each bubble-sized patch of cream, the largest first: the feast mode shows up to three at once), its rows (a row the engine returns as two lines joined again), the icon before each request (plates for a dish, a bottle for a drink): where each request starts, and whether it is resolved (the icon turned into a face: green, yellow or red). The requests: the lines cut at the icons, each part matched with `InnData.MatchSaid`; without icons (a bubble cut by the screen's edge) the lines as one request or cut once into two; last, for lines OCR ran together, every run of up to 6 pieces cut at sentence ends and commas. A request said exactly matches however short (the feast pool's tenth gourmand's drink is three letters). The text's left edge is measured in character heights, since the bubble's size follows the camera | three recorded bubbles (the owner's soup-and-drink gourmand on three frames), both requests and only them, at every size; six test_yuanyuan8 frames (one or two bubbles, wrapped, faces, two soups) at every size, each request and its state (a far bubble may lose a request to an OCR slip, never read one wrong); one behind the session's stats box reads only what shows; every pair of a gourmand's requests in the data, on their own lines or wrapped at ten letters, both found |
 | `SetupReader` | theme, objective, menu rules (down to the next heading: 加分项, 热门, 流行趋势), hot traits, dish types and 饮品, kitchens with their chef places, how many hold a chef (the bar under each: red or grey) and the chefs | all at 4K; objective and rules slip at 1440p; setup-gourmand-theme's rules whole and understood at every size |
 | `MenuReader` | tab, cards in view and whether each is on the menu, stock ∞, the counters | tab and cards at every size; stock and counters partly |
 | `MenuRequirementsReader` | the menu screen's 菜单要求: Inn Rating ("4级客栈要求"), types, dishes and drinks at least, the theme's trait or dish-type rule, down to the 流行趋势 heading | all five on both menu frames, at every size; menu-gourmand-theme (专属菜单要求: 8 dishes, 6 drinks, one of each type) at every size |
@@ -776,13 +776,28 @@ just keep showing"): at once when their card reads them eating, or when it reads
 reading for 3 s (`InnSession.GourmandGoneAfter`), or when the session ends; a card not read changes nothing.
 The bug it fixes, measured on that session's frames: while the camera moves the HUD fades, and on the faded
 frame every table card reads empty (session-hud-faded.jpg), which dropped the request at once.
-A bubble doesn't say whose it is, so its words decide (`InnSession.TakeBubble`; owner, live 2026-10-21: table 4's
+A bubble doesn't say whose it is, so its words and the cards decide (`InnSession.TakeBubble`; owner, live 2026-10-21: table 4's
 gourmand asked for a soup without seed oil and a drink without alcohol, and the circles showed a sour dessert and a soup
-without seafood for 46 s, another gourmand's words): a table already holding any of its words keeps them (the fuller
-reading kept); words of a gourmand served within 30 s (`GourmandEchoFor`) are their bubble seen again, nobody's new
-request; otherwise the newest gourmand table without words takes them, else the newest one asking (its old words were
-another gourmand's, replaced). The bug: table 2's bubble, read again as table 4's gourmand sat down, went to the table
-with no words yet, and table 4's own two requests never replaced two others. Without the setup screens, the kitchens and chefs
+without seafood for 46 s, another gourmand's words). Every bubble on the frame is taken, and each gourmand's words in one on
+their own (two bubbles side by side can be found as one patch): the table holding most of these words, or the only one holding
+words of the same gourmand, keeps them, read once more (every reading is kept, and the one the most readings agree with
+stands: an OCR slip that names another of the gourmand's requests now and then changes nothing); words of a gourmand served
+within 30 s (`GourmandEchoFor`) are their bubble seen again, nobody's new request; otherwise the newest table whose
+gourmand has **ordered** (their card turned to the order's icons: `TakeGourmandCards`, which a HUD fade never resets) and
+has no words yet takes them. A gourmand's words show the moment the player takes their order, so a gourmand only arrived
+or choosing has said nothing. A request is resolved once its card's pip (two readings in a row) or its
+bubble's icon says so, and is no longer asked; a gourmand with nothing left goes; a new gourmand arriving at a table forgets
+the last one's words; a HUD fade (every card read empty) says nothing about any table.
+
+**test_yuanyuan8** (owner, 2026-10-21: "MOST of the gourmand requirement IS NOT recognized"; the feast mode, every
+guest a gourmand of the feast pool): 14 gourmands and 28 requests, read off the frames by eye (table by the number post
+under each bubble, resolved by each icon's face), held in `InnGourmandTruthTests.Y8` and measured against the tiles
+replayed from the recording's readings (`InnReplay.AgainstTruth`: shown on its own table within 3 s of the bubble, and
+kept until resolved; 8 requests resolved within 3 s of the bubble aren't judged). Before (main's readers and session, c4ad20f):
+13 of 20 shown within 3 s, 8 kept. Missed: words given to a table whose gourmand was still choosing or only arrived, and kept
+there (D2, F1, F2, K2; J2, whose card hadn't turned yet, went to a table that had lost its words in a fade); a drink said in
+three letters never matched (A2, H2). Not kept: HUD fades of 3.6–3.9 s forgot the words (H1, I1, I2, L2); a misread line
+(another of the gourmand's requests) replaced them (G2). The labels are the truth table's. After: below (the replay check). Without the setup screens, the kitchens and chefs
 come from the dispatch panel, and the Inn Rating from the cook times it shows. A kitchen the setup
 screen showed with every place empty is left out (it cannot cook) unless the dispatch panel has since
 named its chefs; one whose chefs were never seen is advised at base speed. A session ends after
