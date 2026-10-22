@@ -72,7 +72,7 @@ public sealed class TableCardReader(InnText text, InnPictures pictures)
                 if (Says(Eating)) return new TableCard(table, TableState.GourmandEating, [], []);
                 // No word, and the discs of a gourmand's order (what kind of dish, not which).
                 return word.Length == 0 && (IsGourmandDisc(frame, layout, left + FirstDiscX) || IsGourmandDisc(frame, layout, left + SecondDiscX))
-                    ? new TableCard(table, TableState.GourmandOrder, [], Pips(frame, layout, left))
+                    ? new TableCard(table, TableState.GourmandOrder, [], GourmandPips(frame, layout, left))
                     : null;
             default:
                 if (Says(Ordering)) return new TableCard(table, TableState.Ordering, [], []);
@@ -353,6 +353,28 @@ public sealed class TableCardReader(InnText text, InnPictures pictures)
     }
 
     /// <summary>The two pips under the number, green or not.</summary>
+    /// <summary>
+    /// A gourmand's order: whether each request is resolved, its pip no longer the card's cream but mint green (served), yellow-green
+    /// (served imperfectly) or red (failed): test_yuanyuan8, (113, 250, 162), (207, 250, 72), (217, 24, 6) at 4K. Nothing more is
+    /// to be done for a resolved request whichever its colour. Most of the pip's middle must say so (a small window blurs its edge).
+    /// </summary>
+    private static IReadOnlyList<bool> GourmandPips(Frame frame, InnLayout layout, double left) =>
+        [.. PipX.Select(x =>
+        {
+            var (px, py) = layout.TopLeft(left + x, PipY);
+            int gx = (int)Math.Round(px), gy = (int)Math.Round(py), coloured = 0;
+            for (int dy = -1; dy <= 1; dy++)
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                int sx = gx + dx, sy = gy + dy;
+                if (sx < 0 || sy < 0 || sx >= frame.Width || sy >= frame.Height) continue;
+                var (r, g, b) = frame.GetPixel(sx, sy);
+                int max = Math.Max(r, Math.Max(g, b)), min = Math.Min(r, Math.Min(g, b));
+                if (max >= 150 && max - min >= 100) coloured++;
+            }
+            return coloured >= 5;
+        })];
+
     private static IReadOnlyList<bool> Pips(Frame frame, InnLayout layout, double left) =>
         [.. PipX.Select(x =>
         {

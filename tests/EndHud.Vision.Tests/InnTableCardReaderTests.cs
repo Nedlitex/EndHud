@@ -128,6 +128,32 @@ public class InnTableCardReaderTests(ITestOutputHelper output)
         Assert.True(itemsRight >= items * 0.95, $"{itemsRight} of {items} items read right");
     }
 
+    /// <summary>
+    /// A gourmand's order card has a pip per request under its number: the card's cream until the request is resolved, then
+    /// mint green (served), yellow-green (served imperfectly) or red (failed). test_yuanyuan8 (the feast mode): at 231 s
+    /// tables 1 and 2 have their drinks served and table 5 its dish failed; at 365 s table 1's dish was served imperfectly and
+    /// both of table 6's requests failed. Until 2026-10-21 only the order cards' lime green counted, and no gourmand's
+    /// request ever read resolved.
+    /// </summary>
+    [Theory]
+    [InlineData("feast-cards-pips", 1, new[] { false, true })]
+    [InlineData("feast-cards-pips", 2, new[] { false, true })]
+    [InlineData("feast-cards-pips", 5, new[] { true, false })]
+    [InlineData("feast-bubble-faces", 1, new[] { true, false })]
+    [InlineData("feast-bubble-faces", 6, new[] { true, true })]
+    public async Task A_gourmands_requests_read_resolved_by_their_pips(string fixture, int table, bool[] resolved)
+    {
+        foreach (var screen in new[] { SimulatedScreen.Uhd, SimulatedScreen.Qhd, SimulatedScreen.FullHd })
+        {
+            var frame = await InnScreenTests.Load(fixture);
+            var read = await (await Reader.Value).ReadAsync(screen == SimulatedScreen.Uhd ? frame : screen.Render(frame));
+
+            var card = read[table - 1];
+            Assert.Equal(TableState.GourmandOrder, card?.State);
+            Assert.Equal(resolved, card!.Served);
+        }
+    }
+
     /// <summary>An item read as unknown ("?") where the rest of the card matches.</summary>
     private static bool PartlyUnread(string got, string expected)
     {
