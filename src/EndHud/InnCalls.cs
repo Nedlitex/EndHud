@@ -132,7 +132,7 @@ internal sealed class InnCallHold
     [
         .. _held.Values.Where(h => !Done(h, view) && h.Call is { Kind: InnCallKind.Queue or InnCallKind.CookAhead or InnCallKind.Swap, Kitchen: not null, Dish: not null })
             .OrderBy(h => h.Call.Kitchen)
-            .Select(h => new KeptCall(h.Call.Kitchen!.Value, h.Call.Dish!, h.Call.Kind == InnCallKind.CookAhead ? null : h.Call.Table)),
+            .Select(h => new KeptCall(h.Call.Kitchen!.Value, h.Call.Dish!, h.Call.Kind == InnCallKind.CookAhead ? null : h.Call.Table, h.Call.Kind == InnCallKind.Swap ? h.Call.Remove : null)),
     ];
 
     /// <summary>Forgets every call (the session ended).</summary>
@@ -188,7 +188,17 @@ internal sealed class InnCallHold
             if (why is null)
             {
                 claimed.Add(number);
-                if (held.InvalidSince is not null) _held[number] = held with { InvalidSince = null };
+                var standing = held with { InvalidSince = null };
+                _held[number] = standing;
+                // A swap the advice no longer makes, its order still sent here as a plain dish to queue (what it would take out
+                // has cooked out, a slot is free): shown as that order. test_yuanyuan7 from 261 s, "先拿掉界龙肉卷" stood 100 s
+                // over table 6's 福寿全 after the 界龙肉卷 was out.
+                if (held.Call.Kind == InnCallKind.Swap && !advice!.Replaces.Any(s => s.Remove.Id == held.Call.Remove!.Id && s.Put.Id == held.Call.Dish!.Id && s.Table == held.Call.Table))
+                {
+                    var order = new InnCall(InnCallKind.Queue, number, held.Call.Dish, held.Call.Table);
+                    _changes.Add($"{held.Call.Key} {NowPlain} {order.Key}");
+                    _held[number] = standing with { Call = order };
+                }
                 continue;
             }
             var since = held.InvalidSince ?? now;
@@ -275,6 +285,9 @@ internal sealed class InnCallHold
         calls.AddRange(dispatch.Leftovers.Select(l => new InnCall(InnCallKind.LastCall, Dish: l.Dish, Table: l.Table, Matches: l.Matches)));
         return [.. calls.OrderBy(c => c.Order.Group).ThenBy(c => c.Order.Number)];
     }
+
+    /// <summary>A swap shown as its order once nothing is left to take out (the replay's trace: "Swap:… now a plain order: Queue:…").</summary>
+    public const string NowPlain = "now a plain order:";
 
     /// <summary>Why a dish to cook ahead gave way: the kitchen named after it shows the same dish ("dropped: …", the replay's trace).</summary>
     public const string DishShown = "its dish is shown in kitchen";

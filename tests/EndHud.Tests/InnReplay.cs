@@ -602,7 +602,9 @@ internal sealed class InnReplay
             {
                 // Back in its kitchen after going a moment ago, unless the player queued it (then advised again: the
                 // next of the same dish, new advice).
-                if (gone.Any(g => g.Kitchen == k && g.Call.Key == now.Key && g.At < step.At && !g.Done))
+                // Nor when the player picked its order's dish up and put it elsewhere meanwhile (test_yuanyuan7 208.8-210.6 s: 福寿全
+                // picked up covered table 5's order, then went to a gourmand): the tray read it, two things done.
+                if (gone.Any(g => g.Kitchen == k && g.Call.Key == now.Key && g.At < step.At && !g.Done && !HandMoved(g.At, i, now.Dish?.Id)))
                 {
                     flashes.Add(new Unsteady(step.At, k, $"{now.Key} back", step.Why));
                     continue;
@@ -611,7 +613,9 @@ internal sealed class InnReplay
                 var last = gone.LastOrDefault(g => g.Kitchen == k);
                 bool orderComingUp = last.Call?.Kind == InnCallKind.CookAhead && now.Kind is InnCallKind.Queue or InnCallKind.Swap
                                      && (!ShownElsewhere(now, k, i, window) || gone.Any(g => g.Kitchen != k && g.Justified && g.Call.Dish?.Id == now.Dish?.Id && g.Call.Table == now.Table));
-                if (last.Call is not null && !last.Justified && last.Call.Key != now.Key && !orderComingUp)
+                // The same order in the same kitchen (a swap shown as its order once nothing is left to take out) is no switch.
+                bool sameOrder = last.Call is { Table: not null } && last.Call.Table == now.Table && last.Call.Dish?.Id == now.Dish?.Id;
+                if (last.Call is not null && !last.Justified && last.Call.Key != now.Key && !orderComingUp && !sameOrder)
                     jumps.Add(new Unsteady(step.At, k, $"{last.Call.Key} -> {now.Key}", step.Why));
                 // A dish to cook ahead an order coming up displaced went for that order: it may show in another kitchen.
                 if (orderComingUp) gone[gone.FindLastIndex(g => g.Kitchen == k)] = last with { Justified = true };
@@ -621,6 +625,19 @@ internal sealed class InnReplay
             }
         }
         return (flashes, jumps);
+    }
+
+    /// <summary>
+    /// The tray's count of <paramref name="dish"/> changed between the grace before <paramref name="from"/> and step
+    /// <paramref name="i"/>: the player picked it up or put it down (<see cref="CallStep.Supply"/>, as the tray read it).
+    /// </summary>
+    private bool HandMoved(TimeSpan from, int i, string? dish)
+    {
+        if (dish is null) return false;
+        var since = from - InnCallHold.GraceSeconds - TimeSpan.FromSeconds(0.5);
+        for (int j = i; j > 0 && Steps[j].At >= since; j--)
+            if (Steps[j].Supply.GetValueOrDefault(dish).Hand != Steps[j - 1].Supply.GetValueOrDefault(dish).Hand) return true;
+        return false;
     }
 
     /// <summary>The order <paramref name="call"/> is for was shown in another kitchen within <paramref name="window"/> before step <paramref name="i"/>.</summary>

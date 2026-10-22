@@ -207,7 +207,7 @@ public class DispatchAdvisorTests
     [Fact]
     public void An_order_on_screen_counts_the_other_orders_on_screen_in_their_kitchens()
     {
-        var shown = new[] { new KeptCall(1, Dish("坛子肉"), 3), new KeptCall(2, Dish("白瓜肉丸汤"), 5) };
+        var shown = new[] { new KeptCall(1, Dish("坛子肉"), 3, Remove: null), new KeptCall(2, Dish("白瓜肉丸汤"), 5, Remove: null) };
 
         var advice = Advisor().Advise(State([Queue(1, ("果味沙拉", 20)), Queue(2), Queue(3, ("肉包子", 5))], [Order(3, "坛子肉"), Order(5, "白瓜肉丸汤")]),
             fillEverySlot: false, shown);
@@ -339,7 +339,7 @@ public class DispatchAdvisorTests
     public void An_order_shown_in_a_kitchen_stays_there_while_possible()
     {
         InnState With(double servingLeft) => State([Queue(1), Queue(2, ("果味沙拉", 12))], [Order(1, "坛子肉")], servingLeft: servingLeft);
-        var shownInTwo = new[] { new KeptCall(2, Dish("坛子肉"), 1) };
+        var shownInTwo = new[] { new KeptCall(2, Dish("坛子肉"), 1, Remove: null) };
 
         // Kitchen 2 out 20 s after kitchen 1 (47 s against 27 s): the soonest kitchen for an order not shown, kept in 2.
         Assert.Equal(1, Assert.Single(Sent(Advisor(2).Advise(With(200)))).Kitchen);
@@ -362,7 +362,7 @@ public class DispatchAdvisorTests
     [Fact]
     public void A_dish_to_cook_ahead_shown_in_a_kitchen_stays_while_possible()
     {
-        var shown = new[] { new KeptCall(2, Dish("肉包子"), null) };
+        var shown = new[] { new KeptCall(2, Dish("肉包子"), null, Remove: null) };
         var empty = new[] { Queue(1), Queue(2), Queue(3) };
 
         Assert.NotEqual("肉包子", Advisor().Advise(State(empty)).For(2).Queue[0].Dish.Zh);
@@ -586,6 +586,27 @@ public class DispatchAdvisorTests
             Assert.Empty(advice.For(1).Replaces);
             Assert.Equal((2, soupLeft + 32), Sent(advice).Select(s => (s.Kitchen, s.Advice.ReadyIn)).Single());
         }
+    }
+
+    /// <summary>
+    /// A swap shown stays a swap while the dish it takes out is still there to take out (owner, 2026-10-21: "the
+    /// recommendation should stay steady"). Until then the swap was kept as a plain order in its kitchen, and the next frame's
+    /// advice queued the order behind the dish cooked ahead, losing what the swap was for (test_yuanyuan5: shown as a swap and
+    /// as a plain order 0.3 s apart, five times). Once that dish is gone (cooked out), the order stays there as a plain one.
+    /// </summary>
+    [Fact]
+    public void A_swap_shown_stays_a_swap_while_its_dish_is_there_to_take_out()
+    {
+        var outstanding = new[] { Order(1, "果味沙拉"), Order(2, "白瓜肉丸汤"), Order(3, "“勺里游”") };
+        var shown = new[] { new KeptCall(1, Dish("“勺里游”"), 3, Remove: Dish("坛子肉")) };
+
+        var kept = Advisor(2).Advise(State([Queue(1, ("果味沙拉", 20), ("坛子肉", 27)), Queue(2, ("白瓜肉丸汤", 30))], outstanding), fillEverySlot: false, shown);
+        Assert.Equal(new ReplaceAdvice(1, 1, Dish("坛子肉"), Dish("“勺里游”"), 3, 47, 62), Assert.Single(kept.For(1).Replaces));
+        Assert.DoesNotContain(Sent(kept), s => s.Advice.Table == 3);
+
+        var cookedOut = Advisor(2).Advise(State([Queue(1, ("果味沙拉", 20)), Queue(2, ("白瓜肉丸汤", 30))], outstanding), fillEverySlot: false, shown);
+        Assert.Empty(cookedOut.For(1).Replaces);
+        Assert.Equal(1, Assert.Single(Sent(cookedOut), s => s.Advice.Table == 3).Kitchen);
     }
 
     /// <summary>

@@ -84,7 +84,8 @@ public sealed record ReplaceAdvice(int Kitchen, int Slot, Dish Remove, Dish Put,
 /// A dish the player has been told to queue next in a kitchen (a call on screen): for <paramref name="Table"/>'s order,
 /// or to cook ahead when null. The advice keeps it there while it's still possible (<see cref="DispatchAdvisor.Advise(InnState, bool, IReadOnlyList{KeptCall})"/>).
 /// </summary>
-public sealed record KeptCall(int Kitchen, Dish Dish, int? Table);
+/// <param name="Remove">For a swap shown, the dish it takes out (kept as a swap while that dish is there to take out); null otherwise. No default: a caller says which.</param>
+public sealed record KeptCall(int Kitchen, Dish Dish, int? Table, Dish? Remove);
 
 /// <summary>What to do in one kitchen: dishes to queue, in order, and any swap.</summary>
 public sealed record KitchenAdvice(int Kitchen, IReadOnlyList<QueueAdvice> Queue, IReadOnlyList<ReplaceAdvice> Replaces);

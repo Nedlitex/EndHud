@@ -351,7 +351,7 @@ public class InnSimulatorTests(ITestOutputHelper output)
         return inn =>
         {
             var advice = advisor.Advise(inn.State, fillEverySlot: inn.Now < 1, shown);
-            shown = [.. advice.Kitchens.Where(k => k.Queue.Count > 0).Select(k => new KeptCall(k.Kitchen, k.Queue[0].Dish, k.Queue[0].Table))];
+            shown = [.. advice.Kitchens.Where(k => k.Queue.Count > 0).Select(k => new KeptCall(k.Kitchen, k.Queue[0].Dish, k.Queue[0].Table, Remove: null))];
             if (actedAt is { } last && inn.Now - last < actEvery) return [];
             actedAt = inn.Now;
             shown = [];
