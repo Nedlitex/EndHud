@@ -158,6 +158,9 @@
     <sys:String x:Key="Editor.PhaseShownHint">本场战斗中这个轴段出现在排轴条上的次数（出现一次算一次），离开战斗后清零。</sys:String>
     <sys:String x:Key="Editor.Times">{0} 次</sys:String>
     <sys:String x:Key="Editor.PhaseMissing">（已删除的轴段）</sys:String>
+    <sys:String x:Key="Editor.StacksAtLeast">至少 {0} 层</sys:String>
+    <sys:String x:Key="Editor.LevelAtLeast">至少 {0} 级</sys:String>
+    <sys:String x:Key="Editor.StacksNotRead">这个状态的层数暂时无法识别，只判断有没有。</sys:String>
     <sys:String x:Key="Rotation.Problem.PhaseShownOwnGate">轴段“{0}”的进入条件用了它自己的显示次数：它一出现，次数就变了，条件也跟着变。请改用其他轴段的次数。</sys:String>
     <sys:String x:Key="Rotation.Problem.PhaseShownMissingPhase">轴段“{0}”的条件引用了一个已删除的轴段，请重新选择轴段或删除这个条件。</sys:String>
     <sys:String x:Key="Editor.CopyPhase">复制轴段</sys:String>

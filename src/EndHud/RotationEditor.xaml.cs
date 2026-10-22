@@ -4,6 +4,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
+using EndHud.Vision;
 using EndHud.Vision.Operators;
 using EndHud.Vision.Rotations;
 using Microsoft.Win32;
@@ -538,6 +539,8 @@ public partial class RotationEditor : Window
         Func<StateCondition> read;
         // A grey line under the row, for conditions that need a word of explanation.
         string? hint = null;
+        // Picking a value changes which pickers the row has (a counter's range, a status's count).
+        bool rebuildOnPick = false;
         switch (condition)
         {
             case AllCondition or AnyCondition:
@@ -686,8 +689,34 @@ public partial class RotationEditor : Window
                 var status = Picker(statuses, s => s.NameZh, statuses.FirstOrDefault(s => s.Id == c.StatusId) ?? statuses[0]);
                 row.Children.Add(present);
                 row.Children.Add(status);
-                // Stack badges aren't read yet, so stacks aren't offered; an imported value is kept as it is.
-                read = () => new BossStatusCondition(((StatusInfo)Picked(status)).Id, (bool)Picked(present), c.MinStacks);
+                string shownId = ((StatusInfo)Picked(status)).Id;
+                if (BossStatusReader.CountsRead.Contains(shownId))
+                {
+                    // Inflictions' stacks (1-4) or a reaction's level (I-IV); a file's value off the list is kept.
+                    bool reaction = ReactionLevel.Measured.Contains(shownId);
+                    string[] roman = ["I", "II", "III", "IV"];
+                    var stacks = Picker(Enumerable.Range(1, 4).ToList(),
+                        n => reaction && n is >= 1 and <= 4 ? Loc.Format("Editor.LevelAtLeast", roman[n - 1]) : Loc.Format("Editor.StacksAtLeast", n),
+                        Math.Max(1, c.MinStacks));
+                    row.Children.Add(stacks);
+                    read = () =>
+                    {
+                        string id = ((StatusInfo)Picked(status)).Id;
+                        return new BossStatusCondition(id, (bool)Picked(present), BossStatusReader.CountsRead.Contains(id) ? (int)Picked(stacks) : 1);
+                    };
+                }
+                else
+                {
+                    // Its count isn't read: only "has it" is checked. A count the file had for this very status is
+                    // kept as it is; another status's count isn't carried over when the player switches.
+                    hint = Loc.Get("Editor.StacksNotRead");
+                    read = () =>
+                    {
+                        string id = ((StatusInfo)Picked(status)).Id;
+                        return new BossStatusCondition(id, (bool)Picked(present), id == c.StatusId ? c.MinStacks : 1);
+                    };
+                }
+                rebuildOnPick = true; // the count picker follows the status
                 break;
             }
             case ControllingCondition c:
@@ -754,7 +783,7 @@ public partial class RotationEditor : Window
             picker.SelectionChanged += (_, _) =>
             {
                 list[index] = Wrap(read());
-                changed(read() is CounterCondition); // the value range follows the counter
+                changed(rebuildOnPick || read() is CounterCondition); // the value range follows the counter
             };
         }
         return result;
