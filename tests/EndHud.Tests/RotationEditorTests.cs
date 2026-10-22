@@ -417,6 +417,101 @@ public sealed class RotationEditorTests : IDisposable
         Assert.Equal("37%", items[37].Text);
     }
 
+    /// <summary>A new entry condition on Burst, switched to "enemy status" and to this status; returns its row's pickers.</summary>
+    private static List<ComboBox> StatusGate(RotationEditor editor, string statusId)
+    {
+        ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;
+        Click(editor, "AddGateButton");
+        var gate = (StackPanel)editor.FindName("GateRows");
+        Pick(((Panel)gate.Children[0]).Children.OfType<ComboBox>().First(), "BossStatus");
+        var status = RowOf(gate.Children[0]).Children.OfType<ComboBox>().ToList()[2];   // kind, has, status
+        status.SelectedItem = status.Items.Cast<ComboBoxItem>().Single(i => ((StatusInfo)i.Tag).Id == statusId);
+        return RowOf(gate.Children[0]).Children.OfType<ComboBox>().ToList();
+    }
+
+    /// <summary>The owner's example (2026-10-22): "the enemy has Cryo Infliction at 3 or more stacks", picked from lists.</summary>
+    [Fact]
+    public void A_cryo_at_least_three_stacks_gate_is_built_with_the_pickers()
+    {
+        var library = TwoPhases();
+
+        string said = "";
+        List<(string Text, object Value)> offered = [];
+        OnEditor(library, _ => { }, editor =>
+        {
+            var pickers = StatusGate(editor, "Cryo Infliction");
+            Assert.Equal(4, pickers.Count);                                            // kind, has, status, stacks
+            offered = pickers[3].Items.Cast<ComboBoxItem>().Select(i => ((string)i.Content, i.Tag)).ToList();
+            Pick(pickers[3], 3);
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        });
+
+        Assert.Equal([1, 2, 3, 4], offered.Select(o => (int)o.Value));
+        Assert.All(offered, o => Assert.Equal("Editor.StacksAtLeast", o.Text)); // outside the app Loc gives keys
+        var saved = Assert.Single(library.Own.Load().Rotations);
+        Assert.True(saved.Phases[1].When.Count == 1, $"editor said: {said}");
+        Assert.Equal(new BossStatusCondition("Cryo Infliction", true, 3), saved.Phases[1].When[0]);
+        Assert.True(Translated("Editor.StacksAtLeast"));
+        Assert.True(Translated("Editor.LevelAtLeast"));
+    }
+
+    /// <summary>A reaction's count is its level (I-IV), worded as a level.</summary>
+    [Fact]
+    public void A_reaction_offers_its_level()
+    {
+        var library = TwoPhases();
+
+        List<string> offered = [];
+        OnEditor(library, _ => { }, editor =>
+            offered = StatusGate(editor, "Corrosion")[3].Items.Cast<ComboBoxItem>().Select(i => (string)i.Content).ToList());
+
+        Assert.Equal(Enumerable.Repeat("Editor.LevelAtLeast", 4), offered);
+    }
+
+    /// <summary>Vulnerable's stacks aren't read: no count picker, and a grey line says only "has it" is checked.</summary>
+    [Fact]
+    public void Vulnerable_offers_no_count()
+    {
+        var library = TwoPhases();
+
+        int pickers = 0;
+        bool line = false;
+        OnEditor(library, _ => { }, editor =>
+        {
+            pickers = StatusGate(editor, "Vulnerable").Count;
+            var gate = (StackPanel)editor.FindName("GateRows");
+            line = gate.Children[0] is StackPanel { Children: [_, TextBlock { Text: "Editor.StacksNotRead" }] };
+        });
+
+        Assert.Equal(3, pickers); // kind, has, status
+        Assert.True(line);
+    }
+
+    /// <summary>Switching from a counted status to one without a count drops the count picker (the row is rebuilt).</summary>
+    [Fact]
+    public void Switching_to_a_status_without_a_count_drops_the_count()
+    {
+        var library = TwoPhases(new BossStatusCondition("Cryo Infliction", true, 3));
+
+        string said = "";
+        int after = 0;
+        OnEditor(library, _ => { }, editor =>
+        {
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;
+            var gate = (StackPanel)editor.FindName("GateRows");
+            var status = RowOf(gate.Children[0]).Children.OfType<ComboBox>().ToList()[2];
+            status.SelectedItem = status.Items.Cast<ComboBoxItem>().Single(i => ((StatusInfo)i.Tag).Id == "Vulnerable");
+            after = RowOf(gate.Children[0]).Children.OfType<ComboBox>().Count();
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        });
+
+        Assert.Equal(3, after);
+        var saved = Assert.Single(library.Own.Load().Rotations);
+        Assert.Equal(new BossStatusCondition("Vulnerable", true), Assert.Single(saved.Phases[1].When));
+    }
+
     private static void Click(Window window, string name) =>
         ((Button)window.FindName(name)).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
 
@@ -431,6 +526,11 @@ public sealed class RotationEditorTests : IDisposable
         Directory.CreateDirectory(Path.Combine(reference, "icons"));
         byte[] pixel = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
         foreach (string id in squad) File.WriteAllBytes(Path.Combine(reference, "icons", id + ".png"), pixel);
+        // Three statuses: an infliction (stacks read), a reaction (level read), and one whose count isn't read.
+        string[] statuses = ["Cryo Infliction", "Corrosion", "Vulnerable"];
+        Directory.CreateDirectory(Path.Combine(reference, "statuses"));
+        File.WriteAllText(Path.Combine(reference, "statuses.json"), System.Text.Json.JsonSerializer.Serialize(statuses.Select(id => new StatusInfo(id, id + ".png"))));
+        foreach (string id in statuses) File.WriteAllBytes(Path.Combine(reference, "statuses", id + ".png"), pixel);
         // Decoded here, not on the editor's thread (the image decoder fails on it).
         var operators = OperatorLibrary.LoadAsync(Path.Combine(_folder, "user"), reference).GetAwaiter().GetResult();
         Exception? failure = null;
