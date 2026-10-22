@@ -210,6 +210,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     private readonly Dictionary<int, TimeSpan> _gourmandOrdered = [];
     private readonly TableState?[] _gourmandCard = new TableState?[TableCardReader.Tables]; // each table's last card read, fades aside
     private readonly TimeSpan?[] _gourmandCardEmptySince = new TimeSpan?[TableCardReader.Tables];
+    private readonly TableState?[] _gourmandCardRead = new TableState?[TableCardReader.Tables]; // the last reading of each card, fades aside
     // Each gourmand table's requests (by place, as the card's pips stand) read resolved, and readings in a row of each pip resolved.
     private readonly Dictionary<int, HashSet<int>> _pipsResolved = [];
     private readonly int[,] _pipReads = new int[TableCardReader.Tables, 2];
@@ -504,6 +505,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         _gourmandOrdered.Clear();
         Array.Clear(_gourmandCard);
         Array.Clear(_gourmandCardEmptySince);
+        Array.Clear(_gourmandCardRead);
         _pipsResolved.Clear();
         Array.Clear(_pipReads);
         _blaze.Update(TimeSpan.Zero, null, null, inSession: false);
@@ -823,6 +825,11 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             }
             _gourmandCardEmptySince[i] = null;
             var before = _gourmandCard[i];
+            var last = _gourmandCardRead[i];
+            _gourmandCardRead[i] = card.State;
+            // Into an order at once (the words show that moment); any other change once two readings in a row agree, so one
+            // card misread never ends a gourmand's order.
+            if (card.State != before && card.State != TableState.GourmandOrder && card.State != last) continue;
             _gourmandCard[i] = card.State;
             if (card.State != TableState.GourmandOrder)
             {

@@ -104,6 +104,23 @@ public class InnFeastGourmandTests
         Assert.Equal(Texts(10, 1, 3), Shown(session, 30, 2));
     }
 
+    /// <summary>
+    /// A card misread once (another state for one reading) between readings of the order: the gourmand still ordered, their
+    /// words kept, not taken for a new gourmand's order.
+    /// </summary>
+    [Fact]
+    public void A_card_misread_once_keeps_the_gourmands_words()
+    {
+        var session = Prepared();
+        session.Update(Session(9, tables: Tables(Gourmand(3, TableState.GourmandArrived))));
+        session.Update(Session(10, tables: Tables(Gourmand(3, TableState.GourmandOrder)), bubble: Says(9, [1, 3])));
+        session.Update(Session(15, tables: Tables(Gourmand(3, TableState.GourmandArrived))));
+        session.Update(Session(15.3, tables: Tables(Gourmand(3, TableState.GourmandOrder))));
+        session.Update(Session(15.6, tables: Tables(Gourmand(3, TableState.GourmandOrder))));
+
+        Assert.Equal(Texts(9, 1, 3), Shown(session, 15.6, 3));
+    }
+
     /// <summary>Two bubbles on one frame (test_yuanyuan8 359.5 s, tables 4 and 6): each to its own table.</summary>
     [Fact]
     public void Two_bubbles_on_a_frame_each_go_to_their_own_table()
