@@ -52,6 +52,72 @@ public class ReactionLevelTests
         else Assert.Equal(label.Level, level);
     }
 
+    private static async Task<(Frame Frame, PixelRect Square)> LoadAsync(string file, int position)
+    {
+        var frame = await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("reactions", file)));
+        var ui = new UiScaler(frame.Width, frame.Height);
+        return (frame, ui.TopCenter(BossStatusReader.FirstSquare.Offset(position * BossStatusReader.Pitch, 0)));
+    }
+
+    /// <summary>Applies <paramref name="change"/> to each pixel of <paramref name="area"/> (all of it when null).</summary>
+    private static Frame Repaint(Frame frame, PixelRect? area, Func<(byte R, byte G, byte B), (byte R, byte G, byte B)> change)
+    {
+        var bgra = (byte[])frame.Bgra.Clone();
+        var a = area ?? new PixelRect(0, 0, frame.Width, frame.Height);
+        for (int y = a.Y; y < a.Bottom; y++)
+        for (int x = a.X; x < a.Right; x++)
+        {
+            int i = (y * frame.Width + x) * 4;
+            var (r, g, b) = change((bgra[i + 2], bgra[i + 1], bgra[i]));
+            (bgra[i + 2], bgra[i + 1], bgra[i]) = (r, g, b);
+        }
+        return new Frame(frame.Width, frame.Height, bgra);
+    }
+
+    /// <summary>The badge's box (<see cref="ReactionLevel.BadgeFrom"/>..<see cref="ReactionLevel.BadgeTo"/>).</summary>
+    private static PixelRect BadgeBox(PixelRect square)
+    {
+        int x0 = square.X + (int)Math.Round(square.Width * ReactionLevel.BadgeFrom), y0 = square.Y + (int)Math.Round(square.Height * ReactionLevel.BadgeFrom);
+        return new PixelRect(x0, y0, square.X + (int)Math.Round(square.Width * ReactionLevel.BadgeTo) - x0, square.Y + (int)Math.Round(square.Height * ReactionLevel.BadgeTo) - y0);
+    }
+
+    /// <summary>A badge whose numeral can't be seen (here: its ink painted over in the badge's dark) is a badge, not I.</summary>
+    [Fact]
+    public async Task A_badge_whose_numeral_is_hidden_is_unknown_not_level_one()
+    {
+        var (frame, square) = await LoadAsync("corrosion-III-84s.jpg", 1);
+        Assert.Equal(3, ReactionLevel.ReadLevel(frame, square));
+
+        var hidden = Repaint(frame, BadgeBox(square), p => p.G > 110 && p.G > p.B + 40 ? ((byte)40, (byte)40, (byte)42) : p);
+
+        Assert.Equal(0, ReactionLevel.Measure(hidden, square).Height);
+        Assert.Null(ReactionLevel.ReadLevel(hidden, square));
+    }
+
+    /// <summary>In a dark scene a badge would be dark on dark: an icon with no badge there is unknown, not I.</summary>
+    [Fact]
+    public async Task An_icon_without_a_badge_in_a_dark_scene_is_unknown()
+    {
+        var (frame, square) = await LoadAsync("other-typhoeus-30s.jpg", 1);
+        Assert.Equal(1, ReactionLevel.ReadLevel(frame, square));
+
+        var dark = Repaint(frame, null, p => ((byte)(p.R / 5), (byte)(p.G / 5), (byte)(p.B / 5)));
+
+        Assert.Null(ReactionLevel.ReadLevel(dark, square));
+    }
+
+    /// <summary>A bright effect over the badge's corner (a flash, a slash) hides the badge: unknown, not I.</summary>
+    [Fact]
+    public async Task A_badge_covered_by_a_bright_effect_is_unknown_not_level_one()
+    {
+        var (frame, square) = await LoadAsync("electrification-II-36s.jpg", 0);
+        Assert.Equal(2, ReactionLevel.ReadLevel(frame, square));
+
+        var flash = Repaint(frame, BadgeBox(square), p => ((byte)(p.R / 4 + 190), (byte)(p.G / 4 + 190), (byte)(p.B / 4 + 190)));
+
+        Assert.Null(ReactionLevel.ReadLevel(flash, square));
+    }
+
     [Fact]
     public void The_fixtures_have_the_levels_seen_and_other_badges()
     {
