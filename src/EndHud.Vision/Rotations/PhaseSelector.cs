@@ -25,13 +25,24 @@ public sealed class PhaseSelector(Rotation rotation) : IPhaseHistory
     private readonly AllCondition?[] _conditions = rotation.Phases.Select(p => p.Gated ? new AllCondition(p.When) : null).ToArray();
     private readonly int? _otherwise = Array.FindIndex(rotation.Phases.ToArray(), p => !p.Gated) is var i and >= 0 ? i : null;
     private int? _current;
+    private readonly int[] _timesShown = new int[rotation.Phases.Count];
 
     public Rotation Rotation => rotation;
 
-    // STUB for the RED run of PhaseSelectorTests (C3): counts nothing.
-    public int? TimesShown(string phaseId) => rotation.Phases.Any(p => p.Id == phaseId) ? 0 : null;
+    /// <summary>Times the phase has come onto the strip this fight (the one on it now included); null for a phase not in the rotation.</summary>
+    public int? TimesShown(string phaseId)
+    {
+        for (int i = 0; i < rotation.Phases.Count; i++)
+            if (rotation.Phases[i].Id == phaseId) return _timesShown[i];
+        return null;
+    }
 
-    public void EndFight() { }
+    /// <summary>The fight ended: the next one starts with nothing shown and every count at 0.</summary>
+    public void EndFight()
+    {
+        _current = null;
+        Array.Clear(_timesShown);
+    }
 
     /// <summary>Take a reading; where the strip is now (the first step of the phase that applies).</summary>
     public RotationPosition Update(PartyState state)
@@ -59,6 +70,7 @@ public sealed class PhaseSelector(Rotation rotation) : IPhaseHistory
         if (holding is not null) _current = holding;
         else if (!unknown && _otherwise is { } otherwise) _current = otherwise;
         _current ??= _otherwise ?? 0;
+        if (_current != before) _timesShown[_current.Value]++; // it came onto the strip
         return new RotationPosition(_played.First(p => p.PhaseIndex == _current), true, []);
     }
 }

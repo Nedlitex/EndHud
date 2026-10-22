@@ -354,6 +354,48 @@ public sealed class RotationFormatTests : IDisposable
         Assert.Equal(4, Rotation.CurrentFormat);
     }
 
+    [Fact]
+    public void A_nested_phase_shown_condition_needs_format_4_and_round_trips()
+    {
+        var guide = Guide();
+        var shown = new AllCondition([new NotCondition(new PhaseShownCondition("charge", Comparison.AtLeast, 1))]);
+        var rotation = guide with { Format = 4, Phases = [guide.Phases[0], guide.Phases[1], guide.Phases[2] with { When = [shown] }] };
+
+        Assert.Equal(4, Rotation.FormatNeeded(rotation.Phases, lastMatchWins: false));
+        var back = RotationFormat.FromJson(RotationFormat.ToJson(rotation));
+        Assert.Equal(shown, Assert.Single(back.Phases[2].When));
+        Assert.Contains("\"kind\": \"phaseShown\"", RotationFormat.ToJson(rotation));
+        Assert.Empty(back.Problems());
+    }
+
+    /// <summary>
+    /// A phase gated on its own count would flip the moment it shows (it's counted on arrival), and
+    /// a count of a deleted phase can never be known: both are pointed out.
+    /// </summary>
+    [Fact]
+    public void A_gate_on_its_own_count_and_a_count_of_a_missing_phase_are_problems()
+    {
+        var guide = Guide();
+        var rotation = guide with
+        {
+            Phases =
+            [
+                guide.Phases[0],
+                guide.Phases[1] with { Steps = [guide.Phases[1].Steps[0] with { Expect = [new PhaseShownCondition("gone", Comparison.AtLeast, 1)] }] },
+                guide.Phases[2] with { When = [new AnyCondition([new PhaseShownCondition("burst", Comparison.AtLeast, 1), new UltimateCondition("Laevatain", true)])] },
+            ],
+        };
+
+        var problems = rotation.Problems();
+
+        Assert.Contains(new RotationProblem(RotationProblemKind.PhaseShownOwnGate, "爆发轴"), problems);
+        Assert.Contains(new RotationProblem(RotationProblemKind.PhaseShownMissingPhase, "充能轴", 1), problems);
+        Assert.Equal(2, problems.Count);
+        // A step may count its own phase (only an entry condition flips on it).
+        var own = guide with { Phases = [guide.Phases[0] with { Steps = [guide.Phases[0].Steps[0] with { Expect = [new PhaseShownCondition("charge", Comparison.AtLeast, 2)] }] }] };
+        Assert.Empty(own.Problems());
+    }
+
     /// <summary>A build that reads up to format 3 refuses a format 4 file as "newer" (simulated one format up, as this build reads 4).</summary>
     [Fact]
     public void Format_4_file_is_refused_by_a_build_reading_3()
