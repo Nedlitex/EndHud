@@ -177,8 +177,10 @@ internal sealed class InnReplay
             callNoCard.Take(d.At, step, d.PanelKitchen is { } k2 && d.Calls.ContainsKey(k2) && !d.CardMark);
             hidden.Take(d.At, step, d.Away && d.Gourmands.Count > 0);
             aheadHidden.Take(d.At, step, !d.CircleDrawn && d.Calls.Values.Any(c => c.Kind == InnCallKind.CookAhead));
-            // (A call done on that very frame, its dish read queued as the tab opened, has nothing left to mark.)
-            if (before is { PanelKitchen: { } was } && d.PanelKitchen is { } now && now != was && before.Tabs.Contains(now) && d.Calls.ContainsKey(now))
+            // A call done on that very frame (its dish read queued as the tab opened) has nothing left to mark; a call that
+            // went for anything else (the panel's queue read otherwise than the estimate had it) left a tab promising a mark.
+            if (before is { PanelKitchen: { } was } && d.PanelKitchen is { } now && now != was && before.Tabs.Contains(now)
+                && (d.Calls.ContainsKey(now) || !DoneAt(d.At, before.Calls.GetValueOrDefault(now))))
             {
                 bool marked = false;
                 for (int j = i; j < Draws.Count && Draws[j].At - d.At <= TimeSpan.FromSeconds(1) && Draws[j].PanelKitchen == now; j++)
@@ -188,6 +190,10 @@ internal sealed class InnReplay
         }
         return (tabNoCircle, callNoCard, switchNoCard, hidden, aheadHidden);
     }
+
+    /// <summary>The call went as done (its dish queued) at <paramref name="at"/>.</summary>
+    private bool DoneAt(TimeSpan at, InnCall? call) =>
+        call is not null && Steps.Any(s => s.At == at && s.Why.Contains($"{call.Key} dropped: done", StringComparison.Ordinal));
 
     /// <summary>Runs of a condition over the draws: how many began, their seconds in all, and when each began.</summary>
     internal sealed class Episodes

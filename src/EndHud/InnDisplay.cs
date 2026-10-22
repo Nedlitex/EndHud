@@ -113,7 +113,7 @@ internal sealed class InnDisplay
             // The banners: every call, put away in place over the open dispatch panel, where its marks take over.
             advice.Calls,
             // The marks only while the panel is on screen: gone the moment a frame reads it closed.
-            callsEnabled ? InnPanelMarks.Of(advice.MarkedPanel, advice.Calls, text) : [],
+            callsEnabled ? InnPanelMarks.Of(advice.MarkedPanel, advice.Calls, advice.Cards, text) : [],
             // What each gourmand wants, while their order is open, held steady; put away in place over the open panel too.
             wants)
         {

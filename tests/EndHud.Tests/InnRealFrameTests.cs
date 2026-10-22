@@ -62,7 +62,7 @@ public class InnRealFrameTests(Xunit.Abstractions.ITestOutputHelper output)
 
         Assert.Empty(advice.BannerCalls);
         var call = advice.Calls.Single(c => c.Kitchen == 2);
-        var marks = InnPanelMarks.Of(advice.Panel, advice.Calls, Text);
+        var marks = InnPanelMarks.Of(advice.Panel, advice.Calls, advice.Cards, Text);
         var card = panel.Dishes.Single(d => d.DishId == call.Dish!.Id).Card;
         output.WriteLine($"kitchen 2: {call.Kind} {call.Dish!.Id} on card {card}");
         Assert.Contains(marks, m => m.OnCard && m.Area == DispatchPanelReader.CardArea(card));

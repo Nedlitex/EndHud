@@ -21,12 +21,15 @@ public class InnPanelMarksTests
         [.. Cards.Select((id, i) => new KitchenDish(unread.Contains(i) ? null : id, Dish(id).Zh, Dish(id).CookSeconds) { Card = i })],
         [.. Enumerable.Repeat(new QueueSlot(false, null, null), KitchenQueue.Slots)]);
 
+    /// <summary>The cards the panel's dishes were read on (as the session remembers them).</summary>
+    private static readonly IReadOnlyDictionary<string, int> Known = Cards.Select((id, i) => (id, i)).ToDictionary(c => c.id, c => c.i);
+
     [Fact]
     public void The_dish_called_for_the_kitchen_shown_is_marked_on_its_card()
     {
         var calls = new[] { new InnCall(InnCallKind.Queue, 2, Dish("berry-sweet-sip"), 4) };
 
-        var mark = Assert.Single(InnPanelMarks.Of(KitchenTwo(), calls, Text));
+        var mark = Assert.Single(InnPanelMarks.Of(KitchenTwo(), calls, Known, Text));
 
         Assert.True(mark.OnCard);
         Assert.Equal(DispatchPanelReader.CardArea(2), mark.Area);
@@ -36,9 +39,9 @@ public class InnPanelMarksTests
     [Fact]
     public void A_dish_to_cook_ahead_and_a_swap_say_so()
     {
-        Assert.Equal("预做这个", Assert.Single(InnPanelMarks.Of(KitchenTwo(), [new InnCall(InnCallKind.CookAhead, 2, Dish("roll-of-fin-supreme"))], Text)).Label);
+        Assert.Equal("预做这个", Assert.Single(InnPanelMarks.Of(KitchenTwo(), [new InnCall(InnCallKind.CookAhead, 2, Dish("roll-of-fin-supreme"))], Known, Text)).Label);
         var swap = new InnCall(InnCallKind.Swap, 2, Dish("fin-mato-soup"), 3, Remove: Dish("spoon-swimmer"));
-        Assert.Equal($"先拿掉{Dish("spoon-swimmer").Zh}，再排这个", Assert.Single(InnPanelMarks.Of(KitchenTwo(), [swap], Text)).Label);
+        Assert.Equal($"先拿掉{Dish("spoon-swimmer").Zh}，再排这个", Assert.Single(InnPanelMarks.Of(KitchenTwo(), [swap], Known, Text)).Label);
     }
 
     /// <summary>"Only when that card is identified on screen; nothing when unsure."</summary>
@@ -47,9 +50,9 @@ public class InnPanelMarksTests
     {
         var calls = new[] { new InnCall(InnCallKind.Queue, 2, Dish("berry-sweet-sip"), 4) };
 
-        Assert.Empty(InnPanelMarks.Of(KitchenTwo(unread: 2), calls, Text));
-        Assert.Empty(InnPanelMarks.Of(KitchenTwo(), [new InnCall(InnCallKind.Queue, 2, Dish("meat-baozi"), 4)], Text)); // not on the panel
-        Assert.Empty(InnPanelMarks.Of(null, calls, Text));
+        Assert.Empty(InnPanelMarks.Of(KitchenTwo(unread: 2), calls, Known, Text));
+        Assert.Empty(InnPanelMarks.Of(KitchenTwo(), [new InnCall(InnCallKind.Queue, 2, Dish("meat-baozi"), 4)], Known, Text)); // not on the panel
+        Assert.Empty(InnPanelMarks.Of(null, calls, Known, Text));
     }
 
     [Fact]
@@ -57,11 +60,55 @@ public class InnPanelMarksTests
     {
         var calls = new[] { new InnCall(InnCallKind.Queue, 1, Dish("berry-sweet-sip"), 4), new InnCall(InnCallKind.BlazeNow) };
 
-        var mark = Assert.Single(InnPanelMarks.Of(KitchenTwo(), calls, Text));
+        var mark = Assert.Single(InnPanelMarks.Of(KitchenTwo(), calls, Known, Text));
 
         Assert.False(mark.OnCard);
         Assert.Equal(DispatchPanelReader.TabArea(1), mark.Area);
         Assert.Equal("有菜要排", mark.Label);
+    }
+
+    /// <summary>
+    /// Owner, 2026-10-21 (test_yuanyuan6): "the kitchen shows 有菜要排, but when we go to the kitchen, there is no
+    /// recommendation". A tab is marked only when its call's dish has a card known (so the tab opens on a marked card); a
+    /// call whose card isn't known shows as its kitchen's circle below the panel, never as a tab promising a mark.
+    /// </summary>
+    [Fact]
+    public void A_tab_is_marked_only_when_its_dishs_card_is_known()
+    {
+        var calls = new[] { new InnCall(InnCallKind.Queue, 1, Dish("berry-sweet-sip"), 4) };
+        var none = new Dictionary<string, int>();
+
+        Assert.Single(InnPanelMarks.Of(KitchenTwo(), calls, none, Text), m => !m.OnCard); // read on this panel
+        Assert.Empty(InnPanelMarks.Of(KitchenTwo(unread: 2), calls, none, Text)); // not read, not remembered
+        Assert.Single(InnPanelMarks.Of(KitchenTwo(unread: 2), calls, Known, Text), m => !m.OnCard); // remembered
+    }
+
+    /// <summary>
+    /// A dish's card is the same in every kitchen (measured: on all four recorded sessions every dish was read on one card in
+    /// all three kitchens), so a kitchen opened for the first time is marked on its first frame even when that frame read no
+    /// card (as it draws): the card kitchen 1 was read with stands. Until 2026-10-21 cards were remembered per kitchen, and
+    /// the tab marked 有菜要排 opened on no mark until that kitchen's cards were read.
+    /// </summary>
+    [Fact]
+    public void A_kitchen_opened_for_the_first_time_is_marked_from_the_cards_read_in_another()
+    {
+        var session = NewSession();
+        session.Update(SetupScreen(0, 1, 2, 3));
+        session.Update(MenuScreen(1, Cards));
+        session.Update(Session(10));
+        session.Advice(S(10));
+        DispatchPanel KitchenOf(int kitchen, bool read) => KitchenTwo(read ? [] : [0, 1, 2, 3, 4, 5]) with { Kitchen = kitchen };
+        session.Update(Session(10.3, panel: KitchenOf(1, read: true)));
+        session.Update(Session(10.6, panel: KitchenOf(1, read: true)));
+        var one = session.Advice(S(10.6))!;
+        var call = one.Calls.Single(c => c.Kitchen == 2);
+        Assert.Contains(InnPanelMarks.Of(one.MarkedPanel, one.Calls, one.Cards, Text), m => !m.OnCard && m.Area == DispatchPanelReader.TabArea(2));
+
+        // The player opens kitchen 2's tab: its first frame reads no card.
+        session.Update(Session(10.9, panel: KitchenOf(2, read: false)));
+        var two = session.Advice(S(10.9))!;
+        var mark = Assert.Single(InnPanelMarks.Of(two.MarkedPanel, two.Calls, two.Cards, Text), m => m.OnCard);
+        Assert.Equal(DispatchPanelReader.CardArea(Array.IndexOf(Cards, call.Dish!.Id)), mark.Area);
     }
 
     /// <summary>A mark is drawn on its card's place in the window: the card measured on the 4K frames, at every size.</summary>
@@ -71,7 +118,7 @@ public class InnPanelMarksTests
     [InlineData(3840, 2160)]
     public void A_cards_mark_is_placed_on_the_card(int width, int height)
     {
-        var mark = Assert.Single(InnPanelMarks.Of(KitchenTwo(), [new InnCall(InnCallKind.CookAhead, 2, Dish("roll-of-fin-supreme"))], Text));
+        var mark = Assert.Single(InnPanelMarks.Of(KitchenTwo(), [new InnCall(InnCallKind.CookAhead, 2, Dish("roll-of-fin-supreme"))], Known, Text));
 
         var place = InnPanelMarks.Place(mark.Area, width, height);
 
@@ -102,7 +149,7 @@ public class InnPanelMarksTests
         var open = session.Advice(S(11))!;
         Assert.Empty(open.BannerCalls);
         Assert.NotEmpty(open.Calls);
-        var marks = InnPanelMarks.Of(open.Panel, open.Calls, Text);
+        var marks = InnPanelMarks.Of(open.Panel, open.Calls, open.Cards, Text);
         var call = open.Calls.Single(c => c.Kitchen == 2);
         Assert.Contains(marks, m => m.OnCard && m.Area == DispatchPanelReader.CardArea(Array.IndexOf(Cards, call.Dish!.Id)));
         Assert.Equal(2, marks.Count(m => !m.OnCard)); // kitchens 1 and 3

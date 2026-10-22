@@ -26,14 +26,17 @@ internal sealed record InnPanelMark(PixelRect Area, string Label, bool OnCard)
 /// ahead" or "take out X, then queue this" (i18n Inn.Mark.Queue, CookAhead, Swap): only when that card was read as that
 /// dish (<see cref="KitchenDish.Card"/>); nothing when unsure;</item>
 /// <item>the tab of every other kitchen with a dish called, "a dish to queue" (Inn.Mark.Tab), so the player knows to
-/// switch to it.</item>
+/// switch to it: only when that dish's card is known (<paramref name="cards"/> of <see cref="Of"/>), so the tab opens on a
+/// marked card (owner, 2026-10-21, test_yuanyuan6: "the kitchen shows 有菜要排, but when we go to the kitchen, there is no
+/// recommendation"). A call whose card isn't known still shows as its kitchen's circle, below the panel.</item>
 /// </list>
 /// Full Blaze and the last call aren't marked: they wait for the panel to close. Every string from i18n/zh-CN.xaml.
 /// </summary>
 internal static class InnPanelMarks
 {
+    /// <param name="cards">The card each dish was read on this session (<see cref="InnAdvice.Cards"/>, the same in every kitchen).</param>
     /// <param name="text">The i18n lookup (<see cref="Loc.Get"/>; the tests pass zh-CN.xaml's strings).</param>
-    public static IReadOnlyList<InnPanelMark> Of(DispatchPanel? panel, IReadOnlyList<InnCall> calls, Func<string, string> text)
+    public static IReadOnlyList<InnPanelMark> Of(DispatchPanel? panel, IReadOnlyList<InnCall> calls, IReadOnlyDictionary<string, int> cards, Func<string, string> text)
     {
         if (panel is null) return [];
         var marks = new List<InnPanelMark>();
@@ -50,7 +53,8 @@ internal static class InnPanelMarks
             };
             marks.Add(new InnPanelMark(DispatchPanelReader.CardArea(card.Card), label, OnCard: true));
         }
-        foreach (int kitchen in kitchenCalls.Select(c => c.Kitchen!.Value).Where(k => k != panel.Kitchen && k <= panel.Kitchens).Distinct().Order())
+        bool Marked(InnCall c) => cards.ContainsKey(c.Dish!.Id) || panel.Dishes.Any(d => d.DishId == c.Dish.Id && d.Card is >= 0 and < DispatchPanelReader.Cards);
+        foreach (int kitchen in kitchenCalls.Where(Marked).Select(c => c.Kitchen!.Value).Where(k => k != panel.Kitchen && k <= panel.Kitchens).Distinct().Order())
             marks.Add(new InnPanelMark(DispatchPanelReader.TabArea(kitchen), text("Inn.Mark.Tab"), OnCard: false));
         return marks;
     }

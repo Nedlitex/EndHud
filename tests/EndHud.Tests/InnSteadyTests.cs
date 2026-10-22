@@ -173,12 +173,12 @@ public class InnSteadyTests
         var advice = session.Advice(S(10.3))!;
         var call = advice.Calls.Single(c => c.Kitchen == 1);
         int card = Array.IndexOf(Dishes, call.Dish!.Id);
-        var marked = InnPanelMarks.Of(advice.Panel, advice.Calls, Text).Single(m => m.OnCard);
+        var marked = InnPanelMarks.Of(advice.Panel, advice.Calls, advice.Cards, Text).Single(m => m.OnCard);
         Assert.Equal(DispatchPanelReader.CardArea(card), marked.Area);
 
         session.Update(Session(10.6, panel: KitchenOne(unread: card)));
         var missed = session.Advice(S(10.6))!;
-        Assert.Equal(marked, InnPanelMarks.Of(missed.Panel, missed.Calls, Text).Single(m => m.OnCard));
+        Assert.Equal(marked, InnPanelMarks.Of(missed.Panel, missed.Calls, missed.Cards, Text).Single(m => m.OnCard));
     }
 
     // ---- Table cards ----
@@ -233,11 +233,11 @@ public class InnSteadyTests
         var two = KitchenOne() with { Kitchens = 2 };
         session.Update(Session(10, panel: two));
         session.Update(Session(10.3, panel: two));
-        Assert.Contains(InnPanelMarks.Of(session.Advice(S(10.3))!.Panel, session.Advice(S(10.3))!.Calls, Text), m => !m.OnCard);
+        Assert.Contains(InnPanelMarks.Of(session.Advice(S(10.3))!.Panel, session.Advice(S(10.3))!.Calls, session.Advice(S(10.3))!.Cards, Text), m => !m.OnCard);
 
         session.Update(Session(10.6, panel: two with { Kitchens = 1 }));
         var advice = session.Advice(S(10.6))!;
-        Assert.Contains(InnPanelMarks.Of(advice.Panel, advice.Calls, Text), m => !m.OnCard);
+        Assert.Contains(InnPanelMarks.Of(advice.Panel, advice.Calls, advice.Cards, Text), m => !m.OnCard);
     }
 
     /// <summary>

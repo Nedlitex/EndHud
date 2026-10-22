@@ -61,6 +61,12 @@ internal sealed record InnAdvice(DispatchAdvice? Dispatch, InnGap? Gap, FullBlaz
     /// over an open panel covers it, a mark left over a closed one points at nothing.
     /// </summary>
     public DispatchPanel? MarkedPanel { get; init; }
+
+    /// <summary>
+    /// The dispatch panel's card each dish was read on this session (the same in every kitchen): a kitchen's tab is marked
+    /// only when its call's dish has a card known, so opening that tab shows the card's mark (<see cref="InnPanelMarks"/>).
+    /// </summary>
+    public IReadOnlyDictionary<string, int> Cards { get; init; } = new Dictionary<string, int>();
 }
 
 /// <summary>
@@ -157,6 +163,9 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     // queue, so it covers that order until served). Both are an estimate: the counter is never read off the screen.
     private readonly Dictionary<string, int> _spares = [], _outForOrders = [], _cooked = [], _servedBefore = [];
     private readonly HashSet<string> _dishesSeen = [], _drinksSeen = [];
+    // The dispatch panel's card each dish was read on. The same in every kitchen (measured: on all four recorded sessions every
+    // dish was read on one card, in all three kitchens), and the menu doesn't change in a session.
+    private readonly Dictionary<string, int> _cards = [];
     // The dishes in the player's hand (the tray, TakeTray), a tray read otherwise once awaiting a second reading, dishes
     // that left the hand not yet read served on a table, and dishes read served while the tray still showed them.
     private readonly List<string> _carried = [];
@@ -189,9 +198,6 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         public bool ChefsSeen;
         public KitchenQueue Queue = new(number);
         public readonly Dictionary<string, int> PanelCookSeconds = [];
-
-        /// <summary>The dispatch panel's card each dish was read on for this kitchen (the menu doesn't change in a session).</summary>
-        public readonly Dictionary<string, int> Cards = [];
 
         /// <summary>The queue's dishes as the panel last read them for this kitchen (taken or not).</summary>
         public List<string>? LastRead;
@@ -361,6 +367,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         _servedBefore.Clear();
         _dishesSeen.Clear();
         _drinksSeen.Clear();
+        _cards.Clear();
         _carried.Clear();
         _trayChange = null;
         _leftHand.Clear();
@@ -466,13 +473,16 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     /// </summary>
     private bool PanelOnScreen() => _panelOpen is not null && !(_panelSeenClosedAt > _panelReadAt);
 
-    /// <summary>The panel as shown, each dish's card as read on it before when this reading missed it (<see cref="KitchenMemory.Cards"/>).</summary>
+    /// <summary>
+    /// The panel as shown, each dish's card as read on it before (in any kitchen: the cards are the same in each) when this
+    /// reading missed it (<see cref="_cards"/>): a kitchen opened for the first time is marked on its first frame.
+    /// </summary>
     private DispatchPanel? PanelShown()
     {
-        if (_panelOpen is not { } panel || !_kitchens.TryGetValue(panel.Kitchen, out var kitchen)) return _panelOpen;
+        if (_panelOpen is not { } panel) return null;
         var read = panel.Dishes.Where(d => d.DishId is not null).Select(d => d.DishId!).ToHashSet();
         // A card read as no dish on this frame takes the dish it was read as before; a card read as another dish doesn't.
-        var known = kitchen.Cards.Where(c => !read.Contains(c.Key) && panel.Dishes.All(d => d.DishId is null || d.Card != c.Value) && DishOf(c.Key) is not null)
+        var known = _cards.Where(c => !read.Contains(c.Key) && panel.Dishes.All(d => d.DishId is null || d.Card != c.Value) && DishOf(c.Key) is not null)
             .Select(c => new KitchenDish(c.Key, DishOf(c.Key)!.Zh, null) { Card = c.Value }).ToList();
         return known.Count == 0 ? panel : panel with { Dishes = [.. panel.Dishes.Where(d => d.DishId is not null || known.All(k => k.Card != d.Card)), .. known] };
     }
@@ -494,8 +504,8 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             if (dish.Card is >= 0 and < DispatchPanelReader.Cards)
             {
                 // A card read as another dish now: the old one's place is forgotten.
-                foreach (var other in kitchen.Cards.Where(c => c.Value == dish.Card && c.Key != dish.DishId).Select(c => c.Key).ToList()) kitchen.Cards.Remove(other);
-                kitchen.Cards[dish.DishId] = dish.Card;
+                foreach (var other in _cards.Where(c => c.Value == dish.Card && c.Key != dish.DishId).Select(c => c.Key).ToList()) _cards.Remove(other);
+                _cards[dish.DishId] = dish.Card;
             }
         }
         // The queue as shown, if every dish in it is known; otherwise the estimate stays.
@@ -1036,6 +1046,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             Calls = calls,
             Panel = PanelShown(),
             MarkedPanel = PanelOnScreen() ? PanelShown() : null,
+            Cards = new Dictionary<string, int>(_cards),
         };
     }
 }
