@@ -28,8 +28,14 @@ public sealed record OrderedDish(int Table, Dish Dish);
 /// it closes, and what's left of those 18 s after (<see cref="ServingLeft"/>, <see cref="ServingLeftAfterClose"/>);
 /// null when the timer hasn't been read. No default: a caller says what it knows.
 /// </param>
+/// <param name="QueuedAsCalled">
+/// Dishes in the queues the player put there because a call said so (an order's or a dish to cook ahead), by kitchen: the
+/// advice never suggests taking one out again while it still comes out before serving ends (owner's live session
+/// 2026-10-21, test_yuanyuan5 at 04:15: "厨房二 预做：界龙肉卷" followed, then 10 s later "先拿掉界龙肉卷，再排这个"). No default:
+/// a caller says what it knows (none, where nothing is shown to a player).
+/// </param>
 public sealed record InnState(IReadOnlyList<KitchenQueue> Queues, IReadOnlyList<Dish> Counter, IReadOnlyList<Dish> OutForOrders, IReadOnlyList<Dish> Carried,
-    IReadOnlyList<OrderedDish> Outstanding, IReadOnlyList<MenuDish> Menu, double? ServingSecondsLeft)
+    IReadOnlyList<OrderedDish> Outstanding, IReadOnlyList<MenuDish> Menu, double? ServingSecondsLeft, IReadOnlyList<QueuedAsCalled> QueuedAsCalled)
 {
     /// <summary>The timer has reached 00:00: no new guests, the seated ones served for what's left of the 18 s.</summary>
     public bool Closed => ServingSecondsLeft <= ServingAfterCloseSeconds;
@@ -49,6 +55,9 @@ public sealed record InnState(IReadOnlyList<KitchenQueue> Queues, IReadOnlyList<
     /// <summary>Seconds the inn still serves, <paramref name="secondsSinceClosed"/> after the timer first read 00:00.</summary>
     public static double ServingLeftAfterClose(double secondsSinceClosed) => Math.Max(0, ServingAfterCloseSeconds - Math.Max(0, secondsSinceClosed));
 }
+
+/// <summary>A dish the player queued in <paramref name="Kitchen"/> because a call told them to (<see cref="InnState.QueuedAsCalled"/>).</summary>
+public sealed record QueuedAsCalled(int Kitchen, Dish Dish);
 
 /// <summary>A dish to put in a kitchen's queue.</summary>
 /// <param name="Table">The table it's for; null for a dish cooked ahead (预做).</param>
@@ -114,7 +123,9 @@ public sealed record DispatchAdvice(IReadOnlyList<KitchenAdvice> Kitchens, IRead
 /// <item><b>Replace:</b> a dish cooked ahead (one no order claims) is suggested for removal only
 /// when queueing the order in its place has it out sooner than any kitchen could otherwise, by more
 /// than <see cref="ReplaceMarginSeconds"/>. A dish cooking is lost when taken out, so one is only
-/// worth taking out when it has barely started (<see cref="BarelyStartedSeconds"/>).</item>
+/// worth taking out when it has barely started (<see cref="BarelyStartedSeconds"/>). A dish the player queued because a
+/// call said so is never suggested for removal while it still comes out in time (<see cref="InnState.QueuedAsCalled"/>):
+/// the advice doesn't undo its own word.</item>
 /// <item>A kitchen with no chef cannot cook (<see cref="KitchenMath.Cooks"/>): it gets no advice of
 /// any kind and isn't listed.</item>
 /// <item><b>The end</b> (owner, 2026-10-19): the inn serves <see cref="InnState.ServingAfterCloseSeconds"/>
@@ -219,7 +230,7 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
     /// <summary>The opening (C16): what to cook ahead in every kitchen before the first guest orders.</summary>
     public DispatchAdvice Opening(IReadOnlyList<MenuDish> menu) =>
         Advise(new InnState([.. Cooking.Select(k => new KitchenQueue(k.Number))], Counter: [], OutForOrders: [], Carried: [], Outstanding: [], menu,
-            InnState.ServingLeft(InnSimulator.SessionSeconds)), fillEverySlot: true);
+            InnState.ServingLeft(InnSimulator.SessionSeconds), QueuedAsCalled: []), fillEverySlot: true);
 
     /// <summary>
     /// The kitchen that would have <paramref name="dish"/> out soonest if queued now, and in how
@@ -237,8 +248,11 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
         private readonly Dictionary<int, List<ReplaceAdvice>> _replaces = [];
         private readonly Dictionary<string, int?> _stock = [];
 
-        /// <summary>A queue slot: what's in it, its real slot (null for one advised now), and whether an order claims it.</summary>
-        private sealed record Slot(Dish Dish, double SecondsLeft, int? RealSlot, bool Claimed, bool Cooking);
+        /// <summary>
+        /// A queue slot: what's in it, its real slot (null for one advised now), whether an order claims it, and whether the
+        /// player put it there because a call said so (<see cref="InnState.QueuedAsCalled"/>).
+        /// </summary>
+        private sealed record Slot(Dish Dish, double SecondsLeft, int? RealSlot, bool Claimed, bool Cooking, bool AsCalled = false);
 
         public Plan(DispatchAdvisor advisor, InnState state)
         {
@@ -259,6 +273,18 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
                     throw new ArgumentException($"A queue for kitchen {queue.Kitchen}, which isn't in play or has no chef.", nameof(state));
                 }
                 slots.AddRange(queue.Dishes.Select((d, i) => new Slot(d.Dish, d.SecondsLeft, i, false, i == 0)));
+            }
+            // The dishes queued as a call said, latest in the queue first (the one queued most recently is the one told).
+            foreach (var group in state.QueuedAsCalled.GroupBy(q => (q.Kitchen, q.Dish.Id)))
+            {
+                if (!_queues.TryGetValue(group.Key.Kitchen, out var slots)) continue;
+                int left = group.Count();
+                for (int i = slots.Count - 1; i >= 0 && left > 0; i--)
+                {
+                    if (slots[i].Dish.Id != group.Key.Id || slots[i].AsCalled) continue;
+                    slots[i] = slots[i] with { AsCalled = true };
+                    left--;
+                }
             }
             foreach (var menu in state.Menu) _stock[menu.Dish.Id] = menu.Stock;
             if (state.Outstanding.FirstOrDefault(o => o.Table is < 1 or > InnState.MaxTables) is { } bad)
@@ -432,6 +458,9 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
                     var slot = slots[i];
                     if (slot.Claimed || slot.RealSlot is null) continue;
                     if (slot.Cooking && Cook(kitchen, slot.Dish) - slot.SecondsLeft > BarelyStartedSeconds) continue;
+                    // Never undo what a call told the player to queue while it still comes out in time: it still serves an
+                    // order to come (owner's live session 2026-10-21, test_yuanyuan5 at 04:15 and 00:44).
+                    if (slot.AsCalled && (_state.ServingSecondsLeft is not { } serving || OutIn(kitchen, i) <= serving)) continue;
                     double readyIn = Left(kitchen) - slot.SecondsLeft + Cook(kitchen, dish);
                     if (best is null || readyIn < best.Value.ReadyIn) best = (kitchen, i, readyIn);
                 }

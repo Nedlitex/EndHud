@@ -145,7 +145,7 @@ public sealed class InnSimulator
     /// when the player acts: the counter's dishes were all cooked ahead.
     /// </summary>
     public InnState State => new(Queues, Counter.Dishes, OutForOrders: [], Carried: [], _outstanding,
-        [.. Menu.Select(m => m with { Stock = _stock[m.Dish.Id] })], Math.Max(0, SessionSeconds + _servingAfterClose - Now));
+        [.. Menu.Select(m => m with { Stock = _stock[m.Dish.Id] })], Math.Max(0, SessionSeconds + _servingAfterClose - Now), QueuedAsCalled: []);
 
     /// <summary>
     /// Plays <paramref name="orders"/> with <paramref name="policy"/> until every order is served, or

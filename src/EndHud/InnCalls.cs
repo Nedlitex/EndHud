@@ -112,6 +112,11 @@ internal sealed class InnCallHold
     /// <summary>What the last <see cref="Update"/> changed of the calls shown, and why, in words (the replay's trace, InnReplayTests).</summary>
     public IReadOnlyList<string> Changes => _changes;
 
+    private readonly List<InnCall> _done = [];
+
+    /// <summary>The calls the last <see cref="Update"/> found done: their dish went into their kitchen's queue as they said.</summary>
+    public IReadOnlyList<InnCall> DoneCalls => _done;
+
     /// <param name="Queued">The kitchen's <see cref="InnKitchenView.Queued"/> for the call's dish when it was first shown.</param>
     /// <param name="InvalidSince">When it was first found no longer valid (and has been since); null while it stands.</param>
     private sealed record Held(InnCall Call, int Queued, TimeSpan? InvalidSince = null);
@@ -133,6 +138,7 @@ internal sealed class InnCallHold
     {
         _held.Clear();
         _changes.Clear();
+        _done.Clear();
     }
 
     /// <summary>The calls to show now, <paramref name="now"/> (the readings' clock), given this moment's advice.</summary>
@@ -164,6 +170,7 @@ internal sealed class InnCallHold
         // The calls shown claim their orders first, those kept a moment too (so their order isn't called in another kitchen
         // meanwhile): the kitchens whose call claimed one, to give it back if it's replaced.
         _changes.Clear();
+        _done.Clear();
         var claimed = new HashSet<int>();
         var cooking = dispatch.Kitchens.ToDictionary(k => k.Kitchen);
         foreach (var (number, held) in _held.OrderBy(h => h.Key).ToList())
@@ -172,6 +179,7 @@ internal sealed class InnCallHold
             {
                 _held.Remove(number);
                 _changes.Add($"{held.Call.Key} dropped: done (queued)");
+                _done.Add(held.Call);
                 continue;
             }
             string? why = !cooking.TryGetValue(number, out var advice) ? "the kitchen no longer cooks"

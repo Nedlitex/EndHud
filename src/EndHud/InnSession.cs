@@ -161,6 +161,8 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     // that left the hand not yet read served on a table, and dishes read served while the tray still showed them.
     private readonly List<string> _carried = [];
     private List<string>? _trayChange;
+    // Dishes in a kitchen's queue the player put there because a call said so (InnState.QueuedAsCalled), by kitchen and dish.
+    private readonly Dictionary<(int Kitchen, string Id), int> _asCalled = [];
     private readonly List<(string Id, TimeSpan At)> _leftHand = [], _servedFromHand = [];
     private readonly Dictionary<int, GourmandMemory> _gourmands = [];
     private readonly Dictionary<int, TimeSpan> _gourmandLeaving = []; // a gourmand's table read in another state since then
@@ -359,6 +361,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         _trayChange = null;
         _leftHand.Clear();
         _servedFromHand.Clear();
+        _asCalled.Clear();
         _gourmands.Clear();
         _gourmandLeaving.Clear();
         _gourmandsDone.Clear();
@@ -915,6 +918,15 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
                 unreadable, exact, !_ordersSeen);
 
         var queues = kitchens!.Kitchens.Select(k => Kitchen(k.Number).Queue).ToList();
+        // Of the dishes queued as a call said, those still in their queue (a dish taken out, or the estimate's queue put
+        // right by the panel, leaves fewer).
+        foreach (var ((k, id), n) in _asCalled.ToList())
+        {
+            int still = Math.Min(n, _kitchens.TryGetValue(k, out var memory) ? memory.Queue.Dishes.Count(d => d.Dish.Id == id) : 0);
+            if (still > 0) _asCalled[(k, id)] = still;
+            else _asCalled.Remove((k, id));
+        }
+        var asCalled = _asCalled.SelectMany(a => Enumerable.Repeat(new QueuedAsCalled(a.Key.Kitchen, DishOf(a.Key.Id)!), a.Value)).ToList();
         var outstanding = new List<OrderedDish>();
         foreach (var table in LiveTables(now).Where(t => t.Card.State == TableState.Order && !unreadable.Contains(t.Card.Table)))
         {
@@ -935,7 +947,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         var counter = outForOrders.Concat(_spares.Where(s => s.Value > 0).SelectMany(s => Enumerable.Repeat(DishOf(s.Key)!, s.Value))).ToList();
         // In hand: what the tray shows (a dish in hand covers an order of it first, DispatchAdvisor's Cover).
         var carried = _carried.Select(id => DishOf(id)!).ToList();
-        var state = new InnState(queues, counter, outForOrders, carried, outstanding, menu, ServingLeft(now));
+        var state = new InnState(queues, counter, outForOrders, carried, outstanding, menu, ServingLeft(now), asCalled);
 
         var left = _clock?.Left ?? TimeSpan.FromMinutes(5);
         var nextOut = queues.Where(q => q.Dishes.Count > 0).Select(q => (TimeSpan?)TimeSpan.FromSeconds(q.Dishes[0].SecondsLeft)).Min();
@@ -964,9 +976,13 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
             bool drinksUnknown = drinks.Count == 0 && memory.Requests.Any(r => GourmandCondition.Parse(r.When, data).ForDrink);
             notes.Add(new InnGourmandNote(table, new GourmandAdvisor(advisor).Advise(memory.Requests, state, drinks), null, drinksUnknown));
         }
+        var calls = _calls.Update(dispatch, blaze, view, now);
+        // A call done: its dish is in its kitchen's queue as the call said, never to be swapped out again by the advice.
+        foreach (var done in _calls.DoneCalls)
+            if (done is { Kitchen: { } k, Dish: { } d }) _asCalled[(k, d.Id)] = _asCalled.GetValueOrDefault((k, d.Id)) + 1;
         return new InnAdvice(dispatch, null, blaze, _blaze.Running, notes, unreadable, exact, !_ordersSeen)
         {
-            Calls = _calls.Update(dispatch, blaze, view, now),
+            Calls = calls,
             Panel = PanelShown(),
             MarkedPanel = PanelOnScreen() ? PanelShown() : null,
         };

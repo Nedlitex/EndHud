@@ -425,6 +425,35 @@ public class InnSteadyTests
         Assert.Equal((InnCallKind.Queue, 5, E), (Assert.Single(calls).Kind, calls[0].Table, calls[0].Dish!.Id));
     }
 
+    /// <summary>
+    /// The advice never undoes its own word (owner's live session 2026-10-21, test_yuanyuan5 at 04:15: "厨房二 预做：界龙肉卷"
+    /// followed at 118.5 s, then at 128.7 s "先拿掉界龙肉卷，再排这个" for a new order). Kitchen 1 only: the dish shown to cook ahead
+    /// is queued as shown (read on the panel), and a moment later an order comes that taking it out would have out 30-odd s
+    /// sooner. The call is to queue the order behind it, never to take out what was just queued as told.
+    /// </summary>
+    [Fact]
+    public void A_dish_queued_as_a_call_said_is_not_called_out_again()
+    {
+        var session = NewSession();
+        session.Update(SetupScreen(0, 1));
+        session.Update(MenuScreen(1, Dishes));
+        session.Update(Session(10));
+        var told = Assert.Single(session.Advice(S(10))!.Calls, c => c.Kitchen == 1);
+        Assert.Equal(InnCallKind.CookAhead, told.Kind);
+
+        // Queued as told: the panel shows it cooking (two frames: open), then closed.
+        var panel = Panel(1, 1, Dishes, (told.Dish!.Id, told.Dish.CookSeconds - 1));
+        session.Update(Session(11, panel: panel));
+        session.Update(Session(11.3, panel: panel));
+        session.Advice(S(11.3));
+        session.Update(Session(13, tables: Tables(Order(2, E))) with { Clock = new SessionClock(S(296), false) { BelowButton = true } });
+        session.Update(Session(13.3, tables: Tables(Order(2, E))) with { Clock = new SessionClock(S(296), false) { BelowButton = true } });
+
+        var advice = session.Advice(S(13.3))!;
+        Assert.DoesNotContain(advice.Calls, c => c.Kind == InnCallKind.Swap);
+        Assert.Contains(advice.Calls, c => c is { Kind: InnCallKind.Queue, Kitchen: 1, Table: 2 } && c.Dish!.Id == E);
+    }
+
     // ---- The gourmands' banners ----
 
     private static InnAdvice Gourmand(params (string Id, double ReadyIn)[] options) => Gourmand(1, options);

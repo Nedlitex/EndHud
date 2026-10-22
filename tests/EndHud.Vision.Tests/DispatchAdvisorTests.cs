@@ -22,9 +22,9 @@ public class DispatchAdvisorTests
     /// <param name="servingLeft">Until the inn stops serving (the timer + <see cref="InnState.ServingAfterCloseSeconds"/>); by default mid-session, far from the end.</param>
     private static InnState State(IReadOnlyList<KitchenQueue> queues, IReadOnlyList<OrderedDish>? outstanding = null,
         IReadOnlyList<string>? counter = null, IReadOnlyList<string>? carried = null, IReadOnlyList<MenuDish>? menu = null, double? servingLeft = 200,
-        IReadOnlyList<string>? outForOrders = null) =>
+        IReadOnlyList<string>? outForOrders = null, IReadOnlyList<QueuedAsCalled>? asCalled = null) =>
         new(queues, [.. (counter ?? []).Concat(outForOrders ?? []).Select(Dish)], [.. (outForOrders ?? []).Select(Dish)], [.. (carried ?? []).Select(Dish)],
-            outstanding ?? [], menu ?? InnSimulatorTests.RecordedMenu, servingLeft);
+            outstanding ?? [], menu ?? InnSimulatorTests.RecordedMenu, servingLeft, asCalled ?? []);
 
     private static OrderedDish Order(int table, string dish) => new(table, Dish(dish));
 
@@ -294,7 +294,7 @@ public class DispatchAdvisorTests
             var dish = menu[random.Next(menu.Count)];
             outstanding.Add(new OrderedDish(6, dish));
 
-            var advice = advisor.Advise(new InnState(queues, [], [], [], outstanding, InnSimulatorTests.RecordedMenu, ServingSecondsLeft: 200));
+            var advice = advisor.Advise(new InnState(queues, [], [], [], outstanding, InnSimulatorTests.RecordedMenu, ServingSecondsLeft: 200, QueuedAsCalled: []));
 
             var options = queues.Where(q => q.HasFreeSlot)
                 .Select(q => (q.Kitchen, ReadyIn: q.SecondsUntilEmpty + kitchens.CookSeconds(q.Kitchen, dish), Choice: kitchens.ChoicePercent(q.Kitchen, dish)))
@@ -585,6 +585,29 @@ public class DispatchAdvisorTests
             Assert.Empty(advice.For(1).Replaces);
             Assert.Equal((2, soupLeft + 32), Sent(advice).Select(s => (s.Kitchen, s.Advice.ReadyIn)).Single());
         }
+    }
+
+    /// <summary>
+    /// A dish the player queued because a call said so is never suggested for removal while it still comes out in time
+    /// (owner's live session 2026-10-21, test_yuanyuan5 at 04:15: "厨房二 预做：界龙肉卷", followed at 118.5 s, then at 128.7 s
+    /// "先拿掉界龙肉卷，再排这个" for an order of 鳞肉水饺). The swap of <see cref="A_swap_must_win_by_a_margin"/> (62 s against 47)
+    /// isn't advised when 坛子肉 was queued as called: the order goes to kitchen 2. Near the end, where it would no longer
+    /// come out in time, it is fair game again.
+    /// </summary>
+    [Fact]
+    public void A_dish_queued_as_a_call_said_is_not_swapped_out_again()
+    {
+        var queues = new[] { Queue(1, ("果味沙拉", 20), ("坛子肉", 27)), Queue(2, ("白瓜肉丸汤", 30)) };
+        var outstanding = new[] { Order(1, "果味沙拉"), Order(2, "白瓜肉丸汤"), Order(3, "“勺里游”") };
+        QueuedAsCalled[] told = [new(1, Dish("坛子肉"))];
+
+        var advice = Advisor(2).Advise(State(queues, outstanding, asCalled: told));
+
+        Assert.Empty(advice.For(1).Replaces);
+        Assert.Equal((2, 30.0 + 32), Sent(advice).Select(s => (s.Kitchen, s.Advice.ReadyIn)).Single());
+
+        // Told in kitchen 2, not 1: kitchen 1's is still the player's own, swapped.
+        Assert.Single(Advisor(2).Advise(State(queues, outstanding, asCalled: [new(2, Dish("坛子肉"))])).For(1).Replaces);
     }
 
     /// <summary>A dish cooked ahead that is cooking loses its progress when taken out: only one barely started is.</summary>
