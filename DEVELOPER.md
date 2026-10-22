@@ -640,8 +640,15 @@ A theme's menu rule (`DishRule`) asks for at least N dishes with any of some tra
 ("至少有2道带有[素食]或[滋补]特性的菜品", 养身心) or of any of some dish types
 ("至少有1道[汤羹]类菜品", 舌上清流; the type's icon stands in the brackets, so a bracket is matched by
 the type name it contains). `DishRule.ParseAll` joins 菜单要求's lines (a rule may wrap) and cuts
-them at each "至少"; what isn't understood is kept as read, the plan is made without it and the menu
-advice says so ("看不懂菜单要求：…"). The 热门 chips are traits, dish types (汤羹) or 饮品 (any drink),
+them at each "至少"; what isn't understood is kept as read and logged, the plan is made without it and the menu
+advice says so in one plain sentence (`Inn.Setup.RuleNotUnderstood`), never with OCR's reading of it (owner, live
+2026-10-21, test_yuanyuan8: the panel showed "看不懂菜单要求：至少有1道@13小时39分钟0流行趋势", "what is the @13小时 crap").
+"且[主食]类、[菜肴]类、[甜品]类、[汤羹]类菜品，每种至少有1道" (the gourmand theme 食有老饕, after "至少需要8道菜品和6种饮品") is
+N dishes of each type listed, one rule per type (`DishRule.EachTypeAtLeast`); the setup screen's "至少需要N道菜品和M种饮品"
+counts before the menu screen is read (`InnSetupMemory`), so the plan isn't made for the rating's 6 and 3. That theme's
+rules sit above a 流行趋势 bar (a chip, and a refresh countdown at its right): the setup reader's rules section and the menu
+screen's requirement lines end at that heading (`SetupReader`, `MenuRequirementsReader.Requirements`); before, the countdown
+and the bar's title were read as the rule's end, the rule went not understood and the plan had no 菜肴. The 热门 chips are traits, dish types (汤羹) or 饮品 (any drink),
 matched longest name first (`SetupReader.HotIds`: a 甜品 chip is the dessert type, not also the
 trait 甜).
 
@@ -666,9 +673,9 @@ corners, and other window shapes are EndHud's assumption, not checked.
 | `TableCardReader` | each table's state and, for an order, its dishes and drinks by picture and whether each is served (its pip green, or the blue auto-serve spinner on it) | 56/56 items and 90/90 cards at 4K, 1440p and 1080p |
 | `DispatchPanelReader` | whether the panel is open (a dark tab AND the first dish card's light face: 10 of 10 points on every panel frame, at most 3 on a session frame), kitchen shown, chefs, choice-dish chance, each dish's cook time and the card it's on (`KitchenDish.Card`; where each card and tab is: `CardArea`, `TabArea`), the queue (dish, time left) | 114–115 of 115 values per size, none wrong; every dish named on its card, each card's place its outline (3 frames, every size); no panel on 10 session frames with it closed, at every size |
 | `BubbleReader` | a gourmand's speech bubble: each line cut at sentence ends and commas, every run of up to 6 pieces matched on its own with `InnData.MatchSaid` (each piece and request used once), so a request on the second line isn't lost to the first; the text's left edge is measured in character heights, since the bubble's size follows the camera | three recorded bubbles (the owner's soup-and-drink gourmand on three frames), both requests and only them, at every size |
-| `SetupReader` | theme, objective, menu rules, hot traits, dish types and 饮品, kitchens with their chef places, how many hold a chef (the bar under each: red or grey) and the chefs | all at 4K; objective and rules slip at 1440p |
+| `SetupReader` | theme, objective, menu rules (down to the next heading: 加分项, 热门, 流行趋势), hot traits, dish types and 饮品, kitchens with their chef places, how many hold a chef (the bar under each: red or grey) and the chefs | all at 4K; objective and rules slip at 1440p; setup-gourmand-theme's rules whole and understood at every size |
 | `MenuReader` | tab, cards in view and whether each is on the menu, stock ∞, the counters | tab and cards at every size; stock and counters partly |
-| `MenuRequirementsReader` | the menu screen's 菜单要求: Inn Rating ("4级客栈要求"), types, dishes and drinks at least, the theme's trait or dish-type rule | all five on both menu frames, at every size |
+| `MenuRequirementsReader` | the menu screen's 菜单要求: Inn Rating ("4级客栈要求"), types, dishes and drinks at least, the theme's trait or dish-type rule, down to the 流行趋势 heading | all five on both menu frames, at every size; menu-gourmand-theme (专属菜单要求: 8 dishes, 6 drinks, one of each type) at every size |
 
 How the hard parts work:
 
@@ -853,6 +860,13 @@ take out (`KeptCall.Remove`, `DispatchAdvisor`'s `TrySwap`; before, the next fra
 behind that dish), and shown as a plain order once the advice makes it one (y7 from 261 s: "take out boundary-lung-roll first" (the swap circle) stood 100 s over
 table 6's immortal-galore-of-fortune after the boundary-lung-roll was out). The last call's wrong dish for a table is chosen by the dish, not by its place
 among what's left, so one dish leaving the hand no longer reshuffles every table (y7 375.3 s).
+
+**Swaps can be turned off** (owner, live 2026-10-21, test_yuanyuan8: the swap circles are "really too fast for user to follow, I
+think this can be a check box feature, default on"). The switch 建议换菜 (`HudConfig.InnSwapsEnabled`, on) is handed to the
+session when it is made and whenever it changes (`InnSession.SuggestSwaps` → `DispatchAdvisor.SuggestSwaps`). Off, the advice
+never suggests taking a dish out: no swap circle and no "先拿掉…" mark; an order goes to a kitchen with room, or waits, and a
+swap on screen is kept as a plain order in its kitchen. Over the five replays (y3–y7), call-steps showing a swap: on
+6 / 178 / 370 / 0 / 684, off 0 everywhere, no take-out mark, orders still called (`InnReplayTests.With_swaps_off_nothing_ever_says_to_take_a_dish_out`).
 
 The calls are banners (owner, live 2026-10-20: "remove all hints from the current panel, use the combo instead.
 the current panel has the requirements of the gourmands"): [`InnCallView`](src/EndHud/InnCallView.cs) words them
@@ -1072,45 +1086,49 @@ tests/EndHud.Tests --filter InnReplayTests` writes `readings.jsonl.gz` and `view
 **What the gourmands want, as tiles** (owner, live 2026-10-21: "user cannot distinguish between whether the two circles
 are alternatives or two requirements"; then, test_yuanyuan6: "the banner for gormand suggestion is too small for human to
 read, make at least the picture bigger, at least same size as the circule today"): [`InnGourmandView`](src/EndHud/InnGourmandBanners.cs)
-draws one tile per gourmand ([`OverlayWindow.InnGourmands`](src/EndHud/OverlayWindow.InnGourmands.cs)): the table
-(`Inn.Gourmand.Title`), then per request the best item's picture at 112 units (the kitchen circles' picture; the banners'
-rows had 40) with its number (`Inn.Gourmand.Numbers`) on its corner, the item's name under it and the request in plain
-words under that (`GourmandCondition.Describe`; a drink's as a drink, `Inn.Gourmand.Drink`), every word at least 20 units
-(the circles'). Shapes (`InnGourmandShape`): full (as said, items side by side, 286 × 227 at 1080p), compact (no words of
-the request, the table, `Inn.Gourmand.Table`, on the first picture: 242 × 139), and beside the open panel tall (items one
-above the other, 132 × 322) and tall bare (pictures only, 132 × 276). With two
-requests, the advice's serving (`GourmandAdvice.Serve`) is put back on the requests, so each row's item fills its
-own row when served in the rows' order. A request nothing on the menu meets says so (`Inn.Gourmand.None`), a
-gourmand whose words weren't recognised that (`Inn.Gourmand.Unknown`); a drink request before any drink of the menu
-was seen shows the request alone. Up to six banners, one per table (owner, 2026-10-21: "we need to be prepared to
-support all 6 tables are gourmand"; until then at most 3, a fourth waiting; the session never had a cap, its gourmands
-keyed by table). `InnGourmandLayout.Arrange` places the tiles one by one in table order into two columns, each going down
-past anything it would cover (the Full Blaze meter, `MeterLeft/Top/Bottom`, 16:9-area x ≥ 0.82, y 0.465–0.685; the tray;
-the kitchens' circles where they stand; the UID in the lower-left corner; another tile), none lower than 0.99 of the window:
-with the panel closed, the columns' right edge and top are the player's `InnGourmandRight`/`InnGourmandTop` (default 0.985
-and 0.2: right of table 6's card, below the status at the top right; draggable while the menu is open, a sample tile shows
-then), odd tables in the left column and even in the right (one gourmand: the right); full tiles while all fit (up to
-three), else compact. With the panel open they're never hidden (owner, test_yuanyuan6 6:10: "the requirement is gone"):
-the strips left and right of the panel (x up to 0.105 and from 0.895 of the 16:9 area) from y 0.08, tall tiles while all
-fit (up to five), else tall bare. Six of two requests at 1080p, 1440p and 4K: compact at x 0.730–0.985, y 0.200–0.463 and
-0.691–0.819; beside the panel tall bare at x 0.005–0.074 and 0.926–0.995, y 0.080–0.858; clear of the meter, tray,
-circles, panel, UID, the table cards and each other (InnSixGourmandsTests). In the overlay the tiles are on a canvas over
-the window: a tile keeps its element, glides to its new place when the layout moves it (a gourmand coming or going, the
-panel opening or closing), is redrawn in place when what it says or its shape changes, and fades in and out. Up until the
-order is fulfilled (the request kept as above), held steady (above). Gourmands' requests aren't sent to the kitchens:
-their card shows category icons with no served pips, so a gourmand served one of two items can't be told from one served
-none, and a call for their dish would come back after it was served (a gap: the kitchens' circles never name a gourmand's
-dish). Pictures at 4K over session-two-dishes.jpg and dispatch-panel-queue.jpg with 1, 3 and 6 gourmands:
-`InnKitchenCircleTests.The_circles_and_gourmands_drawn_over_a_4K_frame` writes `.tracking/changes/2026-10-21-inn-y6-*.png`
-(local only).
+draws one tile per gourmand ([`OverlayWindow.InnGourmands`](src/EndHud/OverlayWindow.InnGourmands.cs)): per request the best
+item's picture with its number (`Inn.Gourmand.Numbers`) on its right corner and the item's name under it (on up to two lines),
+the table (`Inn.Gourmand.Table`) on the first picture's left corner. One request: the picture at 112 units (the kitchen
+circles'), 116 × 154 at 1080p; two, side by side at 90, 190 × 132 (two of 112 need 234, and the spot beside the open panel is
+201 wide); the words at 16 (the pills too), smaller than the circles' 20 so the pictures aren't. The request in plain words
+isn't drawn (no room in the spot; the numbers tell two requests apart). With two requests, the advice's serving
+(`GourmandAdvice.Serve`) is put back on the requests, so each item fills its own request when served in the numbers' order.
+A request nothing on the menu meets says so (`Inn.Gourmand.None`), a gourmand whose words weren't recognised that
+(`Inn.Gourmand.Unknown`); a drink request before any drink of the menu was seen shows the request under an empty disc. Up
+to six, one per table (owner, 2026-10-21: "we need to be prepared to support all 6 tables are gourmand").
+
+**Each table at a fixed spot** (owner, live 2026-10-21, test_yuanyuan8: "split the 6 gourmand table hints at the 6 corners
+of the window, make the position FIXED, so user does not need to chase around and not know what to look at"; until then
+`InnGourmandLayout.Arrange` placed them one by one in table order into two columns that moved with how many there were and
+with the panel, so a table's tile glided between places). Tables 1–3 down the left edge, 4–6 down the right, each column top
+to bottom: the table cards' row split in half, in its own order, so a player looks left for the first three and right for
+the last three. `InnGourmandLayout.Spot` takes the table and the window only, never the panel's state or the other tiles.
+The spots, fractions of the window's centred 16:9 area, are what both the closed and the open panel's screens leave free
+(measured on the 4K frames): across, beside the open panel (x up to 0.105 and from 0.895), so 190 × 154 at 1080p; the left
+three from y 0.485 (under the timer, theme, objective and counts block, to y 0.475 on every recorded theme), above the UID;
+on the right, table 4 from y 0.2 (under the status at the top right and its line, to 0.195) above the Full Blaze meter
+(y 0.465), tables 5 and 6 under it (from 0.685) down to 0.99. At 1080p, 1440p and 4K: tables 1–3 x 0.003–0.102, y
+0.485–0.607, 0.633–0.755, 0.781–0.904; tables 4–6 x 0.898–0.997, y 0.200–0.322, 0.691–0.813, 0.847–0.970 (two requests);
+clear of the HUD at the top left and right, the table cards, the meter, the tray, the open panel, the circles above the
+tray and below the panel, the UID and each other (InnSixGourmandsTests). A tile stands at its spot's outer top corner; the
+player's size makes it smaller, never larger than the spot. Nothing is dragged (the old `InnGourmandRight/Top` and the
+sample tile are gone). In the overlay a tile never moves: it is drawn again in place when what it says changes, and fades
+in and out. Up until the order is fulfilled (the request kept as above), held steady (above). Gourmands' requests aren't
+sent to the kitchens: their card shows category icons with no served pips, so a gourmand served one of two items can't be
+told from one served none, and a call for their dish would come back after it was served (a gap: the kitchens' circles
+never name a gourmand's dish). Pictures at 4K over session-two-dishes.jpg and dispatch-panel-queue.jpg with 1, 3 and 6
+gourmands: `InnKitchenCircleTests.The_circles_and_gourmands_drawn_over_a_4K_frame` writes
+`.tracking/changes/2026-10-21-inn-y8-*.png` (local only).
 
 [`OverlayWindow.Inn`](src/EndHud/OverlayWindow.Inn.cs) shows these only on session frames, and samples (three
 circles, a banner, a gourmand's banner) while the menu is open out of the inn (then they are dragged). Settings:
 `InnHelperEnabled` (on), `InnCallsEnabled` (on; the switch 派单提示（厨房圆圈和横幅） in the card: the circles, the banners
 and the panel's marks), `InnCircleX/Y` (the circles' centre and bottom on the 16:9 area, default 0.5 and 0.845),
-`InnCallX/Y` (the banners; default: the combo hint's place, which isn't shown in the
-inn), `InnGourmandRight/Top` (the gourmands' columns), `InnStripScale` and `InnStripOpacity` (the circles, the banners, the gourmands'
-banners, the marks and the setup advice); the card's reset puts the circles and both stacks back.
+`InnSwapsEnabled` (on; the switch 建议换菜 in the card: whether the advice may say to take a dish cooked ahead out for an
+order, below), `InnCallX/Y` (the banners; default: the combo hint's place, which isn't shown in the
+inn), `InnStripScale` and `InnStripOpacity` (the circles, the banners, the gourmands' tiles (smaller only), the marks and
+the setup advice); the card's reset puts the circles and the banners back. The gourmands' tiles have fixed spots (below):
+nothing to drag, and a config still holding the old `InnGourmandRight/Top` loads.
 
 **What's remembered of the setup** ([`InnSetupMemory`](src/EndHud/InnSetupMemory.cs); owner, live
 test 2026-10-19: "remember which theme, cook, menu etc currently picked, UNTIL go back to pick
@@ -1205,7 +1223,10 @@ delete the recommend pannel"), the text panels stay.
   dragged and have no place in config (the old panel's `InnSetupX`/`InnSetupBottomY` are gone; a
   config still holding them loads). The lines wrap at the spot's width; the menu's panel is drawn
   compact (`InnStripLook.Compact`: 13 px text, 20 px pictures at 1080p) so a full menu fits. The
-  strip's size and opacity apply; above 100% a panel can grow past its spot's bottom. The frames are
+  strip's size and opacity apply; above 100% a panel can grow past its spot's bottom, and past its right edge where a
+  piece that can't wrap (a picture with its name, a label and what's kept with it) is wider than the lines: the lines widen
+  to it rather than cutting a name at the card's edge (owner, test_yuanyuan8: words running off the menu panel; a kitchen's
+  panel at 200 % at 4K cut a chef's name before; InnSetupLayoutTests checks every word and picture inside its card). The frames are
   made in code and never hit-tested (they don't take the game's clicks). Text only.
 - Tests: InnSetupMemoryTests (kept across setup, picker, menu and session; a failed reading changes
   nothing; forgotten on the theme list and after 30 s of other screens, never after an alt-tab; the dishes the player
@@ -1231,8 +1252,8 @@ delete the recommend pannel"), the text panels stay.
   1080p/1440p/4K, no banners while the panel is open), InnSteadyTests (the marks gone the moment the panel is seen
   closed), InnKitchenCircleTests (a slot per kitchen, the kinds
   apart, sizes, place above the tray, nothing over a panel read with all its tabs over both replays, the 4K picture),
-  InnSixGourmandsTests (six gourmands kept, a tile each, clear of the meter, tray, circles, panel and UID at every size, panel open and closed), InnGourmandTests (the gourmands' tiles: a numbered item per request, each on its own request,
-  beside the open panel, pictures 112 and words 20 in every shape), InnRealFrameTests (dispatch-panel-banners.jpg:
+  InnSixGourmandsTests (six gourmands kept, a tile each at its table's fixed spot, the same place alone or with five others, clear of the HUD, meter, tray, circles, panel and UID at every size; the player's size never grows a tile past its spot), InnGourmandTests (the gourmands' tiles: a numbered item per request, each on its own request,
+  kept while the panel is open, pictures 112 alone and 90 side by side), InnRealFrameTests (dispatch-panel-banners.jpg:
   the call marked on its card through the real readers; the owner's soup-and-drink gourmand to its banner), I18nTests (no not-seen-yet, kitchens-full or no-stock line in zh-CN.xaml).
 
 Assumptions the advice rests on, not measured: what Full Blaze's faster kitchens do to cook times
