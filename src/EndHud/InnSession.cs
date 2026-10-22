@@ -26,7 +26,32 @@ internal enum InnGap
 /// <param name="Advice">The requests in plain words and what meets them; null when the request wasn't recognised.</param>
 /// <param name="UnreadText">The bubble's text as read, when no request matched it.</param>
 /// <param name="DrinksUnknown">A request is for a drink, and no drink of the menu has been seen yet.</param>
-internal sealed record InnGourmandNote(int Table, GourmandAdvice? Advice, string? UnreadText, bool DrinksUnknown);
+internal sealed record InnGourmandNote(int Table, GourmandAdvice? Advice, string? UnreadText, bool DrinksUnknown)
+{
+    /// <summary>
+    /// Each of <see cref="GourmandAdvice.Requests"/>' own number, in order: which the gourmand said it as (0 = the first),
+    /// so a request keeps its number when another is resolved; null for 0, 1, ...
+    /// </summary>
+    public IReadOnlyList<int>? Numbers { get; init; }
+
+    /// <summary>
+    /// The item each of <see cref="GourmandAdvice.Requests"/> is met with, held (<see cref="InnGourmandPicks"/>): what the
+    /// tile shows and the kitchens are told to cook; null (or a null entry) for the advice's own choice.
+    /// </summary>
+    public IReadOnlyList<string?>? Picks { get; init; }
+
+    /// <summary>The own number of the request at <paramref name="index"/> in <see cref="GourmandAdvice.Requests"/>.</summary>
+    public int NumberOf(int index) => Numbers is { } numbers && index < numbers.Count ? numbers[index] : index;
+
+    /// <summary>The request the gourmand said as <paramref name="number"/>; null when it is resolved or there's none.</summary>
+    public GourmandRequestAdvice? RequestNumbered(int number)
+    {
+        if (Advice is not { } advice) return null;
+        for (int i = 0; i < advice.Requests.Count; i++)
+            if (NumberOf(i) == number) return advice.Requests[i];
+        return null;
+    }
+}
 
 /// <summary>
 /// The advice for one moment of a session, before it's put in words (<see cref="InnStripView"/>).
@@ -204,6 +229,9 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     // _lateTray: dishes the tray still showed after they were read served (a tray a few frames late).
     private readonly List<(string Id, TimeSpan At)> _leftHand = [], _servedFromHand = [], _lateTray = [];
     private readonly Dictionary<int, GourmandMemory> _gourmands = [];
+
+    /// <summary>The item each gourmand's open request is met with, held while it meets it (the tile's and the kitchens').</summary>
+    private readonly InnGourmandPicks _gourmandPicks = new();
     private readonly Dictionary<int, TimeSpan> _gourmandLeaving = []; // a gourmand's table read in another state since then
     // Tables whose gourmand has ordered (their card read GourmandOrder, the bubble's words just said), since when: the HUD's
     // fades aside, so a fade never makes every table's order look new (TakeGourmandCards).
@@ -503,6 +531,7 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
         _queuedSeen.Clear();
         _shownCalls = [];
         _gourmands.Clear();
+        _gourmandPicks.Clear();
         _gourmandLeaving.Clear();
         _gourmandsDone.Clear();
         _gourmandOrdered.Clear();
@@ -890,16 +919,21 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
     {
         if (_gourmands.TryGetValue(table, out var done) && done.Requests.Count > 0) _gourmandsDone.Add(([.. done.Every.Distinct()], at));
         _gourmands.Remove(table);
+        _gourmandPicks.Forget(table);
         _gourmandLeaving.Remove(table);
     }
 
-    /// <summary>A gourmand's requests not yet resolved, by their pips (when the words name as many as the card) or their bubble's icons.</summary>
-    private IReadOnlyList<GourmandRequest> Open(int table, GourmandMemory memory)
+    /// <summary>
+    /// A gourmand's requests not yet resolved, by their pips (when the words name as many as the card) or their bubble's
+    /// icons, with their own numbers (0 = the first said).
+    /// </summary>
+    private (IReadOnlyList<GourmandRequest> Requests, IReadOnlyList<int> Numbers) Open(int table, GourmandMemory memory)
     {
         var requests = memory.Requests;
         var pips = _pipsResolved.GetValueOrDefault(table);
         bool byPips = pips is not null && requests.Count == 2;
-        return [.. requests.Where((r, k) => !memory.Resolved.Contains(r) && !(byPips && pips!.Contains(k)))];
+        var open = Enumerable.Range(0, requests.Count).Where(k => !memory.Resolved.Contains(requests[k]) && !(byPips && pips!.Contains(k))).ToList();
+        return ([.. open.Select(k => requests[k])], open);
     }
 
     /// <summary>The estimate still has this dish cooking, but it's out: take its first place in a queue away.</summary>
@@ -1341,13 +1375,21 @@ internal sealed class InnSession(InnData data, IReadOnlyList<OperatorInfo> roste
                 continue;
             }
             // Only what's still to serve: a request resolved (its pip or its bubble's icon a face) asks nothing more.
-            var stillOpen = Open(table, memory);
-            if (stillOpen.Count == 0) continue;
+            var (stillOpen, numbers) = Open(table, memory);
+            if (stillOpen.Count == 0)
+            {
+                _gourmandPicks.Forget(table);
+                continue;
+            }
             bool drinksUnknown = drinks.Count == 0 && stillOpen.Any(r => GourmandCondition.Parse(r.When, data).ForDrink);
-            notes.Add(new InnGourmandNote(table, new GourmandAdvisor(advisor).Advise(stillOpen, state, drinks), null, drinksUnknown));
+            var note = new InnGourmandNote(table, new GourmandAdvisor(advisor).Advise(stillOpen, state, drinks), null, drinksUnknown) { Numbers = numbers };
+            notes.Add(note with { Picks = _gourmandPicks.Pick(note, InnGourmandView.Of(note, _ => "")) });
         }
         // A gourmand's dish, as its tile names it, is an order for the kitchens like any table's (owner, 2026-10-22: "table 1
-        // wants 肉卷, but it is NEVER suggested in the kitchen"): it goes once its request reads resolved (its pip).
+        // wants 肉卷, but it is NEVER suggested in the kitchen"): it goes once its request reads resolved (its pip). The dish is
+        // the one held for the request (InnGourmandPicks), the tile's: until 2026-10-22 it was the advice's best of the moment,
+        // which flips as the queues move while the tile held another, and the kitchen's call jumped with it (the replays of
+        // test_yuanyuan3, 4, 5 and 7: one jump each).
         var gourmandDishes = notes.SelectMany(n => InnGourmandView.Of(n, _ => ""))
             .Where(w => w.ItemId is { } id && DishOf(id) is not null).Select(w => new OrderedDish(w.Table, DishOf(w.ItemId!)!)).ToList();
         if (gourmandDishes.Count > 0) state = state with { Outstanding = [.. state.Outstanding, .. gourmandDishes] };

@@ -10,7 +10,7 @@ namespace EndHud;
 /// <summary>
 /// One of a gourmand's requests and what meets it: a row of their banner.
 /// </summary>
-/// <param name="Request">Which request (0 = the first said); 0 for a gourmand whose words weren't recognised.</param>
+/// <param name="Request">Which request, by its own number (0 = the first said; kept when another is resolved); 0 for a gourmand whose words weren't recognised.</param>
 /// <param name="Description">The request in plain words (<see cref="GourmandCondition.Describe"/>, a drink's as a drink, Inn.Gourmand.Drink); null for words not recognised.</param>
 /// <param name="ItemId">The best dish's or drink's id (its picture); null when nothing on the menu meets it, the words weren't recognised, or no drink of the menu was seen yet.</param>
 /// <param name="Name">The item's name, or the words saying why there's none; null when nothing can be said yet (a drink request before any drink of the menu was seen: "none fits" would be wrong).</param>
@@ -65,11 +65,14 @@ internal static class InnGourmandView
         for (int i = 0; i < gourmand.Requests.Count; i++)
         {
             var request = gourmand.Requests[i];
+            int number = note.NumberOf(i);
             string description = request.ForDrink ? string.Format(text("Inn.Gourmand.Drink"), request.Description) : request.Description;
-            if ((chosen?[i] ?? request.Options.FirstOrDefault()) is { } best)
-                wants.Add(new InnWant(note.Table, i, description, best.Id, best.Dish?.Zh ?? best.Drink!.Zh));
-            else if (request.ForDrink && note.DrinksUnknown) wants.Add(new InnWant(note.Table, i, description, null, null));
-            else wants.Add(new InnWant(note.Table, i, description, null, text("Inn.Gourmand.None")));
+            // The item held for the request (InnGourmandPicks) while it still meets it, else the advice's choice.
+            var held = note.Picks is { } picks && i < picks.Count && picks[i] is { } id ? request.Options.FirstOrDefault(o => o.Id == id) : null;
+            if ((held ?? chosen?[i] ?? request.Options.FirstOrDefault()) is { } best)
+                wants.Add(new InnWant(note.Table, number, description, best.Id, best.Dish?.Zh ?? best.Drink!.Zh));
+            else if (request.ForDrink && note.DrinksUnknown) wants.Add(new InnWant(note.Table, number, description, null, null));
+            else wants.Add(new InnWant(note.Table, number, description, null, text("Inn.Gourmand.None")));
         }
         return wants;
     }
@@ -283,12 +286,71 @@ internal sealed class InnWantsHold
         if (note.Advice is not { } advice) return false;
         // Each row's item still meets its own request.
         for (int i = 0; i < shown.Count; i++)
-            if (shown[i].Request >= advice.Requests.Count || advice.Requests[shown[i].Request].Options.All(o => o.Id != shown[i].ItemId)) return false;
+            if (note.RequestNumbered(shown[i].Request) is not { } request || request.Options.All(o => o.Id != shown[i].ItemId)) return false;
         if (shown.SequenceEqual(now)) return true;
         var ready = advice.Requests.SelectMany(r => r.Options).GroupBy(o => o.Id).ToDictionary(g => g.Key, g => g.Min(o => o.ReadyIn));
         double Ready(IReadOnlyList<InnWant> wants) => wants.Max(w => ready.GetValueOrDefault(w.ItemId!));
         return Ready(now) + ClearlySoonerSeconds > Ready(shown);
     }
+}
+
+/// <summary>
+/// The item each gourmand's request is met with, held (owner, 2026-10-21: "the recommendation should stay steady"): the
+/// advice ranks what meets a request by how soon it's ready, afresh on every frame, and two soups trade places as the
+/// kitchens' queues move. The item first picked stays while it still meets the request (it is among the advice's options)
+/// and another isn't ready at least <see cref="InnWantsHold.ClearlySoonerSeconds"/> sooner, the tile's own rule
+/// (<see cref="InnWantsHold"/>). The tile shows it and the kitchens are told to cook it (<see cref="InnSession"/>), so the two
+/// never disagree: until 2026-10-22 the kitchens followed the advice's best of the moment, and on the owner's recorded
+/// sessions a gourmand's call switched dish with nothing done to it (test_yuanyuan3 277.2 s: fin-mato-soup for table 4
+/// became berry-sweet-sip).
+/// </summary>
+internal sealed class InnGourmandPicks
+{
+    private readonly Dictionary<(int Table, int Number), string> _picks = [];
+
+    /// <summary>
+    /// The item held for each of <paramref name="note"/>'s requests (by index, as <see cref="GourmandAdvice.Requests"/>), given
+    /// the advice's own choice for each now (<paramref name="fresh"/>: <see cref="InnGourmandView"/>'s rows without picks); a
+    /// request resolved since is forgotten.
+    /// </summary>
+    public IReadOnlyList<string?> Pick(InnGourmandNote note, IReadOnlyList<InnWant> fresh)
+    {
+        if (note.Advice is not { } advice) return [];
+        var open = Enumerable.Range(0, advice.Requests.Count).Select(note.NumberOf).ToHashSet();
+        foreach (var gone in _picks.Keys.Where(k => k.Table == note.Table && !open.Contains(k.Number)).ToList()) _picks.Remove(gone);
+        var picks = new string?[advice.Requests.Count];
+        for (int i = 0; i < picks.Length; i++)
+        {
+            var options = advice.Requests[i].Options;
+            var key = (note.Table, note.NumberOf(i));
+            string? now = fresh.FirstOrDefault(w => w.Request == key.Item2)?.ItemId;
+            double Ready(string id) => options.Where(o => o.Id == id).Select(o => o.ReadyIn).DefaultIfEmpty(double.MaxValue).Min();
+            // Only a dish in the player's hand (the tray, read) is a reason to switch. One queued comes closer as it cooks and is
+            // most often another table's order; one on the counter is the estimate's (a dish cooked ahead covers no order, and
+            // the counter is never read): on the replays of 2026-10-22 both switched the gourmand's call with nothing done
+            // (test_yuanyuan6, a queued soup; test_yuanyuan3 159.9 s and test_yuanyuan5 239.7 s, a dish cooked out).
+            bool inHand = now is not null && options.Any(o => o.Id == now && o.From == GourmandSource.Carried);
+            if (_picks.TryGetValue(key, out var held) && options.Any(o => o.Id == held)
+                && (!inHand || Ready(now!) + InnWantsHold.ClearlySoonerSeconds > Ready(held)))
+            {
+                picks[i] = held;
+                continue;
+            }
+            picks[i] = now;
+            if (now is null) _picks.Remove(key);
+            else _picks[key] = now;
+        }
+        return picks;
+    }
+
+    /// <summary>Forgets <paramref name="table"/>'s gourmand (served, or gone).</summary>
+    public void Forget(int table)
+    {
+        foreach (var key in _picks.Keys.Where(k => k.Table == table).ToList()) _picks.Remove(key);
+    }
+
+    /// <summary>Forgets every gourmand (the session ended).</summary>
+    public void Clear() => _picks.Clear();
 }
 
 /// <summary>

@@ -157,9 +157,9 @@ internal sealed class InnReplay
         var tables = new Dictionary<int, IReadOnlySet<GourmandRequest>>();
         foreach (var group in views.Wants.Where(w => w.Description is not null).GroupBy(w => w.Table))
         {
-            var advice = notes.FirstOrDefault(n => n.Table == group.Key)?.Advice;
-            if (advice is null) continue;
-            tables[group.Key] = group.Where(w => w.Request < advice.Requests.Count).Select(w => advice.Requests[w.Request].Request).ToHashSet();
+            var note = notes.FirstOrDefault(n => n.Table == group.Key);
+            if (note?.Advice is null) continue;
+            tables[group.Key] = group.Select(w => note.RequestNumbered(w.Request)?.Request).OfType<GourmandRequest>().ToHashSet();
         }
         GourmandDraws.Add(new GourmandsShown(at, tables));
     }
