@@ -106,21 +106,19 @@ internal static class InnGourmandView
 
 
     /// <summary>
-    /// A tile's parts at 1080p (scaled with the window, and smaller with the player's size): the picture of a one-request
-    /// gourmand's item as large as a kitchen circle's (<see cref="InnKitchenCircleView.PictureSize"/>; owner, 2026-10-21: "at
-    /// least same size as the circule today"); two items side by side as large as the spot beside the open dispatch panel
-    /// allows (<see cref="InnGourmandLayout.SpotWidth"/>: 0.105 of the 16:9 area, 201 at 1080p, holds two of 90 and not two of
-    /// 112); the item's name under it on up to two lines; the table and the request's number as pills on the first picture.
-    /// The words are smaller than the circles' 20, not the pictures (the spots are what's left of the screen).
+    /// A tile's parts at 1080p (scaled with the window, and smaller with the player's size): each item's picture as large as a
+    /// kitchen circle's (<see cref="InnKitchenCircleView.PictureSize"/>, 112; owner, 2026-10-22: the tiles were "too small"),
+    /// two side by side for two requests; the item's name under it on up to two lines of 20; the table and the request's
+    /// number as pills of 20 on the picture.
     /// </summary>
-    public const double PictureSize = InnKitchenCircleView.PictureSize, PairPictureSize = 90, NameFont = 16, NameLineHeight = 19,
-        NameHeight = 2 * NameLineHeight, Padding = 2, ItemGap = 6, BadgeFont = 16;
+    public const double PictureSize = InnKitchenCircleView.PictureSize, NameFont = 20, NameLineHeight = 24,
+        NameHeight = 2 * NameLineHeight, Padding = 2, ItemGap = 6, BadgeFont = 20;
 
     /// <summary>The most requests a gourmand makes: a tile holds this many items.</summary>
     public const int MostRequests = GourmandAdvisor.MaxRequests;
 
-    /// <summary>An item's picture in a tile of <paramref name="requests"/> items: the circles' size alone, <see cref="PairPictureSize"/> two side by side.</summary>
-    public static double Picture(int requests) => Math.Clamp(requests, 1, MostRequests) == 1 ? PictureSize : PairPictureSize;
+    /// <summary>An item's picture in a tile of <paramref name="requests"/> items: the circles' size, alone or side by side.</summary>
+    public static double Picture(int requests) => PictureSize;
 
     /// <summary>A tile's width, at 1080p, for a gourmand of <paramref name="requests"/> requests.</summary>
     public static double Width(int requests)
@@ -293,25 +291,17 @@ internal sealed class InnWantsHold
 }
 
 /// <summary>
-/// Where the gourmands' tiles go (owner, live 2026-10-21, test_yuanyuan8: "split the 6 gourmand table hints at the 6 corners of
-/// the window, make the position FIXED, so user does not need to chase around and not know what to look at"): each table at
-/// its own spot, whoever else is there and whether the dispatch panel is open or not, so nothing ever moves. Tables 1–3 down
-/// the left edge, 4–6 down the right, top to bottom: the first half of the table cards' row on the left, the second half on
-/// the right, in the same order. The spots are what the game's own screen leaves free in both states, measured on the 4K
-/// frames as fractions of the window's centred 16:9 area:
-/// <list type="bullet">
-/// <item>Across: beside the open dispatch panel (<see cref="Panel"/>, x 0.105–0.895), so <see cref="SpotWidth"/> 190 at
-/// 1080p.</item>
-/// <item>Left, down: below the timer, theme and objective block (to y 0.475 on every recorded theme: <see cref="LeftTop"/>)
-/// and above the UID (<see cref="Uid"/>): three spots of <see cref="SpotHeight"/>.</item>
-/// <item>Right, down: table 4 below the status at the top right (<see cref="RightTop"/>: the avatar and its line end at y
-/// 0.195) and above the Full Blaze meter (<see cref="MeterTop"/>, y 0.465); tables 5 and 6 below the meter
-/// (<see cref="MeterBottom"/>, 0.685) down to <see cref="LowestBottom"/>.</item>
-/// </list>
-/// None of them is over the table cards at the top, the held-dishes tray and its 派单 button, the kitchens' circles (above
-/// the tray or below the open panel), the meter, the panel or the UID (InnSixGourmandsTests). A tile stands in its spot's
-/// top outer corner (left spots: left; right spots: right), its height at most the spot's. The player's size makes the
-/// tiles smaller, never larger than their spot.
+/// Where the gourmands' tiles go: each table at its own spot, whoever else is there, so nothing ever moves (owner, live
+/// 2026-10-21, test_yuanyuan8: "make the position FIXED, so user does not need to chase around"), near the middle of the
+/// screen (owner, 2026-10-22: "the gormand table is too small and too at the side, make it more closer to the center so
+/// human can focus"; "important things should be at the central view port, so human can focus, things on the corner is
+/// really impossible for human to notice"). Two rows of three centred on the screen, tables 1-3 on the top row and 4-6 under
+/// them, left to right as the table cards are, standing from <see cref="Top"/> (0.175 of the window's centred 16:9 area:
+/// under the table cards, to y 0.132, and the game's last-call bar, to y 0.167) down to y 0.488, x 0.311-0.689.
+/// With the panel closed they are over the floor, clear of the HUD at the top left and right, the circles (from y 0.49),
+/// the Full Blaze meter and the tray. The open dispatch panel's dish cards are under them, so they are put away in place
+/// while it's open (<see cref="InnViews.Away"/>) and shown again there when it closes. A tile stands in its spot's top-left
+/// corner, its size at most the spot's. The player's size makes the tiles smaller, never larger than their spot.
 /// </summary>
 internal static class InnGourmandLayout
 {
@@ -319,50 +309,29 @@ internal static class InnGourmandLayout
     public static readonly double SpotWidth = Enumerable.Range(1, InnGourmandView.MostRequests).Max(InnGourmandView.Width),
         SpotHeight = Enumerable.Range(1, InnGourmandView.MostRequests).Max(InnGourmandView.Height);
 
-    /// <summary>
-    /// The game's Full Blaze meter on the right (its ring, the fire count and the streak under it, the countdown while it runs),
-    /// as fractions of the window's centred 16:9 area, a little wider than measured on the 4K fixtures (session-two-dishes.jpg:
-    /// x 0.825–0.98, y 0.48–0.67).
-    /// </summary>
-    public const double MeterLeft = 0.82, MeterTop = 0.465, MeterBottom = 0.685;
+    /// <summary>The top row's top, as a fraction of the 16:9 area's height.</summary>
+    public const double Top = 0.175;
 
-    /// <summary>The open dispatch panel on the 16:9 area (the 4K panel frames: x 0.109–0.891, y 0.194–0.853), a little wider.</summary>
-    public static readonly Rect Panel = new(0.105, 0.185, 0.79, 0.68);
+    /// <summary>The gaps between two spots side by side and one under the other, in 1080p units.</summary>
+    public const double ColumnGap = 12, RowGap = 10;
 
-    /// <summary>The UID and ping in the window's lower-left corner (masked on the fixtures: x up to 0.26, y from 0.94).</summary>
-    public static readonly Rect Uid = new(0, 0.93, 0.27, 0.07);
-
-    /// <summary>The left spots' top (below the objective block) and the right top spot's (below the status at the top right), on the 16:9 area.</summary>
-    public const double LeftTop = 0.485, RightTop = 0.2;
-
-    /// <summary>How low a tile may reach, as a fraction of the 16:9 area's height.</summary>
-    public const double LowestBottom = 0.99;
-
-    /// <summary>The gap between two spots in a column and the spots' margin from the area's edge, in 1080p units.</summary>
-    public const double Gap = 6, Margin = 6;
-
-    /// <summary>Whether <paramref name="table"/>'s spot is on the left edge (tables 1–3) or the right (4–6).</summary>
-    public static bool OnLeft(int table) => table <= TableCardReader.Tables / 2;
+    /// <summary>Spots in a row.</summary>
+    public const int PerRow = TableCardReader.Tables / 2;
 
     /// <summary>
-    /// <paramref name="table"/>'s spot in a window of <paramref name="width"/> × <paramref name="height"/> (the overlay's units):
-    /// <see cref="SpotWidth"/> × <see cref="SpotHeight"/> at the window's own scale (the 16:9 area's height over 1080).
+    /// <paramref name="table"/>'s spot in a window of <paramref name="width"/> x <paramref name="height"/> (the overlay's units):
+    /// <see cref="SpotWidth"/> x <see cref="SpotHeight"/> at the window's own scale (the 16:9 area's height over 1080).
     /// </summary>
     public static Rect Spot(int table, double width, double height)
     {
         double unit = Math.Min(width / 16, height / 9);
-        double areaLeft = (width - unit * 16) / 2, areaTop = (height - unit * 9) / 2, areaHeight = unit * 9, s = areaHeight / 1080;
-        double w = SpotWidth * s, h = SpotHeight * s, gap = Gap * s, margin = Margin * s;
+        double areaLeft = (width - unit * 16) / 2, areaTop = (height - unit * 9) / 2, areaWidth = unit * 16, areaHeight = unit * 9, s = areaHeight / 1080;
         int t = Math.Clamp(table, 1, TableCardReader.Tables);
-        double top = t switch
-        {
-            1 or 2 or 3 => LeftTop * areaHeight + (t - 1) * (h + gap),
-            4 => RightTop * areaHeight,
-            5 => MeterBottom * areaHeight + gap,
-            _ => LowestBottom * areaHeight - h,
-        };
-        double left = OnLeft(t) ? areaLeft + margin : areaLeft + unit * 16 - margin - w;
-        return new Rect(left, areaTop + top, w, h);
+        int column = (t - 1) % PerRow, row = (t - 1) / PerRow;
+        double rowWidth = (PerRow * SpotWidth + (PerRow - 1) * ColumnGap) * s;
+        double left = areaLeft + areaWidth / 2 - rowWidth / 2 + column * (SpotWidth + ColumnGap) * s;
+        double top = areaTop + Top * areaHeight + row * (SpotHeight + RowGap) * s;
+        return new Rect(left, top, SpotWidth * s, SpotHeight * s);
     }
 
     /// <summary>
@@ -373,13 +342,7 @@ internal static class InnGourmandLayout
     {
         double unit = Math.Min(width / 16, height / 9), fit = unit * 9 / 1080;
         double s = Math.Min(scale, fit);
-        var places = banners.Select(b =>
-        {
-            var spot = Spot(b.Table, width, height);
-            double w = InnGourmandView.Width(b.Rows.Count) * s;
-            return new Point(OnLeft(b.Table) ? spot.Left : spot.Right - w, spot.Top);
-        }).ToList();
-        return new InnGourmandArrangement(s, places);
+        return new InnGourmandArrangement(s, [.. banners.Select(b => Spot(b.Table, width, height).TopLeft)]);
     }
 }
 

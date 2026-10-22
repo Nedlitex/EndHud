@@ -327,9 +327,7 @@
     <sys:String x:Key="Inn.Circle.Order">点单</sys:String>
     <sys:String x:Key="Inn.Circle.CookAhead">预做</sys:String>
     <sys:String x:Key="Inn.Circle.Swap">换菜</sys:String>
-    <sys:String x:Key="Inn.Circle.CookAheadReason">还没人点，先做好</sys:String>
-    <sys:String x:Key="Inn.Circle.SwapReason">先拿掉{0} · 桌{1}</sys:String>
-    <sys:String x:Key="Inn.Circle.Drag">按住拖动，调整厨房提示位置</sys:String>
+    <sys:String x:Key="Inn.Circle.CookAheadReason">没人点，先做</sys:String>
     <sys:String x:Key="Inn.Gourmand.Title">老饕 桌{0}</sys:String>
     <sys:String x:Key="Inn.Gourmand.Table">桌{0}</sys:String>
     <sys:String x:Key="Inn.Gourmand.Numbers">①②③</sys:String>

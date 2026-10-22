@@ -11,9 +11,10 @@ namespace EndHud;
 
 /// <summary>
 /// The inn helper's overlays. During an inn session (<see cref="InnSession"/>), shown only on the session's frames
-/// (never in a fight): a big circle per kitchen for the dish to queue there, above the held dishes
-/// (<see cref="InnKitchenCircleView"/>), banners for when to start Full Blaze and the last call (<see cref="InnCallView"/>), the marks on the open dispatch panel, and the gourmands' banners on the right
-/// (<see cref="InnGourmandView"/>); the two stacks shown as samples and draggable while the menu is open out of the inn.
+/// (never in a fight): a big circle per kitchen for the dish to queue there, in one row at one fixed place
+/// (<see cref="InnKitchenCircleView"/>), banners for when to start Full Blaze and the last call (<see cref="InnCallView"/>),
+/// the marks on the open dispatch panel, and each gourmand's tile at their table's fixed spot (<see cref="InnGourmandView"/>);
+/// the circles shown as samples where they stand, and the banners draggable, while the menu is open out of the inn.
 /// The setup advice: small panels where the game shows the choice they're about (<see cref="InnSetupView"/>, placed by
 /// <see cref="InnAdviceLayout"/>): under each kitchen's card on the setup screen, in a chef picker, on the menu screen;
 /// nothing on the theme list, and no mark on the setup screens' cards. Their plans are worked out off the UI thread
@@ -260,12 +261,9 @@ public partial class OverlayWindow
 
     private void InnResetButton_Click(object sender, RoutedEventArgs e)
     {
-        _config.InnCallX = HudConfig.DefaultComboHintX;
-        _config.InnCallY = HudConfig.DefaultComboHintY;
-        _config.InnCircleX = InnKitchenCircleLayout.DefaultCenterX;
-        _config.InnCircleY = InnKitchenCircleLayout.DefaultBottomY;
+        _config.InnCallX = HudConfig.DefaultInnCallX;
+        _config.InnCallY = HudConfig.DefaultInnCallY;
         ConfigStore.Save(_config);
-        PlaceInnCirclesFromConfig();
         PlaceInnCallsFromConfig();
     }
 
@@ -273,7 +271,6 @@ public partial class OverlayWindow
 
     private void SetInnEditing(bool editing)
     {
-        SetInnCircleEditing(editing);
         SetInnCallEditing(editing);
         RenderInn();
     }
@@ -282,7 +279,7 @@ public partial class OverlayWindow
     private void ScaleInnStrip(double scale)
     {
         _innWindowScale = scale;
-        ScaleInnCircles(scale * _config.InnStripScale);
+        PlaceInnCircles();
         ScaleInnCalls(scale * _config.InnStripScale);
         ScaleInnGourmands();
         // The advice panels and the marks follow the game's layout and the size: drawn again.

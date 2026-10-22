@@ -9,10 +9,10 @@ namespace EndHud;
 /// The inn session's banners (owner, live 2026-10-20: "remove all hints from the current panel, use the combo instead"):
 /// Full Blaze and the last call of <see cref="InnAdvice.Calls"/> as <see cref="ComboBanner"/>s (a last call with the dish's
 /// picture), up for as long as the call stands, sliding in when it's new and out when it's done. The kitchens' calls
-/// are big circles above the held dishes instead (owner, live 2026-10-21: the kitchens' banners were "very hard to read";
+/// are big circles instead (owner, live 2026-10-21: the kitchens' banners were "very hard to read";
 /// <see cref="InnKitchenCircleView"/>). Stacked in a fixed order (Full Blaze, then the last calls by table), hidden in
 /// place while the dispatch panel is open. Only
-/// during a session; at the combo hint's place by default, draggable while the menu is open (a sample banner shows
+/// during a session; in the middle of the screen by default (HudConfig.DefaultInnCallX/Y), draggable while the menu is open (a sample banner shows
 /// then); the inn helper's size and opacity apply.
 /// </summary>
 public partial class OverlayWindow

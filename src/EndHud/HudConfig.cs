@@ -30,7 +30,7 @@ internal sealed class HudConfig
     /// </summary>
     public int? SettingsVersion { get; set; }
 
-    public const int CurrentSettingsVersion = 3;
+    public const int CurrentSettingsVersion = 4;
 
     /// <summary>UI language; picks the file i18n/&lt;Language&gt;.xaml.</summary>
     public string Language { get; set; } = "zh-CN";
@@ -132,18 +132,18 @@ internal sealed class HudConfig
     /// </summary>
     public bool InnSwapsEnabled { get; set; } = true;
 
-    /// <summary>Where the inn's banners (Full Blaze, the last call) sit (their top-left corner), as a fraction of the game window; by default where the combo-ready hint does (it isn't shown in the inn).</summary>
-    public double InnCallX { get; set; } = DefaultComboHintX;
-
-    public double InnCallY { get; set; } = DefaultComboHintY;
-
     /// <summary>
-    /// Where the kitchens' circles sit: their row's centre and bottom, as fractions of the game window's centred 16:9 area
-    /// (InnKitchenCircleLayout); by default centred, right above the held-dishes tray.
+    /// Where the inn's banners (开启满堂彩, the last call) sit (their top-left corner), as a fraction of the game window; by
+    /// default in the middle of the screen, under the gourmands' tiles and right of the kitchens' circles (owner, 2026-10-22:
+    /// "important things should be at the central view port"). Until version 4 the default was the combo-ready hint's place
+    /// at the left (0.2, 0.36).
     /// </summary>
-    public double InnCircleX { get; set; } = InnKitchenCircleLayout.DefaultCenterX;
+    public double InnCallX { get; set; } = DefaultInnCallX;
 
-    public double InnCircleY { get; set; } = InnKitchenCircleLayout.DefaultBottomY;
+    public double InnCallY { get; set; } = DefaultInnCallY;
+
+    /// <summary>The inn's banners' default place (<see cref="InnCallX"/>, <see cref="InnCallY"/>).</summary>
+    public const double DefaultInnCallX = 0.43, DefaultInnCallY = 0.52;
 
     /// <summary>
     /// How far the menu and the debug panel have been dragged from their usual spots (the menu
@@ -230,6 +230,13 @@ internal static class ConfigStore
             // OverlayWindow.Gauges), so a 50% then was never the player's choice.
             if (config.GaugesScale == HudConfig.MinGaugesScale) config.GaugesScale = 1;
         }
+        if (config.SettingsVersion is null or < 4)
+        {
+            // Up to version 4 the inn's banners stood at the combo hint's place at the left by default, and every start saved
+            // it: that place then was the old default, not the player's choice. Moved to the middle (owner, 2026-10-22).
+            if (config.InnCallX == HudConfig.DefaultComboHintX && config.InnCallY == HudConfig.DefaultComboHintY)
+                (config.InnCallX, config.InnCallY) = (HudConfig.DefaultInnCallX, HudConfig.DefaultInnCallY);
+        }
         config.SettingsVersion = HudConfig.CurrentSettingsVersion;
         // A hand-edited size outside what the slider offers would hide the gauges or fill the screen.
         config.GaugesScale = double.IsFinite(config.GaugesScale)
@@ -248,10 +255,8 @@ internal static class ConfigStore
             ? Math.Clamp(config.InnStripOpacity, HudConfig.MinInnStripOpacity, HudConfig.MaxInnStripOpacity)
             : 1;
         // A place off the window would leave the banners where nobody can drag them back.
-        config.InnCallX = double.IsFinite(config.InnCallX) ? Math.Clamp(config.InnCallX, 0, 1) : HudConfig.DefaultComboHintX;
-        config.InnCallY = double.IsFinite(config.InnCallY) ? Math.Clamp(config.InnCallY, 0, 1) : HudConfig.DefaultComboHintY;
-        config.InnCircleX = double.IsFinite(config.InnCircleX) ? Math.Clamp(config.InnCircleX, 0, 1) : InnKitchenCircleLayout.DefaultCenterX;
-        config.InnCircleY = double.IsFinite(config.InnCircleY) ? Math.Clamp(config.InnCircleY, 0, 1) : InnKitchenCircleLayout.DefaultBottomY;
+        config.InnCallX = double.IsFinite(config.InnCallX) ? Math.Clamp(config.InnCallX, 0, 1) : HudConfig.DefaultInnCallX;
+        config.InnCallY = double.IsFinite(config.InnCallY) ? Math.Clamp(config.InnCallY, 0, 1) : HudConfig.DefaultInnCallY;
         return config;
     }
 

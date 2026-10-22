@@ -7,9 +7,9 @@ namespace EndHud;
 
 /// <summary>
 /// The gourmands' tiles (<see cref="InnGourmandView.Tile"/>): during a session, while a gourmand's order is open, one tile
-/// per gourmand at its table's fixed spot (<see cref="InnGourmandLayout"/>: tables 1–3 down the left edge, 4–6 down the
-/// right; owner, test_yuanyuan8: "make the position FIXED"), the same with the dispatch panel open or closed, fading in when
-/// new and out when served. A tile never moves; what it says changing redraws it in place. Nothing to drag: the spots
+/// per gourmand at its table's fixed spot (<see cref="InnGourmandLayout"/>: two rows of three in the middle of the screen;
+/// owner, test_yuanyuan8: "make the position FIXED"), fading in when new and out when served, put away in place while the
+/// dispatch panel is open (it would cover the dish cards). A tile never moves; what it says changing redraws it in place. Nothing to drag: the spots
 /// follow the game's screen. The inn's size (smaller only) and opacity apply.
 /// </summary>
 public partial class OverlayWindow
@@ -26,6 +26,8 @@ public partial class OverlayWindow
         var banners = _config.InnHelperEnabled ? InnGourmandView.Banners(views.Wants, Loc.Get).ToList() : [];
         double width = HintCanvas.ActualWidth, height = HintCanvas.ActualHeight;
         var arrangement = InnGourmandLayout.Arrange(banners, width, height, InnScale());
+        // Their spots are over the open dispatch panel's dish cards: put away in place while it's open, back as they were after.
+        InnGourmandTiles.Visibility = views.Away ? Visibility.Hidden : Visibility.Visible;
 
         foreach (var (key, gone) in _innGourmandTiles.Where(t => banners.All(b => b.Key != t.Key)).ToList())
         {
