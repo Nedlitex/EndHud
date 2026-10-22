@@ -600,10 +600,13 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
         }
 
         /// <summary>
-        /// The kitchen is cooking <paramref name="dish"/> right now: another of it isn't cooked ahead there (owner, live
-        /// 2026-10-22: kitchen 1 told to cook boundary-lung-roll ahead with one cooking, 5 s left).
+        /// The kitchen is cooking <paramref name="dish"/> right now, read in its queue: another of it isn't cooked ahead there
+        /// (owner, live 2026-10-22: kitchen 1 told to cook boundary-lung-roll ahead with one cooking, 5 s left). Only a dish
+        /// really there (<see cref="Slot.RealSlot"/>): until 2026-10-22 the first dish this advice put in an empty kitchen counted
+        /// too, so at the opening and before Full Blaze no kitchen got a second of any dish, slots stayed empty with one dish in
+        /// stock, and the simulator's kitchens stood idle.
         /// </summary>
-        private bool CookingNow(int kitchen, Dish dish) => _queues[kitchen] is [{ Cooking: true } first, ..] && first.Dish.Id == dish.Id;
+        private bool CookingNow(int kitchen, Dish dish) => _queues[kitchen] is [{ Cooking: true, RealSlot: not null } first, ..] && first.Dish.Id == dish.Id;
 
         /// <summary>A kitchen nothing was ordered for this time (nor swapped), with more than one slot free.</summary>
         private bool OpenToCookAhead(int kitchen) => NothingOrderedFor(kitchen) && _queues[kitchen].Count < KitchenQueue.Slots - 1;

@@ -301,7 +301,10 @@ public class InnSimulatorTests(ITestOutputHelper output)
         // (2026-10-21, test_yuanyuan6): 209.0, the dishes cooked ahead being quicker ones, so a player acting every 20 s
         // finds a kitchen empty more often; every average wait went down (recorded kitchens 29.09/29.61/32.70 s ->
         // 28.79/25.97/27.36 s acting at once/every 10 s/every 20 s; live 40.13/40.69/40.50 -> 38.82/37.88/39.35 s).
-        Assert.True(total <= 209, $"{total:F1} kitchen-seconds idle");
+        // Never cooking ahead another of the dish a kitchen is cooking (owner, live 2026-10-22; d770c57, its first dish in an
+        // empty kitchen not counted since): 222.0 (all of it the recorded kitchens acting every 20 s: the slowest dish is
+        // sometimes the one cooking, so a quicker one goes ahead), average waits 29.11/26.84/27.56 s and 38.32/37.61/39.00 s.
+        Assert.True(total <= 222, $"{total:F1} kitchen-seconds idle");
         Assert.True(waits / 6 <= 33.1, $"{waits / 6:F2} s average wait");
     }
 
@@ -339,8 +342,9 @@ public class InnSimulatorTests(ITestOutputHelper output)
         // cook ahead shown is kept in its kitchen too.)
         // Cooking ahead the theme's dishes and the kitchen's own types before the slowest (2026-10-21, test_yuanyuan6): 197.0
         // kitchen-seconds idle (quicker dishes cooked ahead), average wait 35.34 -> 34.88 s.
-        Assert.True(total <= 197, $"{total:F1} kitchen-seconds idle");
-        Assert.True(waits / 6 <= 34.9, $"{waits / 6:F2} s average wait");
+        // Never cooking ahead another of the dish a kitchen is cooking (owner, live 2026-10-22): 199.0, average wait 34.95 s.
+        Assert.True(total <= 199, $"{total:F1} kitchen-seconds idle");
+        Assert.True(waits / 6 <= 34.95, $"{waits / 6:F2} s average wait");
     }
 
     /// <summary>The player following the calls shown (<see cref="Following_the_calls_shown_keeps_the_kitchens_busy"/>).</summary>

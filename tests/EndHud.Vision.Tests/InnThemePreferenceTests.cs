@@ -118,10 +118,12 @@ public class InnThemePreferenceTests(ITestOutputHelper output)
 
         Assert.True(rice.Income > uniform + 1, $"{rice.Income} vs {uniform}");
         Assert.True(uniform > eggs + 1, $"{uniform} vs {eggs}");
-        // The rice's share of the dishes served, from the income per dish: about w / (w + 1).
+        // The rice's share of the dishes served, from the income per dish: about w / (w + 1) (83 %), less what is cooked ahead
+        // and handed out: with two dishes, a kitchen cooking the rice cooks the eggs ahead (never another of the dish it is
+        // cooking, owner, live 2026-10-22), so more eggs go out at the end. Measured: 66 % (before that rule, within 70-95 %).
         double riceShare = (rice.Income / (rice.Orders * InnPlanner.DishesPerOrder) - 12) / (28 - 12);
         output.WriteLine($"rice's share of the dishes ~{riceShare:P0}, model {InnPlanner.PreferenceWeight / (InnPlanner.PreferenceWeight + 1):P0}");
-        Assert.InRange(riceShare, 0.70, 0.95);
+        Assert.InRange(riceShare, 0.60, 0.95);
     }
 
     /// <summary>The kitchens' balance with an order mix: each dish shared out whole, the busiest kitchen at the balance.</summary>

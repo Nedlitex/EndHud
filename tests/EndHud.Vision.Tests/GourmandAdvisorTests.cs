@@ -89,7 +89,10 @@ public class GourmandAdvisorTests
         Assert.Equal("不要含金石稻的", forEngineer.Requests.Single().Description);
     }
 
-    /// <summary>Carried first, then the counter, then what comes out of a kitchen soonest (queued, or queued now).</summary>
+    /// <summary>
+    /// Carried first, then the counter, then what comes out of a kitchen soonest (queued, or queued now); equally soon, the
+    /// dearer dish first (3c75174, the owner's rule for drinks, 2026-10-22: "suggest the most expensive one"; before, by id).
+    /// </summary>
     [Fact]
     public void Options_rank_carried_then_counter_then_soonest_out()
     {
@@ -101,9 +104,10 @@ public class GourmandAdvisorTests
 
         Assert.Equal([("果味沙拉", GourmandSource.Carried, 0.0), ("坛子肉", GourmandSource.Counter, 0.0), ("“勺里游”", GourmandSource.Queued, 10.0)],
             sides.Select(o => (o.Dish!.Zh, o.From, o.ReadyIn)));
-        // 白瓜肉丸汤 37 s in kitchen 2; 莓果甜汤 and 茄果鳞肉汤 40 s (kitchen 1 is busy for 10 s first).
-        Assert.Equal([("白瓜肉丸汤", 2, 37.0), ("莓果甜汤", 2, 40.0), ("茄果鳞肉汤", 2, 40.0)],
+        // 白瓜肉丸汤 37 s in kitchen 2; 茄果鳞肉汤 and 莓果甜汤 40 s (kitchen 1 is busy for 10 s first), the dearer first.
+        Assert.Equal([("白瓜肉丸汤", 2, 37.0), ("茄果鳞肉汤", 2, 40.0), ("莓果甜汤", 2, 40.0)],
             soups.Select(o => (o.Dish!.Zh, o.Kitchen!.Value, o.ReadyIn)));
+        Assert.True(Dish("茄果鳞肉汤").Price > Dish("莓果甜汤").Price);
         Assert.All(soups, o => Assert.Equal(GourmandSource.ToCook, o.From));
     }
 

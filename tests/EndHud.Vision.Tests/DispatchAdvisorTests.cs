@@ -217,6 +217,28 @@ public class DispatchAdvisorTests
     }
 
     /// <summary>
+    /// An order on screen out too late in its kitchen (serving ends in 40 s; kitchen 1 has 坛子肉 out in 20 + 27 = 47 s) goes
+    /// where it is out in time (kitchen 2, empty); with no kitchen having it out in time (2 and 3 busy too) it stays where it
+    /// is shown: moving it gains nothing. Until 2026-10-22 it went back among the orders and a newer order took its kitchen
+    /// (test_yuanyuan4 430.8 s, a gourmand's soup beaten by table 5's pudding in the last seconds).
+    /// </summary>
+    [Fact]
+    public void An_order_on_screen_too_late_everywhere_stays_and_moves_only_to_a_kitchen_in_time()
+    {
+        var shown = new[] { new KeptCall(1, Dish("坛子肉"), 3, Remove: null) };
+        // Table 5 ordered later but is read first: the order the advice takes them in must not move table 3's.
+        OrderedDish[] orders = [Order(5, "果味沙拉"), Order(3, "坛子肉")];
+
+        var inTimeElsewhere = Advisor().Advise(State([Queue(1, ("果味沙拉", 20)), Queue(2), Queue(3, ("肉包子", 30))], orders, servingLeft: 40), fillEverySlot: false, shown);
+        var lateEverywhere = Advisor().Advise(State([Queue(1, ("果味沙拉", 20)), Queue(2, ("白瓜肉丸汤", 30)), Queue(3, ("肉包子", 30))], orders, servingLeft: 40),
+            fillEverySlot: false, shown);
+
+        Assert.DoesNotContain(inTimeElsewhere.For(1).Queue, q => q.Table == 3);
+        Assert.Contains(inTimeElsewhere.Kitchens.SelectMany(k => k.Queue), q => q.Table == 3 && q.ReadyIn <= 40);
+        Assert.Equal(["3:坛子肉"], lateEverywhere.For(1).Queue.Where(q => !q.CookAhead).Select(q => $"{q.Table}:{q.Dish.Zh}"));
+    }
+
+    /// <summary>
     /// Owner, 2026-10-21: the advice never gates on how full the counter is. EndHud only estimates the counter (it is
     /// never read off the screen); on test_yuanyuan4 the estimate went "full" from about 250 s and hid real orders. An
     /// order is sent to a kitchen with the counter full, even with a dish of its kind on it.
