@@ -330,6 +330,7 @@ internal sealed class InnReplay
         var sb = new StringBuilder();
         sb.AppendLine(CultureInfo.InvariantCulture, $"# one dish in two circles (not two tables' orders): {dupes}");
         foreach (var d in dupeList) sb.AppendLine(CultureInfo.InvariantCulture, $"#   duplicate {d}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"# corrections (the estimate put right by a reading): {string.Join(", ", new[] { "queue", "cover", "counter", "gourmand" }.Select(k => $"{k} {_session.Corrections.GetValueOrDefault(k)}"))}");
         var uncalled = UncalledWaits(UncalledAfterSeconds);
         sb.AppendLine(CultureInfo.InvariantCulture, $"# a dish tables wait for, not in hand nor queued, no circle naming it for over {UncalledAfterSeconds:F0} s: {uncalled.Count} ({uncalled.Sum(u => u.Seconds):F1} s)");
         foreach (var u in uncalled) sb.AppendLine(CultureInfo.InvariantCulture, $"#   uncalled {u.From.TotalSeconds,7:F1} {u.Dish} for {u.Seconds:F1} s");
