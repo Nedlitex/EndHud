@@ -46,6 +46,41 @@ public sealed class InnPictures
         }
     }
 
+    /// <summary>A picture drawn <paramref name="Size"/> pixels square, with which of its pixels are solid (the art, not its see-through edge): RGB, row by row.</summary>
+    internal sealed record Solid(string Id, int Size, byte[] Rgb, bool[] Opaque);
+
+    private readonly Dictionary<int, Solid[]> _solid = [];
+
+    /// <summary>
+    /// Every picture at <paramref name="size"/> with only its solid pixels to compare: for a place whose background isn't one
+    /// colour (the held-dish tray: a see-through panel over the scene).
+    /// </summary>
+    internal Solid[] Solids(int size)
+    {
+        lock (_lock)
+        {
+            if (_solid.TryGetValue(size, out var cached)) return cached;
+            var solids = _pictures.Select(p =>
+            {
+                var small = size * 2 > p.Value.Width ? p.Value.ResizeSmooth(size, size) : p.Value.Resize(size, size);
+                var rgb = new byte[size * size * 3];
+                var opaque = new bool[size * size];
+                for (int i = 0; i < size * size; i++)
+                {
+                    int o = i * 4;
+                    rgb[i * 3] = small.Bgra[o + 2];
+                    rgb[i * 3 + 1] = small.Bgra[o + 1];
+                    rgb[i * 3 + 2] = small.Bgra[o];
+                    opaque[i] = small.Bgra[o + 3] >= 250;
+                }
+                return new Solid(p.Key, size, rgb, opaque);
+            }).ToArray();
+            if (_solid.Count > 16) _solid.Clear();
+            _solid[size] = solids;
+            return solids;
+        }
+    }
+
     private static Rendering Render(string id, Frame picture, int size, int background)
     {
         // Bilinear while shrinking little (4K: 128 to 103); averaging when shrinking more (1080p: to 52).
