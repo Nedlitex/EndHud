@@ -24,6 +24,8 @@ public class InnTrayReaderTests(ITestOutputHelper output)
         { "session-tray-two-dishes", "roll-of-fin-supreme, spoon-swimmer*, -, -, -" },
         { "session-tray-three-dishes", "spoon-swimmer*, melon-meatball-soup*, fin-dumpling, -, -" },
         { "session-panel-just-closed", "roll-of-fin-supreme, spoon-swimmer*, -, -, -" },
+        { "session-tray-picking-up", "melon-meatball-soup, immortal-galore-of-fortune, -, -, -" },
+        { "session-tray-one-choice-dish", "spoon-swimmer*, -, -, -, -" },
         { "session-full-blaze-running", "-, -, -, -, -" },
         // The dispatch panel covers the tray.
         { "session-dispatch-panel", null },

@@ -34,10 +34,12 @@ public sealed class TrayReader(InnPictures pictures)
     // Measured: a badge 0.32 yellow and 0.13 black at every size; a slot without one 0 and 0.
     private const double BadgeYellowShare = 0.15, BadgeDarkShare = 0.06;
     // A picture is named when its colour is this close (mean difference per channel over its solid pixels) and the next
-    // picture this much further. Measured: see InnTrayReaderTests.
-    internal const double MaxDifference = 24, MinLead = 5;
+    // picture this much further. Measured at 4K, 1440p and 1080p: right pictures 6.9-11.7, the next >= 36.9; an empty slot's best
+    // (fin-dumpling, a light picture) 21.5-28.7, so emptiness is told first, by its flatness.
+    internal const double MaxDifference = 16, MinLead = 10;
     // An empty slot's middle is flat: its colours spread less than this (mean distance from the mean, largest channel).
-    private const double EmptySpread = 9;
+    // Measured: an empty slot's middle 1.0-11.4 spread and 0.02-0.55 edges (the floor through it), a dish's 24-58 and 11.5-22.
+    private const double EmptySpread = 9, EmptyEdges = 3;
 
     /// <summary>
     /// What each slot holds, left to right (null: empty), or null when the tray isn't on screen (the dispatch panel over
@@ -113,10 +115,33 @@ public sealed class TrayReader(InnPictures pictures)
 
     private static bool IsEmpty(Frame frame, InnLayout layout, int slot)
     {
+        var (spread, edges) = Flatness(frame, layout, slot);
+        return spread < EmptySpread || edges < EmptyEdges;
+    }
+
+    /// <summary>
+    /// How plain the slot's middle is: its colours' spread, and how sharp its changes are (the mean brightness step between
+    /// pixels 2 apart at 4K). The scene through an empty slot changes softly (the floor's pattern, a light); a dish's
+    /// picture has outlines.
+    /// </summary>
+    internal static (double Spread, double Edges) Flatness(Frame frame, InnLayout layout, int slot)
+    {
         var area = SlotArea(layout, slot);
         int margin = area.Width / 4;
         var middle = new PixelRect(area.X + margin, area.Y + margin, area.Width - 2 * margin, area.Height - 2 * margin).ClampTo(frame.Width, frame.Height);
-        return Spread(frame, middle) < EmptySpread;
+        int d = Math.Max(1, (int)Math.Round(2 * layout.Scale));
+        double sum = 0;
+        int n = 0;
+        for (int y = middle.Y; y + d < middle.Bottom; y++)
+        for (int x = middle.X; x + d < middle.Right; x++)
+        {
+            int here = Brightness(frame.GetPixel(x, y));
+            sum += Math.Abs(Brightness(frame.GetPixel(x + d, y)) - here) + Math.Abs(Brightness(frame.GetPixel(x, y + d)) - here);
+            n++;
+        }
+        return (Spread(frame, middle), n == 0 ? 0 : sum / (2.0 * n));
+
+        static int Brightness((byte R, byte G, byte B) c) => (c.R * 3 + c.G * 6 + c.B) / 10;
     }
 
     private static double Spread(Frame frame, PixelRect r)
