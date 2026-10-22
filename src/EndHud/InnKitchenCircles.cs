@@ -230,6 +230,7 @@ internal sealed class InnCircleRow(Grid row, Func<InnCircleModel, FrameworkEleme
 
     private static readonly TimeSpan InTime = TimeSpan.FromMilliseconds(300), OutTime = TimeSpan.FromMilliseconds(180);
     private static readonly IEasingFunction Pop = Frozen(new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.4 });
+    private static readonly Brush Backing = Frozen(new SolidColorBrush(Color.FromArgb(0xC8, 0x12, 0x14, 0x18)));
     private static readonly Brush MarkFill = Frozen(new SolidColorBrush(Color.FromArgb(0x38, 0xFF, 0xC8, 0x3C)));
 
     private readonly (string Key, FrameworkElement Element)?[] _shown = new (string, FrameworkElement)?[InnKitchenCircleView.Slots];
@@ -250,6 +251,11 @@ internal sealed class InnCircleRow(Grid row, Func<InnCircleModel, FrameworkEleme
         grid.Height = InnKitchenCircleView.RowHeight;
         grid.ColumnDefinitions.Clear();
         for (int i = 0; i < InnKitchenCircleView.Slots; i++) grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(InnKitchenCircleView.SlotWidth) });
+        // A dark backing under the whole row: the words stay readable over the floor and over the open panel's bonus column.
+        var backing = new Border { Background = Backing, CornerRadius = new CornerRadius(14), IsHitTestVisible = false };
+        Grid.SetColumnSpan(backing, InnKitchenCircleView.Slots);
+        Panel.SetZIndex(backing, -2);
+        grid.Children.Add(backing);
         return grid;
     }
 
