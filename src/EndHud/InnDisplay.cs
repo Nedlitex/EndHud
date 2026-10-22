@@ -13,9 +13,9 @@ internal sealed record InnViews(IReadOnlyList<InnCall> Calls, IReadOnlyList<InnP
     /// <summary>
     /// The dispatch panel is open, or the last frame read it so: the banners (Full Blaze, the last call) are put away in
     /// place (hidden, not taken down), so the same ones show again when it closes, with no slide-in (owner, 2026-10-21:
-    /// "the recommended dish flashes heavily"), and so are the gourmands' tiles (their fixed spots are over the panel's
-    /// dish cards). The kitchens' circles stay up where they always are (<see cref="InnKitchenCircleLayout"/>: over the
-    /// panel's chef bonus column), the selected tab's kitchen emphasised (<see cref="SelectedKitchen"/>). Nothing moves.
+    /// "the recommended dish flashes heavily"). The gourmands' tiles stay up at their spots beside it
+    /// (<see cref="InnGourmandLayout"/>), and the kitchens' circles where they always are (<see cref="InnKitchenCircleLayout"/>:
+    /// middle bottom, over the panel's lower part), the selected tab's kitchen emphasised (<see cref="SelectedKitchen"/>). Nothing moves.
     /// </summary>
     public bool Away { get; init; }
 

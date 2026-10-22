@@ -131,7 +131,8 @@ internal static class InnGourmandView
     public static double Height(int requests) => 2 * Padding + Picture(requests) + NameHeight;
 
     private static readonly FontFamily Font = new("Microsoft YaHei UI, Segoe UI");
-    private static readonly Brush Back = Frozen(new SolidColorBrush(Color.FromArgb(0xD8, 0x16, 0x18, 0x1C)));
+    // Half see-through: the game shows behind the tile, its pictures and words stay solid (owner, 2026-10-22).
+    private static readonly Brush Back = Frozen(new SolidColorBrush(Color.FromArgb(0x80, 0x16, 0x18, 0x1C)));
     private static readonly Brush Slot = Frozen(new SolidColorBrush(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF)));
     private static readonly Brush Ink = Frozen(new SolidColorBrush(Color.FromRgb(0x14, 0x16, 0x1A)));
 
@@ -292,16 +293,19 @@ internal sealed class InnWantsHold
 
 /// <summary>
 /// Where the gourmands' tiles go: each table at its own spot, whoever else is there, so nothing ever moves (owner, live
-/// 2026-10-21, test_yuanyuan8: "make the position FIXED, so user does not need to chase around"), near the middle of the
-/// screen (owner, 2026-10-22: "the gormand table is too small and too at the side, make it more closer to the center so
-/// human can focus"; "important things should be at the central view port, so human can focus, things on the corner is
-/// really impossible for human to notice"). Two rows of three centred on the screen, tables 1-3 on the top row and 4-6 under
-/// them, left to right as the table cards are, standing from <see cref="Top"/> (0.175 of the window's centred 16:9 area:
-/// under the table cards, to y 0.132, and the game's last-call bar, to y 0.167) down to y 0.488, x 0.311-0.689.
-/// With the panel closed they are over the floor, clear of the HUD at the top left and right, the circles (from y 0.49),
-/// the Full Blaze meter and the tray. The open dispatch panel's dish cards are under them, so they are put away in place
-/// while it's open (<see cref="InnViews.Away"/>) and shown again there when it closes. A tile stands in its spot's top-left
-/// corner, its size at most the spot's. The player's size makes the tiles smaller, never larger than their spot.
+/// 2026-10-21, test_yuanyuan8: "make the position FIXED, so user does not need to chase around"), where the owner drew them
+/// (2026-10-22: "the gourmand location IS TOO close to center! should be roughly at where I draw"; "the left 3 banner for
+/// gourmand should be table 1-3, right should be 4-6"): tables 1, 2, 3 down the left of the screen, top to bottom, and
+/// 4, 5, 6 down the right. Each tile is centred on its spot's centre (<see cref="Centers"/>, fractions of the window's
+/// centred 16:9 area):
+/// <list type="bullet">
+/// <item>Left, x 0.11–0.24 drawn: tables 1, 2, 3 centred at y 0.35, 0.60, 0.825.</item>
+/// <item>Right, x 0.76–0.91 drawn: tables 4, 6 centred at x 0.835, y 0.35 and 0.795; table 5 at y 0.55, moved left just
+/// enough to end at x 0.865, clear of the game's Full Blaze meter (x 0.87–0.985, y 0.52–0.645 on the 4K frames).</item>
+/// </list>
+/// The same with the dispatch panel open, and shown there (never put away): the left ones then lie over the panel's chef
+/// column and the right ones over the right edge of its right dish-card column (which ends at x 0.855). The player's size
+/// makes the tiles smaller, never larger than their spot.
 /// </summary>
 internal static class InnGourmandLayout
 {
@@ -309,29 +313,25 @@ internal static class InnGourmandLayout
     public static readonly double SpotWidth = Enumerable.Range(1, InnGourmandView.MostRequests).Max(InnGourmandView.Width),
         SpotHeight = Enumerable.Range(1, InnGourmandView.MostRequests).Max(InnGourmandView.Height);
 
-    /// <summary>The top row's top, as a fraction of the 16:9 area's height.</summary>
-    public const double Top = 0.175;
-
-    /// <summary>The gaps between two spots side by side and one under the other, in 1080p units.</summary>
-    public const double ColumnGap = 12, RowGap = 10;
-
-    /// <summary>Spots in a row.</summary>
-    public const int PerRow = TableCardReader.Tables / 2;
+    /// <summary>Each table's spot's centre (tables 1 to 6), as fractions of the 16:9 area.</summary>
+    public static readonly IReadOnlyList<Point> Centers =
+    [
+        new(0.175, 0.35), new(0.175, 0.60), new(0.175, 0.825),
+        new(0.835, 0.35), new(0.865 - 0.0610, 0.55), new(0.835, 0.795),
+    ];
 
     /// <summary>
     /// <paramref name="table"/>'s spot in a window of <paramref name="width"/> x <paramref name="height"/> (the overlay's units):
-    /// <see cref="SpotWidth"/> x <see cref="SpotHeight"/> at the window's own scale (the 16:9 area's height over 1080).
+    /// <see cref="SpotWidth"/> x <see cref="SpotHeight"/> at the window's own scale (the 16:9 area's height over 1080), centred
+    /// on the table's <see cref="Centers"/>.
     /// </summary>
     public static Rect Spot(int table, double width, double height)
     {
         double unit = Math.Min(width / 16, height / 9);
         double areaLeft = (width - unit * 16) / 2, areaTop = (height - unit * 9) / 2, areaWidth = unit * 16, areaHeight = unit * 9, s = areaHeight / 1080;
-        int t = Math.Clamp(table, 1, TableCardReader.Tables);
-        int column = (t - 1) % PerRow, row = (t - 1) / PerRow;
-        double rowWidth = (PerRow * SpotWidth + (PerRow - 1) * ColumnGap) * s;
-        double left = areaLeft + areaWidth / 2 - rowWidth / 2 + column * (SpotWidth + ColumnGap) * s;
-        double top = areaTop + Top * areaHeight + row * (SpotHeight + RowGap) * s;
-        return new Rect(left, top, SpotWidth * s, SpotHeight * s);
+        var center = Centers[Math.Clamp(table, 1, TableCardReader.Tables) - 1];
+        double w = SpotWidth * s, h = SpotHeight * s;
+        return new Rect(areaLeft + center.X * areaWidth - w / 2, areaTop + center.Y * areaHeight - h / 2, w, h);
     }
 
     /// <summary>

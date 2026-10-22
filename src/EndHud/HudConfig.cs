@@ -30,7 +30,7 @@ internal sealed class HudConfig
     /// </summary>
     public int? SettingsVersion { get; set; }
 
-    public const int CurrentSettingsVersion = 4;
+    public const int CurrentSettingsVersion = 5;
 
     /// <summary>UI language; picks the file i18n/&lt;Language&gt;.xaml.</summary>
     public string Language { get; set; } = "zh-CN";
@@ -112,10 +112,14 @@ internal sealed class HudConfig
 
     public const double MinInnStripScale = 0.5, MaxInnStripScale = 2;
 
-    /// <summary>How opaque the inn helper is (the banners, the gourmands' banners, the marks and the setup advice; 1 = as drawn), from the menu's slider.</summary>
-    public double InnStripOpacity { get; set; } = 1;
+    /// <summary>
+    /// How opaque the inn helper is (the banners, the gourmands' banners, the marks and the setup advice; 1 = as drawn), from
+    /// the menu's slider. 85% by default, so the game shows through (owner, 2026-10-22: "make sure the transparency is not
+    /// 100%, right now you cannot even see whats behind that"); a saved value is kept.
+    /// </summary>
+    public double InnStripOpacity { get; set; } = DefaultInnStripOpacity;
 
-    public const double MinInnStripOpacity = 0.2, MaxInnStripOpacity = 1;
+    public const double MinInnStripOpacity = 0.2, MaxInnStripOpacity = 1, DefaultInnStripOpacity = 0.85;
 
     /// <summary>
     /// During an inn session, show each kitchen's next dish to queue as a big circle above the held dishes, and the last
@@ -134,16 +138,18 @@ internal sealed class HudConfig
 
     /// <summary>
     /// Where the inn's banners (开启满堂彩, the last call) sit (their top-left corner), as a fraction of the game window; by
-    /// default in the middle of the screen, under the gourmands' tiles and right of the kitchens' circles (owner, 2026-10-22:
-    /// "important things should be at the central view port"). Until version 4 the default was the combo-ready hint's place
-    /// at the left (0.2, 0.36).
+    /// default where the combo-ready hint does (it isn't shown in the inn). Settings version 4 moved that default to the
+    /// middle (0.43, 0.52); version 5 puts it back (the middle is the kitchens' circles' and the panel's).
     /// </summary>
     public double InnCallX { get; set; } = DefaultInnCallX;
 
     public double InnCallY { get; set; } = DefaultInnCallY;
 
     /// <summary>The inn's banners' default place (<see cref="InnCallX"/>, <see cref="InnCallY"/>).</summary>
-    public const double DefaultInnCallX = 0.43, DefaultInnCallY = 0.52;
+    public const double DefaultInnCallX = DefaultComboHintX, DefaultInnCallY = DefaultComboHintY;
+
+    /// <summary>The banners' default place in settings version 4 only (<see cref="InnCallX"/>): moved back by version 5.</summary>
+    public const double Version4InnCallX = 0.43, Version4InnCallY = 0.52;
 
     /// <summary>
     /// How far the menu and the debug panel have been dragged from their usual spots (the menu
@@ -230,11 +236,11 @@ internal static class ConfigStore
             // OverlayWindow.Gauges), so a 50% then was never the player's choice.
             if (config.GaugesScale == HudConfig.MinGaugesScale) config.GaugesScale = 1;
         }
-        if (config.SettingsVersion is null or < 4)
+        if (config.SettingsVersion == 4)
         {
-            // Up to version 4 the inn's banners stood at the combo hint's place at the left by default, and every start saved
-            // it: that place then was the old default, not the player's choice. Moved to the middle (owner, 2026-10-22).
-            if (config.InnCallX == HudConfig.DefaultComboHintX && config.InnCallY == HudConfig.DefaultComboHintY)
+            // Version 4 moved the inn's banners' default to the middle, and every start saved it: that place then was the
+            // default, not the player's choice. Back at the combo hint's place (version 5); before 4 the default was already that.
+            if (config.InnCallX == HudConfig.Version4InnCallX && config.InnCallY == HudConfig.Version4InnCallY)
                 (config.InnCallX, config.InnCallY) = (HudConfig.DefaultInnCallX, HudConfig.DefaultInnCallY);
         }
         config.SettingsVersion = HudConfig.CurrentSettingsVersion;
@@ -253,7 +259,7 @@ internal static class ConfigStore
             : 1;
         config.InnStripOpacity = double.IsFinite(config.InnStripOpacity)
             ? Math.Clamp(config.InnStripOpacity, HudConfig.MinInnStripOpacity, HudConfig.MaxInnStripOpacity)
-            : 1;
+            : HudConfig.DefaultInnStripOpacity;
         // A place off the window would leave the banners where nobody can drag them back.
         config.InnCallX = double.IsFinite(config.InnCallX) ? Math.Clamp(config.InnCallX, 0, 1) : HudConfig.DefaultInnCallX;
         config.InnCallY = double.IsFinite(config.InnCallY) ? Math.Clamp(config.InnCallY, 0, 1) : HudConfig.DefaultInnCallY;

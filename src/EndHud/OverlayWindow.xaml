@@ -90,8 +90,8 @@
                 <ContentControl x:Name="RotationContent" />
             </StackPanel>
         </Border>
-        <!-- The kitchens' circles (each kitchen's next dish, one column per kitchen) at one fixed place, panel open or
-             closed (InnKitchenCircleLayout). Never hit-tested, never dragged. -->
+        <!-- The kitchens' circles (each kitchen's next dish, one column per kitchen) at one fixed place, middle bottom
+             above the held-dishes tray, panel open or closed (InnKitchenCircleLayout). Never hit-tested, never dragged. -->
         <Border x:Name="InnCircleFrame" IsHitTestVisible="False">
             <Grid x:Name="InnCircleSlots" />
         </Border>
@@ -107,7 +107,7 @@
             </StackPanel>
         </Border>
         <!-- The gourmands' tiles (one per gourmand: each request's item and its picture), each at its table's fixed spot
-             (InnGourmandLayout: tables 1-3 down the left edge, 4-6 down the right), panel open or closed. Never hit-tested,
+             (InnGourmandLayout: tables 1-3 down the left, 4-6 down the right), panel open or closed. Never hit-tested,
              never dragged. -->
         <Canvas x:Name="InnGourmandTiles" IsHitTestVisible="False" />
         <!-- The gauges, centred on config GaugesCenterX, standing on GaugesBottomY. -->
