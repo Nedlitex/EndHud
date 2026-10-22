@@ -7,6 +7,10 @@ namespace EndHud.Vision;
 /// strokes, so the numeral is read in two bands between them: an "I" is one vertical run of ink in
 /// both bands, at the same place; a "V" is two runs in the upper band (its arms) that close into one
 /// in the lower band, between them. The runs must spell I, II, III or IV; anything else is null.
+/// At level I the game draws no badge at all (the owner's answer, 2026-10-22), so a corner that clearly
+/// has no badge reads 1: no numeral, hardly any dark, and the inner corner showing the square's own
+/// background (<see cref="BossStatusReader.Background"/>). A corner that is dark (a badge, or a dark
+/// scene that could hide one) or covered by something else (an effect) is null, never 1.
 /// Only reactions whose badge has been seen are read (<see cref="Measured"/>).
 /// </summary>
 public static class ReactionLevel
@@ -29,6 +33,12 @@ public static class ReactionLevel
     internal const int DarkBelow = 100;
     internal const double MinDarkShare = 0.5;
 
+    // No badge (level I). Of the box's pixels inside the square (from BadgeFrom to the square's edge)
+    // that aren't ink, the share within BackgroundNear (sum of |R|,|G|,|B| differences) of the square's
+    // background, and the box's DarkShare. Measured: see MinAbsentBackgroundShare's comment.
+    internal const int BackgroundNear = 45;
+    internal const double MaxAbsentDarkShare = 0.45, MinAbsentBackgroundShare = 0.45;
+
     // The numeral is at least this tall (fraction of the square's width; 18-19 px of 40 at 4K).
     internal const double MinNumeralHeight = 0.3;
 
@@ -45,15 +55,16 @@ public static class ReactionLevel
     public static int? ReadLevel(Frame frame, PixelRect square) => Measure(frame, square).Level;
 
     /// <summary>What the reading is based on, for measuring thresholds.</summary>
-    internal static (double DarkShare, int Height, double[] Upper, double[] Lower, int? Level) Measure(Frame frame, PixelRect square)
+    internal static (double DarkShare, double BackgroundShare, int Height, double[] Upper, double[] Lower, int? Level) Measure(Frame frame, PixelRect square)
     {
         int x0 = square.X + (int)Math.Round(square.Width * BadgeFrom), x1 = square.X + (int)Math.Round(square.Width * BadgeTo);
         int y0 = square.Y + (int)Math.Round(square.Height * BadgeFrom), y1 = square.Y + (int)Math.Round(square.Height * BadgeTo);
-        if (x0 < 0 || y0 < 0 || x1 > frame.Width || y1 > frame.Height || x1 - x0 < 6) return (0, 0, [], [], null);
+        if (square.X < 0 || square.Y < 0 || x1 > frame.Width || y1 > frame.Height || x1 - x0 < 6) return (0, 0, 0, [], [], null);
 
+        var background = BossStatusReader.Background(frame, square);
         int w = x1 - x0, h = y1 - y0;
         var ink = new bool[w, h];
-        int dark = 0, other = 0;
+        int dark = 0, other = 0, inside = 0, near = 0;
         for (int y = 0; y < h; y++)
         for (int x = 0; x < w; x++)
         {
@@ -62,8 +73,12 @@ public static class ReactionLevel
             if (ink[x, y]) continue;
             other++;
             if (Math.Max(r, Math.Max(g, b)) < DarkBelow) dark++;
+            if (x0 + x >= square.Right || y0 + y >= square.Bottom) continue;
+            inside++;
+            if (Math.Abs(r - background.R) + Math.Abs(g - background.G) + Math.Abs(b - background.B) <= BackgroundNear) near++;
         }
         double darkShare = other == 0 ? 0 : dark / (double)other;
+        double backgroundShare = inside == 0 ? 0 : near / (double)inside;
 
         int top = -1, bottom = -1;
         for (int y = 0; y < h; y++)
@@ -75,11 +90,16 @@ public static class ReactionLevel
             bottom = y;
         }
         int height = top < 0 ? 0 : bottom - top + 1;
-        if (height == 0) return (darkShare, 0, [], [], null);
+        bool numeral = height >= square.Width * MinNumeralHeight;
+        if (!numeral)
+        {
+            bool absent = darkShare <= MaxAbsentDarkShare && backgroundShare >= MinAbsentBackgroundShare;
+            return (darkShare, backgroundShare, height, [], [], absent ? 1 : null);
+        }
         var upper = Runs(ink, w, top + (int)Math.Round(height * UpperFrom), top + (int)Math.Round(height * UpperTo));
         var lower = Runs(ink, w, top + (int)Math.Round(height * LowerFrom), top + (int)Math.Round(height * LowerTo));
-        bool badge = darkShare >= MinDarkShare && height >= square.Width * MinNumeralHeight;
-        return (darkShare, height, upper, lower, badge ? Spell(upper, lower, square.Width * SameColumn) : null);
+        bool badge = darkShare >= MinDarkShare;
+        return (darkShare, backgroundShare, height, upper, lower, badge ? Spell(upper, lower, square.Width * SameColumn) : null);
     }
 
     /// <summary>

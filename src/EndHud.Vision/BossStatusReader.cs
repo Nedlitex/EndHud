@@ -6,8 +6,9 @@ namespace EndHud.Vision;
 /// <param name="Position">Its place in the row, from 0 (the row reflows as statuses come and go);
 /// <see cref="RingPosition"/> for the elemental infliction (<see cref="InflictionRing"/>).</param>
 /// <param name="Score">How well the icon matched (normalised correlation, 1 = identical).</param>
-/// <param name="Stacks">Stacks (inflictions, 1–4) or level (reactions, I–IV as 1–4); null when not read
-/// (covered, no badge, or a status whose count EndHud doesn't read yet: see <see cref="BossStatusReader.CountsRead"/>).</param>
+/// <param name="Stacks">Stacks (inflictions, 1–4) or level (reactions, I–IV as 1–4; a reaction with no badge
+/// is I); null when not read (covered, a dark scene that could hide a badge, or a status whose count
+/// EndHud doesn't read yet: see <see cref="BossStatusReader.CountsRead"/>).</param>
 public sealed record BossStatusReading(string StatusId, int Position, double Score, int? Stacks)
 {
     public const int RingPosition = -1;
@@ -98,7 +99,7 @@ public sealed class BossStatusReader(OperatorLibrary library)
     }
 
     /// <summary>The frame's background colour: the median of the square's top-left corner, which icons leave empty.</summary>
-    private static (int R, int G, int B) Background(Frame frame, PixelRect square)
+    internal static (int R, int G, int B) Background(Frame frame, PixelRect square)
     {
         var rs = new List<int>();
         var gs = new List<int>();
