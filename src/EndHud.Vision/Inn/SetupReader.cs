@@ -134,6 +134,9 @@ public sealed partial class SetupReader(InnText text, InnData data, IReadOnlyLis
 
         int Heading(params string[] words) => lines.FindIndex(l => words.Any(l.Text.Contains));
         int objective = Heading("加分项"), rules = Heading("菜单要求"), hot = lines.FindIndex(l => l.Text.Contains("热门信息") || HotLabel().IsMatch(l.Text));
+        // The trend bar (流行趋势, with a chip and a refresh countdown at its right: test_yuanyuan8's gourmand theme) closes the
+        // rules above it; without it the countdown and the bar's title were read as the end of a rule ("至少有1道@13小时39分钟").
+        int trend = Heading("流行趋势");
         // A section's lines: after its heading, above the next heading's row (a chip beside the next
         // heading, "赏钱", stands a little higher than it).
         List<string> Section(int from, int to)
@@ -142,14 +145,14 @@ public sealed partial class SetupReader(InnText text, InnData data, IReadOnlyLis
             int limit = to > from ? lines[to].Place.Y - lines[to].Place.Height / 2 : int.MaxValue;
             return [.. lines.Skip(from + 1).TakeWhile((l, i) => from + 1 + i != to && l.Place.Y < limit).Select(l => l.Text).Where(t => t.Length > 0)];
         }
-        int Next(int after) => new[] { objective, rules, hot }.Where(i => i > after).DefaultIfEmpty(-1).Min();
+        int Next(int after) => new[] { objective, rules, hot, trend }.Where(i => i > after).DefaultIfEmpty(-1).Min();
 
         var (traits, traitsRow) = HotRow(lines, data);
 
         var objectiveLines = Section(objective, Next(objective));
         int headings = new[] { objective, rules, hot }.Count(i => i >= 0);
         // The theme's text: the lines under its name, above the first heading.
-        int nameAt = lines.IndexOf(name), firstHeading = new[] { objective, rules, hot }.Where(i => i > nameAt).DefaultIfEmpty(-1).Min();
+        int nameAt = lines.IndexOf(name), firstHeading = new[] { objective, rules, hot, trend }.Where(i => i > nameAt).DefaultIfEmpty(-1).Min();
         string description = firstHeading > nameAt ? string.Concat(lines.Skip(nameAt + 1).Take(firstHeading - nameAt - 1).Select(l => l.Text)) : "";
         return new Details(themeName, theme, description.Length > 0 ? description : null, objectiveLines.Count > 0 ? string.Concat(objectiveLines) : null,
             Section(rules, Next(rules)), traits, headings, traitsRow);

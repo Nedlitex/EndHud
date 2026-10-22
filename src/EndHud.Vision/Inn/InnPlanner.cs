@@ -72,6 +72,7 @@ public sealed partial record DishRule(int Count, IReadOnlyList<string> AnyOf)
         // One line can state two rules joined by 和 (海陆宴: "至少有1道带有[肉食]特性的菜品和1道带有[水产]
         // 特性的菜品"): the second is a rule of its own, as if it started "至少有".
         string text = SecondRule().Replace(Repair(string.Concat(lines.Select(l => l.Replace(" ", "")))), "至少有");
+        text = EachTypeAtLeast(text, data);
         var rules = new List<DishRule>();
         var notUnderstood = new List<string>();
         foreach (string part in RuleStart().Split(text).Where(p => p.Length > 0))
@@ -81,6 +82,33 @@ public sealed partial record DishRule(int Count, IReadOnlyList<string> AnyOf)
         }
         return new DishRulesRead(rules, notUnderstood);
     }
+
+    /// <summary>
+    /// "且[主食]类、[菜肴]类、[甜品]类、[汤羹]类菜品，每种至少有1道" (test_yuanyuan8's gourmand theme, after "至少需要8道菜品和6种饮品"):
+    /// N dishes of each type listed, written out as one rule per type ("至少有1道[主食]类菜品…") for <see cref="Parse"/>. The
+    /// list runs back from "每种至少有N道" to the 且 before it (or to "饮品" when the 且 is lost); each item is the dish type
+    /// whose name it contains (the type's icon before it reads as a stray letter or nothing). A list where an item names no
+    /// type, or two, is left as read, so it is said as not understood rather than half taken.
+    /// </summary>
+    internal static string EachTypeAtLeast(string text, InnData data)
+    {
+        var each = EachText().Match(text);
+        if (!each.Success) return text;
+        string before = text[..each.Index];
+        int start = before.LastIndexOf('且');
+        if (start < 0) start = before.LastIndexOf("饮品", StringComparison.Ordinal) is var drinks and >= 0 ? drinks + 1 : -1;
+        if (start < 0) return text;
+        string list = before[(start + 1)..];
+        if (!list.EndsWith("菜品", StringComparison.Ordinal)) return text;
+        var items = list[..^2].Split(new[] { '、', ',', '，' }, StringSplitOptions.RemoveEmptyEntries);
+        var types = items.Select(i => data.DishTypes.Where(t => i.Contains(t.Zh, StringComparison.Ordinal)).ToList()).ToList();
+        if (types.Count == 0 || types.Any(t => t.Count != 1)) return text;
+        string rules = string.Concat(types.Select(t => $"至少有{each.Groups[1].Value}道[{t[0].Zh}]类菜品"));
+        return text[..start] + rules + text[(each.Index + each.Length)..];
+    }
+
+    [GeneratedRegex(@"[，,]?每种至少有?(\d+)道")]
+    private static partial Regex EachText();
 
     // The closing character of "dishes" may be lost where the line wraps, the panel putting it alone on the next line
     // (owner, live 2026-10-21: the tea-break theme's dessert half said as not understood, so the plan left the desserts

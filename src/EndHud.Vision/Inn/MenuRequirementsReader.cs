@@ -33,12 +33,32 @@ public sealed partial class MenuRequirementsReader(InnText text, InnData data)
         MenuRequirements? best = null;
         await foreach (var lines in text.ReadPlacedLinesAttemptsAsync(frame, layout.Centered(Panel), Ink, layout.Scale))
         {
-            var read = Parse([.. lines.OrderBy(l => l.Place.Y).Select(l => l.Text.Replace(" ", ""))], data);
+            var read = Parse(Requirements(lines), data);
             if (best is null || read.Found > best.Found) best = read;
             if (best.Rating is not null && best.MinTypes is not null && best.MinDishes is not null && best.MinDrinks is not null && best.DishRules.Count > 0) break;
         }
         return best is { Found: > 0 } ? best : null;
     }
+
+    /// <summary>
+    /// The panel's lines top to bottom, down to the 流行趋势 heading (test_yuanyuan8's gourmand theme: the trend and its chips
+    /// stand under 专属菜单要求 in the same column, and were read as the end of the last rule: "至少有1道流行趋势素食"). Nothing
+    /// below that heading is a requirement; a line level with it (the heading's own row) neither.
+    /// </summary>
+    internal static List<string> Requirements(IReadOnlyList<(string Text, PixelRect Place)> lines)
+    {
+        var ordered = lines.OrderBy(l => l.Place.Y).ToList();
+        int trend = ordered.FindIndex(l => l.Text.Replace(" ", "").Contains(TrendHeading, StringComparison.Ordinal));
+        if (trend >= 0)
+        {
+            var heading = ordered[trend].Place;
+            ordered = [.. ordered.Take(trend).Where(l => l.Place.Bottom <= heading.Y + heading.Height / 2)];
+        }
+        return [.. ordered.Select(l => l.Text.Replace(" ", ""))];
+    }
+
+    /// <summary>The heading of the trend section under the requirements.</summary>
+    internal const string TrendHeading = "流行趋势";
 
     /// <summary>The requirements in the panel's lines (top to bottom).</summary>
     internal static MenuRequirements Parse(IReadOnlyList<string> lines, InnData data)

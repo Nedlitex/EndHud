@@ -89,6 +89,27 @@ public class InnSetupReaderTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// Owner, live 2026-10-21 (test_yuanyuan8, setup-gourmand-theme.jpg): the gourmand theme's 菜单要求 ("至少需要8道菜品和6种
+    /// 饮品 / 且[主食]类、[菜肴]类、[甜品]类、[汤羹]类菜品，每 / 种至少有1道") sits above a 流行趋势 bar with a chip and a refresh
+    /// countdown. The section used to run on to the next heading the reader knew (热门类型), taking in the bar: the menu advice
+    /// then said "看不懂菜单要求：至少有1道@13小时39分钟0流行趋势" and the plan ignored the rule. The section stops at the bar,
+    /// and every rule in it is understood: a dish of each of the four types.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Screens))]
+    public async Task The_menu_rules_stop_at_the_trend_bar_and_each_type_rule_is_understood(string screenName)
+    {
+        var screen = SimulatedScreen.Named(screenName);
+        var setup = await Read("setup-gourmand-theme", screen);
+        output.WriteLine($"{screen.Width}x{screen.Height}: rules \"{string.Join(" | ", setup.MenuRules)}\"");
+
+        Assert.DoesNotContain(setup.MenuRules, l => l.Contains("流行") || l.Contains("小时") || l.Contains("分钟") || l.Contains("赏钱"));
+        var read = DishRule.ParseAll(setup.MenuRules, InnData.Load(await OperatorCache.FolderAsync())!);
+        Assert.Empty(read.NotUnderstood);
+        Assert.Equal(["1:Entree", "1:Side", "1:Dessert", "1:Soup"], read.Rules.Select(r => $"{r.Count}:{string.Join("/", r.AnyOf)}"));
+    }
+
     [Fact]
     public async Task Only_the_setup_screens_are_read()
     {
