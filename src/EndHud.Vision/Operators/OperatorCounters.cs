@@ -56,6 +56,7 @@ public static class OperatorCounters
                 : counter == HuntingArrow ? ReadArrows(frame)
                 : counter == Sign ? ReadSigns(frame)
                 : counter == Sunderblade ? ReadSunderblades(frame)
+                : counter == SiStacks ? ReadSiStacks(frame)
                 : null;
             readings.Add(new CounterReading(operatorId, counter.Id, value));
         }
@@ -200,6 +201,39 @@ public static class OperatorCounters
         }
         return lit;
     }
+
+    /// <summary>
+    /// Si's damage stacks, left of the HP bar where Laevatain's flower is: 0 is a hollow green
+    /// four-lobed flower with no number; from 1 a green cross with a white number on it
+    /// (<see cref="BadgeNumber"/>), as many digits as it takes. Null when neither is there (covered,
+    /// the cast's flash, or the HUD shaken by a hit), or when the number can't be told.
+    /// </summary>
+    private static int? ReadSiStacks(Frame frame)
+    {
+        var ui = new UiScaler(frame.Width, frame.Height);
+        var badge = ui.BottomCenter(SiBadgeArea).ClampTo(frame.Width, frame.Height);
+        if (badge.IsEmpty) return null;
+        int n = 0, green = 0;
+        for (int y = badge.Y; y < badge.Bottom; y++)
+        for (int x = badge.X; x < badge.Right; x++)
+        {
+            var (cr, cg, cb) = frame.GetPixel(x, y);
+            n++;
+            if (cg - Math.Max(cr, cb) >= 60 && cg >= 120) green++;
+        }
+        double share = green / (double)n;
+        if (share < SiGreenMin) return null; // no badge: another operator's HUD, or something over it
+        if (BadgeNumber.Read(frame, ui.BottomCenter(SiStacksArea)) is { } stacks) return stacks;
+        return share >= SiFlowerGreenMin ? 0 : null; // the hollow flower is nearly half green; a cross with a number on it far less
+    }
+
+    // Si's badge, measured at 4K on the owner's Si fight (Fixtures/si), bottom-centre anchored: the
+    // whole badge, and its share of bright green. Badges with a number: 0.024–0.079 (the cross is
+    // mostly hidden by the digits and its dark outline); the zero flower 0.45–0.46; every other
+    // operator's HUD here (Fixtures/battle-hud, Fixtures/counters) at most 0.001.
+    private static readonly PixelRect SiBadgeArea = new(1511, 1956, 52, 54);
+    private const double SiGreenMin = 0.012;
+    private const double SiFlowerGreenMin = 0.3;
 
     // The nine cells' centres, measured at 4K on the owner's recording (Fixtures/counters, zhuang-*),
     // bottom-centre anchored. Lit: G 220-255, B 190-233, R 145-180; unlit grey 100-125.
