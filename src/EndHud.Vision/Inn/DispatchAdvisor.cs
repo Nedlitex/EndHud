@@ -342,11 +342,15 @@ public sealed class DispatchAdvisor(InnKitchens kitchens)
                 right[i] = left[own];
                 left.RemoveAt(own);
             }
+            // A wrong dish by the dish, not by where it stands among what's left: until 2026-10-21 each table took the first dish
+            // left, so one dish leaving the hand gave every other table another (test_yuanyuan7 375.3 s: table 4 红蕊奶酪蛋糕 ->
+            // 八宝饭, table 1 八宝饭 -> 福寿全, and back 0.6 s later). Now a table's wrong dish changes only when that dish is gone.
             foreach (int i in late.Where(i => !right.ContainsKey(i)))
             {
                 if (left.Count == 0) break;
-                wrong[i] = left[0];
-                left.RemoveAt(0);
+                int pick = left.IndexOf(left.OrderBy(d => d.Id, StringComparer.Ordinal).First());
+                wrong[i] = left[pick];
+                left.RemoveAt(pick);
             }
             var pending = Pending.ToList();
             foreach (var (i, dish) in right.Concat(wrong))
