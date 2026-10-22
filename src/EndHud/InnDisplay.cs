@@ -11,9 +11,10 @@ internal sealed record InnViews(IReadOnlyList<InnCall> Calls, IReadOnlyList<InnP
     public static readonly InnViews None = new([], [], []);
 
     /// <summary>
-    /// The dispatch panel is open: the banners and the gourmands' banners are put away in place (hidden, not taken down),
-    /// so the same banners show again when it closes, with no slide-in (owner, 2026-10-21: "the recommended dish flashes
-    /// heavily"). They'd cover the panel, whose marks take over meanwhile.
+    /// The dispatch panel is open, or the last frame read it so: the kitchens' circles, the banners and the gourmands'
+    /// banners are put away in place (hidden, not taken down), so the same ones show again when it closes, with no
+    /// slide-in (owner, 2026-10-21: "the recommended dish flashes heavily"). They'd cover the panel, whose marks take
+    /// over meanwhile; nothing of the helper but the marks shows over it.
     /// </summary>
     public bool Away { get; init; }
 
@@ -33,6 +34,20 @@ internal sealed class InnDisplay
 {
     private readonly InnWantsHold _wants = new();
 
+    /// <summary>
+    /// The kitchen tabs the last fresh frame read on the dispatch panel (null: no panel), when the session doesn't count
+    /// the panel open yet (it does after two frames, InnSession.PanelFramesToOpen). Owner, live 2026-10-21 (test_yuanyuan5
+    /// at 02:25, 01:20 and 00:09): banners drawn over the open panel. Measured on the two recorded sessions: 51 and 13
+    /// frames reading the panel showed them (InnKitchenCircleTests). A frame reading the panel with as many tabs as the
+    /// kitchens that cook, and as any panel read before this session, puts everything away at once. One reading fewer tabs
+    /// does not: on the 2026-10-20 recording 48 single frames read a one-tab "panel" between frames showing the Full Blaze
+    /// meter it would cover (the dark bar behind the theme line), and each would blink everything off and on.
+    /// </summary>
+    private int? _panelTabs;
+
+    /// <summary>The most kitchen tabs a panel was read with this session (<see cref="_panelTabs"/>), before the last frame.</summary>
+    private int _mostTabs, _mostTabsBefore;
+
     /// <summary>The last reading was a session frame (with or without the dispatch panel over it).</summary>
     public bool OnSession { get; private set; }
 
@@ -49,8 +64,16 @@ internal sealed class InnDisplay
         {
             OnSession = false;
             SetupScreen = null;
+            _panelTabs = null;
             session?.Tick(now);
             return;
+        }
+        // A held reading (a missed frame) says nothing new about the panel.
+        if (reading.Fresh)
+        {
+            _panelTabs = reading.InSession ? reading.Panel?.Kitchens : null;
+            _mostTabsBefore = _mostTabs;
+            _mostTabs = Math.Max(_mostTabs, _panelTabs ?? 0);
         }
         session?.Update(reading);
         OnSession = reading.InSession;
@@ -65,7 +88,11 @@ internal sealed class InnDisplay
         LastAdvice = null;
         if (!OnSession || session is null || Advice(session, now) is not { } advice)
         {
-            if (session is not { Active: true }) _wants.Clear();
+            if (session is not { Active: true })
+            {
+                _wants.Clear();
+                _mostTabs = _mostTabsBefore = 0;
+            }
             return InnViews.None;
         }
         LastAdvice = advice;
@@ -78,7 +105,8 @@ internal sealed class InnDisplay
             // What each gourmand wants, while their order is open, held steady; put away in place over the open panel too.
             wants)
         {
-            Away = advice.Panel is not null,
+            Away = advice.Panel is not null
+                   || (_panelTabs is { } tabs && tabs >= _mostTabsBefore && tabs >= (advice.Dispatch?.Kitchens.Count ?? 0)),
             Session = true,
             Kitchens = [.. advice.Dispatch?.Kitchens.Select(k => k.Kitchen) ?? []],
         };

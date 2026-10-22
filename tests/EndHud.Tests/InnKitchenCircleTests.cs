@@ -214,16 +214,28 @@ public class InnKitchenCircleTests(ITestOutputHelper output)
         var events = InnReplay.Load(Path.Combine(AppContext.BaseDirectory, "Fixtures", "inn-replay", fixture));
         var session = NewSession();
         var display = new InnDisplay();
-        int panelFrames = 0, shownOver = 0, shortHides = 0;
+        // The session's kitchens: a real panel shows a tab for each; a frame reading fewer is a misreading (a single frame
+        // between frames showing the Full Blaze meter the panel would cover, on test_yuanyuan3 48 times).
+        int tabs = events.Where(x => x.Reading is { Fresh: true, Panel: not null }).Max(x => x.Reading!.Panel!.Kitchens);
+        int panelFrames = 0, shownOver = 0, fewerTabs = 0, shownOverFewer = 0, shortHides = 0;
         TimeSpan? awaySince = null;
         foreach (var e in events)
         {
             display.Show(session, e.Reading, e.At);
             var views = display.Views(session, e.At, callsEnabled: true, Text);
-            if (e.Reading is { Fresh: true, InSession: true, Panel: not null })
+            bool shown = !views.Away && (views.Calls.Count > 0 || views.Wants.Count > 0);
+            if (e.Reading is { Fresh: true, InSession: true, Panel: { } panel })
             {
-                panelFrames++;
-                if (!views.Away && (views.Calls.Count > 0 || views.Wants.Count > 0)) shownOver++;
+                if (panel.Kitchens == tabs)
+                {
+                    panelFrames++;
+                    if (shown) shownOver++;
+                }
+                else
+                {
+                    fewerTabs++;
+                    if (shown) shownOverFewer++;
+                }
             }
             if (views.Away) awaySince ??= e.At;
             else if (awaySince is { } since)
@@ -232,9 +244,12 @@ public class InnKitchenCircleTests(ITestOutputHelper output)
                 awaySince = null;
             }
         }
-        output.WriteLine($"{fixture}: {panelFrames} frames read the panel; shown over it on {shownOver}; hidden under a second {shortHides} times");
+        output.WriteLine($"{fixture}: {panelFrames} frames read the panel with its {tabs} tabs, shown over it on {shownOver}; "
+                         + $"{fewerTabs} read fewer tabs, shown on {shownOverFewer}; put away for under a second {shortHides} times");
         Assert.True(panelFrames > 50);
         Assert.Equal(0, shownOver);
+        // Not put away and back on every misread frame (that would blink everything off and on).
+        Assert.True(shortHides <= 2, $"{shortHides} times put away for under a second");
     }
 
     // ---- Drawn over a real frame ----
