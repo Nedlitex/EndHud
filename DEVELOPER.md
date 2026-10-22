@@ -1079,8 +1079,8 @@ delete the recommend pannel"), the text panels stay.
   it, however much better. Only a plan put on screen less than 1 s ago (`InnSetupPlanning.RefinedWithin`) may still
   give way to a clearly better one: a better theme match, the objective it misses reached, or at least 5 % more
   income (`InnPlanJudge.ClearlyMoreIncome`; in the simulator when the newer plan is the simulator's). In
-  test_yuanyuan6 the simulator's plan came 8.4 s after the quick one and replaced kitchen 1's 安塔尔+狼卫 with
-  秋栗+昼雪 while the player was in kitchen 1's picker placing 狼卫 (InnSetupSteadyTests replays it on two of the
+  test_yuanyuan6 the simulator's plan came 8.4 s after the quick one and replaced kitchen 1's Antal + Wulfgard with
+  Akekuri + Snowshine while the player was in kitchen 1's picker placing Wulfgard (InnSetupSteadyTests replays it on two of the
   recording's frames). The cost: when the simulator takes longer than 1 s, the quick search's plan is the one that
   stays. With nothing fitting on screen, a refined plan ready within 1 s is shown directly. While the menu screen keeps showing cards not seen
   before (scrolling), a fitting plan isn't worked out again until no new card has shown for 1.5 s

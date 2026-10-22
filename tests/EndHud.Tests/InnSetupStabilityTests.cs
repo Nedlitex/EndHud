@@ -232,16 +232,19 @@ public class InnSetupStabilityTests(ITestOutputHelper output)
     public void A_plan_fits_only_its_own_theme_and_kitchens()
     {
         static SetupKitchen Empty(int number) => new(number, 2, [null, null], [null, null]) { ChefsPlaced = 0 };
+        static InnReading Theme(string id, IReadOnlyList<string> hot)
+        {
+            var theme = Inn.Themes.Single(t => t.Id == id);
+            return new InnReading(InnScreenKind.Setup, S(0), Setup: new InnSetup(theme.Zh, theme, null, [], hot, [Empty(1), Empty(2), Empty(3)]));
+        }
         var wholesome = NewSession();
-        wholesome.Update(new InnReading(InnScreenKind.Setup, S(0), Setup: new InnSetup("养身心", Inn.Themes.Single(t => t.Zh == "养身心"), "开启2次满堂彩",
-            [], ["Veggy", "Rich"], [Empty(1), Empty(2), Empty(3)])));
+        wholesome.Update(Theme("truly-wholesome", ["Veggy", "Rich"]));
         var input = wholesome.SetupInputs().Input!;
         var shown = InnSetupAdvice.Fast(Planner, input);
         Assert.True(Judge.Fits(input, input, shown, chefsAsPlanned: true));
 
         var soupAndEntree = NewSession();
-        soupAndEntree.Update(new InnReading(InnScreenKind.Setup, S(0), Setup: new InnSetup("一汤一饭", Inn.Themes.Single(t => t.Zh == "一汤一饭"), null,
-            [], ["Entree", "Soup"], [Empty(1), Empty(2), Empty(3)])));
+        soupAndEntree.Update(Theme("soup-entree", ["Entree", "Soup"]));
         Assert.False(Judge.Fits(soupAndEntree.SetupInputs().Input!, input, shown, chefsAsPlanned: false));
 
         var twoKitchens = input with { Kitchens = [.. input.Kitchens.Where(k => k.Number != 3)] };

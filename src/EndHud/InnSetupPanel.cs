@@ -158,7 +158,7 @@ internal sealed class InnPlanJudge(InnPlanner planner) : IInnPlanJudge
 /// Only a plan just put on screen (less than <see cref="RefinedWithin"/> ago) may still give way to a clearly better
 /// one (<see cref="IInnPlanJudge.ClearlyBetter"/>): the refined plan a moment late, before the player has acted on
 /// the quick one. In the owner's recording the simulator's plan came 8.4 s after the quick one, the player already
-/// in kitchen 1's picker placing the first chef it named, and replaced kitchen 1's 安塔尔+狼卫 with 秋栗+昼雪.
+/// in kitchen 1's picker placing the first chef it named, and replaced kitchen 1's Antal + Wulfgard with Akekuri + Snowshine.
 /// The cost, taken knowingly: the advice first shown is the quick search's whenever the simulator takes longer than
 /// <see cref="RefinedWithin"/>, and stays so until the player places other chefs or the theme or what's offered
 /// changes. A plan kept for newer inputs keeps its chefs, dishes and drinks, and

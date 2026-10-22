@@ -9,11 +9,11 @@ namespace EndHud.Tests;
 
 /// <summary>
 /// The recommendation the player has seen stays the same across the setup screen and the chef picker (owner,
-/// test_yuanyuan6 at about 58 s: "the recommendation of kitchen1 changed from 安塔尔+狼卫 to 秋栗+昼雪 when clicked
-/// into the kitchen, the recommendation should not change, unless some kitchen is filled, but this is the first
-/// kitchen"). What the recording and the log show: the quick plan went on screen at 56.6 s with the three kitchens
-/// empty; the simulator's plan for the same inputs came 8.4 s after they were asked for (the first plan of the visit),
-/// at 64.1 s, with the player in kitchen 1's picker placing 狼卫, and was judged clearly better, so it replaced the
+/// test_yuanyuan6 at about 58 s: "the recommendation of kitchen1 changed from [Antal + Wulfgard] to [Akekuri +
+/// Snowshine] when clicked into the kitchen, the recommendation should not change, unless some kitchen is filled, but
+/// this is the first kitchen"). What the recording and the log show: the quick plan went on screen at 56.6 s with the
+/// three kitchens empty; the simulator's plan for the same inputs came 8.4 s after they were asked for (the first plan
+/// of the visit), at 64.1 s, with the player in kitchen 1's picker placing Wulfgard, and was judged clearly better, so it replaced the
 /// plan the player was following. Replayed here on frames of that recording through the real readers, memory,
 /// planner and judge; the simulator's plan held back until the player is in the picker, as it was.
 /// </summary>
@@ -56,10 +56,10 @@ public class InnSetupSteadyTests(ITestOutputHelper output)
             return refined;
         }, note: output.WriteLine);
 
-        // 55.5 s: the setup screen, theme 一汤一饭, the three kitchens empty.
+        // 55.5 s: the setup screen, theme Soup & Entree, the three kitchens empty.
         var setup = await reader.ReadAsync(await Load("setup-soup-entree-empty.jpg"), S(0), squadPanelSeen: false);
         Assert.NotNull(setup?.Setup);
-        Assert.Equal("一汤一饭", setup.Setup.ThemeName);
+        Assert.Equal("soup-entree", setup.Setup.Theme?.Id);
         Assert.All(setup.Setup.Kitchens!, k => Assert.Equal(0, k.ChefsPlaced));
         session.Update(setup);
         var work = planning.Request(session.SetupInputs(), S(0));
