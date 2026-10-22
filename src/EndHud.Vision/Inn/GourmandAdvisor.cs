@@ -81,14 +81,18 @@ public sealed class GourmandAdvisor(DispatchAdvisor dispatch)
     private static List<GourmandOption> Ranked(IEnumerable<GourmandOption> instances) =>
         [.. instances.GroupBy(o => o.Id).Select(g => g.First()).OrderBy(Rank)];
 
-    /// <summary>Carried, then the counter, then soonest; drinks keep the menu's order.</summary>
+    /// <summary>Carried, then the counter, then soonest; drinks keep their order (the most expensive first).</summary>
     private static (int, double) Rank(GourmandOption o) => (o.From is GourmandSource.Carried or GourmandSource.Counter ? (int)o.From : 2, o.ReadyIn);
 
     /// <summary>Every single thing that meets <paramref name="condition"/>, best first: one per dish carried, on the counter or queued, and one to cook per menu dish.</summary>
     private IEnumerable<GourmandOption> Instances(GourmandCondition condition, InnState state, IReadOnlyList<MenuDrink> drinks)
     {
+        // Every drink is served at once from the drink bar: of those that meet the request, the most expensive first
+        // (owner, 2026-10-22: "if there are multiple, suggest the most expensive one").
         if (condition.ForDrink)
-            return drinks.Where(d => d.Stock is not <= 0 && condition.MetBy(d.Drink)).Select(d => new GourmandOption(null, d.Drink, GourmandSource.DrinkBar, null, 0));
+            return drinks.Where(d => d.Stock is not <= 0 && condition.MetBy(d.Drink))
+                .OrderByDescending(d => d.Drink.Price).ThenBy(d => d.Drink.Id, StringComparer.Ordinal)
+                .Select(d => new GourmandOption(null, d.Drink, GourmandSource.DrinkBar, null, 0));
 
         var options = new List<GourmandOption>();
         options.AddRange(state.Carried.Select((d, i) => new GourmandOption(d, null, GourmandSource.Carried, null, 0, i)).Where(o => condition.MetBy(o.Dish!)));
@@ -104,7 +108,9 @@ public sealed class GourmandAdvisor(DispatchAdvisor dispatch)
                 ?? state.Queues.Select(q => (q.Kitchen, q.SecondsUntilEmpty + dispatch.Kitchens.CookSeconds(q.Kitchen, menu.Dish))).MinBy(x => x.Item2);
             options.Add(new GourmandOption(menu.Dish, null, GourmandSource.ToCook, kitchen, readyIn));
         }
-        return options.OrderBy(Rank).ThenBy(o => o.Id, StringComparer.Ordinal);
+        // Equally soon, the more expensive dish first (the owner's rule for drinks, 2026-10-22; for dishes only a tie-break,
+        // what's in hand and what's out soonest still come first).
+        return options.OrderBy(Rank).ThenByDescending(o => o.Dish!.Price).ThenBy(o => o.Id, StringComparer.Ordinal);
     }
 
     /// <summary>

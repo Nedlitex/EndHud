@@ -137,6 +137,28 @@ public class InnCallTests(ITestOutputHelper output)
     /// kitchen's circle shows: kitchen 3 takes the next dish its advice cooks ahead instead, or shows nothing.
     /// </summary>
     [Fact]
+    public void A_kitchen_is_not_told_to_cook_ahead_the_dish_it_is_cooking_now()
+    {
+        // Owner, live v0.6.1 (2026-10-22, timer 01:36, the panel open on kitchen 1: boundary-lung-roll cooking with 5 s left,
+        // eight-treasure-rice next): kitchen 1 was told to cook boundary-lung-roll ahead, and so was kitchen 2. Through the
+        // session: no kitchen ever shows a dish to cook ahead that it is cooking right now, and no dish is in two circles.
+        const string roll = "boundary-lung-roll", rice = "eight-treasure-rice";
+        string[] menu = [roll, rice];
+        var session = NewSession();
+        session.Update(SetupScreen(0, 1, 2, 3));
+        session.Update(MenuScreen(1, menu));
+        double t = 200;
+        for (int frame = 0; frame < 30; frame++, t += 0.3)
+        {
+            var panel = Panel(1, 3, menu, (roll, (int?)Math.Max(1, (int)Math.Round(9 - (t - 200)))), (rice, null));
+            session.Update(Session(t, left: 100 - (t - 200), panel: panel));
+            var calls = session.Advice(S(t))!.Calls.Where(c => c.Kitchen is not null && c.Dish is not null).ToList();
+            Assert.DoesNotContain(calls, c => c is { Kind: InnCallKind.CookAhead, Kitchen: 1 } && c.Dish!.Id == roll);
+            Assert.All(calls.GroupBy(c => c.Dish!.Id), g => Assert.Single(g));
+        }
+    }
+
+    [Fact]
     public void A_dish_called_for_an_order_is_not_also_called_to_cook_ahead_in_another_kitchen()
     {
         var hold = new InnCallHold();

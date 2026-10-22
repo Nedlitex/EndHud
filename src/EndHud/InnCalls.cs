@@ -53,7 +53,11 @@ internal sealed record InnCall(InnCallKind Kind, int? Kitchen = null, Dish? Dish
 /// <param name="Queued">Dishes of an id ever seen put in a kitchen's queue: those in it now and those cooked out of it since the session began.</param>
 /// <param name="HasRoom">The kitchen's queue has a free slot.</param>
 /// <param name="ReadyIn">Seconds until the dish is out in that kitchen if queued now (what's in its queue + the dish's cook time there).</param>
-internal sealed record InnKitchenView(Func<int, string, int> Queued, Func<int, bool> HasRoom, Func<int, Dish, double> ReadyIn);
+internal sealed record InnKitchenView(Func<int, string, int> Queued, Func<int, bool> HasRoom, Func<int, Dish, double> ReadyIn)
+{
+    /// <summary>The dish a kitchen is cooking right now (the first in its queue), null for none or not known.</summary>
+    public Func<int, string?> CookingNow { get; init; } = _ => null;
+}
 
 /// <summary>
 /// The kitchens' calls held steady (owner, live 2026-10-20: the suggestions "keep changing during the session").
@@ -181,6 +185,14 @@ internal sealed class InnCallHold
                 _changes.Add($"{held.Call.Key} dropped: done (queued)");
                 continue;
             }
+            // Never another of the dish its kitchen is cooking right now (owner, live 2026-10-22: kitchen 1 told to cook
+            // boundary-lung-roll ahead, one cooking there with 5 s left): taken down at once, not after the grace.
+            if (held.Call is { Kind: InnCallKind.CookAhead, Dish: { } ahead } && view.CookingNow(number) == ahead.Id)
+            {
+                _held.Remove(number);
+                _changes.Add($"{held.Call.Key} dropped: {CookingIt}");
+                continue;
+            }
             string? why = !cooking.TryGetValue(number, out var advice) ? "the kitchen no longer cooks"
                 : !Valid(held.Call, advice, wanted, view) ? (view.HasRoom(number) ? NoLongerAdvised : "the kitchen is full")
                 : !Claim(held.Call) ? "its order is called elsewhere"
@@ -215,7 +227,8 @@ internal sealed class InnCallHold
         }
 
         // A dish another kitchen's circle shows (owner, 2026-10-21: one dish in one circle, unless two tables each need it).
-        bool ShownElsewhere(string dish, int kitchen) => _held.Any(h => h.Key != kitchen && h.Value.Call.Dish?.Id == dish);
+        // Nor one its own kitchen is cooking right now (owner, live 2026-10-22).
+        bool ShownElsewhere(string dish, int kitchen) => _held.Any(h => h.Key != kitchen && h.Value.Call.Dish?.Id == dish) || view.CookingNow(kitchen) == dish;
         foreach (var advice in dispatch.Kitchens.OrderBy(k => k.Kitchen))
         {
             var candidate = Candidate(advice, wanted, dish => ShownElsewhere(dish, advice.Kitchen));
@@ -288,6 +301,9 @@ internal sealed class InnCallHold
 
     /// <summary>A swap shown as its order once nothing is left to take out (the replay's trace: "Swap:… now a plain order: Queue:…").</summary>
     public const string NowPlain = "now a plain order:";
+
+    /// <summary>Why a dish to cook ahead was taken down: its own kitchen is cooking that dish right now (the replay's trace).</summary>
+    public const string CookingIt = "its kitchen is cooking it now";
 
     /// <summary>Why a dish to cook ahead gave way: the kitchen named after it shows the same dish ("dropped: …", the replay's trace).</summary>
     public const string DishShown = "its dish is shown in kitchen";
