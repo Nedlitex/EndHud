@@ -3,7 +3,12 @@ namespace EndHud.Vision.Operators;
 /// <summary>One operator's own counter, e.g. Laevatain's 熔火 (0–4).</summary>
 /// <param name="Id">Stable key used in rotation files, e.g. "melting-flame".</param>
 /// <param name="NameZh">As the game names it, e.g. "熔火".</param>
-public sealed record CounterDefinition(string OperatorId, string Id, string NameZh, string NameEn, int Max);
+/// <param name="Max">The most the game draws. For an uncapped counter, only how far the rotation editor's value list goes.</param>
+/// <param name="Uncapped">
+/// The game sets no maximum (Si's damage stacks): the count is drawn as a plain number, never as
+/// segments out of <paramref name="Max"/>, and a reading above it is kept as it is.
+/// </param>
+public sealed record CounterDefinition(string OperatorId, string Id, string NameZh, string NameEn, int Max, bool Uncapped);
 
 /// <param name="Value">The count; null when it can't be told this reading (covered by an effect).</param>
 public sealed record CounterReading(string OperatorId, string CounterId, int? Value);
@@ -16,12 +21,16 @@ public sealed record CounterReading(string OperatorId, string CounterId, int? Va
 /// </summary>
 public static class OperatorCounters
 {
-    public static readonly CounterDefinition MeltingFlame = new("Laevatain", "melting-flame", "熔火", "Melting Flame", 4);
-    public static readonly CounterDefinition HuntingArrow = new("Typhoeus", "hunting-arrow", "猎矢", "Hunting Arrow", 4);
-    public static readonly CounterDefinition Sign = new("Typhoeus", "sign", "启示", "Sign", 8);
-    public static readonly CounterDefinition Sunderblade = new("Zhuang_Fangyi", "sunderblade", "青霆剑", "Sunderblade", 9);
+    public static readonly CounterDefinition MeltingFlame = new("Laevatain", "melting-flame", "熔火", "Melting Flame", 4, Uncapped: false);
+    public static readonly CounterDefinition HuntingArrow = new("Typhoeus", "hunting-arrow", "猎矢", "Hunting Arrow", 4, Uncapped: false);
+    public static readonly CounterDefinition Sign = new("Typhoeus", "sign", "启示", "Sign", 8, Uncapped: false);
+    public static readonly CounterDefinition Sunderblade = new("Zhuang_Fangyi", "sunderblade", "青霆剑", "Sunderblade", 9, Uncapped: false);
 
-    public static IReadOnlyList<CounterDefinition> Definitions { get; } = [MeltingFlame, HuntingArrow, Sign, Sunderblade];
+    // Si's damage stacks, stored by her battle skill. The game sets no maximum (owner,
+    // 2026-10-22); 99 only bounds the rotation editor's list of values.
+    public static readonly CounterDefinition SiStacks = new("Si", "damage-stacks", "伤害层数", "Damage stacks", 99, Uncapped: true);
+
+    public static IReadOnlyList<CounterDefinition> Definitions { get; } = [MeltingFlame, HuntingArrow, Sign, Sunderblade, SiStacks];
 
     public static IEnumerable<CounterDefinition> For(string operatorId) => Definitions.Where(d => d.OperatorId == operatorId);
 
@@ -210,6 +219,10 @@ public static class OperatorCounters
     // The two dot columns' centres; lit dots measured 215-255 on every channel, unlit grey 100-150.
     private static readonly int[] SignDotX = [1552, 1567];
     private const int SignDotHalfSize = 2;
+
+    // Si's badge, measured at 4K on the owner's Si fight (Fixtures/si), bottom-centre anchored: where
+    // its number is drawn (digits 26 px tall, centred on x 1536, in the dark middle of the cross).
+    internal static readonly PixelRect SiStacksArea = new(1503, 1960, 66, 42);
 
     // Measured on the battle recording at 4K (bottom-centre anchored).
     private const int FlowerCentreX = 1535;
