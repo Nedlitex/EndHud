@@ -248,7 +248,8 @@ public class InnFeastGourmandTests
     {
         var session = NewSession();
         session.Update(SetupScreen(0, 1, 2));
-        session.Update(MenuScreen(1, A, B, C, D, E, "bottled-milk-a", "bottled-milk", "seekers-kohl"));
+        // The cheaper milk listed first: the order on the menu is not what decides.
+        session.Update(MenuScreen(1, A, B, C, D, E, "bottled-milk", "seekers-kohl", "bottled-milk-a"));
         session.Update(Session(9, tables: Tables(Gourmand(2, TableState.GourmandArrived), Gourmand(3, TableState.GourmandArrived))));
         for (double t = 10; t < 11; t += 0.3)
             session.Update(Session(t, tables: Tables(Gourmand(2, TableState.GourmandOrder), Gourmand(3, TableState.GourmandArrived)), bubble: Says(14, [0, 3])));
@@ -257,5 +258,9 @@ public class InnFeastGourmandTests
 
         Assert.Equal("bottled-milk-a", Named(session, 13, 2)[1]);
         Assert.Equal("bottled-milk-a", Named(session, 13, 3)[1]); // 35 over 瓶装兽奶 (10); 游人酒 is 酒香
+        // Only the menu's drinks: the dearer ones the player has but didn't put on the menu are never named.
+        string[] onMenu = ["bottled-milk", "seekers-kohl", "bottled-milk-a"];
+        Assert.All(session.Advice(S(13))!.Gourmands.SelectMany(g => g.Advice!.Requests).Where(r => r.ForDrink).SelectMany(r => r.Options),
+            o => Assert.Contains(o.Id, onMenu));
     }
 }
