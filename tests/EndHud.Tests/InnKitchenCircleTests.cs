@@ -294,7 +294,7 @@ public class InnKitchenCircleTests(ITestOutputHelper output)
 
     /// <summary>
     /// The circles and the gourmands' tiles drawn where they go over a real 4K frame (the UID corner masked), saved as a
-    /// picture for a person to look at (.tracking/changes/2026-10-21-inn-y8-…png, local only; nothing is asserted of it but
+    /// picture for a person to look at (.tracking/changes/2026-10-22-test-debt-…png, local only; nothing is asserted of it but
     /// that it was drawn): a session (session-two-dishes.jpg, the circles above the tray) and the open dispatch panel
     /// (dispatch-panel-queue.jpg, the circles below it with kitchen 1's emphasised), with 1, 3 and 6 gourmands, each tile at
     /// its table's fixed spot (one gourmand: table 5; three: tables 1, 4 and 6, table 4 with one request; six: table 2 with
@@ -311,7 +311,7 @@ public class InnKitchenCircleTests(ITestOutputHelper output)
     {
         string frame = Path.Combine(AppContext.BaseDirectory, "Fixtures", "inn", frameName);
         if (!File.Exists(frame)) return; // the test data submodule isn't there
-        string saved = Path.Combine(RepositoryRoot(), ".tracking", "changes", $"2026-10-22-inn-layout-owner-{(panelOpen ? "panel" : "session")}-{gourmands}-gourmands.png");
+        string saved = Path.Combine(RepositoryRoot(), ".tracking", "changes", $"2026-10-22-test-debt-{(panelOpen ? "panel" : "session")}-{gourmands}-gourmands.png");
         var circles = InnKitchenCircleView.Of([Order(1, A, 4), Ahead(2, D), Swap(3, D, B, 5)], Text);
         int[] tables = gourmands switch { 1 => [5], 3 => [1, 4, 6], _ => [1, 2, 3, 4, 5, 6] };
         int single = gourmands switch { 1 => 0, 3 => 4, _ => 2 };
