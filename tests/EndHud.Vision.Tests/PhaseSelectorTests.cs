@@ -211,4 +211,73 @@ public class PhaseSelectorTests
         Assert.Null(RotationTracker.Evaluate(arcaneActive, With(controlled: 2, left: null, skillPoints: null), PhaseHistory.None));
         Assert.Equal(true, RotationTracker.Evaluate(new UltimateActiveCondition("Arcane", false), With(controlled: 2, left: null), PhaseHistory.None));
     }
+
+    // ---- "Phase shown N times this fight" (format 4): counted when a phase comes onto the strip ----
+
+    /// <summary>A: 爆发轴 while Arcane's ultimate is ready; B: 充能轴 otherwise.</summary>
+    private static PhaseSelector ChargeAndBurst() => new(new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
+    [
+        new RotationPhase("a", "爆发轴", [new RotationStep("Arcane", StepAction.Ultimate)], [new UltimateCondition("Arcane", true)]),
+        new RotationPhase("b", "充能轴", [new RotationStep("Liino", StepAction.Combo)]),
+    ]));
+
+    private static PartyState Charging => Reading(4, 4, arcane: 0.5, liino: 0.5);
+    private static PartyState Bursting => Reading(4, 4, arcane: 1, liino: 0.5);
+
+    [Fact]
+    public void Counts_each_time_a_phase_comes_onto_the_strip()
+    {
+        var selector = ChargeAndBurst();
+
+        foreach (var reading in new[] { Charging, Bursting, Charging, Bursting }) selector.Update(reading);
+
+        Assert.Equal(2, selector.TimesShown("a"));
+        Assert.Equal(2, selector.TimesShown("b"));
+        Assert.Null(selector.TimesShown("deleted"));
+    }
+
+    [Fact]
+    public void Staying_on_a_phase_does_not_count_again()
+    {
+        var selector = ChargeAndBurst();
+
+        for (int i = 0; i < 10; i++) selector.Update(Charging);
+
+        Assert.Equal(1, selector.TimesShown("b"));
+        Assert.Equal(0, selector.TimesShown("a"));
+    }
+
+    [Fact]
+    public void End_of_fight_forgets_the_counts_and_the_phase()
+    {
+        var selector = ChargeAndBurst();
+        selector.Update(Charging);
+        selector.Update(Bursting);
+        Assert.Equal(1, selector.TimesShown("a"));
+
+        selector.EndFight();
+
+        Assert.Equal(0, selector.TimesShown("a"));
+        Assert.Equal(0, selector.TimesShown("b"));
+        // 爆发轴 isn't remembered as shown: with Arcane's ultimate unreadable (it would keep the phase
+        // shown), the next fight starts on the otherwise phase.
+        Assert.Equal("充能轴 II", Shown(selector, Bursting with { Slots = [] }));
+        Assert.Equal(1, selector.TimesShown("b"));
+    }
+
+    /// <summary>The owner's ask (2026-10-22), "has this phase been played yet": 爆发轴 waits until 充能轴 has been shown once.</summary>
+    [Fact]
+    public void A_gate_on_another_phase_count_opens_after_it_was_shown()
+    {
+        var selector = new PhaseSelector(new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
+        [
+            new RotationPhase("burst", "爆发轴", [new RotationStep("Arcane", StepAction.Ultimate)], [new PhaseShownCondition("charge", Comparison.AtLeast, 1)]),
+            new RotationPhase("charge", "充能轴", [new RotationStep("Liino", StepAction.Combo)]),
+        ]));
+
+        Assert.Equal("充能轴 II", Shown(selector, Charging));
+        Assert.Equal("爆发轴 I", Shown(selector, Charging));
+        selector.EndFight();
+        Assert.Equal("充能轴 II", Shown(selector, Charging)); // a new fight: not shown yet
+    }
 }
