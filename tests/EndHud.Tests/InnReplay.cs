@@ -31,7 +31,15 @@ internal sealed class InnReplay
     /// <summary>The overlay's slow loop (OverlayWindow's DispatcherTimer): the inn is drawn again this often between readings.</summary>
     public static readonly TimeSpan TickEvery = TimeSpan.FromMilliseconds(500);
 
-    private readonly InnSession _session = NewSession();
+    private readonly InnSession _session;
+    private TimeSpan _now; // the replay's clock, for the session's log lines
+
+    /// <summary>The session's "inn: corrected …" log lines, each with when (the estimate put right by a reading).</summary>
+    public List<string> CorrectionLog { get; } = [];
+
+    private InnReplay() =>
+        _session = new InnSession(Inn, Library.Operators, ReadAllAlong,
+            log: m => { if (m.StartsWith("inn: corrected", StringComparison.Ordinal)) CorrectionLog.Add($"{_now.TotalSeconds,7:F1} {m}"); });
     private readonly InnDisplay _display = new();
     private HashSet<string> _banners = [], _marks = [], _gourmands = [];
     private Dictionary<string, string> _gourmandContent = [];
@@ -66,6 +74,7 @@ internal sealed class InnReplay
 
     private void Step(InnReplayEvent e)
     {
+        _now = e.At;
         string why = Describe(_last, e.Reading);
         _display.Show(_session, e.Reading, e.At);
         if (e.Reading is { Fresh: true, InSession: true } fresh)
@@ -85,6 +94,7 @@ internal sealed class InnReplay
 
     private void Tick(TimeSpan at)
     {
+        _now = at;
         _session.Tick(at);
         Draw(at, "tick");
     }
@@ -332,6 +342,7 @@ internal sealed class InnReplay
         sb.AppendLine(CultureInfo.InvariantCulture, $"# one dish in two circles (not two tables' orders): {dupes}");
         foreach (var d in dupeList) sb.AppendLine(CultureInfo.InvariantCulture, $"#   duplicate {d}");
         sb.AppendLine(CultureInfo.InvariantCulture, $"# corrections (the estimate put right by a reading): {string.Join(", ", new[] { "queue", "cover", "counter", "gourmand" }.Select(k => $"{k} {_session.Corrections.GetValueOrDefault(k)}"))}");
+        foreach (string line in CorrectionLog) sb.AppendLine(CultureInfo.InvariantCulture, $"#   {line}");
         var uncalled = UncalledWaits(UncalledAfterSeconds);
         var counted = uncalled.Where(u => u.Counts).ToList();
         sb.AppendLine(CultureInfo.InvariantCulture, $"# a dish tables wait for, not in hand nor queued, no circle naming it for over {UncalledAfterSeconds:F0} s: {counted.Count} ({counted.Sum(u => u.Seconds):F1} s); ended by the dish picked up or served (it was on the counter): {uncalled.Count - counted.Count}");
