@@ -112,4 +112,31 @@ public class AlertMonitorTests
         Assert.False(AlertMonitor.NeedsBossStatuses([CastNow]));
         Assert.True(AlertMonitor.NeedsBossStatuses([CastNow, AlertRule.New([new AnyCondition([new NotCondition(new BossStatusCondition("Cryo Infliction", true, 3))])], "")]));
     }
+
+    /// <summary>
+    /// "Cryo at least 1" and "Vulnerable at least 3" each pop on a real frame showing Vulnerable 3 then
+    /// cryo 1 side by side (Fixtures/vulnerable-and-infliction), through the boss reader; a rule asking
+    /// for both pops too.
+    /// </summary>
+    [Fact]
+    public async Task Both_icons_on_the_boss_pop_their_rules()
+    {
+        string userFolder = Path.Combine(Path.GetTempPath(), "endhud-tests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var reader = new BossStatusReader(await OperatorCache.LoadAsync(userFolder));
+            var frame = await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("vulnerable-and-infliction", "vulnerable-3-cryo-1-37_5s.jpg")));
+            var cryo = AlertRule.New([new BossStatusCondition("Cryo Infliction", true, 1)], "Cryo");
+            var vulnerable = AlertRule.New([new BossStatusCondition("Vulnerable", true, 3)], "Vulnerable 3");
+            var both = AlertRule.New([new BossStatusCondition("Cryo Infliction", true, 1), new BossStatusCondition("Vulnerable", true, 3)], "Both");
+
+            var popped = new AlertMonitor().Update(Reading(statuses: reader.Read(frame)), [cryo, vulnerable, both]);
+
+            Assert.Equal(["Cryo", "Vulnerable 3", "Both"], popped.Select(r => r.Message));
+        }
+        finally
+        {
+            try { Directory.Delete(userFolder, recursive: true); } catch (IOException) { }
+        }
+    }
 }

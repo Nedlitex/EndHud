@@ -471,6 +471,40 @@ public class RotationTrackerTests
         }
     }
 
+    /// <summary>
+    /// With Vulnerable and an infliction shown together (Fixtures/vulnerable-and-infliction), both
+    /// counts answer through the real reader, whichever came first: "Cryo at least N" and "Vulnerable at
+    /// least N" on Vulnerable 3 then cryo 1, "Heat at least N" and "Vulnerable at least N" on heat 2
+    /// then Vulnerable 1.
+    /// </summary>
+    [Theory]
+    [InlineData("vulnerable-3-cryo-1-37_5s.jpg", "Cryo Infliction", 1, true)]
+    [InlineData("vulnerable-3-cryo-1-37_5s.jpg", "Cryo Infliction", 2, false)]
+    [InlineData("vulnerable-3-cryo-1-37_5s.jpg", "Vulnerable", 3, true)]
+    [InlineData("vulnerable-3-cryo-1-37_5s.jpg", "Vulnerable", 4, false)]
+    [InlineData("vulnerable-3-cryo-1-37_5s.jpg", "Heat Infliction", 1, false)]
+    [InlineData("heat-2-vulnerable-1-23_5s.jpg", "Heat Infliction", 2, true)]
+    [InlineData("heat-2-vulnerable-1-23_5s.jpg", "Heat Infliction", 3, false)]
+    [InlineData("heat-2-vulnerable-1-23_5s.jpg", "Vulnerable", 1, true)]
+    [InlineData("heat-2-vulnerable-1-23_5s.jpg", "Vulnerable", 2, false)]
+    public async Task With_both_icons_each_count_answers(string file, string status, int atLeast, bool holds)
+    {
+        string userFolder = Path.Combine(Path.GetTempPath(), "endhud-tests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var reader = new BossStatusReader(await OperatorCache.LoadAsync(userFolder));
+            var frame = await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("vulnerable-and-infliction", file)));
+
+            var state = WithStatuses([.. reader.Read(frame)]);
+
+            Assert.Equal(holds, RotationTracker.Evaluate(new BossStatusCondition(status, true, atLeast), state, PhaseHistory.None));
+        }
+        finally
+        {
+            try { Directory.Delete(userFolder, recursive: true); } catch (IOException) { }
+        }
+    }
+
     /// <summary>At least 1 is just "has it": the count isn't needed, so an unread count still answers.</summary>
     [Fact]
     public void One_stack_is_presence_and_needs_no_count()

@@ -12,6 +12,9 @@ namespace EndHud.Vision;
 public sealed record BossStatusReading(string StatusId, int Position, double Score, int? Stacks)
 {
     public const int RingPosition = -1;
+
+    /// <summary>The icon right of the ring's place: the second of Vulnerable and an infliction shown together (the later applied).</summary>
+    public const int SecondRingPosition = -2;
 }
 
 /// <summary>
