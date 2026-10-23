@@ -16,8 +16,8 @@ public sealed record LastingUltimateView(string OperatorId, double LeftShare, bo
 /// operator's own when she has one, and otherwise one running for an operator in the background.
 /// </para>
 /// Each reading of the bar is given to the operator whose colour it is (<see cref="OwnerByColour"/>:
-/// Laevatain red, Zhuang Fangyi gold), if she's in the squad; a bar of another colour (the teal one
-/// seen on an operator not named in the recording) to no one. Only when its colour isn't read
+/// Laevatain red, Zhuang Fangyi gold, Yvonne teal), if she's in the squad; a bar of another colour,
+/// or of an operator not in the squad, to no one. Only when its colour isn't read
 /// (<see cref="PartyState.UltimateTimeColour"/> null) is it given by inference, to:
 /// <list type="number">
 /// <item>the controlled operator, if her ultimate lasts and was just spent (she cast it: the bar is
@@ -39,26 +39,29 @@ public sealed class LastingUltimates
 {
     /// <summary>
     /// Operators whose ultimate lasts with the time bar, as measured on the owner's recordings
-    /// (Laevatain red, Zhuang Fangyi gold). A bar that can't be given to one of them is shown for
-    /// no one (one more was seen, teal, on an operator not named in the recording).
+    /// (Laevatain red, Zhuang Fangyi gold, Yvonne teal: all three on test_zhuang_laevatine_background1).
+    /// A bar that can't be given to one of them is shown for no one.
     /// </summary>
-    public static readonly IReadOnlySet<string> Operators = new HashSet<string> { "Laevatain", "Zhuang_Fangyi" };
+    public static readonly IReadOnlySet<string> Operators = new HashSet<string> { "Laevatain", "Zhuang_Fangyi", "Yvonne" };
 
     /// <summary>
     /// Each known lasting ultimate's bar colour, as a hue (degrees), measured on the owner's
     /// recordings: on the fixtures (Fixtures/lasting-ultimate-background and ultimate-time, at 4K and
     /// on ten simulated 16:9-class screens) Laevatain red 4–8, Zhuang Fangyi gold 48–51 (a dimmed
     /// gold bar, #AE941E, is still 49–50); every 0.25 s of the two Zhuang recordings, red 3–8 (15
-    /// readings), gold 47–51 (134). The unnamed slot-3 operator's teal bar is 171–176 (9): no one's
-    /// here. Within <see cref="SameHueWithin"/> that leaves 12 degrees of room on either known one.
+    /// readings), gold 47–51 (134). Yvonne's teal (named by the owner, 2026-10-23): 171 on the
+    /// fixture at every size, 171–176 on the recording (9 readings; her bar is on screen only while
+    /// she's controlled, 41.25–41.5 s and 44.25–45.75 s). Within <see cref="SameHueWithin"/> that
+    /// leaves 12 degrees of room or more on each; the nearest two (red and gold) are 44 apart.
     /// </summary>
     public static readonly IReadOnlyDictionary<string, double> BarHues = new Dictionary<string, double>
     {
         ["Laevatain"] = 6,
         ["Zhuang_Fangyi"] = 50,
+        ["Yvonne"] = 173,
     };
 
-    /// <summary>A bar is a known operator's when its hue is this close to hers (the two are 44 apart).</summary>
+    /// <summary>A bar is a known operator's when its hue is this close to hers (the nearest two are 44 apart).</summary>
     public const double SameHueWithin = 15;
 
     /// <summary>Whose lasting ultimate a bar of this colour is (<see cref="BarHues"/>); null when it's none of the known ones.</summary>

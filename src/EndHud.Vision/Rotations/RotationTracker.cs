@@ -398,7 +398,7 @@ public sealed class RotationTracker(Rotation rotation)
     /// background (<see cref="PartyState.RunningUltimates"/>; worked out from this reading alone
     /// when the caller didn't). Null when it can't be told: the bottom HUD out of sight (no skill
     /// points read), or a bar on screen that isn't known to be hers or anyone's for an operator
-    /// whose ultimate isn't one of the known lasting ones (it could be hers: the teal bar).
+    /// whose ultimate isn't one of the known lasting ones (it could be hers, as Yvonne's teal one was before it was measured).
     /// </summary>
     private static bool? UltimateRunning(string operatorId, PartyState state)
     {
