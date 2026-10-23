@@ -62,6 +62,17 @@ public sealed class BossStatusTests : IDisposable
         Assert.Equal((1, 3), (corrosion.Position, corrosion.Stacks));
     }
 
+    /// <summary>破防 is drawn in the ring's place (a shield with a slash), with the same arcs for its stacks.</summary>
+    [Fact]
+    public async Task The_reading_carries_vulnerable_stacks()
+    {
+        var frame = await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("vulnerable", "vulnerable-3-110s.jpg")));
+
+        var ring = Assert.Single((await ReaderAsync()).Read(frame), s => s.Position == BossStatusReading.RingPosition);
+
+        Assert.Equal(("Vulnerable", 3), (ring.StatusId, ring.Stacks));
+    }
+
     /// <summary>A reaction shown with no badge is named, at level I (the game draws no badge at I).</summary>
     [Fact]
     public async Task A_reaction_without_a_badge_is_level_one()
@@ -74,12 +85,12 @@ public sealed class BossStatusTests : IDisposable
     }
 
     [Fact]
-    public void Counts_are_offered_only_for_inflictions_and_measured_reactions()
+    public void Counts_are_offered_only_for_inflictions_vulnerable_and_measured_reactions()
     {
         Assert.Contains("Cryo Infliction", BossStatusReader.CountsRead);
         Assert.Contains("Corrosion", BossStatusReader.CountsRead);
         Assert.Contains("Electrification", BossStatusReader.CountsRead);
-        Assert.DoesNotContain("Vulnerable", BossStatusReader.CountsRead);
+        Assert.Contains("Vulnerable", BossStatusReader.CountsRead);
         Assert.DoesNotContain("Combustion", BossStatusReader.CountsRead);
         Assert.DoesNotContain("Solidification", BossStatusReader.CountsRead);
     }
