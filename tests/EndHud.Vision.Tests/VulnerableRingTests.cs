@@ -6,7 +6,7 @@ using Xunit.Abstractions;
 namespace EndHud.Vision.Tests;
 
 /// <summary>
-/// 破防 (Vulnerable) in the ring at the end of the boss's HP bar (<see cref="VulnerableRing"/>), on frames
+/// Vulnerable in the ring at the end of the boss's HP bar (<see cref="VulnerableRing"/>), on frames
 /// of the owner's physical-team recording labelled by eye (Fixtures/vulnerable): a white shield with a
 /// slash, and white arcs for 1-4 stacks. The count is right or unknown, never another number.
 /// </summary>
@@ -23,7 +23,7 @@ public class VulnerableRingTests(ITestOutputHelper output)
     private static Task<Frame> LoadAsync(string folder, string file) => ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine(folder, file)));
 
     /// <summary>
-    /// 破防 is read where it's shown and nowhere else. Its count is the label; on a hard frame (the
+    /// Vulnerable is read where it's shown and nowhere else. Its count is the label; on a hard frame (the
     /// add-a-stack flash, a beam, the HUD fading in) it may be unknown instead, never another number.
     /// </summary>
     [Theory]
@@ -52,7 +52,7 @@ public class VulnerableRingTests(ITestOutputHelper output)
         Assert.Contains(Labels, l => l.File.StartsWith("flash-", StringComparison.Ordinal));
     }
 
-    /// <summary>The elemental infliction rings, the reaction frames and the boss fight's frames show no 破防.</summary>
+    /// <summary>The elemental infliction rings, the reaction frames and the boss fight's frames show no Vulnerable.</summary>
     [Theory]
     [InlineData("infliction")]
     [InlineData("reactions")]
@@ -62,12 +62,12 @@ public class VulnerableRingTests(ITestOutputHelper output)
         var files = Directory.GetFiles(CombatFrameTests.Fixture(folder)).Where(f => f.EndsWith(".jpg", StringComparison.Ordinal) || f.EndsWith(".png", StringComparison.Ordinal)).ToList();
         Assert.NotEmpty(files);
         foreach (var file in files)
-            Assert.True(VulnerableRing.Read(await ImageFile.LoadAsync(file)) is null, $"{folder}/{Path.GetFileName(file)} read as 破防");
+            Assert.True(VulnerableRing.Read(await ImageFile.LoadAsync(file)) is null, $"{folder}/{Path.GetFileName(file)} read as Vulnerable");
     }
 
     public static TheoryData<string> Screens() => [SimulatedScreen.Qhd.Name, SimulatedScreen.FullHd.Name, SimulatedScreen.Wuxga.Name];
 
-    /// <summary>On smaller screens: 破防 is never read where it isn't, its count is right or unknown, and most are still read.</summary>
+    /// <summary>On smaller screens: Vulnerable is never read where it isn't, its count is right or unknown, and most are still read.</summary>
     [Theory]
     [MemberData(nameof(Screens))]
     public async Task On_other_screens_vulnerable_is_read_right_or_not_at_all(string screenName)
@@ -80,7 +80,7 @@ public class VulnerableRingTests(ITestOutputHelper output)
             string at = $"{label.File} at {screen.Width}x{screen.Height}";
             if (!label.Vulnerable)
             {
-                Assert.True(reading is null, $"{at}: read as 破防");
+                Assert.True(reading is null, $"{at}: read as Vulnerable");
                 continue;
             }
             shown++;
@@ -93,7 +93,7 @@ public class VulnerableRingTests(ITestOutputHelper output)
                 if (reading.Stacks == label.Stacks) counted++;
             }
         }
-        output.WriteLine($"{found} of {shown} 破防 rings found, {counted} of {clean} clean counts read at {screen.Width}x{screen.Height}");
-        Assert.True(found >= shown * 0.8, $"{found} of {shown} 破防 rings found at {screen.Width}x{screen.Height}");
+        output.WriteLine($"{found} of {shown} Vulnerable rings found, {counted} of {clean} clean counts read at {screen.Width}x{screen.Height}");
+        Assert.True(found >= shown * 0.8, $"{found} of {shown} Vulnerable rings found at {screen.Width}x{screen.Height}");
     }
 }

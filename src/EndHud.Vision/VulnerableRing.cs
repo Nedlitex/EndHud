@@ -1,7 +1,7 @@
 namespace EndHud.Vision;
 
 /// <summary>
-/// 破防 (Vulnerable) on the boss. The game doesn't put it in the status row: it draws it in the
+/// Vulnerable on the boss. The game doesn't put it in the status row: it draws it in the
 /// infliction ring's place at the right end of the boss's HP bar (<see cref="InflictionRing.Area"/>),
 /// as a white shield crossed by a dark diagonal slash (lower left to upper right) on a dark red disc,
 /// with the same white arcs around it for the stacks, clockwise from the top (1–4).
@@ -10,12 +10,12 @@ namespace EndHud.Vision;
 /// When a stack is added (and in the last half second before the ring goes) a grey circle sweeps
 /// outwards through the arcs and an enlarged ghost of the shield fades behind it. The circle lights
 /// the gaps between the arcs, which the game otherwise leaves empty, so a frame with a lit gap
-/// reads 破防 with an unknown count rather than a count the circle made up.
+/// reads Vulnerable with an unknown count rather than a count the circle made up.
 /// </para>
 /// </summary>
 public static class VulnerableRing
 {
-    /// <summary>The wiki's id for 破防 (<see cref="Operators.StatusInfo"/>).</summary>
+    /// <summary>The wiki's id for Vulnerable (<see cref="Operators.StatusInfo"/>).</summary>
     public const string StatusId = "Vulnerable";
 
     // The shield, sampled within ShieldRadius of the ring's centre (4K px), split by the slash: a line at
@@ -28,7 +28,7 @@ public static class VulnerableRing
     //   at most 55 (a dark scene, its "shield" not white at all), white scenery at most 43;
     //   MinSlashContrast 80, about halfway;
     // - the top arc's whiteness (InflictionRing.Measure) was 169 on that fading-in frame and 232–248
-    //   otherwise. MinTopArc 150 lets the fading frame say 破防 is there; its stacks still need the
+    //   otherwise. MinTopArc 150 lets the fading frame say Vulnerable is there; its stacks still need the
     //   arcs' full white (InflictionRing.MinArcWhiteness), so its count reads as unknown.
     private const double ShieldRadius = 14;
     private const double SlashOffset = 4;
@@ -39,7 +39,7 @@ public static class VulnerableRing
     internal const int MinSlashContrast = 80;
     internal const int MinTopArc = 150;
 
-    /// <summary>破防 and its stacks, or null when the ring doesn't show it.</summary>
+    /// <summary>Vulnerable and its stacks, or null when the ring doesn't show it.</summary>
     public static InflictionRing.Infliction? Read(Frame frame)
     {
         var (whiteness, _, _, element) = InflictionRing.Measure(frame);

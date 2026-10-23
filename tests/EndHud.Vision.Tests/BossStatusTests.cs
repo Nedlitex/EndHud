@@ -62,7 +62,7 @@ public sealed class BossStatusTests : IDisposable
         Assert.Equal((1, 3), (corrosion.Position, corrosion.Stacks));
     }
 
-    /// <summary>破防 is drawn in the ring's place (a shield with a slash), with the same arcs for its stacks.</summary>
+    /// <summary>Vulnerable is drawn in the ring's place (a shield with a slash), with the same arcs for its stacks.</summary>
     [Fact]
     public async Task The_reading_carries_vulnerable_stacks()
     {
@@ -70,7 +70,7 @@ public sealed class BossStatusTests : IDisposable
 
         var statuses = (await ReaderAsync()).Read(frame);
 
-        // Once only: the row's own icons aren't 破防, so a condition finds the ring's reading with its count.
+        // Once only: the row's own icons aren't Vulnerable, so a condition finds the ring's reading with its count.
         var vulnerable = Assert.Single(statuses, s => s.StatusId == "Vulnerable");
         Assert.Equal((BossStatusReading.RingPosition, 3), (vulnerable.Position, vulnerable.Stacks));
     }
