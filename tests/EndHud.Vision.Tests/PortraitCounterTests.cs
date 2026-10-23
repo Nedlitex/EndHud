@@ -13,7 +13,8 @@ public class PortraitCounterTests
 {
     /// <param name="Value">What the portrait shows; null when no counter is drawn there.</param>
     /// <param name="Unreadable">A flash over it: the value or null, never another number.</param>
-    private sealed record CounterLabel(int Slot, string Counter, int? Value, bool Unreadable);
+    /// <param name="NoBadge">Si's 0 with no badge drawn (her portrait clear), rather than the hollow flower.</param>
+    private sealed record CounterLabel(int Slot, string Counter, int? Value, bool Unreadable, bool NoBadge = false);
 
     /// <param name="Squad">Slot order; "" for an operator without a counter.</param>
     private sealed record Label(string File, string[] Squad, int Active, bool InCombat, CounterLabel[] Counters);
@@ -119,6 +120,74 @@ public class PortraitCounterTests
         }
     }
 
+    /// <summary>
+    /// Si's badge gone from her portrait in combat is 0 (owner, 2026-10-23): read so where her
+    /// portrait shows clearly with no badge on it.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(SiWithoutBadge))]
+    public async Task Si_with_no_badge_on_a_clear_portrait_reads_zero(string file)
+    {
+        var label = LabelOf(file);
+        var (frame, raw) = await ReadAsync(file);
+
+        var si = PortraitCounters.Read(frame, Named(raw, label.Squad)).Single(r => r.OperatorId == "Si");
+
+        Assert.Equal(0, si.Value);
+    }
+
+    public static TheoryData<string> SiWithoutBadge() =>
+        [.. Labels.Where(l => l.Counters.Any(c => c.Counter == OperatorCounters.SiStacks.Id && c.Value == 0 && c.NoBadge)).Select(l => l.File)];
+
+    /// <summary>
+    /// As a fight ends the skill points go first and the level text fades in under the portraits
+    /// while the combo bars still show (test_si_background1 76.5 s): no badge then isn't read as 0.
+    /// The same clear no-badge frames, the skill points taken away, read unknown.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(SiWithoutBadge))]
+    public async Task No_badge_isnt_zero_once_the_skill_points_are_gone(string file)
+    {
+        var label = LabelOf(file);
+        var (frame, raw) = await ReadAsync(file);
+
+        var si = PortraitCounters.Read(frame, Named(raw, label.Squad) with { SkillPoints = null }).Single(r => r.OperatorId == "Si");
+
+        Assert.Null(si.Value);
+    }
+
+    /// <summary>
+    /// A badge whose number can't be read is never taken for no badge: on every frame with a number
+    /// on Si's badge, the number blacked out (as a hit's shake or an effect smears it), Si's stacks
+    /// read unknown, never 0.
+    /// </summary>
+    [Fact]
+    public async Task A_badge_whose_number_cant_be_read_is_never_zero()
+    {
+        int tried = 0;
+        foreach (var label in Labels.Where(l => l.Counters.Any(c => c.Counter == OperatorCounters.SiStacks.Id && c.Value > 0)))
+        {
+            var (frame, raw) = await ReadAsync(label.File);
+            var state = Named(raw, label.Squad);
+            int slot = label.Counters.Single(c => c.Counter == OperatorCounters.SiStacks.Id).Slot;
+            var number = PortraitCounters.PlaceOn(frame, state.Layout, slot, OperatorCounters.SiStacks)!.Value.Map(OperatorCounters.SiStacksArea).ClampTo(frame.Width, frame.Height);
+            for (int y = number.Y; y < number.Bottom; y++)
+            for (int x = number.X; x < number.Right; x++)
+            {
+                var (r, g, b) = frame.GetPixel(x, y);
+                if (Math.Min(r, Math.Min(g, b)) < 140) continue; // only the white digits
+                int i = (y * frame.Width + x) * 4;
+                frame.Bgra[i] = frame.Bgra[i + 1] = frame.Bgra[i + 2] = 30;
+            }
+
+            var si = PortraitCounters.Read(frame, state).Single(r => r.OperatorId == "Si");
+
+            Assert.True(si.Value is null, $"{label.File}: read {si.Value} with the number blacked out");
+            tried++;
+        }
+        Assert.True(tried >= 10, $"{tried} frames");
+    }
+
     [Fact]
     public async Task Nothing_is_read_on_the_portraits_of_a_panel_remembered_while_out_of_sight()
     {
@@ -150,7 +219,11 @@ public class PortraitCounterTests
             if (counter != OperatorCounters.Sign) Assert.Contains(0, values);
         }
         Assert.Equal([1, 3], shown.Where(s => s.Counter == OperatorCounters.SiStacks.Id).Select(s => s.Slot).Distinct().Order());
-        Assert.Contains(shown, s => s.Value is null); // a portrait with no badge drawn
+        Assert.Contains(shown, s => s.Value is null); // a counter that can't be told (a fade)
+        // Si's 0 with no badge, in both her slots, and stacks to read where she has her badge.
+        var noBadge = Labels.SelectMany(l => l.Counters.Where(c => c.NoBadge)).ToList();
+        Assert.All(noBadge, c => Assert.Equal((OperatorCounters.SiStacks.Id, (int?)0), (c.Counter, c.Value)));
+        Assert.Equal([1, 3], noBadge.Select(c => c.Slot).Distinct().Order());
         Assert.Contains(Labels, l => !l.InCombat);
     }
 }
