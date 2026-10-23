@@ -253,6 +253,27 @@ public class GaugesTests
         Assert.NotEqual(GaugesView.Key(Build(state with { UltimateTimeLeft = null })), GaugesView.Key(Build(state))); // redrawn when it starts
     }
 
+    /// <summary>
+    /// Zhuang Fangyi's ultimate cast while Perlica is controlled (measured, Fixtures/lasting-ultimate-background
+    /// zh-38_5s): the bar under Perlica's HP is Zhuang's. Her gauge shows it; Perlica's keeps its charge.
+    /// </summary>
+    [Fact]
+    public void A_lasting_ultimate_of_an_operator_in_the_background_shows_on_her_gauge_not_the_controlled_ones()
+    {
+        var state = new PartyState([Slot(1, "Zhuang_Fangyi", new UltimateReading(false, 0)), Slot(2, "Perlica", new UltimateReading(true, 1))], PanelMarks: 8)
+        {
+            ActiveSlot = 2,
+            UltimateTimeLeft = 0.86,
+        };
+
+        var gauges = Build(state).Gauges;
+
+        var zhuang = gauges[0];
+        var perlica = gauges.Single(g => g.Kind == GaugeKind.Ultimate && !ReferenceEquals(g, zhuang));
+        Assert.Equal((true, 0.86, Loc.Get("Gauge.UltimateRunning")), (zhuang.Running, zhuang.Fill, zhuang.Label));
+        Assert.Equal((false, 1.0, true, Loc.Get("Gauge.Ultimate")), (perlica.Running, perlica.Fill, perlica.Ready, perlica.Label));
+    }
+
     /// <summary>Drawn violet and glowing, not gold, and draining: less time left, less ring.</summary>
     [Fact]
     public void A_running_ultimate_is_a_violet_ring_that_drains()
