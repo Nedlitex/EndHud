@@ -62,29 +62,34 @@ public class InnSetupSteadyTests(ITestOutputHelper output)
         Assert.Equal("soup-entree", setup.Setup.Theme?.Id);
         Assert.All(setup.Setup.Kitchens!, k => Assert.Equal(0, k.ChefsPlaced));
         session.Update(setup);
-        var work = planning.Request(session.SetupInputs(), S(0));
+        // The quick advice comes first (the simulator's is held back), when the machine has worked it out: on the
+        // overloaded CI runner, over a minute for about a second's work, so no deadline on the wall clock.
+        var quickShown = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var work = planning.Request(session.SetupInputs(), S(0), () => quickShown.TrySetResult());
         Assert.NotNull(work);
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(60);
-        while (planning.Showable(session.SetupInputs()) is null)
+        IReadOnlyList<string> kitchenOne;
+        try
         {
-            Assert.True(DateTime.UtcNow < deadline, "the quick advice never came");
-            await Task.Delay(10);
+            await Until(quickShown.Task, work);
+            var seen = planning.Showable(session.SetupInputs())!;
+            kitchenOne = Chefs(seen, 1);
+            var onSetup = InnSetupView.Setup(session.SetupInputs(), seen, Inn, Text);
+            output.WriteLine($"setup screen: {Say(onSetup)}");
+            Assert.Equal(kitchenOne.Select(id => InnSetupView.OperatorPicture + id), Recommended(onSetup.Single(p => p.Spot == InnAdviceSpot.Kitchen1)));
+
+            // 61 s: kitchen 1's chef picker. Its reading changes none of the setup's inputs.
+            var picker = await reader.ReadAsync(await Load("chef-picker-kitchen1-empty.jpg"), S(4), squadPanelSeen: false);
+            Assert.Equal(InnScreenKind.ChefPicker, picker?.Screen);
+            Assert.Equal(1, picker!.PickerKitchen);
+            session.Update(picker);
+            Assert.Null(planning.Request(session.SetupInputs(), S(4)));
         }
-        var seen = planning.Showable(session.SetupInputs())!;
-        var kitchenOne = Chefs(seen, 1);
-        var onSetup = InnSetupView.Setup(session.SetupInputs(), seen, Inn, Text);
-        output.WriteLine($"setup screen: {Say(onSetup)}");
-        Assert.Equal(kitchenOne.Select(id => InnSetupView.OperatorPicture + id), Recommended(onSetup.Single(p => p.Spot == InnAdviceSpot.Kitchen1)));
-
-        // 61 s: kitchen 1's chef picker. Its reading changes none of the setup's inputs.
-        var picker = await reader.ReadAsync(await Load("chef-picker-kitchen1-empty.jpg"), S(4), squadPanelSeen: false);
-        Assert.Equal(InnScreenKind.ChefPicker, picker?.Screen);
-        Assert.Equal(1, picker!.PickerKitchen);
-        session.Update(picker);
-        Assert.Null(planning.Request(session.SetupInputs(), S(4)));
-
-        // 64.1 s: the simulator's plan for these inputs arrives, the player still in the picker.
-        refinedMayCome.Set();
+        finally
+        {
+            // 64.1 s: the simulator's plan for these inputs arrives, the player still in the picker. (Also when the test
+            // failed above: its work never left waiting on the thread pool for the rest of the run.)
+            refinedMayCome.Set();
+        }
         await work;
         Assert.Equal(1, refinedDone);
         var inPicker = InnSetupView.Picker(session.PickerKitchen, session.SetupInputs(), planning.Showable(session.SetupInputs()), Inn, Text);

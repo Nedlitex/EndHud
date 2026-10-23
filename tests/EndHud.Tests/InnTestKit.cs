@@ -135,6 +135,20 @@ internal static partial class InnTestKit
     /// </summary>
     public static TimeSpan Frozen() => TimeSpan.Zero;
 
+    /// <summary>
+    /// Waits for <paramref name="signal"/> (set from the planning's work: the advice shown, the simulator started), however
+    /// long the machine takes: no deadline on the wall clock, which the v0.6.5 CI runner, overloaded, overran (a quick plan
+    /// of about a second's work took over a minute there). Fails at once if <paramref name="work"/> ends without it; a
+    /// planning that truly hangs is stopped and named by the test run's hang timeout.
+    /// </summary>
+    public static async Task Until(Task signal, Task work)
+    {
+        await Task.WhenAny(signal, work);
+        if (signal.IsCompleted) return;
+        await work; // its exception, if it failed
+        Xunit.Assert.Fail("the planning's work ended without it");
+    }
+
     /// <summary>A time long after every reading of a test: the menu's list has been still for long (<see cref="InnSetupPlanning.ScrollSettle"/>).</summary>
     public static readonly TimeSpan Settled = TimeSpan.FromHours(1);
 

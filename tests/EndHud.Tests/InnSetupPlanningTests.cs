@@ -92,15 +92,26 @@ public class InnSetupPlanningTests(ITestOutputHelper output)
         // The same advice refined (another object, the same on screen): the quick one stays, nothing redrawn.
         var release = new ManualResetEventSlim(false);
         int doneCalls = 0;
+        var shown = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var same = new InnSetupPlanning(Replacing, _ => quick, (_, _) =>
         {
             release.Wait();
             return quick with { };
         }, note: _ => { });
-        var work = same.Request(session.SetupInputs(), Settled, () => Interlocked.Increment(ref doneCalls))!;
-        await WaitUntil(() => same.Showable(session.SetupInputs()) is not null);
-        Assert.Same(quick, same.Showable(session.SetupInputs())); // shown before the refined one is ready
-        release.Set();
+        var work = same.Request(session.SetupInputs(), Settled, () =>
+        {
+            Interlocked.Increment(ref doneCalls);
+            shown.TrySetResult();
+        })!;
+        try
+        {
+            await Until(shown.Task, work);
+            Assert.Same(quick, same.Showable(session.SetupInputs())); // shown before the refined one is ready
+        }
+        finally
+        {
+            release.Set();
+        }
         await work;
         Assert.Same(quick, same.Showable(session.SetupInputs()));
         Assert.Equal(0, same.Replaced);
@@ -241,6 +252,7 @@ public class InnSetupPlanningTests(ITestOutputHelper output)
         var now = TimeSpan.Zero;
         var release = new ManualResetEventSlim(false);
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var shown = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var planning = new InnSetupPlanning(Replacing, _ => quick, (_, _) =>
         {
             started.TrySetResult();
@@ -248,13 +260,13 @@ public class InnSetupPlanningTests(ITestOutputHelper output)
             return other;
         }, note: _ => { }, clock: () => now);
 
-        var work = planning.Request(session.SetupInputs(), Settled)!;
+        var work = planning.Request(session.SetupInputs(), Settled, () => shown.TrySetResult())!;
         try
         {
             // The simulator still working a second after the inputs changed: the quick advice goes on screen.
             await Until(started.Task, work);
             now += InnSetupPlanning.RefinedWithin;
-            await WaitUntil(() => planning.Showable(session.SetupInputs()) is not null);
+            await Until(shown.Task, work);
             now += InnSetupPlanning.RefinedWithin + TimeSpan.FromSeconds(7); // the 8.4 s of the owner's log
         }
         finally
@@ -304,16 +316,16 @@ public class InnSetupPlanningTests(ITestOutputHelper output)
     public async Task Cancelled_refinement_stops_the_simulator_and_says_nothing()
     {
         var logged = new List<string>();
-        var entered = new ManualResetEventSlim(false);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var seen = new System.Collections.Concurrent.ConcurrentQueue<CancellationToken>();
         var planning = new InnSetupPlanning(Replacing, input => InnSetupAdvice.Fast(Planner, input), (input, cancel) =>
         {
             seen.Enqueue(cancel);
-            entered.Set();
+            entered.TrySetResult();
             return InnSetupAdvice.For(Planner, input, cancel);
         }, log: logged.Add, note: _ => { });
         var first = planning.Request(NewSessionWith(Cleared(0)).SetupInputs(), Settled)!;
-        entered.Wait(TimeSpan.FromSeconds(30));
+        await Until(entered.Task, first); // the simulator under way (after the quick plan: seconds on a busy machine)
         var watch = Stopwatch.StartNew();
         var second = planning.Request(NewSessionWith(Staffed(0)).SetupInputs(), Settled)!;
         await first;
@@ -340,10 +352,11 @@ public class InnSetupPlanningTests(ITestOutputHelper output)
             await planning.Request(session.SetupInputs(), Settled)!;
             var watch = Stopwatch.StartNew();
             session.Update(Cleared(1));
-            var work = planning.Request(session.SetupInputs(), Settled);
-            await WaitUntil(() => planning.Showable(session.SetupInputs()) is not null, TimeSpan.FromSeconds(120));
+            var shown = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var work = planning.Request(session.SetupInputs(), Settled, () => shown.TrySetResult())!;
+            await Until(shown.Task, work);
             long ms = watch.ElapsedMilliseconds;
-            await work!;
+            await work;
             return ms;
         }
 
@@ -359,27 +372,5 @@ public class InnSetupPlanningTests(ITestOutputHelper output)
         var session = NewSession();
         session.Update(reading);
         return session;
-    }
-
-    /// <summary>
-    /// Waits for <paramref name="signal"/>, however long the machine takes (no deadline on the wall clock: the CI runner,
-    /// overloaded, took minutes over a second's work); fails at once if <paramref name="work"/> ends without it.
-    /// </summary>
-    internal static async Task Until(Task signal, Task work)
-    {
-        await Task.WhenAny(signal, work);
-        if (signal.IsCompleted) return;
-        await work; // its exception, if it failed
-        Assert.Fail("the planning's work ended without it");
-    }
-
-    private static async Task WaitUntil(Func<bool> condition, TimeSpan? limit = null)
-    {
-        var watch = Stopwatch.StartNew();
-        while (!condition())
-        {
-            if (watch.Elapsed > (limit ?? TimeSpan.FromSeconds(30))) throw new TimeoutException("the advice never came");
-            await Task.Delay(5);
-        }
     }
 }
