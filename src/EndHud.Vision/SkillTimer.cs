@@ -5,10 +5,14 @@ namespace EndHud.Vision;
 public sealed record SkillTimerView(double LeftShare, double SecondsLeft, bool Estimated);
 
 /// <summary>
-/// One operator's lasting battle skill across readings. Shown only on readings where the changed
-/// icon is seen. The ring, when read, gives the time left and re-anchors the start; when it can't
-/// be read, the time left is estimated from the start (the icon change, or the ring's last anchor)
-/// and the duration. The icon going back (or the button cooling) ends it.
+/// One operator's lasting battle skill across readings. It runs from the first sight of the
+/// changed icon until the original icon is seen again: a second cast while it lasts (another
+/// icon, the ring draining on) doesn't end it, nor does a reading where the button can't be told.
+/// The ring, when read, gives the time left and re-anchors the start; when it can't be read (the
+/// button hidden, or the icon seen without its ring), the time left is estimated from the start
+/// (the icon change, or the ring's last anchor) and the duration, marked as an estimate, and held
+/// at 0 once it's out while the original icon hasn't come back (the ring stands still during
+/// cutscenes, so the estimate can run out first).
 /// </summary>
 public sealed class SkillTimer(TimeSpan duration)
 {
@@ -16,26 +20,32 @@ public sealed class SkillTimer(TimeSpan duration)
 
     public TimeSpan Duration { get; } = duration;
 
-    /// <returns>What to show for this reading; null when nothing is (not running, or not seen).</returns>
+    /// <returns>What to show for this reading; null when nothing is (not running).</returns>
     public SkillTimerView? Update(SkillRingReading? reading, TimeSpan now)
     {
         switch (reading?.Icon)
         {
-            case SkillButtonIcon.Changed:
+            case SkillButtonIcon.Changed or SkillButtonIcon.SecondCast:
                 if (reading.LeftShare is { } left)
                 {
                     _startedAt = now - (1 - left) * Duration; // the ring is the better clock
                     return new SkillTimerView(left, left * Duration.TotalSeconds, Estimated: false);
                 }
-                _startedAt ??= now;                            // first sight of the swirl
-                double share = 1 - (now - _startedAt.Value) / Duration;
-                return share > 0 ? new SkillTimerView(share, share * Duration.TotalSeconds, Estimated: true) : null;
-            case SkillButtonIcon.Original or SkillButtonIcon.Cooling:
+                _startedAt ??= now;                            // first sight of it running
+                return Estimate(now);
+            case SkillButtonIcon.Original:
                 _startedAt = null;                             // it ended
                 return null;
             default:
-                return null;                                   // not seen: not shown; the start is kept
+                // Not told this time (hidden, an effect, a countdown look): still running if it was.
+                return _startedAt is null ? null : Estimate(now);
         }
+    }
+
+    private SkillTimerView Estimate(TimeSpan now)
+    {
+        double share = Math.Max(0, 1 - (now - _startedAt!.Value) / Duration);
+        return new SkillTimerView(share, share * Duration.TotalSeconds, Estimated: true);
     }
 
     /// <summary>Forget the running skill (the fight ended).</summary>

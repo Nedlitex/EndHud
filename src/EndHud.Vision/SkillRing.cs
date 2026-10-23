@@ -9,6 +9,12 @@ public enum SkillButtonIcon
     /// <summary>The icon it changes to while the skill lasts (Si: a swirl in a diamond).</summary>
     Changed,
 
+    /// <summary>
+    /// The icon after the skill is cast a second time while it still lasts (Si: the butterfly
+    /// crossed out inside a ring with four points). The skill goes on: the ring keeps draining.
+    /// </summary>
+    SecondCast,
+
     /// <summary>The button is a countdown: just cast, cooling down.</summary>
     Cooling,
 
@@ -24,7 +30,10 @@ public sealed record SkillRingReading(string OperatorId, SkillButtonIcon Icon, d
 /// Battle skills whose button changes while they last. Si's: from the first use the button's
 /// butterfly becomes a swirl and a grey ring inside the button drains clockwise from 12 o'clock
 /// over ≈22 s; the butterfly comes back when it ends. Measured with Si in slot 1, keyboard layout,
-/// on the owner's Si fight (Fixtures/si).
+/// on the owner's Si fight (Fixtures/si). Cast again while the swirl is up, the icon becomes a
+/// crossed-out butterfly and the ring goes on draining from where it was, without filling again;
+/// the butterfly comes back when the ring is empty (or, once, earlier). Measured with Si in slot 3
+/// and in slot 1 (Fixtures/si-timer-second-cast).
 /// </summary>
 public static class SkillRing
 {
@@ -51,16 +60,24 @@ public static class SkillRing
     {
         if (BattleSkillButton.Measure(frame, button) == BattleSkillState.Cooling) return new("Si", SkillButtonIcon.Cooling, null);
         var icon = Icon(frame, button);
-        return new("Si", icon, icon == SkillButtonIcon.Changed ? Left(frame, button) : null);
+        return new("Si", icon, icon is SkillButtonIcon.Changed or SkillButtonIcon.SecondCast ? Left(frame, button) : null);
     }
 
-    /// <summary>The butterfly or the swirl, by the icon's white shape; unknown when it's clearly neither.</summary>
+    /// <summary>
+    /// The butterfly, the swirl or the crossed-out butterfly, by the icon's white shape: the one it
+    /// matches best, clearly better than the others; unknown when it's clearly none of them.
+    /// </summary>
     internal static SkillButtonIcon Icon(Frame frame, int button)
     {
         if (IconGlyph(frame, button) is not { } glyph) return SkillButtonIcon.Unknown;
-        double butterfly = Overlap(glyph, ButterflyMask), swirl = Overlap(glyph, SwirlMask);
-        if (Math.Max(butterfly, swirl) < IconMatchAt || Math.Abs(butterfly - swirl) < IconMinLead) return SkillButtonIcon.Unknown;
-        return butterfly > swirl ? SkillButtonIcon.Original : SkillButtonIcon.Changed;
+        var scores = new (SkillButtonIcon Icon, double Overlap)[]
+        {
+            (SkillButtonIcon.Original, Overlap(glyph, ButterflyMask)),
+            (SkillButtonIcon.Changed, Overlap(glyph, SwirlMask)),
+            (SkillButtonIcon.SecondCast, Overlap(glyph, SecondCastMask)),
+        }.OrderByDescending(s => s.Overlap).ToArray();
+        if (scores[0].Overlap < IconMatchAt || scores[0].Overlap - scores[1].Overlap < IconMinLead) return SkillButtonIcon.Unknown;
+        return scores[0].Icon;
     }
 
     /// <summary>
@@ -265,5 +282,38 @@ public static class SkillRing
         ".........######.........",
         "..........#..##.........",
         "...........#............",
+    ]);
+
+    /// <summary>
+    /// Si's crossed-out butterfly after a second cast (24 × 24): the majority over the 8 labelled
+    /// frames of Fixtures/si-timer-second-cast taken with Si in slot 3 (lae-24s to lae-37s), rebuilt
+    /// with a throwaway run of <see cref="IconGlyph"/>. The 4 frames with Si in slot 1 (si-*) were
+    /// left out to check it: their own majority differs from this in a few edge pixels only.
+    /// </summary>
+    internal static readonly bool[] SecondCastMask = Mask([
+        "........................",
+        "........................",
+        "....#...########........",
+        "....##############..#...",
+        ".....###.############...",
+        "....###.#########..##...",
+        "....##.#########....##..",
+        "...##.##...####.....##..",
+        "...#..##....##..##...##.",
+        "..##..##.........##..##.",
+        "..##..###........##..##.",
+        "..##..###........##..##.",
+        "..##..###.......###..##.",
+        "..##..##...#....###..##.",
+        "..##...#..####..###..#..",
+        "...#.....#####...#..##..",
+        "...##...#######..#..#...",
+        "....##.##########..##...",
+        "....############..##....",
+        "...##..##############...",
+        "........#########.......",
+        "........................",
+        "........................",
+        "........................",
     ]);
 }

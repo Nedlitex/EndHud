@@ -4,8 +4,9 @@ namespace EndHud.Vision.Tests;
 
 /// <summary>
 /// What Si's skill timer shows (<see cref="SkillTimer"/>) from a run of button readings at given
-/// times: only while the changed icon is seen, from the ring when it's read and estimated from the
-/// icon's change when it isn't, gone once the icon is back.
+/// times: from the first sight of the changed icon until the original icon is back (a second cast,
+/// a hidden button or a countdown look in between don't end it), from the ring when it's read and
+/// estimated from the icon's change when it isn't.
 /// </summary>
 public class SkillTimerTests
 {
@@ -46,8 +47,9 @@ public class SkillTimerTests
         Assert.Equal(0.9 * 22 - 5, view.SecondsLeft, 2);
     }
 
+    /// <summary>Past the estimate's end with the icon still changed: held at 0 (the ring stands still in cutscenes), until the icon is back.</summary>
     [Fact]
-    public void Without_any_ring_the_time_is_counted_from_the_icon_change_and_ends_at_zero()
+    public void Without_any_ring_the_time_is_counted_from_the_icon_change_and_held_at_zero_until_the_icon_is_back()
     {
         var timer = new SkillTimer(Duration);
 
@@ -59,21 +61,54 @@ public class SkillTimerTests
         Assert.Equal(22, first!.SecondsLeft, 2);
         Assert.Equal(11, half!.SecondsLeft, 2);
         Assert.True(half.Estimated);
-        Assert.Null(over);
+        Assert.Equal((0.0, 0.0, true), (over!.LeftShare, over.SecondsLeft, over.Estimated));
+        Assert.Null(timer.Update(Original, At(24)));
     }
 
+    /// <summary>The button hidden (a cutscene, an effect) while it runs: the estimate is shown, and the start kept.</summary>
     [Fact]
-    public void An_unknown_reading_shows_nothing_but_keeps_the_start()
+    public void An_unknown_reading_shows_the_estimate_and_keeps_the_start()
     {
         var timer = new SkillTimer(Duration);
         timer.Update(Changed(), At(0));
 
-        Assert.Null(timer.Update(Unknown, At(2)));
-        Assert.Null(timer.Update(null, At(3)));
+        var hidden = timer.Update(Unknown, At(2));
+        var notRead = timer.Update(null, At(3));
         var view = timer.Update(Changed(), At(4));
 
-        Assert.NotNull(view);
+        Assert.Equal((20.0, true), (Math.Round(hidden!.SecondsLeft, 2), hidden.Estimated));
+        Assert.Equal((19.0, true), (Math.Round(notRead!.SecondsLeft, 2), notRead.Estimated));
         Assert.Equal(18, view!.SecondsLeft, 2);
+    }
+
+    [Fact]
+    public void Before_any_cast_an_unknown_reading_shows_nothing()
+    {
+        var timer = new SkillTimer(Duration);
+
+        Assert.Null(timer.Update(Unknown, At(0)));
+        Assert.Null(timer.Update(new SkillRingReading("Si", SkillButtonIcon.Cooling, null), At(1)));
+        Assert.Null(timer.Update(null, At(2)));
+    }
+
+    /// <summary>
+    /// Cast again while it lasts: the crossed-out icon, the ring draining on from where it was
+    /// (measured: no refill). It still runs, from the ring, until the original icon is back.
+    /// </summary>
+    [Fact]
+    public void A_second_cast_keeps_it_running_on_the_same_ring_until_the_icon_is_back()
+    {
+        var timer = new SkillTimer(Duration);
+        timer.Update(Changed(0.9), At(0));
+
+        var recast = timer.Update(new SkillRingReading("Si", SkillButtonIcon.SecondCast, 0.85), At(1));
+        var ringHidden = timer.Update(new SkillRingReading("Si", SkillButtonIcon.SecondCast, null), At(3));
+        var empty = timer.Update(new SkillRingReading("Si", SkillButtonIcon.SecondCast, 0), At(4));
+
+        Assert.Equal((0.85 * 22, false), (Math.Round(recast!.SecondsLeft, 2), recast.Estimated));
+        Assert.Equal((0.85 * 22 - 2, true), (Math.Round(ringHidden!.SecondsLeft, 2), ringHidden.Estimated));
+        Assert.Equal(0, empty!.SecondsLeft, 2);
+        Assert.Null(timer.Update(Original, At(4.5)));
     }
 
     [Fact]
@@ -90,14 +125,17 @@ public class SkillTimerTests
         Assert.True(next.Estimated);
     }
 
+    /// <summary>Only the original icon ends it: a countdown look on the button while it runs doesn't.</summary>
     [Fact]
-    public void Cooling_ends_it_too()
+    public void A_countdown_look_does_not_end_it()
     {
         var timer = new SkillTimer(Duration);
         timer.Update(Changed(0.5), At(0));
 
-        Assert.Null(timer.Update(new SkillRingReading("Si", SkillButtonIcon.Cooling, null), At(1)));
-        Assert.Equal(22, timer.Update(Changed(), At(2))!.SecondsLeft, 2);
+        var cooling = timer.Update(new SkillRingReading("Si", SkillButtonIcon.Cooling, null), At(1));
+
+        Assert.Equal((10.0, true), (Math.Round(cooling!.SecondsLeft, 2), cooling.Estimated));
+        Assert.Equal(9, timer.Update(Changed(), At(2))!.SecondsLeft, 2);
     }
 
     [Fact]
@@ -113,7 +151,7 @@ public class SkillTimerTests
 
     /// <summary>The fixtures in order, as a fight would show them: before the cast, during, after it reverts.</summary>
     [Fact]
-    public async Task On_the_recorded_frames_the_timer_shows_only_while_the_swirl_is_up()
+    public async Task On_the_recorded_frames_the_timer_shows_from_the_swirl_until_the_butterfly_is_back()
     {
         var timer = new SkillTimer(SkillRing.SiDuration);
         foreach (var label in SiFixtures.SkillFrames.OrderBy(l => Seconds(l.File)))
