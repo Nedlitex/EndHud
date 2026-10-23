@@ -16,7 +16,10 @@ public class LastingUltimatesTests(ITestOutputHelper output)
 {
     private static readonly Frame NoPortrait = new(1, 1, new byte[4]);
 
-    private static PartyState Reading(string?[] squad, bool panel, int? controlled, double? bar, string ultimates)
+    // The bars' colours as read on the recordings (Fixtures/lasting-ultimate-background).
+    private static readonly BarColour Gold = new(0xF0, 0xD2, 0x33), Red = new(0xE7, 0x55, 0x40), Teal = new(0x3C, 0xCD, 0xB8);
+
+    private static PartyState Reading(string?[] squad, bool panel, int? controlled, double? bar, string ultimates, BarColour? colour = null)
     {
         string[] charge = ultimates.Split('/');
         var slots = Enumerable.Range(1, PartyLayout.SlotCount).Select(n =>
@@ -32,7 +35,7 @@ public class LastingUltimatesTests(ITestOutputHelper output)
             return new PartySlot(n, null, 1, "", NoPortrait, null, ultimate, false,
                 new Operators.OperatorMatch(new Operators.OperatorInfo(id, id, id, id + ".png"), 1, true));
         }).ToList();
-        return new PartyState(slots, 8, panel ? 0 : 1) { ActiveSlot = controlled, UltimateTimeLeft = bar, SkillPoints = 1 };
+        return new PartyState(slots, 8, panel ? 0 : 1) { ActiveSlot = controlled, UltimateTimeLeft = bar, UltimateTimeColour = bar is null ? null : colour, SkillPoints = 1 };
     }
 
     /// <summary>"t panel controlled bar ultimates" per line, every 0.5 s, as trace-skills printed them.</summary>
@@ -221,6 +224,83 @@ public class LastingUltimatesTests(ITestOutputHelper output)
         Assert.Equal("Zhuang_Fangyi", Assert.Single(views).Key);
     }
 
+    // ---- The bar's colour: whose it is, when it's read ----
+
+    /// <summary>
+    /// Two running at about the same share (as at 43.5 s on the Zhuang + Laevatain recording: Laevatain
+    /// 0.83, Zhuang about the same) and an operator without one controlled: the game shows one of
+    /// the background ones. By nearness alone the reading would go on Laevatain's; it's gold, so
+    /// it's Zhuang's.
+    /// </summary>
+    [Fact]
+    public void With_two_running_at_about_the_same_share_the_bars_colour_says_whose_it_is()
+    {
+        string?[] squad = ["Zhuang_Fangyi", "Laevatain", "Slot3Operator"];
+        var lasting = new LastingUltimates();
+        IReadOnlyDictionary<string, LastingUltimateView> At(double t, int controlled, double? bar, string ultimates, BarColour? colour) =>
+            lasting.Update(Reading(squad, true, controlled, bar, ultimates, colour), TimeSpan.FromSeconds(t));
+        At(0, 1, null, "R/R/R", null);
+        At(0.5, 1, null, "0.00/R/R", null);       // Zhuang casts hers
+        At(1, 1, 1.00, "0.00/R/R", Gold);
+        At(2, 1, 0.96, "0.00/R/R", Gold);
+        At(3, 1, 0.92, "0.00/R/R", Gold);
+        At(3.5, 2, null, "0.00/0.00/R", null);     // Laevatain controlled, casts hers
+        At(4, 2, 1.00, "0.00/0.00/R", Red);
+        At(5, 2, 0.93, "0.00/0.00/R", Red);
+        At(6, 2, 0.86, "0.00/0.00/R", Red);
+
+        // Slot 3 controlled: Zhuang's on the bar, a little above where her rate puts her (0.78); Laevatain's would be 0.825.
+        var views = At(6.5, 3, 0.84, "0.00/0.00/R", Gold);
+        Describe(6.5, views);
+
+        Assert.Equal(new LastingUltimateView("Zhuang_Fangyi", 0.84, false), views["Zhuang_Fangyi"]);
+        Assert.True(views.TryGetValue("Laevatain", out var laevatain) && laevatain.Estimated, "Laevatain's is carried on, not read");
+    }
+
+    /// <summary>
+    /// A teal bar (the unnamed slot-3 operator's, 44.5 s on the Zhuang + Laevatain recording) is no
+    /// one's here, even when its share is where Zhuang's running one would be by now.
+    /// </summary>
+    [Fact]
+    public void A_bar_of_no_known_operators_colour_is_shown_for_no_one_even_where_a_running_one_would_be()
+    {
+        string?[] squad = ["Zhuang_Fangyi", "Laevatain", "Slot3Operator"];
+        var lasting = new LastingUltimates();
+        lasting.Update(Reading(squad, true, 1, null, "R/R/R"), TimeSpan.FromSeconds(0));
+        lasting.Update(Reading(squad, true, 1, null, "0.00/R/R"), TimeSpan.FromSeconds(0.5));
+        lasting.Update(Reading(squad, true, 1, 1.00, "0.00/R/R", Gold), TimeSpan.FromSeconds(1));
+        lasting.Update(Reading(squad, true, 1, 0.96, "0.00/R/R", Gold), TimeSpan.FromSeconds(2));
+
+        var views = lasting.Update(Reading(squad, true, 3, 0.92, "0.00/R/0.00", Teal), TimeSpan.FromSeconds(3));
+        Describe(3, views);
+
+        Assert.True(views.TryGetValue("Zhuang_Fangyi", out var zhuang) && zhuang.Estimated, "Zhuang's is carried on, not read off the teal bar");
+        Assert.False(views.ContainsKey("Slot3Operator"));
+    }
+
+    /// <summary>A bar whose colour isn't read is given by who's controlled and who just spent hers, as before.</summary>
+    [Fact]
+    public void Without_its_colour_the_bar_is_given_as_before()
+    {
+        string?[] squad = ["Laevatain", "Zhuang_Fangyi", "Perlica"];
+        var lasting = new LastingUltimates();
+        lasting.Update(Reading(squad, true, 3, null, "R/R/R"), TimeSpan.FromSeconds(0));
+        lasting.Update(Reading(squad, true, 3, null, "R/0.00/R"), TimeSpan.FromSeconds(0.5));
+
+        Assert.Equal("Zhuang_Fangyi", Assert.Single(lasting.Update(Reading(squad, true, 3, 1.0, "R/0.00/R"), TimeSpan.FromSeconds(3))).Key);
+    }
+
+    /// <summary>The hues measured (<see cref="LastingUltimates.BarHues"/>), with colours read on the recordings.</summary>
+    [Fact]
+    public void The_known_colours_are_their_operators_and_teal_is_no_ones()
+    {
+        Assert.Equal("Zhuang_Fangyi", LastingUltimates.OwnerByColour(Gold));
+        Assert.Equal("Zhuang_Fangyi", LastingUltimates.OwnerByColour(new BarColour(0xAE, 0x94, 0x1E))); // dimmed (zh-46_5s)
+        Assert.Equal("Laevatain", LastingUltimates.OwnerByColour(Red));
+        Assert.Equal("Laevatain", LastingUltimates.OwnerByColour(new BarColour(0xE1, 0x55, 0x48))); // nearly out
+        Assert.Null(LastingUltimates.OwnerByColour(Teal));
+    }
+
     // ---- The recorded frames, through the reader ----
 
     internal sealed record FrameLabel(string File, int ControlledSlot, string? Bar, string? Owner);
@@ -233,6 +313,34 @@ public class LastingUltimatesTests(ITestOutputHelper output)
 
     private static double Seconds(string file) =>
         double.Parse(file[(file.IndexOf('-') + 1)..^"s.jpg".Length].Replace('_', '.'), CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// Each of the Zhuang + Laevatain recording's frames read on its own (as the first reading after
+    /// the app starts would be): the bar goes to the operator whose colour it is, whoever is
+    /// controlled; the teal one to no one. Who's controlled and who just spent hers can't tell on a
+    /// single frame (both ultimates show spent on every one).
+    /// </summary>
+    [Fact]
+    public async Task On_the_recorded_frames_each_bar_is_its_colours_operators()
+    {
+        var reader = new PartyReader(new TextRecognizer());
+        string[] names = ["Zhuang_Fangyi", "Laevatain", "Slot3Operator"];
+        var wrong = new List<string>();
+        foreach (var label in Labels.Where(l => l.File.StartsWith("zl-", StringComparison.Ordinal)).OrderBy(l => Seconds(l.File)))
+        {
+            var read = await reader.ReadAsync(await LoadAsync(label.File));
+            var state = read with
+            {
+                Slots = read.Slots.Select(s => s.Empty || s.Number > names.Length ? s : s with { Operator = new Operators.OperatorMatch(new Operators.OperatorInfo(names[s.Number - 1], "", "", ""), 1, true) }).ToList(),
+            };
+            var views = new LastingUltimates().Update(state, TimeSpan.FromSeconds(Seconds(label.File)));
+            output.WriteLine($"{label.File}: colour {read.UltimateTimeColour}, by eye {label.Bar} ({label.Owner ?? "no one"})");
+            string shown = Describe(Seconds(label.File), views);
+            string expected = label.Owner is null ? "" : $"{label.Owner}:{read.UltimateTimeLeft:F2}";
+            if (shown != expected) wrong.Add($"{label.File}: shown '{shown}', expected '{expected}'");
+        }
+        Assert.True(wrong.Count == 0, string.Join(Environment.NewLine, wrong));
+    }
 
     /// <summary>What the attribution rests on, as read: the bar is there under whoever is controlled, and the controlled slot is the one seen by eye.</summary>
     [Fact]
