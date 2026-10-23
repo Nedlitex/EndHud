@@ -16,7 +16,7 @@ namespace EndHud.Vision.Tests;
 public class UltimateActiveConditionTests
 {
     private static readonly string[] Squad = ["Zhuang_Fangyi", "Perlica", "Arcane", "Liino"];
-    private static readonly BarColour Gold = new(0xF0, 0xD2, 0x33);
+    private static readonly BarColour Gold = new(0xF0, 0xD2, 0x33), Teal = new(0x3C, 0xCD, 0xB8);
 
     private static readonly StateCondition ZhuangActive = new UltimateActiveCondition("Zhuang_Fangyi", true);
     private static readonly StateCondition ZhuangOver = new UltimateActiveCondition("Zhuang_Fangyi", false);
@@ -82,8 +82,29 @@ public class UltimateActiveConditionTests
     }
 
     /// <summary>
+    /// Yvonne's lasting ultimate is the teal bar (Fixtures/lasting-ultimate-background zl-44_5s): with
+    /// her in slot 3 instead of Arcane, a teal bar says hers is running, worked out from this reading
+    /// alone; with no bar it isn't.
+    /// </summary>
+    [Fact]
+    public void Yvonnes_ultimate_is_active_on_a_teal_bar()
+    {
+        StateCondition yvonneActive = new UltimateActiveCondition("Yvonne", true);
+        PartyState WithYvonne(PartyState state) => state with
+        {
+            Slots = state.Slots.Select(s => s.Number == 3
+                ? s with { Operator = new OperatorMatch(new OperatorInfo("Yvonne", "Yvonne", "Yvonne", "Yvonne.png"), 1, true), Ultimate = new UltimateReading(false, 0) }
+                : s).ToList(),
+        };
+
+        Assert.Equal(true, RotationTracker.Evaluate(yvonneActive, WithYvonne(Reading(0.54, Teal, null)), PhaseHistory.None));
+        Assert.Equal(false, RotationTracker.Evaluate(yvonneActive, WithYvonne(Reading(null, null, null)), PhaseHistory.None));
+    }
+
+    /// <summary>
     /// An operator whose ultimate isn't known to last with the bar: no bar means not running; a bar
-    /// that isn't hers by colour could still be hers (the teal one), so it can't be told.
+    /// that isn't hers by colour could still be hers (as Yvonne's teal one was, before it was
+    /// measured), so it can't be told.
     /// </summary>
     [Fact]
     public void For_an_operator_not_known_to_have_a_lasting_ultimate_a_bar_cannot_tell()

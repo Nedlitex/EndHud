@@ -105,9 +105,9 @@ public class LastingUltimatesTests(ITestOutputHelper output)
     }
 
     // test_zhuang_laevatine_background1.mp4, 36–57.5 s: Zhuang Fangyi (slot 1), Laevatain (slot 2)
-    // and an operator not named here (slot 3). Zhuang's runs from 36 s, Laevatain's from about 42 s,
-    // the slot-3 operator's (teal) about 44–46 s. By eye (Fixtures/lasting-ultimate-background zl-*):
-    // 43.5 red (Laevatain controlled), 44.5 teal (slot 3), 46 gold (Zhuang), 53.5 red, 56 gold (slot 3 controlled).
+    // and Yvonne (slot 3). Zhuang's runs from 36 s, then Laevatain's and Yvonne's (teal, about 7 s).
+    // By eye (Fixtures/lasting-ultimate-background zl-*): 43.5 red (Laevatain controlled), 44.5 teal
+    // (Yvonne controlled), 46 gold (Zhuang), 53.5 red, 56 gold (Yvonne controlled, hers over).
     private const string ThreeRunning = """
         36 0 1 - 0.00/R/R/-
         36.5 1 1 1.00 0.00/R/R/-
@@ -147,32 +147,32 @@ public class LastingUltimatesTests(ITestOutputHelper output)
 
     /// <summary>
     /// Three running, the player switching between them: each reading of the bar goes to the
-    /// operator it belongs to, the teal one (not one of the known lasting ultimates) to no one, and
-    /// a running one off the bar is carried on, marked as an estimate, on its own operator.
+    /// operator it belongs to (the teal one to Yvonne), and a running one off the bar is carried on,
+    /// marked as an estimate, on its own operator, until it would be out.
     /// </summary>
     [Fact]
     public void With_several_running_the_bar_goes_to_whose_it_is_and_the_others_are_carried_on()
     {
-        string?[] squad = ["Zhuang_Fangyi", "Laevatain", "Slot3Operator"];
+        string?[] squad = ["Zhuang_Fangyi", "Laevatain", "Yvonne"];
         var lasting = new LastingUltimates();
         var shown = new Dictionary<double, IReadOnlyDictionary<string, LastingUltimateView>>();
         foreach (var (t, panel, controlled, bar, ultimates) in Rows(ThreeRunning))
         {
             var views = lasting.Update(Reading(squad, panel, controlled, bar, ultimates), TimeSpan.FromSeconds(t));
             Describe(t, views);
-            Assert.False(views.ContainsKey("Slot3Operator"));
             shown[t] = views;
         }
 
         void Read(double t, string id) => Assert.True(shown[t].TryGetValue(id, out var v) && !v.Estimated, $"{t}: {id} not read on the bar");
-        void NotRead(double t) => Assert.True(shown[t].Values.All(v => v.Estimated), $"{t}: the bar given to someone");
 
         Read(36.5, "Zhuang_Fangyi");
         Read(42.5, "Zhuang_Fangyi");
         Read(43.5, "Laevatain");      // red, hers: she just cast it (Zhuang's is about the same by now)
         Read(44, "Laevatain");
-        NotRead(44.5);                 // teal: the slot-3 operator's
-        NotRead(45.5);
+        Read(44.5, "Yvonne");          // teal: hers, she just cast it
+        Read(45.5, "Yvonne");
+        Assert.True(shown[46.5].TryGetValue("Yvonne", out var yvonne) && yvonne.Estimated, "46.5: Yvonne's not carried on");
+        Assert.False(shown[50].ContainsKey("Yvonne"), "50: Yvonne's still shown (it drains about 0.15 a second: out by 48.5)");
         foreach (double t in new[] { 46.5, 48, 50, 52 })
         {
             Read(t, "Zhuang_Fangyi");
@@ -235,7 +235,7 @@ public class LastingUltimatesTests(ITestOutputHelper output)
     [Fact]
     public void With_two_running_at_about_the_same_share_the_bars_colour_says_whose_it_is()
     {
-        string?[] squad = ["Zhuang_Fangyi", "Laevatain", "Slot3Operator"];
+        string?[] squad = ["Zhuang_Fangyi", "Laevatain", "Perlica"];
         var lasting = new LastingUltimates();
         IReadOnlyDictionary<string, LastingUltimateView> At(double t, int controlled, double? bar, string ultimates, BarColour? colour) =>
             lasting.Update(Reading(squad, true, controlled, bar, ultimates, colour), TimeSpan.FromSeconds(t));
@@ -258,13 +258,34 @@ public class LastingUltimatesTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A teal bar (the unnamed slot-3 operator's, 44.5 s on the Zhuang + Laevatain recording) is no
-    /// one's here, even when its share is where Zhuang's running one would be by now.
+    /// A teal bar (Yvonne's, 44.5 s on the Zhuang + Laevatain recording) is hers, even when its share
+    /// is where Zhuang's running one would be by now.
     /// </summary>
     [Fact]
-    public void A_bar_of_no_known_operators_colour_is_shown_for_no_one_even_where_a_running_one_would_be()
+    public void A_teal_bar_is_Yvonnes_even_where_a_running_one_would_be()
     {
-        string?[] squad = ["Zhuang_Fangyi", "Laevatain", "Slot3Operator"];
+        string?[] squad = ["Zhuang_Fangyi", "Laevatain", "Yvonne"];
+        var lasting = new LastingUltimates();
+        lasting.Update(Reading(squad, true, 1, null, "R/R/R"), TimeSpan.FromSeconds(0));
+        lasting.Update(Reading(squad, true, 1, null, "0.00/R/R"), TimeSpan.FromSeconds(0.5));
+        lasting.Update(Reading(squad, true, 1, 1.00, "0.00/R/R", Gold), TimeSpan.FromSeconds(1));
+        lasting.Update(Reading(squad, true, 1, 0.96, "0.00/R/R", Gold), TimeSpan.FromSeconds(2));
+
+        var views = lasting.Update(Reading(squad, true, 3, 0.92, "0.00/R/0.00", Teal), TimeSpan.FromSeconds(3));
+        Describe(3, views);
+
+        Assert.True(views.TryGetValue("Yvonne", out var yvonne) && yvonne == new LastingUltimateView("Yvonne", 0.92, false), "the teal bar not read as Yvonne's");
+        Assert.True(views.TryGetValue("Zhuang_Fangyi", out var zhuang) && zhuang.Estimated, "Zhuang's is carried on, not read off the teal bar");
+    }
+
+    /// <summary>
+    /// A bar whose colour's operator isn't in the squad (teal without Yvonne) is no one's, even when its
+    /// share is where Zhuang's running one would be by now: it is never given to someone else.
+    /// </summary>
+    [Fact]
+    public void A_bar_whose_colours_operator_is_not_in_the_squad_is_shown_for_no_one_even_where_a_running_one_would_be()
+    {
+        string?[] squad = ["Zhuang_Fangyi", "Laevatain", "Perlica"];
         var lasting = new LastingUltimates();
         lasting.Update(Reading(squad, true, 1, null, "R/R/R"), TimeSpan.FromSeconds(0));
         lasting.Update(Reading(squad, true, 1, null, "0.00/R/R"), TimeSpan.FromSeconds(0.5));
@@ -275,7 +296,7 @@ public class LastingUltimatesTests(ITestOutputHelper output)
         Describe(3, views);
 
         Assert.True(views.TryGetValue("Zhuang_Fangyi", out var zhuang) && zhuang.Estimated, "Zhuang's is carried on, not read off the teal bar");
-        Assert.False(views.ContainsKey("Slot3Operator"));
+        Assert.Single(views);
     }
 
     /// <summary>A bar whose colour isn't read is given by who's controlled and who just spent hers, as before.</summary>
@@ -292,13 +313,15 @@ public class LastingUltimatesTests(ITestOutputHelper output)
 
     /// <summary>The hues measured (<see cref="LastingUltimates.BarHues"/>), with colours read on the recordings.</summary>
     [Fact]
-    public void The_known_colours_are_their_operators_and_teal_is_no_ones()
+    public void The_known_colours_are_their_operators()
     {
         Assert.Equal("Zhuang_Fangyi", LastingUltimates.OwnerByColour(Gold));
         Assert.Equal("Zhuang_Fangyi", LastingUltimates.OwnerByColour(new BarColour(0xAE, 0x94, 0x1E))); // dimmed (zh-46_5s)
         Assert.Equal("Laevatain", LastingUltimates.OwnerByColour(Red));
         Assert.Equal("Laevatain", LastingUltimates.OwnerByColour(new BarColour(0xE1, 0x55, 0x48))); // nearly out
-        Assert.Null(LastingUltimates.OwnerByColour(Teal));
+        Assert.Equal("Yvonne", LastingUltimates.OwnerByColour(Teal));
+        Assert.Equal("Yvonne", LastingUltimates.OwnerByColour(new BarColour(0x3A, 0xC8, 0xB0))); // hue 172
+        Assert.Null(LastingUltimates.OwnerByColour(new BarColour(0x40, 0x80, 0xF0))); // blue (hue 220): no one measured
     }
 
     // ---- The recorded frames, through the reader ----
@@ -317,14 +340,14 @@ public class LastingUltimatesTests(ITestOutputHelper output)
     /// <summary>
     /// Each of the Zhuang + Laevatain recording's frames read on its own (as the first reading after
     /// the app starts would be): the bar goes to the operator whose colour it is, whoever is
-    /// controlled; the teal one to no one. Who's controlled and who just spent hers can't tell on a
+    /// controlled; the teal one to Yvonne. Who's controlled and who just spent hers can't tell on a
     /// single frame (both ultimates show spent on every one).
     /// </summary>
     [Fact]
     public async Task On_the_recorded_frames_each_bar_is_its_colours_operators()
     {
         var reader = new PartyReader(new TextRecognizer());
-        string[] names = ["Zhuang_Fangyi", "Laevatain", "Slot3Operator"];
+        string[] names = ["Zhuang_Fangyi", "Laevatain", "Yvonne"];
         var wrong = new List<string>();
         foreach (var label in Labels.Where(l => l.File.StartsWith("zl-", StringComparison.Ordinal)).OrderBy(l => Seconds(l.File)))
         {
