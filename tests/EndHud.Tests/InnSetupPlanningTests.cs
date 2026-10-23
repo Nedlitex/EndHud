@@ -166,6 +166,34 @@ public class InnSetupPlanningTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// Whether the refined advice came within <see cref="InnSetupPlanning.RefinedWithin"/> is a matter of the planning's clock,
+    /// never of how fast the machine running the test is: a refinement ready at once on that clock (here a clock that doesn't
+    /// move) is shown directly, the quick advice never, though the machine took 1.5 s to run it (the CI runner, overloaded,
+    /// starting the simulator's work late). Otherwise every test of "ready within the second" holds only on a machine
+    /// fast enough, and fails on one that isn't.
+    /// </summary>
+    [Fact]
+    public async Task Ready_within_the_second_on_the_plannings_clock_is_shown_directly_however_slow_the_machine()
+    {
+        var session = NewSession();
+        session.Update(Staffed(0));
+        var quick = Quick(session);
+        var other = InnSetupAdvice.Fast(Planner, NewSessionWith(Cleared(0)).SetupInputs().Input!);
+        int doneCalls = 0;
+        var planning = new InnSetupPlanning(Replacing, _ => quick, (_, _) =>
+        {
+            Thread.Sleep(TimeSpan.FromSeconds(1.5)); // the machine, busy; on the planning's clock no time passes
+            return other;
+        }, note: _ => { }, clock: Frozen);
+
+        await planning.Request(session.SetupInputs(), Settled, () => Interlocked.Increment(ref doneCalls))!;
+
+        Assert.Same(other, planning.Showable(session.SetupInputs()));
+        Assert.Equal(1, doneCalls); // shown directly: the quick advice never went on screen
+        Assert.Equal(1, planning.Changes);
+    }
+
+    /// <summary>
     /// Holds up one thread for a while as it begins to wait on a task (the runtime's task events, raised on the waiting
     /// thread just before it looks whether the task is done): what an overloaded machine does to the worker at that moment.
     /// Once only, and only on <paramref name="thread"/>; other tests' threads are left alone.
