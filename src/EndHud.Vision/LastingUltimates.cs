@@ -15,7 +15,10 @@ public sealed record LastingUltimateView(string OperatorId, double LeftShare, bo
 /// the controlled operator's HP the whole time. With several running, the bar shows the controlled
 /// operator's own when she has one, and otherwise one running for an operator in the background.
 /// </para>
-/// So each reading of the bar is given to:
+/// Each reading of the bar is given to the operator whose colour it is (<see cref="OwnerByColour"/>:
+/// Laevatain red, Zhuang Fangyi gold), if she's in the squad; a bar of another colour (the teal one
+/// seen on an operator not named in the recording) to no one. Only when its colour isn't read
+/// (<see cref="PartyState.UltimateTimeColour"/> null) is it given by inference, to:
 /// <list type="number">
 /// <item>the controlled operator, if her ultimate lasts and was just spent (she cast it: the bar is
 /// hers), or hers runs, unless she'd be about out by now and the bar goes on another one;</item>
@@ -147,7 +150,10 @@ public sealed class LastingUltimates
         {
             _noBarSince = null;
             string? controlled = state.ActiveSlot is { } active && squad.TryGetValue(active, out var c) ? c : null;
-            owner = Owner(bar, state, controlled, now);
+            // The bar's colour says whose it is; only when it wasn't read is the owner worked out.
+            owner = state.UltimateTimeColour is { } colour
+                ? OwnerByColour(colour) is { } byColour && squad.ContainsValue(byColour) ? byColour : null
+                : Owner(bar, state, controlled, now);
             if (owner is not null)
             {
                 if (!_running.TryGetValue(owner, out var run))

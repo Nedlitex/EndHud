@@ -155,6 +155,19 @@ public class PartyTrackerTests
         Assert.Null(tracker.Track(Running(null)).UltimateTimeLeft); // longer: it ended
     }
 
+    /// <summary>The bar's colour (whose it is) is kept with its value, and goes with it.</summary>
+    [Fact]
+    public void A_kept_time_keeps_its_colour()
+    {
+        var gold = new BarColour(0xF0, 0xD2, 0x33);
+        var tracker = new PartyTracker();
+        tracker.Track(Running(0.6) with { UltimateTimeColour = gold });
+
+        Assert.Equal(gold, tracker.Track(Running(null)).UltimateTimeColour);
+        for (int i = 1; i < PartyTracker.UltimateGapReadings; i++) tracker.Track(Running(null));
+        Assert.Null(tracker.Track(Running(null)).UltimateTimeColour);
+    }
+
     [Fact]
     public void A_nearly_out_ultimate_or_another_controlled_operator_ends_it_at_once()
     {
