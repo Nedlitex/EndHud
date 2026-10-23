@@ -273,10 +273,19 @@ internal sealed class InnSetupPlanning(IInnPlanJudge judge, Func<InnPlanInput, I
                 Task<InnSetupAdvice>? early = null;
                 if (!ShowingFor(input))
                 {
-                    // Nothing on screen fits: the refined advice directly, if it comes soon enough.
-                    early = Task.Run(() => refine(input, cancel));
+                    // Nothing on screen fits: the refined advice directly, if it comes soon enough. Judged by
+                    // when it was ready, not by the wait: a worker paused just before waiting (an overloaded
+                    // machine; the v0.6.5 release's CI runner) found a 1.3 s refinement done and showed it
+                    // directly, as if it had come within the second.
+                    TimeSpan? readyAt = null;
+                    early = Task.Run(() =>
+                    {
+                        var refined = refine(input, cancel);
+                        readyAt = watch.Elapsed;
+                        return refined;
+                    });
                     var left = RefinedWithin - watch.Elapsed;
-                    if (left > TimeSpan.Zero && Finished(early, left))
+                    if (left > TimeSpan.Zero && Finished(early, left) && readyAt <= RefinedWithin)
                     {
                         var outcome = Offer(inputs.Key, input, early.GetAwaiter().GetResult(), cancel, refined: true);
                         _note($"inn: setup advice in {watch.ElapsedMilliseconds} ms (simulator, shown directly)");
