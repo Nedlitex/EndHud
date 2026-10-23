@@ -130,6 +130,69 @@ public class InnSetupPlanningTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// The v0.6.5 release's CI failure, made to happen every time: the worker held up between working out how long to wait for
+    /// the simulator and waiting (an overloaded machine: the runner, or a player's PC with the game running) found a refinement
+    /// that took 1.3 s already done. It was ready after <see cref="InnSetupPlanning.RefinedWithin"/>, so the quick advice shows
+    /// first and the refined one replaces it, as if the worker had not been held up: what's shown depends on when the
+    /// refinement was ready, not on when the worker got to look. The hold-up: the worker's thread stopped for 1.5 s just as it
+    /// begins its wait (<see cref="HoldUpTheWait"/>).
+    /// </summary>
+    [Fact]
+    public async Task A_worker_held_up_before_it_waits_still_shows_the_quick_advice_before_a_late_refinement()
+    {
+        var session = NewSession();
+        session.Update(Staffed(0));
+        var quick = Quick(session);
+        var other = InnSetupAdvice.Fast(Planner, NewSessionWith(Cleared(0)).SetupInputs().Input!);
+        int worker = 0, doneCalls = 0;
+        using var holdUp = new HoldUpTheWait(() => Volatile.Read(ref worker), TimeSpan.FromSeconds(1.5));
+        var planning = new InnSetupPlanning(Replacing, _ =>
+        {
+            Volatile.Write(ref worker, Environment.CurrentManagedThreadId); // the quick advice is worked out on the worker
+            return quick;
+        }, (_, _) =>
+        {
+            Thread.Sleep(InnSetupPlanning.RefinedWithin + TimeSpan.FromMilliseconds(300));
+            return other;
+        }, note: _ => { }, clock: Frozen);
+
+        await planning.Request(session.SetupInputs(), Settled, () => Interlocked.Increment(ref doneCalls))!;
+
+        Assert.True(holdUp.HeldUp, "the worker's wait was never held up: this test proved nothing");
+        Assert.Same(other, planning.Showable(session.SetupInputs()));
+        Assert.Equal(2, doneCalls); // the quick advice, then the refined one: not the refined one shown directly
+        Assert.Equal(2, planning.Changes);
+        Assert.Equal(1, planning.Replaced);
+    }
+
+    /// <summary>
+    /// Holds up one thread for a while as it begins to wait on a task (the runtime's task events, raised on the waiting
+    /// thread just before it looks whether the task is done): what an overloaded machine does to the worker at that moment.
+    /// Once only, and only on <paramref name="thread"/>; other tests' threads are left alone.
+    /// </summary>
+    private sealed class HoldUpTheWait(Func<int> thread, TimeSpan hold) : System.Diagnostics.Tracing.EventListener
+    {
+        private const int TaskWaitBegin = 10; // TplEventSource's event id
+        private int _heldUp;
+
+        public bool HeldUp => Volatile.Read(ref _heldUp) == 1;
+
+        protected override void OnEventSourceCreated(System.Diagnostics.Tracing.EventSource source)
+        {
+            // Only the events that say a task is waited on (TaskTransfer); nothing that tracks activities.
+            if (source.Name == "System.Threading.Tasks.TplEventSource")
+                EnableEvents(source, System.Diagnostics.Tracing.EventLevel.Informational, (System.Diagnostics.Tracing.EventKeywords)1);
+        }
+
+        protected override void OnEventWritten(System.Diagnostics.Tracing.EventWrittenEventArgs e)
+        {
+            // Called while the constructor runs, before the primary constructor's parameters are captured: thread is null then.
+            if (e.EventId != TaskWaitBegin || thread is null || Environment.CurrentManagedThreadId != thread()) return;
+            if (Interlocked.Exchange(ref _heldUp, 1) == 0) Thread.Sleep(hold);
+        }
+    }
+
+    /// <summary>
     /// The quick advice on screen longer than <see cref="InnSetupPlanning.RefinedWithin"/> (the player may be following it:
     /// owner, test_yuanyuan6, "the recommendation should not change, unless some kitchen is filled") stays when the
     /// refined one comes, however much better the judge finds it (<see cref="Replacing"/>: always).
