@@ -220,6 +220,9 @@
             <CheckBox x:Name="DebugPanelCheckBox" Click="DebugPanelCheckBox_Click">
                 <TextBlock Text="{DynamicResource Menu.DebugPanel}" TextWrapping="Wrap" />
             </CheckBox>
+            <CheckBox x:Name="CloseWithGameCheckBox" Click="CloseWithGameCheckBox_Click">
+                <TextBlock Text="{DynamicResource Menu.CloseWithGame}" TextWrapping="Wrap" />
+            </CheckBox>
             <CheckBox x:Name="CheckForUpdatesCheckBox" Click="CheckForUpdatesCheckBox_Click">
                 <TextBlock Text="{DynamicResource Menu.CheckForUpdates}" TextWrapping="Wrap" />
             </CheckBox>

@@ -41,6 +41,7 @@ public partial class OverlayWindow : Window
 
     private IntPtr _hwnd;
     private IntPtr _game;
+    private readonly GameExitWatch _gameExit = new();
     private string _gameTitle = "";
     private bool _hudOn;
     private bool _menuOpen;
@@ -62,6 +63,7 @@ public partial class OverlayWindow : Window
         PartySection.Visibility = config.PartyOcrEnabled ? Visibility.Visible : Visibility.Collapsed;
         PartyText.Text = Loc.Get("Party.Waiting");
         DebugPanelCheckBox.IsChecked = false;
+        CloseWithGameCheckBox.IsChecked = config.CloseWithGame;
         CheckForUpdatesCheckBox.IsChecked = config.CheckForUpdates;
         AutoInstallUpdatesCheckBox.IsChecked = config.AutoInstallUpdates;
         AutoStartCheckBox.IsChecked = ReadAutoStart();
@@ -305,6 +307,12 @@ public partial class OverlayWindow : Window
         AutoStartCheckBox.IsChecked = ReadAutoStart(); // what Windows will actually do
     }
 
+    private void CloseWithGameCheckBox_Click(object sender, RoutedEventArgs e)
+    {
+        _config.CloseWithGame = CloseWithGameCheckBox.IsChecked == true;
+        ConfigStore.Save(_config);
+    }
+
     private void CheckForUpdatesCheckBox_Click(object sender, RoutedEventArgs e)
     {
         _config.CheckForUpdates = CheckForUpdatesCheckBox.IsChecked == true;
@@ -332,6 +340,12 @@ public partial class OverlayWindow : Window
         {
             _game = GameWindowFinder.Find(_options.TargetTitle);
             _gameTitle = _game == IntPtr.Zero ? "" : Native.GetTitle(_game);
+        }
+        if (_gameExit.Update(_game != IntPtr.Zero, DateTime.UtcNow) && _config.CloseWithGame)
+        {
+            DiagnosticLog.Info($"the game exited (its window gone {GameExitWatch.GoneFor.TotalSeconds:F0} s): closing, as set");
+            Application.Current.Shutdown();
+            return;
         }
 
         ClockText.Text = DateTime.Now.ToString("HH:mm:ss");

@@ -41,6 +41,9 @@ internal sealed class HudConfig
     /// <summary>Install a newer EndHud by itself when the game isn't running (see AutoInstaller); needs <see cref="CheckForUpdates"/>.</summary>
     public bool AutoInstallUpdates { get; set; } = true;
 
+    /// <summary>Quit EndHud when the game exits (<see cref="GameExitWatch"/>). Off unless the player turns it on (owner, 2026-10-23).</summary>
+    public bool CloseWithGame { get; set; }
+
     // The debug panel isn't a setting: it's off at every start (OverlayWindow). A "DebugPanel" left
     // in an older config.json is ignored.
 

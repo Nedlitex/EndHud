@@ -478,6 +478,7 @@ release.yml).
 |---|---|---|
 | `CheckForUpdates` | `true` | Check GitHub a few seconds after start and then daily: for a newer EndHud, for changed recommended rotations and for a newer operator package (both downloaded). |
 | `AutoInstallUpdates` | `true` | Install a newer EndHud by itself while the game isn't running (needs `CheckForUpdates`). Off: a notification only. |
+| `CloseWithGame` | `false` | Quit EndHud once the game window, seen earlier in this run, has been gone 10 s ([`GameExitWatch`](src/EndHud/GameExitWatch.cs); the wait rides out the window being made again when switching fullscreen). Off by default (owner). |
 | `AutoShowOnGameFocus` | `true` | Show the HUD when the game has focus and hide it otherwise. When `false`, the HUD only shows after Ctrl+Shift+H. |
 | `PartyOcrEnabled` | `true` | Read the squad panel (names, HP, skills, levels). |
 | `OcrIntervalMs` | `250` | How often the screen is read, in milliseconds (minimum 250). Rotations need it fast: skill points are spent and refilled quickly. |
