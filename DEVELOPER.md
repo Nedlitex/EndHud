@@ -1408,7 +1408,9 @@ delete the recommend pannel"), the text panels stay.
   test_yuanyuan6 the simulator's plan came 8.4 s after the quick one and replaced kitchen 1's Antal + Wulfgard with
   Akekuri + Snowshine while the player was in kitchen 1's picker placing Wulfgard (InnSetupSteadyTests replays it on two of the
   recording's frames). The cost: when the simulator takes longer than 1 s, the quick search's plan is the one that
-  stays. With nothing fitting on screen, a refined plan ready within 1 s is shown directly. While the menu screen keeps showing cards not seen
+  stays. With nothing fitting on screen, a refined plan ready within 1 s is shown directly; "within 1 s" is when it was
+  ready on the planning's clock (`InnClock`, or a test's own), never when the worker got round to looking (the v0.6.5
+  CI runner, overloaded, held the worker up past a 1.3 s refinement and it was shown directly). While the menu screen keeps showing cards not seen
   before (scrolling), a fitting plan isn't worked out again until no new card has shown for 1.5 s
   (`InnSetupPlanning.ScrollSettle`). Which cards are on the menu never was in the key: the player following the
   advice only moves the ticks. Measured (InnSetupStabilityTests, a scripted scroll then pick of 19 readings):

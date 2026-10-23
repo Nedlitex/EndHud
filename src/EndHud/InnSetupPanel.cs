@@ -171,7 +171,8 @@ internal sealed class InnPlanJudge(InnPlanner planner) : IInnPlanJudge
 /// <param name="refine">The better advice for an input, stopped by its token; null for one stage only.</param>
 /// <param name="log">Where a failure is said (throttled to the log by default).</param>
 /// <param name="note">Where each stage's time is said (the log by default).</param>
-/// <param name="clock">The time now, for how long a plan has been on screen (<see cref="InnClock"/> by default).</param>
+/// <param name="clock">The time now, for how long a plan has been on screen and how soon the refined advice was ready
+/// (<see cref="RefinedWithin"/>; <see cref="InnClock"/> by default).</param>
 internal sealed class InnSetupPlanning(IInnPlanJudge judge, Func<InnPlanInput, InnSetupAdvice> fast,
     Func<InnPlanInput, CancellationToken, InnSetupAdvice>? refine = null, Action<string>? log = null, Action<string>? note = null,
     Func<TimeSpan>? clock = null)
@@ -258,7 +259,8 @@ internal sealed class InnSetupPlanning(IInnPlanJudge judge, Func<InnPlanInput, I
         }
         return Task.Run(() =>
         {
-            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var watch = System.Diagnostics.Stopwatch.StartNew(); // for the log's timings
+            var start = _clock(); // for the deadline (RefinedWithin)
             try
             {
                 var first = fast(input);
@@ -276,16 +278,16 @@ internal sealed class InnSetupPlanning(IInnPlanJudge judge, Func<InnPlanInput, I
                     // Nothing on screen fits: the refined advice directly, if it comes soon enough. Judged by
                     // when it was ready, not by the wait: a worker paused just before waiting (an overloaded
                     // machine; the v0.6.5 release's CI runner) found a 1.3 s refinement done and showed it
-                    // directly, as if it had come within the second.
+                    // directly, as if it had come within the second. Both on the planning's clock, so a test
+                    // says how long the refinement took, not the speed of the machine it runs on.
                     TimeSpan? readyAt = null;
                     early = Task.Run(() =>
                     {
                         var refined = refine(input, cancel);
-                        readyAt = watch.Elapsed;
+                        readyAt = _clock() - start;
                         return refined;
                     });
-                    var left = RefinedWithin - watch.Elapsed;
-                    if (left > TimeSpan.Zero && Finished(early, left) && readyAt <= RefinedWithin)
+                    if (DoneInTime(early, start) && readyAt <= RefinedWithin)
                     {
                         var outcome = Offer(inputs.Key, input, early.GetAwaiter().GetResult(), cancel, refined: true);
                         _note($"inn: setup advice in {watch.ElapsedMilliseconds} ms (simulator, shown directly)");
@@ -332,6 +334,22 @@ internal sealed class InnSetupPlanning(IInnPlanJudge judge, Func<InnPlanInput, I
         Outcome.Restated => "kept, the one shown still fits; restated for what's placed",
         _ => "the same",
     };
+
+    /// <summary>
+    /// <paramref name="early"/> finished (whatever its outcome) before <see cref="RefinedWithin"/> passed since
+    /// <paramref name="start"/> on the planning's clock, read again after each wait: the wait itself is only how long
+    /// the worker sleeps. On a clock that doesn't move (a test's), it waits for the task however long it takes.
+    /// </summary>
+    private bool DoneInTime(Task early, TimeSpan start)
+    {
+        while (!early.IsCompleted)
+        {
+            var left = start + RefinedWithin - _clock();
+            if (left <= TimeSpan.Zero) return false;
+            Finished(early, TimeSpan.FromMilliseconds(Math.Ceiling(left.TotalMilliseconds))); // never a 0 ms wait: no spinning
+        }
+        return true;
+    }
 
     /// <summary>The task finished within <paramref name="wait"/> (whatever its outcome: the caller reads it).</summary>
     private static bool Finished(Task task, TimeSpan wait)

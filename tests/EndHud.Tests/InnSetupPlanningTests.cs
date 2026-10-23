@@ -106,23 +106,25 @@ public class InnSetupPlanningTests(ITestOutputHelper output)
         Assert.Equal(0, same.Replaced);
         Assert.Equal(1, doneCalls);
 
-        // A different, clearly better refined advice coming after InnSetupPlanning.RefinedWithin, the quick one only
-        // just shown (a clock that doesn't move), replaces it.
+        // A different, clearly better refined advice coming after InnSetupPlanning.RefinedWithin (1.3 s on the planning's
+        // clock, which moves only by that), the quick one only just shown, replaces it.
         doneCalls = 0;
+        var lateClock = TimeSpan.Zero;
         var late = new InnSetupPlanning(Replacing, _ => quick, (_, _) =>
         {
-            Thread.Sleep(InnSetupPlanning.RefinedWithin + TimeSpan.FromMilliseconds(300));
+            lateClock += InnSetupPlanning.RefinedWithin + TimeSpan.FromMilliseconds(300);
             return other;
-        }, note: _ => { }, clock: Frozen);
+        }, note: _ => { }, clock: () => lateClock);
         await late.Request(session.SetupInputs(), Settled, () => Interlocked.Increment(ref doneCalls))!;
         Assert.Same(other, late.Showable(session.SetupInputs()));
         Assert.Equal(1, late.Replaced);
         Assert.Equal(2, doneCalls);
         Assert.Equal(2, late.Changes);
 
-        // One ready within it is shown directly: the quick advice never shows, nothing swaps on screen.
+        // One ready within it (at once, on a clock that doesn't move) is shown directly: the quick advice never shows,
+        // nothing swaps on screen.
         doneCalls = 0;
-        var soon = new InnSetupPlanning(Replacing, _ => quick, (_, _) => other, note: _ => { });
+        var soon = new InnSetupPlanning(Replacing, _ => quick, (_, _) => other, note: _ => { }, clock: Frozen);
         await soon.Request(session.SetupInputs(), Settled, () => Interlocked.Increment(ref doneCalls))!;
         Assert.Same(other, soon.Showable(session.SetupInputs()));
         Assert.Equal(1, doneCalls);
@@ -145,6 +147,7 @@ public class InnSetupPlanningTests(ITestOutputHelper output)
         var quick = Quick(session);
         var other = InnSetupAdvice.Fast(Planner, NewSessionWith(Cleared(0)).SetupInputs().Input!);
         int worker = 0, doneCalls = 0;
+        var now = TimeSpan.Zero;
         using var holdUp = new HoldUpTheWait(() => Volatile.Read(ref worker), TimeSpan.FromSeconds(1.5));
         var planning = new InnSetupPlanning(Replacing, _ =>
         {
@@ -152,9 +155,11 @@ public class InnSetupPlanningTests(ITestOutputHelper output)
             return quick;
         }, (_, _) =>
         {
+            // 1.3 s, on the machine's clock and the planning's.
             Thread.Sleep(InnSetupPlanning.RefinedWithin + TimeSpan.FromMilliseconds(300));
+            now += InnSetupPlanning.RefinedWithin + TimeSpan.FromMilliseconds(300);
             return other;
-        }, note: _ => { }, clock: Frozen);
+        }, note: _ => { }, clock: () => now);
 
         await planning.Request(session.SetupInputs(), Settled, () => Interlocked.Increment(ref doneCalls))!;
 
@@ -235,16 +240,27 @@ public class InnSetupPlanningTests(ITestOutputHelper output)
         Assert.NotEqual(quick.Signature, other.Signature);
         var now = TimeSpan.Zero;
         var release = new ManualResetEventSlim(false);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var planning = new InnSetupPlanning(Replacing, _ => quick, (_, _) =>
         {
+            started.TrySetResult();
             release.Wait();
             return other;
         }, note: _ => { }, clock: () => now);
 
         var work = planning.Request(session.SetupInputs(), Settled)!;
-        await WaitUntil(() => planning.Showable(session.SetupInputs()) is not null);
-        now += InnSetupPlanning.RefinedWithin + TimeSpan.FromSeconds(7); // the 8.4 s of the owner's log
-        release.Set();
+        try
+        {
+            // The simulator still working a second after the inputs changed: the quick advice goes on screen.
+            await Until(started.Task, work);
+            now += InnSetupPlanning.RefinedWithin;
+            await WaitUntil(() => planning.Showable(session.SetupInputs()) is not null);
+            now += InnSetupPlanning.RefinedWithin + TimeSpan.FromSeconds(7); // the 8.4 s of the owner's log
+        }
+        finally
+        {
+            release.Set();
+        }
         await work;
 
         Assert.Same(quick, planning.Showable(session.SetupInputs()));
@@ -343,6 +359,18 @@ public class InnSetupPlanningTests(ITestOutputHelper output)
         var session = NewSession();
         session.Update(reading);
         return session;
+    }
+
+    /// <summary>
+    /// Waits for <paramref name="signal"/>, however long the machine takes (no deadline on the wall clock: the CI runner,
+    /// overloaded, took minutes over a second's work); fails at once if <paramref name="work"/> ends without it.
+    /// </summary>
+    internal static async Task Until(Task signal, Task work)
+    {
+        await Task.WhenAny(signal, work);
+        if (signal.IsCompleted) return;
+        await work; // its exception, if it failed
+        Assert.Fail("the planning's work ended without it");
     }
 
     private static async Task WaitUntil(Func<bool> condition, TimeSpan? limit = null)
