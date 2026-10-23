@@ -112,15 +112,77 @@ it turns true. See [Alerts](#alerts) for the file, the firing rule and the edito
 With Si in the squad the gauge row has two more circles, both with her avatar:
 
 - **伤害层数** (her battle skill's damage stacks): the number on the green badge left of the HP
-  bar, read for the controlled operator like every other counter
+  bar while she's controlled, and on the same badge drawn small on her squad portrait while
+  she isn't, like every other counter (see [Counters on the portraits](#counters-on-the-portraits))
   ([`OperatorCounters.SiStacks`](src/EndHud.Vision/Operators/OperatorCounters.cs), digits by
   [`BadgeNumber`](src/EndHud.Vision/BadgeNumber.cs)). The game sets no maximum (owner,
   2026-10-22), so the counter is uncapped (`CounterDefinition.Max` is null, `Uncapped`): drawn as a
   large number on a faded avatar, no segments, no "full" glow; "?" before it's read.
 - **战技持续** (her battle skill's time left): from her first cast, her battle-skill button's
   butterfly turns into a swirl and a grey ring inside the button drains clockwise over about 22 s
-  ([`SkillRing`](src/EndHud.Vision/SkillRing.cs)). The gauge is a grey-white glowing ring draining
-  anticlockwise, the seconds left in the corner. See [the estimate rule](#sis-battle-skill-timer).
+  ([`SkillRing`](src/EndHud.Vision/SkillRing.cs)). Cast again while it lasts, the icon becomes
+  a crossed-out butterfly and the ring drains on from where it was; the skill ends only when the
+  butterfly is back. The gauge is a grey-white glowing ring draining anticlockwise, the seconds
+  left in the corner. See [the estimate rule](#sis-battle-skill-timer).
+
+### Counters on the portraits
+
+In combat the game draws each operator's counter twice over: beside the HP bar for the controlled
+operator, and small (about 0.7 the size) at the lower left of the squad portrait for each of the
+others. EndHud reads both ([`OperatorCounters.ReadSquad`](src/EndHud.Vision/Operators/OperatorCounters.cs):
+the controlled operator's beside the HP bar, the others' through
+[`PortraitCounters`](src/EndHud.Vision/Operators/PortraitCounters.cs) with the same readers), so a
+switched-out operator's counter on the gauge row stays live. It's dimmed (the last value seen,
+not live: [`CounterMemory`](src/EndHud.Vision/Operators/CounterMemory.cs)) only when a reading
+can't tell it: an effect over it, the panel out of sight, or the controller layout.
+
+- **When:** in combat with keyboard and mouse only. Out of combat the game draws no counter on a
+  portrait (the level text is there; a fight's end dims the portrait, which read as Typhoeus's
+  empty bars and dots), so nothing is read; the combo bars are the sign of combat here. None
+  while no slot is clearly controlled. The controller layout's portraits aren't measured (no
+  recording uses it), so with a controller only the controlled operator's counter is live.
+- **Where:** each counter's place on a portrait (`PortraitCounters.Placements`) was swept over x, y
+  and size until every labelled frame of the owner's four recordings read right, and set in the
+  middle of that room (the room is in the comments).
+- **Is it drawn?** On a portrait the counter sits on art of any colour, and on a portrait with no
+  counter grey hair read as Typhoeus's empty bars and Zhuang Fangyi's empty cells. So Typhoeus's
+  icon and Zhuang's grid count only when their dark outline shows round them; Si's badge has
+  checks of its own. Laevatain's flower has no outline that tells it from a portrait (its edge was
+  as clear on portraits without one), so it's read only on Laevatain's own portrait, where it was
+  drawn in every in-combat frame recorded: if the game ever leaves it out there, a value could be
+  read from the art.
+- **Measured** on 42 labelled frames ([`Fixtures/portrait-counters`](tests/data/Fixtures/portrait-counters)):
+  Si's stacks in slots 1 and 3, Laevatain's 熔火 in slot 2, Typhoeus's 猎矢 and 启示 and Zhuang
+  Fangyi's 青霆剑 in slot 1. Every 0.5 s over the four recordings, against the counts seen by eye:
+  417 right, 101 unknown (88 of them where no counter is drawn), 0 wrong.
+
+### Lasting ultimates
+
+The time bar right above the skill points ([`UltimateTimeBar`](src/EndHud.Vision/UltimateTimeBar.cs))
+is **not** the controlled operator's. Measured (Fixtures/lasting-ultimate-background): it shows the
+controlled operator's own lasting ultimate when she has one running, otherwise one running for an
+operator in the background (Zhuang Fangyi's, cast from the background, ran under Perlica's HP for
+30 s). [`LastingUltimates`](src/EndHud.Vision/LastingUltimates.cs) tells whose it is, across
+readings, and carries on the ones running off the bar:
+
+- **By its colour** (`LastingUltimates.OwnerByColour`): the bar is in its operator's colour, read
+  as a hue. Laevatain red (hue 3–8), Zhuang Fangyi gold (47–51; a dimmed gold bar is still 49–50),
+  measured every 0.25 s over the two Zhuang recordings and on the fixtures at 4K and ten simulated
+  16:9-class screens; a bar within 15 degrees of one of them is hers, if she's in the squad. A
+  bar of another colour is shown for no one: a teal one (171–176) ran for a pink-haired operator
+  in slot 3 of one recording who isn't named there, and no other lasting ultimate has been
+  measured.
+- **When its colour isn't read** (a reading without it): by inference, the controlled operator's
+  if hers runs or she just spent hers, else the running one nearest to where it would be by now,
+  else the one just spent. This picked wrong on the recording (a teal bar given to Laevatain at
+  41.25 s) before the colour was read.
+- **Carried on:** a running one off the bar (another's shown, or the bar hidden a moment) goes on
+  at the rate it drained, shown "≈"; its time stands still while the panel is out of sight (the
+  game pauses it in a cutscene). No bar for 2 s with the panel in sight ends them all.
+- Its own operator's ultimate circle shows it, whoever is controlled (`GaugesView`). The overlay
+  works them out once per reading, before anything reads the state, and puts them on
+  `PartyState.RunningUltimates`: the gauges, the rotation strip and the alerts all use that, so
+  "ultimate active" holds while Zhuang's runs in the background.
 
 ### Debug panel
 
@@ -406,7 +468,7 @@ release.yml).
 | `RotationEnabled` | `true` | Show the rotation strip when the recognised squad has a rotation. |
 | `RotationCenterX`, `RotationY` | `0.5`, `0.13` | Where the strip sits, as a fraction of the game window: the middle of its width (it stays centred as it changes width) and its top. |
 | `RotationScale` | `1` | The strip's size on top of following the game window, 0.5–2 (the menu's 大小 slider; a value outside is brought back into range). |
-| `GaugesEnabled` | `true` | Show the gauges in battle: team buffs (Link with its stacks, once seen in the battle), and each recognised operator's ultimate charge and own counters, as circles with the operator's avatar in the middle. While a lasting ultimate runs (Laevatain's, Zhuang Fangyi's), the controlled operator's ultimate circle shows its time left instead: violet, glowing, draining anticlockwise, labelled 持续中. With Si in the squad: her damage stacks as a plain number, and while her battle skill lasts its time left (grey-white, "≈" when estimated); see [Gauges for Si](#gauges-for-si). |
+| `GaugesEnabled` | `true` | Show the gauges in battle: team buffs (Link with its stacks, once seen in the battle), and each recognised operator's ultimate charge and own counters, as circles with the operator's avatar in the middle. While a lasting ultimate runs (Laevatain's, Zhuang Fangyi's), its own operator's ultimate circle shows its time left instead, whoever is controlled: violet, glowing, draining anticlockwise, labelled 持续中 ("≈持续中" while it's carried on off the bar); see [Lasting ultimates](#lasting-ultimates). Counters are live for the whole squad in combat with keyboard and mouse (the switched-out operators' are read on their portraits). With Si in the squad: her damage stacks as a plain number, and while her battle skill lasts its time left (grey-white, "≈" when estimated); see [Gauges for Si](#gauges-for-si). |
 | `GaugesScale` | `1` | The gauges' size on top of following the game window (the menu's slider): 0.5–2; a value outside that is clamped when the file is read. |
 | `GaugesCenterX`, `GaugesBottomY` | `0.5`, `0.885` | Where the gauges sit, as a fraction of the game window: the middle of their width and their bottom edge (so a bigger size grows upwards): bottom middle, just above the game's HP and skill-point bars. |
 | `ActiveRotations` | `{}` | The rotation chosen for each squad: squad key (the four operator ids, sorted, joined by `\|`) → rotation id. Set by saving in the editor. |
@@ -1457,7 +1519,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   | `battleSkill` | `operatorId`, `ready` | that operator's battle skill button is available (`true`) or cooling (its countdown seconds aren't read) |
   | `ultimate` | `operatorId`, `ready` | that operator's ultimate is ready or charging |
   | `ultimateCharge` | `operatorId`, `is`, `percent` (0–100) | that operator's ultimate is charged so far (ready is 100; at most 0 is just used) |
-  | `ultimateActive` | `operatorId`, `active` (format 3) | that operator's lasting ultimate is running (`true`) or not: the time bar above the skill points, which is the controlled operator's; unknown while the skill points can't be read |
+  | `ultimateActive` | `operatorId`, `active` (format 3) | that operator's lasting ultimate is running (`true`) or not, whoever is controlled: one of the running ones from [Lasting ultimates](#lasting-ultimates) (`PartyState.RunningUltimates`), on the time bar or carried on in the background. Unknown while the skill points can't be read, and, for an operator whose ultimate isn't one of the known lasting ones, while a bar shows (it could be hers); with no bar, false |
   | `counter` | `operatorId`, `counterId`, `is`, `value` | an operator's own resource compares so (see below) |
   | `bossStatus` | `statusId` (the wiki's English name), `present`, `minStacks` | the enemy shows (or doesn't show) that status; with `minStacks` above 1, with at least that many stacks (inflictions) or that level (Corrosion, Electrification: I–IV as 1–4). An absent status counts as 0; a present one whose count isn't read (covered, a dark scene, or a status whose count EndHud doesn't read: `BossStatusReader.CountsRead`) is unknown |
   | `controlling` | `operatorId` | that operator is the one being controlled |
@@ -1537,11 +1599,11 @@ like everything else.
 | Reading | Where | How |
 |---|---|---|
 | Skill points ([`SkillPointBar`](src/EndHud.Vision/SkillPointBar.cs)) | the segmented bar above the battle skill buttons, bottom centre | yellow segments are full; the white fill of the next one gives the fraction (e.g. 1.4) |
-| Lasting ultimate ([`UltimateTimeBar`](src/EndHud.Vision/UltimateTimeBar.cs)) | the thin line right above the skill points, while Laevatain's or Zhuang Fangyi's ultimate runs | one colour from the left over a grey track; its length is the time left. Taken as the bar only with that shape and a line's edges (bright sky there read as a full bar before). Kept through gaps of up to 4 s (PartyTracker). |
+| Lasting ultimate ([`UltimateTimeBar`](src/EndHud.Vision/UltimateTimeBar.cs)) | the thin line right above the skill points, while a lasting ultimate runs (Laevatain's, Zhuang Fangyi's): the controlled operator's own if she has one running, else one running in the background | one colour from the left over a grey track; its length is the time left, its colour (`PartyState.UltimateTimeColour`, the mean of the fill's columns) whose it is (see [Lasting ultimates](#lasting-ultimates)). Taken as the bar only with that shape and a line's edges (bright sky there read as a full bar before). Kept, with its colour, through gaps of up to 4 s (PartyTracker). |
 | Controlled operator ([`ActiveSlot`](src/EndHud.Vision/ActiveSlot.cs)) | the chevron over the controlled operator's portrait | shape match against the chevron |
 | Battle skill ([`BattleSkillButton`](src/EndHud.Vision/BattleSkillButton.cs)) | each battle skill button, bottom right | a dark disc with white digits is cooling; the white icon is available |
-| Operator counters ([`OperatorCounters`](src/EndHud.Vision/Operators/OperatorCounters.cs)) | the controlled operator's resource, bottom centre | Laevatain's 熔火 (0–4): lit petals of the flower; pink petals mean full. Typhoeus's 猎矢 (`hunting-arrow`, 0–4): bars lit cyan (with a white streak over them when full); and 启示 (`sign`, 0–8): dots lit white, filling from the bottom row. Unknown when a bar or dot is neither lit nor grey, or the lit ones aren't in their fill order (the HUD moving). Zhuang Fangyi's 青霆剑 (`sunderblade`, 0–9): cells of a diamond grid lit cyan. Si's 伤害层数 (`damage-stacks`, no maximum): the badge left of the HP bar where Laevatain's flower is; 0 is a hollow green four-lobed flower with no number, from 1 a green cross with a white number on it, read digit by digit against the game's digit shapes ([`BadgeNumber`](src/EndHud.Vision/BadgeNumber.cs); Windows OCR reads nothing from one or two lone digits). Any number of digits; only 1–2 measured (up to 45 seen) |
-| Si's battle-skill button ([`SkillRing`](src/EndHud.Vision/SkillRing.cs)) | her battle-skill button, bottom right, keyboard and mouse only | which icon (butterfly: not running; swirl: running; a countdown: cooling; neither clearly: unknown) by the icon's white shape against two masks; while the swirl shows, how much of the grey ring inside the button is left (null when it can't be read). Measured with Si in slot 1; any slot is read |
+| Operator counters ([`OperatorCounters`](src/EndHud.Vision/Operators/OperatorCounters.cs)) | the controlled operator's resource, bottom centre; in combat with keyboard and mouse, each other operator's on the lower left of their squad portrait, about 0.7 the size ([`PortraitCounters`](src/EndHud.Vision/Operators/PortraitCounters.cs), see [Counters on the portraits](#counters-on-the-portraits)) | the same readers in both places. Laevatain's 熔火 (0–4): lit petals of the flower; pink petals mean full. Typhoeus's 猎矢 (`hunting-arrow`, 0–4): bars lit cyan (with a white streak over them when full); and 启示 (`sign`, 0–8): dots lit white, filling from the bottom row. Unknown when a bar or dot is neither lit nor grey, or the lit ones aren't in their fill order (the HUD moving). Zhuang Fangyi's 青霆剑 (`sunderblade`, 0–9): cells of a diamond grid lit cyan. Si's 伤害层数 (`damage-stacks`, no maximum): the badge left of the HP bar where Laevatain's flower is; 0 is a hollow green four-lobed flower with no number, from 1 a green cross with a white number on it, read digit by digit against the game's digit shapes ([`BadgeNumber`](src/EndHud.Vision/BadgeNumber.cs); Windows OCR reads nothing from one or two lone digits). Any number of digits; only 1–2 measured (up to 45 seen) |
+| Si's battle-skill button ([`SkillRing`](src/EndHud.Vision/SkillRing.cs)) | her battle-skill button, bottom right, keyboard and mouse only | which icon (butterfly `Original`: not running; swirl `Changed`: running; crossed-out butterfly in a four-pointed ring `SecondCast`: running, cast a second time; a countdown: cooling; none clearly: unknown) by the icon's white shape against three masks; while the swirl or the crossed-out butterfly shows, how much of the grey ring inside the button is left (null when it can't be read). Measured with Si in slots 1 and 3; any slot is read |
 | Elemental infliction ([`InflictionRing`](src/EndHud.Vision/InflictionRing.cs)) | the ring at the right end of the boss's HP bar, top centre | present when the white stack segment on top of the ring shows; the element from the colour of the icon inside (heat, cryo, electric, nature). Stacks (1–4, `ReadWithStacks`): four arc segments centred at 12, 3, 6 and 9 o'clock; a lit one is a white arc standing out of its dark outline, an unlit one has no arc and no track (the scene shows through). The lit ones must be the first n clockwise from the top, and every segment must be clearly lit or unlit; anything else is unknown |
 | Enemy statuses ([`BossStatusReader`](src/EndHud.Vision/BossStatusReader.cs)) | the icon row under the boss's bars, top centre | each square is matched against the wiki's status icons; read at most once a second and only when the current rotation (a phase's `when` or a step, at any depth) or an alert rule asks about statuses (about 70 ms a read at 4K). Each reading carries its count where one is read (`BossStatusReading.Stacks`): the ring's stacks, or a reaction's level |
 | Reaction level ([`ReactionLevel`](src/EndHud.Vision/ReactionLevel.cs)) | the badge on a Corrosion or Electrification icon's bottom-right corner | a dark square with the level as a Roman numeral in the reaction's colour, read in two bands between the serifs: an "I" is one upright run in both bands, a "V" two runs above that close into one below; the runs must spell I–IV. **Level I has no badge** (owner, 2026-10-22): a corner that clearly has none (no numeral, little dark, the square's own background showing, the icon's art in full colour) reads I. A dark corner (a badge, or a dark scene that could hide one), one covered by an effect, or one washed out (an icon fading in) is unknown, never I. Over the four recordings every 0.2 s, 0 of 542 badged readings read I and 329 of 599 badgeless readings did; the rest stayed unknown. Only these two reactions are read (`ReactionLevel.Measured`) |
@@ -1556,18 +1618,28 @@ operator library), so new statuses need no release. Chinese names are in
 (`PartyState.SkillRings`, read in `PartyMonitor` once the squad is named) into what the gauge
 shows:
 
-- **Swirl seen, ring read:** the ring is the clock. Time left = the ring's share × 22 s
-  (`SkillRing.SiDuration`: full at 13.5 s, gone at 35.5 s, butterfly back at 35.75 s on the owner's
-  fight, ±0.25 s; whether her skill level changes it is not known). The start is re-anchored to
-  that reading.
-- **Swirl seen, ring not read** (an effect over it): an **estimate** from the start (the first
-  reading the swirl was seen, or the ring's last anchor) and 22 s, shown with "≈" before the
-  seconds. When the estimate runs out, nothing is shown.
-- **Swirl not seen** (unknown icon, a cutscene): nothing is shown, and the start is kept.
-- **Butterfly back, or the button cooling:** the skill ended; the start is forgotten.
+The skill runs from the first sight of the swirl until the butterfly is back. A second cast while
+it lasts turns the swirl into a crossed-out butterfly (`SecondCast`) and doesn't end it: the ring
+doesn't fill again, it drains on from where it was (measured on two recordings, Si in slot 3 and
+in slot 1: [`Fixtures/si-timer-second-cast`](tests/data/Fixtures/si-timer-second-cast)). So the
+ring is one clock for the whole skill, and the swirl and the crossed-out butterfly count alike:
 
-So the timer is only ever on screen while the changed icon is seen. With a controller the battle
-skill buttons aren't read, so there is no timer there.
+- **Swirl or crossed-out butterfly seen, ring read:** the ring is the clock. Time left = the
+  ring's share × 22 s (`SkillRing.SiDuration`: full at 13.5 s, gone at 35.5 s, butterfly back at
+  35.75 s on the owner's fight, ±0.25 s; whether her skill level changes it is not known). The
+  start is re-anchored to that reading.
+- **Seen, ring not read** (an effect over it): an **estimate** from the start (the first reading
+  the changed icon was seen, or the ring's last anchor) and 22 s, shown with "≈" before the
+  seconds. Once the estimate runs out it's held at 0 (≈0) for as long as the changed icon is
+  still seen: the ring stands still during cutscenes, so the estimate can run out before the
+  skill does (on one recording the ring went from 0.15 to only 0.10 over 8 s of a cutscene).
+- **Button not told** (hidden by a cutscene, an effect, a countdown look, the controller
+  layout): the skill goes on. The estimate is shown while it lasts; past it, nothing, until the
+  button is seen again (a timer held at 0 on nothing but the start would stay up all battle).
+- **Butterfly back:** the skill ended; the start is forgotten. Only the butterfly ends it (once,
+  on a recording, the ring dropped to empty early and the butterfly followed half a second later).
+
+With a controller the battle skill buttons aren't read, so there is no timer there.
 
 ### Choosing the phase
 
@@ -1764,6 +1836,27 @@ exception: hosted runners can't capture windows, so they only run on a developer
   the timer's three states (no timer before; time left within ±1.5 s during; none after the
   butterfly is back), including the "≈" estimate when the ring is hidden; the gauge row's two
   circles.
+- **Si's second cast** ([`Fixtures/si-timer-second-cast`](tests/data/Fixtures/si-timer-second-cast)):
+  her button through a second cast while the skill lasts, Si in slot 3 and in slot 1: the
+  crossed-out butterfly read as `SecondCast` with its ring, and the timer shown from the swirl
+  until the butterfly is back (the ring draining on, never refilled; held at ≈0 past the estimate
+  while the icon is still seen; a countdown look not ending it).
+- **Lasting ultimates** ([`Fixtures/ultimate-time`](tests/data/Fixtures/ultimate-time),
+  [`Fixtures/lasting-ultimate-background`](tests/data/Fixtures/lasting-ultimate-background)):
+  the time bar's share and its absence over scenery, at 4K and on simulated 16:9-class screens;
+  whose it is, on frames from two recordings where it isn't the controlled operator's (Zhuang
+  Fangyi's under Perlica's HP; Zhuang's, Laevatain's and an unnamed operator's teal one with the
+  player switching between the three): each bar given to its colour's operator, the teal one to
+  no one, and the recordings' readings replayed across the switches. "Ultimate active" in
+  rotations and alerts holds for Zhuang's while Perlica is controlled.
+- **Counters on the portraits** ([`Fixtures/portrait-counters`](tests/data/Fixtures/portrait-counters)):
+  42 frames from the owner's four recordings, each switched-out operator's counter read right or
+  unknown (never wrong): Si's stacks in slots 1 and 3, Laevatain's 熔火, Typhoeus's 猎矢 and 启示,
+  Zhuang Fangyi's 青霆剑; nothing out of combat, on a portrait without a counter (but the flower,
+  read only on Laevatain's own), on a panel remembered while out of sight, or in the controller
+  layout; a switched-out operator's counter live in the gauge row. The Typhoeus recording is 2154
+  rows high (its bottom 4 rows lost): its frames have them back, black, so the HUD is where the
+  game draws it.
 - **Alerts:** the store (create, read, correct in place, remove, an unreadable file renamed, a
   newer one refused, imports never replacing, the 100 cap, share codes), the firing rule
   (`AlertMonitorTests`), the pop-ups' life (`AlertFollowerTests`), the words and icons
@@ -1925,7 +2018,9 @@ looks much like a ready one there, and holds last a second or two, so the last r
 Operator counters, buffs and the boss's statuses are read where they are with keyboard and mouse
 (bottom and top centre, which the controller layout doesn't move), but the recordings have none
 of them to confirm. Not read yet: levels (the squad isn't drawn out of combat there), battle
-skill cooldowns, and so Si's battle-skill timer (`SkillRing.Read` returns nothing there).
+skill cooldowns, and so Si's battle-skill timer (`SkillRing.Read` returns nothing there), and the
+counters on the switched-out operators' portraits (`PortraitCounters.Read` returns nothing there:
+the controlled operator's counter is live, the others' show their last value, dimmed).
 
 A level that isn't read keeps its last value; one that might be wrong is not shown: two OCR
 attempts must agree, and only levels 10 to 90 (the game's cap) are accepted. Levels 1–9 are
@@ -1973,11 +2068,17 @@ Copy `src/EndHud/i18n/zh-CN.xaml` to, for example, `en-US.xaml`, translate the v
 - Hints and the rotation strip follow the screen reading, four times a second by default
   (`OcrIntervalMs`), so they can lag the game by up to a quarter of a second.
 - Rotations and alerts: Laevatain's 熔火, Typhoeus's 猎矢 and 启示, Zhuang Fangyi's 青霆剑 and Si's
-  伤害层数 are read as operator counters so far. Counters are read for the controlled operator
-  only: the game also draws a counter small on a non-controlled operator's portrait, but no
-  recording has a frame of it to measure (every counter operator is controlled in slot 1
-  throughout), so it isn't read; the gauge shows the last value seen, faded. A battle skill's
-  cooldown is read as available or cooling, not its seconds.
+  伤害层数 are read as operator counters so far. In combat with keyboard and mouse they're read for
+  the whole squad: beside the HP bar for the controlled operator, on the squad portraits for the
+  others (see [Counters on the portraits](#counters-on-the-portraits)). Out of combat, with a
+  controller, or under an effect, a switched-out operator's counter shows the last value seen,
+  dimmed. Laevatain's flower has no outline to tell it from a portrait's art, so it's read only
+  on her own portrait, where it has always been drawn in combat. A battle skill's cooldown is read
+  as available or cooling, not its seconds.
+- Lasting ultimates: the time bar's owner is told by its colour for Laevatain (red) and Zhuang
+  Fangyi (gold) only; a bar of another colour (a teal one was seen on an operator not named in
+  the recording) is shown for no one, and "ultimate active" for an operator not known to have one
+  is unknown while a bar shows.
 - Enemy counts: the infliction ring's stacks (1–4) and the levels of Corrosion and Electrification
   (I–IV) are read. 破防 (Vulnerable) stacks aren't: no recording shows them (every team in them
   deals arts damage), so the editor offers only present/absent for it, and a shared rotation or
@@ -1988,7 +2089,8 @@ Copy `src/EndHud/i18n/zh-CN.xaml` to, for example, `en-US.xaml`, translate the v
   over a dark or busy scene stays unknown rather than I. A few boss icons aren't on the wiki's
   glossary and aren't recognised.
 - Si: her stacks reader is measured on 1–2 digit numbers (up to 45 seen); her battle-skill timer
-  only with her in slot 1, on keyboard and mouse, and assumes 22 s whatever her skill level.
+  with her in slots 1 and 3 (a second cast included), on keyboard and mouse, and assumes 22 s
+  whatever her skill level.
 
 ## Game art
 
