@@ -10,9 +10,10 @@ public sealed record SkillTimerView(double LeftShare, double SecondsLeft, bool E
 /// icon, the ring draining on) doesn't end it, nor does a reading where the button can't be told.
 /// The ring, when read, gives the time left and re-anchors the start; when it can't be read (the
 /// button hidden, or the icon seen without its ring), the time left is estimated from the start
-/// (the icon change, or the ring's last anchor) and the duration, marked as an estimate, and held
-/// at 0 once it's out while the original icon hasn't come back (the ring stands still during
-/// cutscenes, so the estimate can run out first).
+/// (the icon change, or the ring's last anchor) and the duration, marked as an estimate. Once the
+/// estimate is out it's held at 0 while the changed icon is still seen (the ring stands still
+/// during cutscenes, so the estimate can run out first); on readings that can't tell the button it
+/// isn't shown then, until the button is seen again.
 /// </summary>
 public sealed class SkillTimer(TimeSpan duration)
 {
@@ -37,8 +38,10 @@ public sealed class SkillTimer(TimeSpan duration)
                 _startedAt = null;                             // it ended
                 return null;
             default:
-                // Not told this time (hidden, an effect, a countdown look): still running if it was.
-                return _startedAt is null ? null : Estimate(now);
+                // Not told this time (hidden, an effect, a countdown look, the controller layout): still
+                // running if it was, shown while the estimate lasts. Past it, nothing until the button
+                // is seen again: a timer held at 0 by nothing but the start would stay up all battle.
+                return _startedAt is not null && Estimate(now) is { LeftShare: > 0 } view ? view : null;
         }
     }
 

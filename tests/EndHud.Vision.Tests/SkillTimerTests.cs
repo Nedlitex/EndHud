@@ -81,6 +81,22 @@ public class SkillTimerTests
         Assert.Equal(18, view!.SecondsLeft, 2);
     }
 
+    /// <summary>
+    /// Past the estimate with the button not seen (switched to the controller layout, a long
+    /// cutscene): nothing shown, so it can't stay up all battle; seen running again, it's back.
+    /// </summary>
+    [Fact]
+    public void Past_the_estimate_an_unseen_button_shows_nothing_until_it_is_seen_again()
+    {
+        var timer = new SkillTimer(Duration);
+        timer.Update(Changed(0.1), At(0));
+
+        Assert.Equal(1.2, timer.Update(Unknown, At(1))!.SecondsLeft, 2);
+        Assert.Null(timer.Update(null, At(3)));
+        Assert.Null(timer.Update(Unknown, At(60)));
+        Assert.Equal(0.05 * 22, timer.Update(new SkillRingReading("Si", SkillButtonIcon.SecondCast, 0.05), At(61))!.SecondsLeft, 2);
+    }
+
     [Fact]
     public void Before_any_cast_an_unknown_reading_shows_nothing()
     {
