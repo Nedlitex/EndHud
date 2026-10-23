@@ -58,12 +58,9 @@ public static class VulnerableRing
         InflictionRing.GapShares(frame).Any(g => g > InflictionRing.UnlitShare) ? null : InflictionRing.Stacks(frame);
 
     /// <summary>The shield's share of white pixels and how much darker the slash is than the shield, for measuring thresholds.</summary>
-    internal static (double White, int SlashContrast) Shield(Frame frame)
+    internal static (double White, int SlashContrast) Shield(Frame frame, double offset = 0)
     {
-        var ui = new UiScaler(frame.Width, frame.Height);
-        var area = ui.TopCenter(InflictionRing.Area);
-        double k = area.Width / (double)InflictionRing.Area.Width;
-        double cx = area.X + InflictionRing.CentreX * k, cy = area.Y + InflictionRing.CentreY * k;
+        var (cx, cy, k) = InflictionRing.Centre(frame, offset);
         var shield = new List<int>();
         var slash = new List<int>();
         // Each side of the slash (upper left, lower right) counted apart: the shield is white on both,

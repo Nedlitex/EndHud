@@ -56,9 +56,9 @@ public static class InflictionRing
     /// dark outline), unlit (no arc: the game draws no track, the scene shows through) or neither
     /// (null: covered). The lit ones must be the first n clockwise from the top; anything else is null.
     /// </summary>
-    internal static int? Stacks(Frame frame)
+    internal static int? Stacks(Frame frame, double offset = 0)
     {
-        var shares = SegmentShares(frame);
+        var shares = SegmentShares(frame, offset);
         var lit = new bool?[4];
         for (int s = 0; s < 4; s++) lit[s] = shares[s] >= LitShare ? true : shares[s] <= UnlitShare ? false : null;
         if (lit.Any(l => l is null)) return null;
@@ -70,24 +70,21 @@ public static class InflictionRing
     /// For each segment (top, right, bottom, left): the share of its angles where a white arc stands
     /// out of its surroundings, for measuring thresholds.
     /// </summary>
-    internal static double[] SegmentShares(Frame frame) => [.. Enumerable.Range(0, 4).Select(s => ArcShare(frame, s * 90, SegmentHalfWidth))];
+    internal static double[] SegmentShares(Frame frame, double offset = 0) => [.. Enumerable.Range(0, 4).Select(s => ArcShare(frame, offset, s * 90, SegmentHalfWidth))];
 
     /// <summary>
     /// For each gap between the segments (45°, 135°, 225°, 315°): the same share, over ±<see cref="GapHalfWidth"/>°.
     /// The game draws nothing there, so a lit gap is an effect over the ring (a circle sweeping through it).
     /// </summary>
-    internal static double[] GapShares(Frame frame) => [.. Enumerable.Range(0, 4).Select(s => ArcShare(frame, 45 + s * 90, GapHalfWidth))];
+    internal static double[] GapShares(Frame frame, double offset = 0) => [.. Enumerable.Range(0, 4).Select(s => ArcShare(frame, offset, 45 + s * 90, GapHalfWidth))];
 
     /// <summary>The gaps between arcs are 35°-55° wide: ±8° around their middle stays clear of the arcs' ends.</summary>
     internal const int GapHalfWidth = 8;
 
     /// <summary>The share of the angles within ±<paramref name="halfWidth"/>° of <paramref name="centre"/> (0° = top, clockwise) where a white arc stands out of its surroundings.</summary>
-    private static double ArcShare(Frame frame, double centre, int halfWidth)
+    private static double ArcShare(Frame frame, double offset, double centre, int halfWidth)
     {
-        var ui = new UiScaler(frame.Width, frame.Height);
-        var area = ui.TopCenter(Area);
-        double k = area.Width / (double)Area.Width;
-        double cx = area.X + CentreX * k, cy = area.Y + CentreY * k;
+        var (cx, cy, k) = Centre(frame, offset);
         int lit = 0, n = 0;
         for (int a = -halfWidth; a <= halfWidth; a += 4)
         {
@@ -111,12 +108,9 @@ public static class InflictionRing
     }
 
     /// <summary>What the reading is based on, for measuring thresholds.</summary>
-    internal static (int ArcWhiteness, double ColouredShare, double? Hue, string? Element) Measure(Frame frame)
+    internal static (int ArcWhiteness, double ColouredShare, double? Hue, string? Element) Measure(Frame frame, double offset = 0)
     {
-        var ui = new UiScaler(frame.Width, frame.Height);
-        var area = ui.TopCenter(Area);
-        double k = area.Width / (double)Area.Width;
-        double cx = area.X + CentreX * k, cy = area.Y + CentreY * k;
+        var (cx, cy, k) = Centre(frame, offset);
 
         // The top segment: white and grey, never coloured.
         var arc = new List<int>();
@@ -151,6 +145,17 @@ public static class InflictionRing
         if (whiteness < MinArcWhiteness || share < MinColouredShare) return (whiteness, share, hue, null);
         string? element = Elements.FirstOrDefault(e => e.From < e.To ? hue >= e.From && hue < e.To : hue >= e.From || hue < e.To).Id;
         return (whiteness, share, hue, element);
+    }
+
+    /// <summary>
+    /// The centre of the ring <paramref name="offset"/> px (4K) right of the first one, in the frame's
+    /// pixels, and the frame's scale against 4K.
+    /// </summary>
+    internal static (double X, double Y, double Scale) Centre(Frame frame, double offset = 0)
+    {
+        var area = new UiScaler(frame.Width, frame.Height).TopCenter(Area);
+        double k = area.Width / (double)Area.Width;
+        return (area.X + (CentreX + offset) * k, area.Y + CentreY * k, k);
     }
 
     private static (byte R, byte G, byte B) Pixel(Frame frame, double x, double y)
