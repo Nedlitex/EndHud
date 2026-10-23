@@ -122,8 +122,10 @@ With Si in the squad the gauge row has two more circles, both with her avatar:
   butterfly turns into a swirl and a grey ring inside the button drains clockwise over about 22 s
   ([`SkillRing`](src/EndHud.Vision/SkillRing.cs)). Cast again while it lasts, the icon becomes
   a crossed-out butterfly and the ring drains on from where it was; the skill ends only when the
-  butterfly is back. The gauge is a grey-white glowing ring draining anticlockwise, the seconds
-  left in the corner. See [the estimate rule](#sis-battle-skill-timer).
+  butterfly is back. It has no circle of its own (owner, 2026-10-23: one circle, the running
+  ultimates' purple countdown, no seconds): her stacks' circle carries it, a glowing purple ring
+  draining anticlockwise round the number (`Gauge.Running` on the uncapped counter); seen before
+  her stacks are read, that circle shows "?". See [the estimate rule](#sis-battle-skill-timer).
 
 ### Counters on the portraits
 
@@ -1652,8 +1654,8 @@ ring is one clock for the whole skill, and the swirl and the crossed-out butterf
   35.75 s on the owner's fight, ±0.25 s; whether her skill level changes it is not known). The
   start is re-anchored to that reading.
 - **Seen, ring not read** (an effect over it): an **estimate** from the start (the first reading
-  the changed icon was seen, or the ring's last anchor) and 22 s, shown with "≈" before the
-  seconds. Once the estimate runs out it's held at 0 (≈0) for as long as the changed icon is
+  the changed icon was seen, or the ring's last anchor) and 22 s (`SkillTimerView.Estimated`; the
+  gauge shows no seconds, so it looks the same). Once the estimate runs out it's held at 0 for as long as the changed icon is
   still seen: the ring stands still during cutscenes, so the estimate can run out before the
   skill does (on one recording the ring went from 0.15 to only 0.10 over 8 s of a cutscene).
 - **Button not told** (hidden by a cutscene, an effect, a countdown look, the controller

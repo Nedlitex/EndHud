@@ -45,33 +45,35 @@ public class GaugesTests
         }
     }
 
-    /// <summary>The timer circle is there while there's something to show (the swirl seen), and only then.</summary>
+    /// <summary>
+    /// Owner: one circle for Si, not two. While her battle skill runs, her stacks' circle carries its
+    /// time left (the running ultimates' purple countdown); no seconds are shown, and no circle of its own.
+    /// </summary>
     [Fact]
-    public void Si_timer_gauge_shows_only_while_a_view_exists()
+    public void Si_skill_time_runs_round_her_stacks_in_one_circle()
     {
-        var running = new Dictionary<string, SkillTimerView> { ["Si"] = new(0.5, 11, Estimated: false) };
+        var running = new Dictionary<string, SkillTimerView> { ["Si"] = new(0.5, 11, Estimated: true) };
+        var stacks = new[] { Counter("Si", OperatorCounters.SiStacks, 13) };
 
-        var with = Build(SiSquad(), timers: running).Gauges;
-        var without = Build(SiSquad()).Gauges;
+        var with = Build(SiSquad(), stacks, timers: running).Gauges;
+        var without = Build(SiSquad(), stacks).Gauges;
 
-        var timer = Assert.Single(with, g => g.Kind == GaugeKind.SkillTimer);
-        Assert.Equal((Loc.Get("Gauge.SkillRunning"), 0.5, true), (timer.Label, timer.Fill, timer.Running));
-        Assert.Same(timer, with[1]); // right after her ultimate
-        Assert.DoesNotContain(without, g => g.Kind == GaugeKind.SkillTimer);
+        var si = Assert.Single(with, g => g.Kind == GaugeKind.Counter);
+        Assert.Equal((OperatorCounters.SiStacks.NameZh, "13", 0.5, true), (si.Label, si.Number, si.Fill, si.Running));
+        Assert.Equal(without.Count, with.Count); // the same circles, nothing added
+        Assert.False(Assert.Single(without, g => g.Kind == GaugeKind.Counter).Running);
         Assert.NotEqual(GaugesView.Key(new GaugeBoard(without)), GaugesView.Key(new GaugeBoard(with)));
     }
 
-    /// <summary>The seconds left, rounded up; "≈" in front when estimated (the ring couldn't be read).</summary>
+    /// <summary>The skill seen running before her stacks were ever read: the same one circle, the number unknown.</summary>
     [Fact]
-    public void Si_timer_gauge_shows_seconds_and_marks_an_estimate()
+    public void Si_skill_time_without_stacks_read_yet_is_still_one_circle()
     {
-        string Number(double seconds, bool estimated) => Build(SiSquad(),
-            timers: new Dictionary<string, SkillTimerView> { ["Si"] = new(seconds / 22, seconds, estimated) }).Gauges.Single(g => g.Kind == GaugeKind.SkillTimer).Number!;
+        var running = new Dictionary<string, SkillTimerView> { ["Si"] = new(0.8, 17, Estimated: false) };
 
-        Assert.Equal("11", Number(11, false));
-        Assert.Equal("11", Number(10.2, false));
-        Assert.Equal("≈11", Number(11, true));
-        Assert.Equal("1", Number(0.3, false));
+        var si = Assert.Single(Build(SiSquad(), timers: running).Gauges, g => g.Kind == GaugeKind.Counter);
+
+        Assert.Equal(("?", 0, 0.8, true), (si.Number, si.Segments, si.Fill, si.Running));
     }
 
     /// <summary>Every text in a drawn gauge, with its size, and how many ring arcs it has.</summary>
@@ -101,19 +103,17 @@ public class GaugesTests
         Assert.Contains(("2", 25.0), segmentedTexts);   // and its count in the corner badge
     }
 
-    private static bool Grey(byte r, byte g, byte b) => r is > 160 and < 210 && g is > 175 and < 220 && b is > 190 and < 230 && b > r;
-
-    /// <summary>The game's grey-white, glowing, draining like a running ultimate; the seconds in the corner.</summary>
+    /// <summary>Her stacks' number with the purple countdown draining round it; no seconds anywhere.</summary>
     [Fact]
-    public void Si_timer_is_a_grey_ring_that_drains()
+    public void Si_skill_time_is_the_purple_countdown_round_her_number()
     {
-        Rendered Timer(double left) => Render(new Gauge(GaugeKind.SkillTimer, null, null, "timer", left, false) { Running = true, Number = "11" });
+        Gauge Si(double left, bool running) => new(GaugeKind.Counter, null, null, "stacks", left, false) { Number = "13", Segments = 0, Running = running };
 
-        int full = Timer(1).Count(Grey), half = Timer(0.5).Count(Grey), nearlyOut = Timer(0.1).Count(Grey);
-        Assert.True(full > 900, $"{full} grey pixels when full");
+        int full = Render(Si(1, true)).Count(Violet), half = Render(Si(0.5, true)).Count(Violet), nearlyOut = Render(Si(0.1, true)).Count(Violet);
+        Assert.True(full > 900, $"{full} purple pixels when full");
         Assert.True(half < full * 0.75 && nearlyOut < half / 2, $"{full}, {half}, {nearlyOut}");
-        Assert.Equal(0, Timer(0.5).Count(Violet));
-        Assert.Contains(("11", 25.0), Parts(new Gauge(GaugeKind.SkillTimer, null, null, "timer", 0.5, false) { Running = true, Number = "11" }).Texts);
+        Assert.Equal(0, Render(Si(0.5, false)).Count(Violet)); // not running: no ring
+        Assert.Equal(["13", "stacks"], Parts(Si(0.5, true)).Texts.Select(t => t.Text));
     }
 
     [Fact]

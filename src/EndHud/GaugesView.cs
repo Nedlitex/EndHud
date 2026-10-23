@@ -26,7 +26,8 @@ internal static class GaugesView
             skillIcon, avatar, statusIcon);
 
     /// <param name="buffsSeen">Buffs seen so far this battle (the reading's own included), in the order first seen.</param>
-    /// <param name="timers">Lasting battle skills running now (Si's), by operator id (see <see cref="SkillTimer"/>).</param>
+    /// <param name="timers">Lasting battle skills running now (Si's), by operator id (see <see cref="SkillTimer"/>):
+    /// drawn round her stacks' number, not as a circle of their own.</param>
     /// <param name="ultimates">Lasting ultimates running now, by operator id (see <see cref="LastingUltimates"/>):
     /// each on its own operator's gauge, whoever is controlled.</param>
     public static GaugeBoard Build(PartyState state, IReadOnlyList<RememberedCounter> counters, IReadOnlyList<string> buffsSeen,
@@ -59,29 +60,36 @@ internal static class GaugesView
                     lasting.LeftShare, false) { Running = true, Fallen = slot.Dead, FirstOfOperator = true }
                 : new Gauge(GaugeKind.Ultimate, face, skillIcon(op, StepAction.Ultimate), Loc.Get("Gauge.Ultimate"),
                     slot.Ultimate?.Progress, slot.Ultimate?.Ready == true) { Fallen = slot.Dead, FirstOfOperator = true });
-            // A lasting battle skill running (Si's): its time left, draining; the seconds in the corner,
-            // "≈" when estimated because the ring couldn't be read.
-            if (timers.TryGetValue(op.Id, out var timer))
-                gauges.Add(new Gauge(GaugeKind.SkillTimer, face, null, Loc.Get("Gauge.SkillRunning"), timer.LeftShare, false)
-                {
-                    Running = true,
-                    Number = (timer.Estimated ? "≈" : "") + Math.Ceiling(timer.SecondsLeft).ToString(CultureInfo.InvariantCulture),
-                    Fallen = slot.Dead,
-                });
+            // A lasting battle skill running (Si's) shares her stacks' circle (owner: one circle, the
+            // ultimates' purple countdown, no seconds): its time left drains round the number.
+            var timer = timers.GetValueOrDefault(op.Id);
+            bool timerShown = false;
             foreach (var counter in counters.Where(c => c.OperatorId == op.Id))
             {
                 // Uncapped (Si's stacks): the number alone, large; no ring of segments out of a maximum.
                 bool uncapped = counter.Counter.Uncapped;
                 int max = counter.Counter.Max ?? 0;
+                bool running = uncapped && timer is not null;
+                timerShown |= running;
                 gauges.Add(new Gauge(GaugeKind.Counter, face, null, counter.Counter.NameZh,
-                    uncapped ? null : counter.Value is { } v ? v / (double)max : null, !uncapped && counter.Value == max)
+                    running ? timer!.LeftShare : uncapped ? null : counter.Value is { } v ? v / (double)max : null, !uncapped && counter.Value == max)
                 {
                     Number = counter.Value?.ToString(CultureInfo.InvariantCulture) ?? "?",
                     Segments = uncapped ? 0 : max,
+                    Running = running,
                     Live = counter.Live,
                     Fallen = slot.Dead,
                 });
             }
+            // The skill running before her stacks were ever read: the same circle, the number unknown.
+            if (timer is not null && !timerShown)
+                gauges.Add(new Gauge(GaugeKind.Counter, face, null, Loc.Get("Gauge.SkillRunning"), timer.LeftShare, false)
+                {
+                    Number = "?",
+                    Segments = 0,
+                    Running = true,
+                    Fallen = slot.Dead,
+                });
         }
         return new GaugeBoard(gauges);
     }

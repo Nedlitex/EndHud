@@ -14,18 +14,14 @@ internal enum GaugeKind
 
     /// <summary>
     /// An operator's own counter: one ring segment per stack, the count in the corner. A counter with
-    /// no maximum (<see cref="Gauge.Segments"/> 0: Si's damage stacks) is the number alone, large in the middle.
+    /// no maximum (<see cref="Gauge.Segments"/> 0: Si's damage stacks) is the number alone, large in the middle;
+    /// while her battle skill runs (<see cref="Gauge.Running"/>), its time left drains round it in the
+    /// running ultimates' purple.
     /// </summary>
     Counter,
 
     /// <summary>A team buff (Link): its icon in the middle; a full glowing ring while it's active.</summary>
     Buff,
-
-    /// <summary>
-    /// A lasting battle skill running (Si's): its time left in the game's grey-white, the ring draining
-    /// anticlockwise as a running ultimate's does, glowing; the seconds in the corner.
-    /// </summary>
-    SkillTimer,
 }
 
 /// <summary>One round gauge: the operator's avatar (or the buff's icon) in the middle, the ring around it.</summary>
@@ -83,8 +79,6 @@ internal static class Gauges
     internal static readonly Color CounterColor = Color.FromRgb(0x5E, 0xE6, 0xFF);
     internal static readonly Color BuffColor = Color.FromRgb(0x7C, 0xF2, 0x9A);
     internal static readonly Color RunningColor = Color.FromRgb(0xD9, 0x7C, 0xFF);
-    // The grey-white of the game's own ring on Si's battle-skill button.
-    internal static readonly Color SkillTimerColor = Color.FromRgb(0xB8, 0xC4, 0xD0);
     private const double LargeNumberSize = 34;
     private static readonly Brush Disc = Frozen(Color.FromArgb(0xC8, 0x16, 0x18, 0x1C));
     private static readonly Brush Track = Frozen(Color.FromArgb(0x55, 0xFF, 0xFF, 0xFF));
@@ -120,8 +114,7 @@ internal static class Gauges
         {
             GaugeKind.Buff => BuffColor,
             GaugeKind.Ultimate => gauge.Running ? RunningColor : UltimateColor,
-            GaugeKind.SkillTimer => SkillTimerColor,
-            _ => gauge.Ready ? UltimateColor : CounterColor,
+            _ => gauge.Running ? RunningColor : gauge.Ready ? UltimateColor : CounterColor,
         };
         var brush = new SolidColorBrush(colour);
         var circle = new Grid { Width = Size, Height = Size };
@@ -153,7 +146,6 @@ internal static class Gauges
                 Opacity = gauge.Kind switch
                 {
                     GaugeKind.Ultimate => gauge.Ready || gauge.Running ? 1 : 0.5,
-                    GaugeKind.SkillTimer => 1,
                     // A number alone over the face: the face faded further, so the number reads.
                     GaugeKind.Counter when gauge.Segments == 0 => gauge.Live ? 0.45 : 0.25,
                     _ => gauge.Live ? 0.9 : 0.45,
@@ -165,6 +157,13 @@ internal static class Gauges
         if (gauge.Kind == GaugeKind.Counter && gauge.Segments == 0)
         {
             // No maximum (Si's damage stacks): the number large in the middle; no segments, no corner badge.
+            // Her battle skill running: its time left round it, the running ultimates' purple countdown.
+            if (gauge.Running && Math.Clamp(gauge.Fill ?? 0, 0, 1) is var left and > 0)
+            {
+                var arc = left >= 0.999 ? (Shape)new Ellipse { Stroke = brush, StrokeThickness = Thickness } : Arc(360 - left * 360, left * 360, brush);
+                arc.Effect = Glow(colour);
+                circle.Children.Add(arc);
+            }
             circle.Children.Add(new TextBlock
             {
                 Text = gauge.Number ?? "?",
@@ -223,27 +222,6 @@ internal static class Gauges
                     VerticalAlignment = VerticalAlignment.Center,
                 }, brush));
             }
-        }
-        else if (gauge.Kind == GaugeKind.SkillTimer)
-        {
-            // The time left, draining anticlockwise from 12 o'clock, glowing; the seconds in the corner.
-            double left = Math.Clamp(gauge.Fill ?? 0, 0, 1);
-            if (left > 0)
-            {
-                var arc = left >= 0.999 ? (Shape)new Ellipse { Stroke = brush, StrokeThickness = Thickness } : Arc(360 - left * 360, left * 360, brush);
-                arc.Effect = Glow(colour);
-                circle.Children.Add(arc);
-            }
-            string seconds = gauge.Number ?? "";
-            circle.Children.Add(Badge(new TextBlock
-            {
-                Text = seconds,
-                Foreground = brush,
-                FontSize = seconds.Length > 2 ? 19 : 25, // "≈11" fits the badge
-                FontWeight = FontWeights.Bold,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-            }, brush));
         }
         else
         {
