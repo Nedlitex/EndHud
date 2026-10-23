@@ -51,30 +51,31 @@ public static class OperatorCounters
     /// <summary>Read the counters of <paramref name="operatorId"/>, which must be the controlled operator.</summary>
     public static IReadOnlyList<CounterReading> Read(Frame frame, string operatorId)
     {
-        var readings = new List<CounterReading>();
-        foreach (var counter in For(operatorId))
-        {
-            int? value = counter == MeltingFlame ? ReadPetals(frame)
-                : counter == HuntingArrow ? ReadArrows(frame)
-                : counter == Sign ? ReadSigns(frame)
-                : counter == Sunderblade ? ReadSunderblades(frame)
-                : counter == SiStacks ? ReadSiStacks(frame)
-                : null;
-            readings.Add(new CounterReading(operatorId, counter.Id, value));
-        }
-        return readings;
+        var place = CounterPlace.BesideHpBar(frame);
+        return [.. For(operatorId).Select(counter => new CounterReading(operatorId, counter.Id, ReadAt(frame, counter, place)))];
     }
+
+    /// <summary>
+    /// One counter, drawn where <paramref name="place"/> says: beside the HP bar, or smaller on a
+    /// squad portrait (<see cref="PortraitCounters"/>). The drawing is the same either way.
+    /// </summary>
+    internal static int? ReadAt(Frame frame, CounterDefinition counter, CounterPlace place) =>
+        counter == MeltingFlame ? ReadPetals(frame, place)
+        : counter == HuntingArrow ? ReadArrows(frame, place)
+        : counter == Sign ? ReadSigns(frame, place)
+        : counter == Sunderblade ? ReadSunderblades(frame, place)
+        : counter == SiStacks ? ReadSiStacks(frame, place)
+        : null;
 
     /// <summary>
     /// Laevatain's 熔火: a four-petal flower left of the skill-point bar. 0 stacks: every petal dark;
     /// 1–3: that many petals white (with the numeral I–III beside them); 4: the whole flower pink
     /// (with IV). Petals are judged as a whole, so the thin numeral strokes don't count as a petal.
     /// </summary>
-    private static int? ReadPetals(Frame frame)
+    private static int? ReadPetals(Frame frame, CounterPlace place)
     {
-        var ui = new UiScaler(frame.Width, frame.Height);
-        var centre = ui.BottomCenter(new PixelRect(FlowerCentreX, FlowerCentreY, 1, 1));
-        double s = ui.Scale;
+        var centre = place.Map(new PixelRect(FlowerCentreX, FlowerCentreY, 1, 1));
+        double s = place.Scale;
 
         int lit = 0, pinkPetals = 0, darkPetals = 0;
         foreach (var (qx, qy) in new[] { (-1, -1), (1, -1), (-1, 1), (1, 1) })
@@ -111,14 +112,13 @@ public static class OperatorCounters
     /// to near white, but always with green and blue at full. Null when any bar is neither lit nor
     /// grey: the icon dims to a pale teal while she hovers, which can't be told apart reliably.
     /// </summary>
-    private static int? ReadArrows(Frame frame)
+    private static int? ReadArrows(Frame frame, CounterPlace place)
     {
-        var ui = new UiScaler(frame.Width, frame.Height);
         int lit = 0;
         bool litAbove = false; // a lit bar above a grey one: not the icon as drawn (it's moving, or covered)
         foreach (int barY in ArrowBarY)
         {
-            var r = ui.BottomCenter(new PixelRect(ArrowBarX, barY - ArrowBarHalfHeight, ArrowBarWidth, 2 * ArrowBarHalfHeight + 1))
+            var r = place.Map(new PixelRect(ArrowBarX, barY - ArrowBarHalfHeight, ArrowBarWidth, 2 * ArrowBarHalfHeight + 1))
                 .ClampTo(frame.Width, frame.Height);
             if (r.IsEmpty) return null;
             int n = 0, cyan = 0, grey = 0;
@@ -146,14 +146,13 @@ public static class OperatorCounters
     /// (filling from the bottom row up, left dot first), grey otherwise. Null when any dot is neither,
     /// or when the lit ones aren't in that order (the HUD moving, or something over it).
     /// </summary>
-    private static int? ReadSigns(Frame frame)
+    private static int? ReadSigns(Frame frame, CounterPlace place)
     {
-        var ui = new UiScaler(frame.Width, frame.Height);
         var lit = new List<bool>(8);
         foreach (int rowY in ArrowBarY.Reverse())
         foreach (int dotX in SignDotX)
         {
-            var r = ui.BottomCenter(new PixelRect(dotX - SignDotHalfSize, rowY - SignDotHalfSize, 2 * SignDotHalfSize + 1, 2 * SignDotHalfSize + 1))
+            var r = place.Map(new PixelRect(dotX - SignDotHalfSize, rowY - SignDotHalfSize, 2 * SignDotHalfSize + 1, 2 * SignDotHalfSize + 1))
                 .ClampTo(frame.Width, frame.Height);
             if (r.IsEmpty) return null;
             int n = 0, white = 0, grey = 0;
@@ -179,13 +178,12 @@ public static class OperatorCounters
     /// skill-point bar, one lit cyan per sword, dark grey otherwise; the game prints the count beside
     /// it. Null when any cell is neither (the HUD hidden by an animation, a flash over it).
     /// </summary>
-    private static int? ReadSunderblades(Frame frame)
+    private static int? ReadSunderblades(Frame frame, CounterPlace place)
     {
-        var ui = new UiScaler(frame.Width, frame.Height);
         int lit = 0;
         foreach (var (cx, cy) in SunderbladeCells)
         {
-            var r = ui.BottomCenter(new PixelRect(cx - SunderbladeHalfSize, cy - SunderbladeHalfSize, 2 * SunderbladeHalfSize + 1, 2 * SunderbladeHalfSize + 1))
+            var r = place.Map(new PixelRect(cx - SunderbladeHalfSize, cy - SunderbladeHalfSize, 2 * SunderbladeHalfSize + 1, 2 * SunderbladeHalfSize + 1))
                 .ClampTo(frame.Width, frame.Height);
             if (r.IsEmpty) return null;
             int n = 0, cyan = 0, grey = 0;
@@ -210,10 +208,9 @@ public static class OperatorCounters
     /// (<see cref="BadgeNumber"/>), as many digits as it takes. Null when neither is there (covered,
     /// the cast's flash, or the HUD shaken by a hit), or when the number can't be told.
     /// </summary>
-    private static int? ReadSiStacks(Frame frame)
+    private static int? ReadSiStacks(Frame frame, CounterPlace place)
     {
-        var ui = new UiScaler(frame.Width, frame.Height);
-        var badge = ui.BottomCenter(SiBadgeArea).ClampTo(frame.Width, frame.Height);
+        var badge = place.Map(SiBadgeArea).ClampTo(frame.Width, frame.Height);
         if (badge.IsEmpty) return null;
         int n = 0, green = 0;
         for (int y = badge.Y; y < badge.Bottom; y++)
@@ -225,7 +222,7 @@ public static class OperatorCounters
         }
         double share = green / (double)n;
         if (share < SiGreenMin) return null; // no badge: another operator's HUD, or something over it
-        if (BadgeNumber.Read(frame, ui.BottomCenter(SiStacksArea)) is { } stacks) return stacks;
+        if (BadgeNumber.Read(frame, place.Map(SiStacksArea)) is { } stacks) return stacks;
         return share >= SiFlowerGreenMin ? 0 : null; // the hollow flower is nearly half green; a cross with a number on it far less
     }
 
