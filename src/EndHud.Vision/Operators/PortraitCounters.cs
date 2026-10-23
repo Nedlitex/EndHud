@@ -89,11 +89,82 @@ public static class PortraitCounters
             foreach (var counter in OperatorCounters.For(id))
             {
                 if (PlaceOn(frame, state.Layout, slot.Number, counter) is not { } place) continue; // not seen on a portrait yet
-                readings.Add(new CounterReading(id, counter.Id, OperatorCounters.ReadAt(frame, counter, place)));
+                int? value = OperatorCounters.ReadAt(frame, counter, place);
+                // Si's badge gone from her portrait in combat is 0 (owner, 2026-10-23); told only where it's clear.
+                if (value is null && counter == OperatorCounters.SiStacks && state.InCombat && SiBadgeAbsent(frame, place)) value = 0;
+                readings.Add(new CounterReading(id, counter.Id, value));
             }
         }
         return readings;
     }
+
+    /// <summary>
+    /// Si's badge clearly not drawn on her portrait: no badge green, and her portrait's own art shows
+    /// where the badge would be (her grey hair bun and the pale strand right of it), as it does with
+    /// nothing over it. A badge of any number (its dark outline and green cross), an effect or flash
+    /// over the corner, or the portrait tinted, dimmed or faded changes the art's colours there, so
+    /// those stay unknown. Read in full combat only (<see cref="PartyState.InCombat"/>, combo bars and
+    /// skill points): as a fight ends the skill points go first, while the level text fades in under
+    /// the portrait, a little too faint to tell from light scenery.
+    /// </summary>
+    internal static bool SiBadgeAbsent(Frame frame, CounterPlace place) =>
+        OperatorCounters.SiGreenShare(frame, place) < OperatorCounters.SiGreenMin && SiArtDifference(frame, place) <= SiArtTolerance;
+
+    /// <summary>
+    /// How far Si's badge area is from her bare portrait art: the badge area (as mapped here) cut into
+    /// 6 × 6 cells, and over the cells that are her art, the largest difference of a cell's mean on any
+    /// channel from <see cref="SiArt"/>.
+    /// </summary>
+    internal static double SiArtDifference(Frame frame, CounterPlace place)
+    {
+        var r = place.Map(OperatorCounters.SiBadgeArea).ClampTo(frame.Width, frame.Height);
+        if (r.Width < SiArtGrid || r.Height < SiArtGrid) return double.PositiveInfinity;
+        double worst = 0;
+        foreach (var (cell, art) in SiArt)
+        {
+            int i = cell % SiArtGrid, j = cell / SiArtGrid;
+            int x0 = r.X + i * r.Width / SiArtGrid, x1 = r.X + (i + 1) * r.Width / SiArtGrid;
+            int y0 = r.Y + j * r.Height / SiArtGrid, y1 = r.Y + (j + 1) * r.Height / SiArtGrid;
+            double sr = 0, sg = 0, sb = 0;
+            int n = 0;
+            for (int y = y0; y < y1; y++)
+            for (int x = x0; x < x1; x++)
+            {
+                var (cr, cg, cb) = frame.GetPixel(x, y);
+                sr += cr; sg += cg; sb += cb;
+                n++;
+            }
+            if (n == 0) return double.PositiveInfinity;
+            worst = Math.Max(worst, Math.Max(Math.Abs(sr / n - art.R), Math.Max(Math.Abs(sg / n - art.G), Math.Abs(sb / n - art.B))));
+        }
+        return worst;
+    }
+
+    private const int SiArtGrid = 6;
+
+    // Measured every 0.5 s on the owner's two recordings with Si switched out (test_si_background1,
+    // Si in slot 1; test_laevatine_background1, slot 3; 4K), against what's on her portrait by eye:
+    // - the 72 in-combat frames with no badge on a clear portrait (scenery of every colour, red,
+    //   white, blue, behind it): 3.6-20.2;
+    // - with the badge drawn (85 frames, the zero flower and 1-27): 127 or more;
+    // - in full combat where it can't be told (a cutscene, an effect or a flash over the corner, the
+    //   portrait tinted red, dimmed or faded see-through): 62.1 or more. The one frame closer, 10.3,
+    //   is the fight ending (level text fading in) with the skill points already gone.
+    // 40 is twice the farthest clear frame and 22 under the nearest that can't be told.
+    internal const double SiArtTolerance = 40;
+
+    // Si's bare art, cell (row-major in the 6 x 6 grid) and its mean colour: the mean over those 72
+    // frames. Only cells that are her art on every one of them (the largest difference from the mean
+    // at most 25 on every channel): the bun and the strand. The left column and the bottom rows show
+    // the scenery through the portrait's edge and aren't used.
+    private static readonly (int Cell, (double R, double G, double B) Colour)[] SiArt =
+    [
+        (1, (161, 170, 158)), (2, (167, 178, 163)), (3, (133, 145, 128)), (4, (158, 169, 151)), (5, (191, 194, 174)),
+        (7, (160, 170, 158)), (8, (169, 181, 166)), (9, (146, 159, 143)), (10, (152, 165, 148)), (11, (194, 201, 182)),
+        (13, (138, 149, 137)), (14, (150, 165, 150)), (15, (141, 156, 141)), (16, (144, 157, 142)), (17, (192, 202, 181)),
+        (20, (123, 139, 126)), (21, (116, 132, 119)), (22, (114, 128, 115)), (23, (190, 201, 180)),
+        (27, (80, 92, 83)), (28, (86, 98, 87)), (29, (186, 197, 177)),
+    ];
 
     /// <summary>Where <paramref name="counter"/> is drawn on slot <paramref name="slot"/>'s portrait (1-based); null if not measured.</summary>
     internal static CounterPlace? PlaceOn(Frame frame, HudLayout layout, int slot, CounterDefinition counter)

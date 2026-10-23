@@ -219,8 +219,17 @@ public static class OperatorCounters
     /// </summary>
     private static int? ReadSiStacks(Frame frame, CounterPlace place)
     {
+        double share = SiGreenShare(frame, place);
+        if (share < SiGreenMin) return null; // no badge: another operator's HUD, or something over it (on a portrait, see PortraitCounters.SiBadgeAbsent)
+        if (BadgeNumber.Read(frame, place.Map(SiStacksArea)) is { } stacks) return stacks;
+        return share >= SiFlowerGreenMin ? 0 : null; // the hollow flower is nearly half green; a cross with a number on it far less
+    }
+
+    /// <summary>The share of bright green in Si's badge area; 0 when the area is off the frame.</summary>
+    internal static double SiGreenShare(Frame frame, CounterPlace place)
+    {
         var badge = place.Map(SiBadgeArea).ClampTo(frame.Width, frame.Height);
-        if (badge.IsEmpty) return null;
+        if (badge.IsEmpty) return 0;
         int n = 0, green = 0;
         for (int y = badge.Y; y < badge.Bottom; y++)
         for (int x = badge.X; x < badge.Right; x++)
@@ -229,18 +238,15 @@ public static class OperatorCounters
             n++;
             if (cg - Math.Max(cr, cb) >= 60 && cg >= 120) green++;
         }
-        double share = green / (double)n;
-        if (share < SiGreenMin) return null; // no badge: another operator's HUD, or something over it
-        if (BadgeNumber.Read(frame, place.Map(SiStacksArea)) is { } stacks) return stacks;
-        return share >= SiFlowerGreenMin ? 0 : null; // the hollow flower is nearly half green; a cross with a number on it far less
+        return green / (double)n;
     }
 
     // Si's badge, measured at 4K on the owner's Si fight (Fixtures/si), bottom-centre anchored: the
     // whole badge, and its share of bright green. Badges with a number: 0.024–0.079 (the cross is
     // mostly hidden by the digits and its dark outline); the zero flower 0.45–0.46; every other
     // operator's HUD here (Fixtures/battle-hud, Fixtures/counters) at most 0.001.
-    private static readonly PixelRect SiBadgeArea = new(1511, 1956, 52, 54);
-    private const double SiGreenMin = 0.012;
+    internal static readonly PixelRect SiBadgeArea = new(1511, 1956, 52, 54);
+    internal const double SiGreenMin = 0.012;
     private const double SiFlowerGreenMin = 0.3;
 
     // The nine cells' centres, measured at 4K on the owner's recording (Fixtures/counters, zhuang-*),
