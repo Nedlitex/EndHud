@@ -4,7 +4,9 @@ namespace EndHud.Vision;
 /// The time left of an ultimate that lasts (Laevatain's, Zhuang Fangyi's): a thin bar right above
 /// the skill point segments, bottom centre, as wide as they are. It's in the operator's colour
 /// (Laevatain red, Zhuang Fangyi gold), full when the ultimate starts and draining to the left over
-/// a dark track. It's the controlled operator's: their ultimate forces them to be controlled.
+/// a dark track. It is NOT always the controlled operator's: an ultimate cast from the background
+/// runs its bar under whoever is controlled, and with several running the game shows the controlled
+/// operator's own if she has one (see <see cref="LastingUltimates"/>, which tells whose it is).
 /// Nothing is drawn there otherwise (the scenery shows), so a bar is only taken as one when it has
 /// that shape: one colour from the left end, then the dark track to the right end.
 /// </summary>
