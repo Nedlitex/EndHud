@@ -364,11 +364,7 @@ public sealed class RotationTracker(Rotation rotation)
                     ? Compare(charge.Ready ? 100 : charge.Progress * 100, c.Is, c.Percent)
                     : null;
             case UltimateActiveCondition c:
-                // The bar is the controlled operator's; with the bottom HUD in sight (the skill
-                // points read), no bar means no lasting ultimate running.
-                if (state.SkillPoints is null || state.ActiveSlot is not { } controlling) return null;
-                bool running = state.UltimateTimeLeft is not null && slots.TryGetValue(c.OperatorId, out int us2) && us2 == controlling - 1;
-                return running == c.Active;
+                return UltimateRunning(c.OperatorId, state) is { } running ? running == c.Active : null;
             case ComboChargeCondition c:
                 return slots.TryGetValue(c.OperatorId, out int ccs) && state.Slots[ccs].Combo is { } bar
                     ? Compare(bar.Ready ? 100 : bar.Progress * 100, c.Is, c.Percent)
@@ -393,6 +389,24 @@ public sealed class RotationTracker(Rotation rotation)
             default:
                 return null;
         }
+    }
+
+    /// <summary>
+    /// Is this operator's lasting ultimate running? The time bar isn't the controlled operator's (an
+    /// ultimate cast from the background runs its bar under whoever is controlled): it holds for
+    /// the ones <see cref="LastingUltimates"/> has running, on the bar or carried on in the
+    /// background (<see cref="PartyState.RunningUltimates"/>; worked out from this reading alone
+    /// when the caller didn't). Null when it can't be told: the bottom HUD out of sight (no skill
+    /// points read), or a bar on screen that isn't known to be hers or anyone's for an operator
+    /// whose ultimate isn't one of the known lasting ones (it could be hers: the teal bar).
+    /// </summary>
+    private static bool? UltimateRunning(string operatorId, PartyState state)
+    {
+        if (state.SkillPoints is null) return null;
+        var running = state.RunningUltimates ?? new LastingUltimates().Update(state, TimeSpan.Zero);
+        if (running.ContainsKey(operatorId)) return true;
+        if (LastingUltimates.Operators.Contains(operatorId) || state.UltimateTimeLeft is null) return false;
+        return null;
     }
 
     private static bool Compare(double value, Comparison comparison, double target) => comparison switch

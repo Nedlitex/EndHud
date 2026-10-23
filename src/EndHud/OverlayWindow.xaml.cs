@@ -425,6 +425,7 @@ public partial class OverlayWindow : Window
 
     private void ShowParty(PartyState? state, string? errorKey)
     {
+        state = WithRunningUltimates(state);
         _lastState = state;
         UpdateComboHints();
         TrackRotation(state);

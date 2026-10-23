@@ -36,6 +36,15 @@ public partial class OverlayWindow
     // was saved as the player's size at every start (every player's gauges were at 50%).
     private bool _loadingGaugeSettings = true;
 
+    /// <summary>
+    /// A new reading, before anything reads it: the lasting ultimates running now (whose the time
+    /// bar is, and the ones carried on in the background), put on the state, so the rotation's and
+    /// alerts' "ultimate active" and the gauges agree. Out of battle they're forgotten again
+    /// (<see cref="TrackGauges"/>), so a new battle starts from what it shows.
+    /// </summary>
+    private PartyState? WithRunningUltimates(PartyState? state) =>
+        state is null ? null : state with { RunningUltimates = _lastingUltimates.Update(state, _clock.Elapsed) };
+
     /// <summary>A new reading (<paramref name="inBattle"/> from the strip's rule): remember the counters, then redraw.</summary>
     private void TrackGauges(PartyState? state, bool inBattle)
     {
@@ -49,7 +58,7 @@ public partial class OverlayWindow
         }
         if (state is not null && inBattle) _buffsSeen.AddRange(state.Buffs.Select(b => b.Id).Except(_buffsSeen).ToList());
         _timerViews = state is not null && inBattle ? _skillTimers.Update(state, _clock.Elapsed) : new Dictionary<string, SkillTimerView>();
-        _ultimateViews = state is not null && inBattle ? _lastingUltimates.Update(state, _clock.Elapsed) : new Dictionary<string, LastingUltimateView>();
+        _ultimateViews = state is not null && inBattle ? state.RunningUltimates ?? new Dictionary<string, LastingUltimateView>() : new Dictionary<string, LastingUltimateView>();
         _gauges = state is not null && inBattle && _config.GaugesEnabled && _config.PartyOcrEnabled
             ? GaugesView.Build(state, _counterMemory.Update(state), _buffsSeen, _timerViews, _ultimateViews, SkillIcon, Avatar, StatusIcon)
             : null;

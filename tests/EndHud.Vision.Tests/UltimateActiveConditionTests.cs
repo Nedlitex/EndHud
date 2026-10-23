@@ -115,7 +115,7 @@ public class UltimateActiveConditionTests
             new RotationPhase("charge", "Charge", [new RotationStep("Arcane", StepAction.Combo)]),
         ]));
 
-        Assert.Equal("Charge I", selector.Update(Reading(null, null, Running())).Step.PhaseLabel);
-        Assert.Equal("Burst II", selector.Update(Reading(0.7, Gold, Running(new LastingUltimateView("Zhuang_Fangyi", 0.7, false)))).Step.PhaseLabel);
+        Assert.Equal("Charge II", selector.Update(Reading(null, null, Running())).Step.PhaseLabel);
+        Assert.Equal("Burst I", selector.Update(Reading(0.7, Gold, Running(new LastingUltimateView("Zhuang_Fangyi", 0.7, false)))).Step.PhaseLabel);
     }
 }
