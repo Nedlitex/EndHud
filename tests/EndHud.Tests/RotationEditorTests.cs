@@ -469,9 +469,38 @@ public sealed class RotationEditorTests : IDisposable
         Assert.Equal(Enumerable.Repeat("Editor.LevelAtLeast", 4), offered);
     }
 
-    /// <summary>Vulnerable's stacks aren't read: no count picker, and a grey line says only "has it" is checked.</summary>
+    /// <summary>
+    /// Vulnerable's stacks are read (the arcs around its shield): "Vulnerable at least 3 stacks" is picked from
+    /// lists like an infliction's, worded as stacks, with no grey "not read" line.
+    /// </summary>
     [Fact]
-    public void Vulnerable_offers_no_count()
+    public void Vulnerable_offers_its_stacks()
+    {
+        var library = TwoPhases();
+
+        List<(string Text, object Value)> offered = [];
+        bool line = true;
+        OnEditor(library, _ => { }, editor =>
+        {
+            var pickers = StatusGate(editor, "Vulnerable");
+            Assert.Equal(4, pickers.Count); // kind, has, status, stacks
+            offered = pickers[3].Items.Cast<ComboBoxItem>().Select(i => ((string)i.Content, i.Tag)).ToList();
+            var gate = (StackPanel)editor.FindName("GateRows");
+            line = gate.Children[0] is StackPanel { Children: [_, TextBlock { Text: "Editor.StacksNotRead" }] };
+            Pick(pickers[3], 3);
+            Click(editor, "SaveButton");
+        });
+
+        Assert.Equal([1, 2, 3, 4], offered.Select(o => (int)o.Value));
+        Assert.All(offered, o => Assert.Equal("Editor.StacksAtLeast", o.Text));
+        Assert.False(line);
+        var saved = Assert.Single(library.Own.Load().Rotations);
+        Assert.Equal(new BossStatusCondition("Vulnerable", true, 3), Assert.Single(saved.Phases[1].When));
+    }
+
+    /// <summary>A status whose count isn't read (Combustion: its level badge has never been seen): no count picker, and a grey line says only "has it" is checked.</summary>
+    [Fact]
+    public void A_status_whose_count_is_not_read_offers_no_count()
     {
         var library = TwoPhases();
 
@@ -479,7 +508,7 @@ public sealed class RotationEditorTests : IDisposable
         bool line = false;
         OnEditor(library, _ => { }, editor =>
         {
-            pickers = StatusGate(editor, "Vulnerable").Count;
+            pickers = StatusGate(editor, "Combustion").Count;
             var gate = (StackPanel)editor.FindName("GateRows");
             line = gate.Children[0] is StackPanel { Children: [_, TextBlock { Text: "Editor.StacksNotRead" }] };
         });
@@ -501,7 +530,7 @@ public sealed class RotationEditorTests : IDisposable
             ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;
             var gate = (StackPanel)editor.FindName("GateRows");
             var status = RowOf(gate.Children[0]).Children.OfType<ComboBox>().ToList()[2];
-            status.SelectedItem = status.Items.Cast<ComboBoxItem>().Single(i => ((StatusInfo)i.Tag).Id == "Vulnerable");
+            status.SelectedItem = status.Items.Cast<ComboBoxItem>().Single(i => ((StatusInfo)i.Tag).Id == "Combustion");
             after = RowOf(gate.Children[0]).Children.OfType<ComboBox>().Count();
             Click(editor, "SaveButton");
             said = ((TextBlock)editor.FindName("ProblemsText")).Text;
@@ -509,7 +538,7 @@ public sealed class RotationEditorTests : IDisposable
 
         Assert.Equal(3, after);
         var saved = Assert.Single(library.Own.Load().Rotations);
-        Assert.Equal(new BossStatusCondition("Vulnerable", true), Assert.Single(saved.Phases[1].When));
+        Assert.Equal(new BossStatusCondition("Combustion", true), Assert.Single(saved.Phases[1].When));
     }
 
     private static void Click(Window window, string name) =>
@@ -526,8 +555,8 @@ public sealed class RotationEditorTests : IDisposable
         Directory.CreateDirectory(Path.Combine(reference, "icons"));
         byte[] pixel = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
         foreach (string id in squad) File.WriteAllBytes(Path.Combine(reference, "icons", id + ".png"), pixel);
-        // Three statuses: an infliction (stacks read), a reaction (level read), and one whose count isn't read.
-        string[] statuses = ["Cryo Infliction", "Corrosion", "Vulnerable"];
+        // Four statuses: an infliction and Vulnerable (stacks read), a reaction (level read), and one whose count isn't read.
+        string[] statuses = ["Cryo Infliction", "Corrosion", "Vulnerable", "Combustion"];
         Directory.CreateDirectory(Path.Combine(reference, "statuses"));
         File.WriteAllText(Path.Combine(reference, "statuses.json"), System.Text.Json.JsonSerializer.Serialize(statuses.Select(id => new StatusInfo(id, id + ".png"))));
         foreach (string id in statuses) File.WriteAllBytes(Path.Combine(reference, "statuses", id + ".png"), pixel);

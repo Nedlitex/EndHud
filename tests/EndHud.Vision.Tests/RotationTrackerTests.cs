@@ -443,6 +443,34 @@ public class RotationTrackerTests
         Assert.Null(RotationTracker.Evaluate(levelThree, WithStatuses(new BossStatusReading("Corrosion", 0, 0.7, null)), PhaseHistory.None));
     }
 
+    /// <summary>
+    /// "The enemy has Vulnerable at 3 or more stacks", on the boss reading of real frames: 4 stacks
+    /// holds, 2 doesn't, no ring is 0 stacks, and the add-a-stack flash (count unknown) is unknown.
+    /// </summary>
+    [Theory]
+    [InlineData("vulnerable-4-85s.jpg", true)]
+    [InlineData("vulnerable-3-110s.jpg", true)]
+    [InlineData("vulnerable-2-100s.jpg", false)]
+    [InlineData("none-56s.jpg", false)]
+    [InlineData("flash-98_5s.jpg", null)]
+    public async Task Vulnerable_stacks_compare_against_the_ring_count(string file, bool? holds)
+    {
+        string userFolder = Path.Combine(Path.GetTempPath(), "endhud-tests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var reader = new BossStatusReader(await OperatorCache.LoadAsync(userFolder));
+            var frame = await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("vulnerable", file)));
+
+            var state = WithStatuses([.. reader.Read(frame)]);
+
+            Assert.Equal(holds, RotationTracker.Evaluate(new BossStatusCondition("Vulnerable", true, 3), state, PhaseHistory.None));
+        }
+        finally
+        {
+            try { Directory.Delete(userFolder, recursive: true); } catch (IOException) { }
+        }
+    }
+
     /// <summary>At least 1 is just "has it": the count isn't needed, so an unread count still answers.</summary>
     [Fact]
     public void One_stack_is_presence_and_needs_no_count()

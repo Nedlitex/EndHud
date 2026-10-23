@@ -285,7 +285,7 @@ internal sealed class ConditionEditor(
                 string shownId = ((StatusInfo)Picked(status)).Id;
                 if (BossStatusReader.CountsRead.Contains(shownId))
                 {
-                    // Inflictions' stacks (1-4) or a reaction's level (I-IV); a file's value off the list is kept.
+                    // Inflictions' and Vulnerable's stacks (1-4) or a reaction's level (I-IV); a file's value off the list is kept.
                     bool reaction = ReactionLevel.Measured.Contains(shownId);
                     string[] roman = ["I", "II", "III", "IV"];
                     var stacks = Picker(Enumerable.Range(1, 4).ToList(),
