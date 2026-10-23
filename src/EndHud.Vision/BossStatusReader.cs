@@ -4,7 +4,8 @@ namespace EndHud.Vision;
 
 /// <summary>A status the enemy has, recognised by its icon under the boss's bars.</summary>
 /// <param name="Position">Its place in the row, from 0 (the row reflows as statuses come and go);
-/// <see cref="RingPosition"/> for the ring at the end of the HP bar: an elemental infliction (<see cref="InflictionRing"/>) or Vulnerable (<see cref="VulnerableRing"/>).</param>
+/// <see cref="RingPosition"/> for the ring at the end of the HP bar: an elemental infliction (<see cref="InflictionRing"/>) or Vulnerable (<see cref="VulnerableRing"/>);
+/// <see cref="SecondRingPosition"/> for the other of the two beside it when the boss has both.</param>
 /// <param name="Score">How well the icon matched (normalised correlation, 1 = identical).</param>
 /// <param name="Stacks">Stacks (inflictions and Vulnerable, 1–4) or level (reactions, I–IV as 1–4; a reaction with no badge
 /// is I); null when not read (covered, a dark scene that could hide a badge, or a status whose count
@@ -48,7 +49,7 @@ public sealed class BossStatusReader(OperatorLibrary library)
 
     /// <summary>
     /// The statuses recognised in the row (empty when there's no row or none is recognised), then the
-    /// ring's elemental infliction or Vulnerable if there is one (<see cref="InflictionRing"/>, <see cref="VulnerableRing"/>). Each carries its count where
+    /// icons at the end of the HP bar: an elemental infliction, Vulnerable, or both side by side (<see cref="RingIcons"/>). Each carries its count where
     /// EndHud reads one: the infliction's stacks, a measured reaction's level (<see cref="ReactionLevel"/>).
     /// </summary>
     public IReadOnlyList<BossStatusReading> Read(Frame frame)
@@ -61,11 +62,43 @@ public sealed class BossStatusReader(OperatorLibrary library)
             int? level = ReactionLevel.Measured.Contains(b.Id) ? ReactionLevel.ReadLevel(frame, ui.TopCenter(FirstSquare.Offset(position * Pitch, 0))) : null;
             found.Add(new BossStatusReading(b.Id, position, b.Score, level));
         }
-        // The ring holds an elemental infliction or Vulnerable (a shield with a slash), each with its stack arcs.
-        if ((InflictionRing.ReadWithStacks(frame) ?? VulnerableRing.Read(frame)) is { } ring)
-            found.Add(new BossStatusReading(ring.Element, BossStatusReading.RingPosition, 1, ring.Stacks));
+        var icons = RingIcons(frame);
+        for (int i = 0; i < icons.Count; i++)
+            found.Add(new BossStatusReading(icons[i].Element, i == 0 ? BossStatusReading.RingPosition : BossStatusReading.SecondRingPosition, 1, icons[i].Stacks));
         return found;
     }
+
+    /// <summary>
+    /// The icons at the right end of the HP bar, each with its stack arcs: an elemental infliction or
+    /// Vulnerable (a shield with a slash) in the ring's place, and when the boss has both, the other one
+    /// beside it (<see cref="InflictionRing.SecondOffset"/>), in the order they were applied (test_rossi:
+    /// heat then Vulnerable, Vulnerable then heat, Vulnerable then cryo).
+    /// <para>
+    /// The second place is read only when the first is read and holds the other kind. The game packs the
+    /// icons to the left, so a second icon with no first is a moment of change: the first fading where it
+    /// stood (test_rossi 25.5 s) or one arriving. And two inflictions side by side are an infliction
+    /// being replaced: in the Si recording at 20.1-20.6 s the new nature icon took the first place while
+    /// the old cryo slid right and faded out (gone at 20.7 s), so the one on the right is already gone
+    /// from the boss.
+    /// </para>
+    /// <para>
+    /// The second icon must also have its top stack arc lit (white with its dark outline,
+    /// <see cref="InflictionRing.SegmentShares"/>), which every second icon in test_rossi had (1.00): in the
+    /// Typhoeus recording at 105.5 s white sky crossed by a dark branch stood in the second place, white on
+    /// both sides of a dark diagonal (0.99, slash 88) like Vulnerable's shield, but with no arc at all (0.00).
+    /// </para>
+    /// </summary>
+    internal static IReadOnlyList<InflictionRing.Infliction> RingIcons(Frame frame)
+    {
+        if (RingIcon(frame, 0) is not { } first) return [];
+        if (InflictionRing.SegmentShares(frame, InflictionRing.SecondOffset)[0] < InflictionRing.LitShare
+            || RingIcon(frame, InflictionRing.SecondOffset) is not { } second) return [first];
+        bool firstVulnerable = first.Element == VulnerableRing.StatusId, secondVulnerable = second.Element == VulnerableRing.StatusId;
+        return firstVulnerable == secondVulnerable ? [first] : [first, second];
+    }
+
+    private static InflictionRing.Infliction? RingIcon(Frame frame, double offset) =>
+        InflictionRing.ReadWithStacks(frame, offset) ?? VulnerableRing.Read(frame, offset);
 
     /// <summary>Statuses whose stack count or level EndHud reads (the editor offers a count only for these).</summary>
     public static IReadOnlySet<string> CountsRead { get; } =

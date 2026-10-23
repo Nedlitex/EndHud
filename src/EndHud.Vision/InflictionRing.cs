@@ -47,9 +47,22 @@ public static class InflictionRing
     /// <summary>The infliction shown, or null when there's none (or it can't be told).</summary>
     public static string? Read(Frame frame) => Measure(frame).Element;
 
-    /// <summary>The infliction with its stack count: white arcs clockwise from the top, one per stack.</summary>
-    public static Infliction? ReadWithStacks(Frame frame) =>
-        Measure(frame).Element is { } element ? new Infliction(element, Stacks(frame)) : null;
+    /// <summary>
+    /// The infliction with its stack count (white arcs clockwise from the top, one per stack), in the
+    /// ring's place or <paramref name="offset"/> px (4K) right of it (<see cref="SecondOffset"/>).
+    /// </summary>
+    public static Infliction? ReadWithStacks(Frame frame, double offset = 0) =>
+        Measure(frame, offset).Element is { } element ? new Infliction(element, Stacks(frame, offset)) : null;
+
+    /// <summary>
+    /// When the boss has Vulnerable and an infliction at once, the game draws both: the first in the
+    /// ring's place, the second the same size this far right of it (4K px), at the same height. Measured on
+    /// the owner's test_rossi.mp4 (Fixtures/vulnerable-and-infliction): the shield's white share and slash,
+    /// and the heat icon's coloured share, peaked at 93-95 px on both orders (23 s heat then Vulnerable,
+    /// 33 s Vulnerable then heat). Its arcs are 55 px or more from the first ring's, so neither ring's
+    /// samples reach the other's arcs.
+    /// </summary>
+    internal const double SecondOffset = 94;
 
     /// <summary>
     /// Four arc segments, centred at 0° (top), 90°, 180° and 270°. Each is lit (a white arc with its

@@ -43,19 +43,22 @@ public static class VulnerableRing
     internal const int MinSlashContrast = 80;
     internal const int MinTopArc = 150;
 
-    /// <summary>Vulnerable and its stacks, or null when the ring doesn't show it.</summary>
-    public static InflictionRing.Infliction? Read(Frame frame)
+    /// <summary>
+    /// Vulnerable and its stacks in the ring's place, or <paramref name="offset"/> px (4K) right of it
+    /// (the second place, <see cref="InflictionRing.SecondOffset"/>); null when it isn't shown there.
+    /// </summary>
+    public static InflictionRing.Infliction? Read(Frame frame, double offset = 0)
     {
-        var (whiteness, _, _, element) = InflictionRing.Measure(frame);
+        var (whiteness, _, _, element) = InflictionRing.Measure(frame, offset);
         if (element is not null || whiteness < MinTopArc) return null;
-        var (white, slash) = Shield(frame);
+        var (white, slash) = Shield(frame, offset);
         if (white < MinShieldWhite || slash < MinSlashContrast) return null;
-        return new InflictionRing.Infliction(StatusId, Stacks(frame));
+        return new InflictionRing.Infliction(StatusId, Stacks(frame, offset));
     }
 
     /// <summary>The ring's stacks, or null when an effect lights a gap between the arcs.</summary>
-    internal static int? Stacks(Frame frame) =>
-        InflictionRing.GapShares(frame).Any(g => g > InflictionRing.UnlitShare) ? null : InflictionRing.Stacks(frame);
+    internal static int? Stacks(Frame frame, double offset = 0) =>
+        InflictionRing.GapShares(frame, offset).Any(g => g > InflictionRing.UnlitShare) ? null : InflictionRing.Stacks(frame, offset);
 
     /// <summary>The shield's share of white pixels and how much darker the slash is than the shield, for measuring thresholds.</summary>
     internal static (double White, int SlashContrast) Shield(Frame frame, double offset = 0)
