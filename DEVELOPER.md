@@ -151,10 +151,25 @@ can't tell it: an effect over it, the panel out of sight, or the controller layo
   as clear on portraits without one), so it's read only on Laevatain's own portrait, where it was
   drawn in every in-combat frame recorded: if the game ever leaves it out there, a value could be
   read from the art.
-- **Measured** on 42 labelled frames ([`Fixtures/portrait-counters`](tests/data/Fixtures/portrait-counters)):
+- **Si's badge gone is 0** (owner, 2026-10-23: "When Si's badge disappears from her portrait, is
+  that 0?" "yes"). In combat the game drops the badge from her portrait at times (before her first
+  stacks, and when they run out). EndHud reads 0 then only when it can see the corner clearly
+  (`PortraitCounters.SiBadgeAbsent`): no badge green, and her own art (the grey hair bun and the pale
+  strand right of it) shows where the badge would be. That's 22 cells of the badge area, each within
+  40 of her bare art's colour on every channel. The clear no-badge frames measured 3.6–20.2 and
+  badges of every number 127 or more. An effect or flash over the corner, or the portrait tinted
+  red, dimmed or faded see-through, measured 62.1 or more, so those stay unknown. It's read in full
+  combat only (combo bars and skill points): as a fight ends the skill points go first while the
+  level text fades in under the portrait (10.3, too faint to tell from light scenery).
+- **Measured** on 51 labelled frames ([`Fixtures/portrait-counters`](tests/data/Fixtures/portrait-counters)):
   Si's stacks in slots 1 and 3, Laevatain's 熔火 in slot 2, Typhoeus's 猎矢 and 启示 and Zhuang
   Fangyi's 青霆剑 in slot 1. Every 0.5 s over the four recordings, against the counts seen by eye:
-  417 right, 101 unknown (88 of them where no counter is drawn), 0 wrong.
+  417 right, 101 unknown (88 of them where no counter is drawn), 0 wrong. With no badge read as 0
+  (2026-10-23), Si's portrait counter every 0.5 s over her two recordings (`endhud-cli trace-skills`,
+  never the last 5 s): 82 right and 80 unknown before, 152 right and 10 unknown after, 0 wrong. The
+  10 are the frames that can't be told (tinted, dimmed, faded, the fight ending), and no other
+  counter's reading changed. On test_battle_new1 Si is controlled throughout, so her portrait
+  counter isn't read there.
 
 ### Lasting ultimates
 
@@ -1858,9 +1873,11 @@ exception: hosted runners can't capture windows, so they only run on a developer
   isn't in the squad to no one, and the recordings' readings replayed across the switches. "Ultimate active" in
   rotations and alerts holds for Zhuang's while Perlica is controlled.
 - **Counters on the portraits** ([`Fixtures/portrait-counters`](tests/data/Fixtures/portrait-counters)):
-  42 frames from the owner's four recordings, each switched-out operator's counter read right or
+  51 frames from the owner's four recordings, each switched-out operator's counter read right or
   unknown (never wrong): Si's stacks in slots 1 and 3, Laevatain's 熔火, Typhoeus's 猎矢 and 启示,
-  Zhuang Fangyi's 青霆剑; nothing out of combat, on a portrait without a counter (but the flower,
+  Zhuang Fangyi's 青霆剑; Si with no badge on her clear portrait read 0 (nine frames, red and white
+  scenery behind some), and unknown on a tinted, dimmed or faded portrait, under a flash, with her
+  number blacked out, or with the skill points gone; nothing out of combat, on a portrait without a counter (but the flower,
   read only on Laevatain's own), on a panel remembered while out of sight, or in the controller
   layout; a switched-out operator's counter live in the gauge row. The Typhoeus recording is 2154
   rows high (its bottom 4 rows lost): its frames have them back, black, so the HUD is where the
@@ -2081,7 +2098,10 @@ Copy `src/EndHud/i18n/zh-CN.xaml` to, for example, `en-US.xaml`, translate the v
   others (see [Counters on the portraits](#counters-on-the-portraits)). Out of combat, with a
   controller, or under an effect, a switched-out operator's counter shows the last value seen,
   dimmed. Laevatain's flower has no outline to tell it from a portrait's art, so it's read only
-  on her own portrait, where it has always been drawn in combat. A battle skill's cooldown is read
+  on her own portrait, where it has always been drawn in combat. Si's portrait with no badge is
+  read as 0 only where her art shows clearly in the badge's place, measured on her portrait as
+  drawn in the owner's two recordings at 4K: if the game draws her portrait differently, or on a
+  smaller screen than measured, no badge may stay unknown (her stacks show the last value seen). A battle skill's cooldown is read
   as available or cooling, not its seconds.
 - Lasting ultimates: the time bar's owner is told by its colour for Laevatain (red), Zhuang
   Fangyi (gold) and Yvonne (teal) only; a bar of another colour is shown for no one, and
