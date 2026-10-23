@@ -122,7 +122,11 @@ static async Task<int> TraceSkillsAsync(string path, double everySeconds, double
     if (OperatorPackage.Installed(reference) != OperatorPackage.ReadInfo(package)) OperatorPackage.Install(reference, package);
     string user = Path.Combine(Path.GetTempPath(), "endhud-trace-skills-user");
     Directory.CreateDirectory(user);
-    var identifier = new SquadIdentifier(await OperatorLibrary.LoadAsync(user, reference));
+    // On the recording's clock, not the wall's: the trace runs slower than the game did, and naming
+    // waits (re-checks, a squad that may have changed after a long absence) are timed.
+    var videoClock = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+    double atSeconds = from;
+    var identifier = new SquadIdentifier(await OperatorLibrary.LoadAsync(user, reference), () => videoClock.AddSeconds(atSeconds));
     var timers = new SkillTimers();
     var lasting = new LastingUltimates();
     static string F(double? v) => v is { } x ? x.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) : "";
@@ -130,6 +134,7 @@ static async Task<int> TraceSkillsAsync(string path, double everySeconds, double
     bool prepared = false;
     for (double t = from; t < Math.Min(to ?? double.MaxValue, video.Duration.TotalSeconds); t += everySeconds)
     {
+        atSeconds = t;
         var frame = await video.GetFrameAsync(TimeSpan.FromSeconds(t));
         var raw = await reader.ReadAsync(frame);
         var state = tracker.Track(raw);

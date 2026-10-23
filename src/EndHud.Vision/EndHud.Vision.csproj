@@ -11,6 +11,8 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="EndHud.Vision.Tests" />
+    <!-- The developer CLI's trace-skills names the squad on a recording's own clock (SquadIdentifier's clock parameter). -->
+    <InternalsVisibleTo Include="endhud-cli" />
   </ItemGroup>
 
   <ItemGroup>
