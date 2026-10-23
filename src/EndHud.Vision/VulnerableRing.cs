@@ -22,11 +22,15 @@ public static class VulnerableRing
     // 45° through SlashOffset px above the centre. Pixels within SlashHalfWidth of it are the slash, pixels
     // at least ClearOfSlash from it the shield. Measured on the recording, every 0.5 s of 0–132.5 s
     // (115 frames showing the shield, 149 without it, 2 transitions):
-    // - the shield's share of white (every channel ≥ ShieldWhiteFrom, near grey) was 1.00 on every frame
-    //   with it, the HUD fading back in at 81.5 s included; MinShieldWhite 0.8;
+    // - the shield's share of white (every channel ≥ ShieldWhiteFrom, near grey; the lower of the two
+    //   sides of the slash) was 1.00 on every frame with it, the HUD fading back in at 81.5 s included;
+    //   MinShieldWhite 0.8;
     // - the slash stood 106–229 below the shield's brightness; without the shield the same measure was
-    //   at most 55 (a dark scene, its "shield" not white at all), white scenery at most 43;
-    //   MinSlashContrast 80, about halfway;
+    //   at most 55 (a dark scene, its "shield" not white at all) and at most 32 where the place was
+    //   white (≥ 0.5) on both sides; MinSlashContrast 80, about halfway;
+    // - four recordings of arts teams (Si, Laevatain, Typhoeus, Zhuang; 585 frames, one a second) never
+    //   read as Vulnerable. Their closest frame: sky over a dark roof edge, slash measure 79, but white
+    //   on one side of the line only (0.00 on the other);
     // - the top arc's whiteness (InflictionRing.Measure) was 169 on that fading-in frame and 232–248
     //   otherwise. MinTopArc 150 lets the fading frame say Vulnerable is there; its stacks still need the
     //   arcs' full white (InflictionRing.MinArcWhiteness), so its count reads as unknown.
@@ -62,7 +66,9 @@ public static class VulnerableRing
         double cx = area.X + InflictionRing.CentreX * k, cy = area.Y + InflictionRing.CentreY * k;
         var shield = new List<int>();
         var slash = new List<int>();
-        int white = 0;
+        // Each side of the slash (upper left, lower right) counted apart: the shield is white on both,
+        // where a bright-over-dark edge in the scenery is white on one side only.
+        int[] white = new int[2], count = new int[2];
         for (double dy = -ShieldRadius; dy <= ShieldRadius; dy++)
         for (double dx = -ShieldRadius; dx <= ShieldRadius; dx++)
         {
@@ -70,16 +76,18 @@ public static class VulnerableRing
             int px = Math.Clamp((int)Math.Round(cx + dx * k), 0, frame.Width - 1), py = Math.Clamp((int)Math.Round(cy + dy * k), 0, frame.Height - 1);
             var (r, g, b) = frame.GetPixel(px, py);
             int min = Math.Min(r, Math.Min(g, b)), max = Math.Max(r, Math.Max(g, b));
-            double distance = Math.Abs(dx + dy + SlashOffset) / Math.Sqrt(2);
-            if (distance <= SlashHalfWidth) slash.Add(min);
-            else if (distance >= ClearOfSlash)
+            double side = (dx + dy + SlashOffset) / Math.Sqrt(2);
+            if (Math.Abs(side) <= SlashHalfWidth) slash.Add(min);
+            else if (Math.Abs(side) >= ClearOfSlash)
             {
+                int s = side < 0 ? 0 : 1;
                 shield.Add(min);
-                if (min >= ShieldWhiteFrom && max - min < 40) white++;
+                count[s]++;
+                if (min >= ShieldWhiteFrom && max - min < 40) white[s]++;
             }
         }
         shield.Sort();
         slash.Sort();
-        return (white / (double)shield.Count, shield[shield.Count / 2] - slash[slash.Count / 2]);
+        return (Math.Min(white[0] / (double)count[0], white[1] / (double)count[1]), shield[shield.Count / 2] - slash[slash.Count / 2]);
     }
 }
