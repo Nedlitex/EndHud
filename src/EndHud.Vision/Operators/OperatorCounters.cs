@@ -63,7 +63,8 @@ public static class OperatorCounters
     /// squad portrait (<see cref="PortraitCounters"/>). The drawing is the same either way.
     /// </summary>
     internal static int? ReadAt(Frame frame, CounterDefinition counter, CounterPlace place) =>
-        counter == MeltingFlame ? ReadPetals(frame, place)
+        place.OnPortrait && !PortraitCounters.OutlineShows(frame, counter, place) ? null
+        : counter == MeltingFlame ? ReadPetals(frame, place)
         : counter == HuntingArrow ? ReadArrows(frame, place)
         : counter == Sign ? ReadSigns(frame, place)
         : counter == Sunderblade ? ReadSunderblades(frame, place)
