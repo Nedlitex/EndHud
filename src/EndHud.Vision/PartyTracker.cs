@@ -59,7 +59,8 @@ public sealed class PartyTracker
         }
 
         var slots = state.Slots.Select(Track).ToList();
-        _lastVisible = state with { Slots = slots, ReadingsSinceSeen = 0, UltimateTimeLeft = TrackUltimateTime(state) };
+        var (timeLeft, timeColour) = TrackUltimateTime(state);
+        _lastVisible = state with { Slots = slots, ReadingsSinceSeen = 0, UltimateTimeLeft = timeLeft, UltimateTimeColour = timeColour };
         return _lastVisible;
     }
 
@@ -83,23 +84,24 @@ public sealed class PartyTracker
         return true;
     }
 
-    private (double Value, int? Controlled, int Readings)? _ultimateTime;
+    private (double Value, BarColour? Colour, int? Controlled, int Readings)? _ultimateTime;
 
-    private double? TrackUltimateTime(PartyState state)
+    /// <summary>The time bar's value and colour, the last ones kept through a short gap.</summary>
+    private (double? Left, BarColour? Colour) TrackUltimateTime(PartyState state)
     {
         if (state.UltimateTimeLeft is { } seen)
         {
-            _ultimateTime = (seen, state.ActiveSlot, 0);
-            return seen;
+            _ultimateTime = (seen, state.UltimateTimeColour, state.ActiveSlot, 0);
+            return (seen, state.UltimateTimeColour);
         }
         if (_ultimateTime is { } last && last.Value >= UltimateEndingBelow && last.Readings < UltimateGapReadings
             && (state.ActiveSlot is null || state.ActiveSlot == last.Controlled))
         {
             _ultimateTime = last with { Readings = last.Readings + 1 };
-            return last.Value;
+            return (last.Value, last.Colour);
         }
         _ultimateTime = null;
-        return null;
+        return (null, null);
     }
 
     private PartySlot Track(PartySlot slot)

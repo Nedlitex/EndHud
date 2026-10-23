@@ -41,6 +41,32 @@ public sealed class LastingUltimates
     /// </summary>
     public static readonly IReadOnlySet<string> Operators = new HashSet<string> { "Laevatain", "Zhuang_Fangyi" };
 
+    /// <summary>
+    /// Each known lasting ultimate's bar colour, as a hue (degrees), measured on the owner's
+    /// recordings (Fixtures/lasting-ultimate-background and ultimate-time, at 4K and on ten simulated
+    /// 16:9-class screens): Laevatain red 4–8, Zhuang Fangyi gold 48–51 (a dimmed gold bar, #AE941E,
+    /// is still 49–50). The unnamed slot-3 operator's teal bar is 171: no one's here.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, double> BarHues = new Dictionary<string, double>
+    {
+        ["Laevatain"] = 6,
+        ["Zhuang_Fangyi"] = 50,
+    };
+
+    /// <summary>A bar is a known operator's when its hue is this close to hers (the two are 44 apart).</summary>
+    public const double SameHueWithin = 15;
+
+    /// <summary>Whose lasting ultimate a bar of this colour is (<see cref="BarHues"/>); null when it's none of the known ones.</summary>
+    public static string? OwnerByColour(BarColour colour)
+    {
+        foreach (var (id, hue) in BarHues)
+        {
+            double off = Math.Abs(colour.Hue - hue) % 360;
+            if (Math.Min(off, 360 - off) <= SameHueWithin) return id;
+        }
+        return null;
+    }
+
     /// <summary>How close a reading must be to where a running one would be by now to go on it.</summary>
     public const double ContinuesWithin = 0.15;
 

@@ -38,10 +38,26 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
     public double? SkillPoints { get; init; }
 
     /// <summary>
-    /// The controlled operator's lasting ultimate (Laevatain's, Zhuang Fangyi's): the share of its
-    /// time left, 0–1; null when none is running (or it can't be seen). See <see cref="UltimateTimeBar"/>.
+    /// The lasting ultimate on the time bar under the HP (<see cref="UltimateTimeBar"/>): the share of
+    /// its time left, 0–1; null when none is running (or it can't be seen). It is the controlled
+    /// operator's own when she has one running, otherwise one running for an operator in the
+    /// background: <see cref="LastingUltimates"/> tells whose.
     /// </summary>
     public double? UltimateTimeLeft { get; init; }
+
+    /// <summary>
+    /// The time bar's colour, which tells whose ultimate it is (<see cref="LastingUltimates.OwnerByColour"/>);
+    /// null when there's no bar or its colour wasn't read (then the owner is worked out from who is
+    /// controlled and whose ultimate was just spent).
+    /// </summary>
+    public BarColour? UltimateTimeColour { get; init; }
+
+    /// <summary>
+    /// Every lasting ultimate running now, by operator id, across readings (<see cref="LastingUltimates"/>:
+    /// the one on the bar, and the ones carried on in the background); null when not worked out
+    /// for this reading (then a condition asking about one works it out from this reading alone).
+    /// </summary>
+    public IReadOnlyDictionary<string, LastingUltimateView>? RunningUltimates { get; init; }
 
     /// <summary>How many operators the squad has (1-4): the slots that aren't <see cref="PartySlot.Empty"/>.</summary>
     public int SquadSize => Slots.Count(s => !s.Empty);
@@ -174,13 +190,15 @@ public sealed partial class PartyReader(TextRecognizer ocr)
         // Skill points are drawn in combat only (shown by the combo bars); out of combat the bar's
         // place shows the scenery, which can look like an empty bar. Same place in every layout.
         bool inCombat = slots.Any(s => s.Combo is not null);
+        var timeBar = inCombat ? UltimateTimeBar.Read(frame, ui) : null;
         return new PartyState(slots, marks.Sum())
         {
             Layout = squad.Layout,
             PortraitWidths = [.. SquadGeometry.Layouts.Select(layout => ui.BottomLeft(SquadGeometry.For(layout).Portrait(0)).Width)],
             ActiveSlot = Vision.ActiveSlot.Find(frame, ui, squad),
             SkillPoints = inCombat ? SkillPointBar.Measure(frame, ui) : null,
-            UltimateTimeLeft = inCombat ? UltimateTimeBar.Measure(frame, ui) : null,
+            UltimateTimeLeft = timeBar?.Left,
+            UltimateTimeColour = timeBar?.Colour,
         };
     }
 
