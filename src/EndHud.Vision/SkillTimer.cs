@@ -41,3 +41,27 @@ public sealed class SkillTimer(TimeSpan duration)
     /// <summary>Forget the running skill (the fight ended).</summary>
     public void Clear() => _startedAt = null;
 }
+
+/// <summary>
+/// The squad's lasting battle skills (Si's), one <see cref="SkillTimer"/> per operator, across
+/// readings: what the gauges show for each now. One per game window; cleared when a battle ends.
+/// </summary>
+public sealed class SkillTimers
+{
+    private readonly Dictionary<string, SkillTimer> _timers = [];
+
+    /// <returns>Each running skill's view, by operator id.</returns>
+    public Dictionary<string, SkillTimerView> Update(PartyState state, TimeSpan now)
+    {
+        var views = new Dictionary<string, SkillTimerView>();
+        foreach (string id in state.Slots.Select(s => s.Operator?.Operator.Id).OfType<string>().Where(id => id == "Si").Distinct())
+        {
+            if (!_timers.TryGetValue(id, out var timer)) _timers[id] = timer = new SkillTimer(SkillRing.SiDuration);
+            if (timer.Update(state.SkillRings.FirstOrDefault(r => r.OperatorId == id), now) is { } view) views[id] = view;
+        }
+        return views;
+    }
+
+    /// <summary>Forget every running skill (the battle ended).</summary>
+    public void Clear() => _timers.Clear();
+}

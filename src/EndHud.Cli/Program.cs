@@ -36,7 +36,9 @@ return args.FirstOrDefault() switch
     "identify" when args.Length >= 2 && Option("--library") is { } lib => await IdentifyAsync(args[1], lib, Option("--debug-dir")),
     "analyze-video" when args.Length >= 2 => await AnalyzeVideoAsync(args[1], double.Parse(Option("--every") ?? "1"), double.Parse(Option("--from") ?? "0"), Option("--to") is { } to ? double.Parse(to) : null),
     "trace-video" when args.Length >= 2 => await TraceVideoAsync(args[1], double.Parse(Option("--every") ?? "0.25"), double.Parse(Option("--from") ?? "0"), Option("--to") is { } to ? double.Parse(to) : null),
-    "trace-inn" when args.Length >= 2 => await EndHud.Cli.InnTrace.RunAsync(args[1], double.Parse(Option("--every") ?? "0.5", System.Globalization.CultureInfo.InvariantCulture),
+    "trace-skills" when args.Length >= 2 => await TraceSkillsAsync(args[1], double.Parse(Option("--every") ?? "0.25", System.Globalization.CultureInfo.InvariantCulture),
+        double.Parse(Option("--from") ?? "0", System.Globalization.CultureInfo.InvariantCulture), Option("--to") is { } skillsTo ? double.Parse(skillsTo, System.Globalization.CultureInfo.InvariantCulture) : null),
+    "trace-inn" when args.Length >= 2 =>await EndHud.Cli.InnTrace.RunAsync(args[1], double.Parse(Option("--every") ?? "0.5", System.Globalization.CultureInfo.InvariantCulture),
         double.Parse(Option("--from") ?? "0", System.Globalization.CultureInfo.InvariantCulture), Option("--to") is { } innTo ? double.Parse(innTo, System.Globalization.CultureInfo.InvariantCulture) : null,
         double.Parse(Option("--end-margin") ?? "0", System.Globalization.CultureInfo.InvariantCulture), Option("--reference")),
     "read-bubbles" when args.Length >= 2 => await EndHud.Cli.InnTrace.ReadBubblesAsync(args[1..], Option("--reference")),
@@ -101,6 +103,50 @@ static async Task<int> TraceVideoAsync(string path, double everySeconds, double 
         var cells = state.Slots.Select(s => s.Dead || s.Empty ? ",,,," :
             $"{F(s.Combo?.Progress)},{s.Combo?.Ready},{F(s.Ultimate?.Progress)},{s.Ultimate?.Ready},{s.BattleSkill}");
         Console.WriteLine($"{F(t)},{state.PanelVisible},{state.Layout},{state.ActiveSlot},{F(state.SkillPoints)},{string.Join(",", cells)}");
+    }
+    return 0;
+}
+
+// What the gauges' timers would show, frame by frame, through the app's own steps: read, track,
+// name the squad (the shipped operator package), read the lasting battle skills' buttons and the
+// lasting ultimate's bar. One CSV row per sampled frame.
+static async Task<int> TraceSkillsAsync(string path, double everySeconds, double from, double? to)
+{
+    var video = await VideoFile.OpenAsync(path);
+    var reader = new PartyReader(new TextRecognizer());
+    var tracker = new PartyTracker();
+    string root = AppContext.BaseDirectory;
+    while (!File.Exists(Path.Combine(root, "EndHud.sln"))) root = Path.GetDirectoryName(root.TrimEnd(Path.DirectorySeparatorChar))!;
+    string reference = Path.Combine(root, ".cache", "operator-package");
+    byte[] package = File.ReadAllBytes(Path.Combine(root, "operators", OperatorPackage.FileName));
+    if (OperatorPackage.Installed(reference) != OperatorPackage.ReadInfo(package)) OperatorPackage.Install(reference, package);
+    string user = Path.Combine(Path.GetTempPath(), "endhud-trace-skills-user");
+    Directory.CreateDirectory(user);
+    var identifier = new SquadIdentifier(await OperatorLibrary.LoadAsync(user, reference));
+    var timers = new SkillTimers();
+    static string F(double? v) => v is { } x ? x.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) : "";
+    Console.WriteLine("t,panel,layout,active,squad,ultBar,ultTracked,lasting,skill,skillButton,timer");
+    bool prepared = false;
+    for (double t = from; t < Math.Min(to ?? double.MaxValue, video.Duration.TotalSeconds); t += everySeconds)
+    {
+        var frame = await video.GetFrameAsync(TimeSpan.FromSeconds(t));
+        var raw = await reader.ReadAsync(frame);
+        var state = tracker.Track(raw);
+        if (!prepared && state.PanelVisible)
+        {
+            await identifier.PrepareAsync(state);
+            prepared = true;
+        }
+        state = await identifier.IdentifyAsync(state);
+        state = state with { SkillRings = SkillRing.Read(frame, state) };
+        var now = TimeSpan.FromSeconds(t);
+        var views = timers.Update(state, now);
+        string squad = string.Join("/", state.Slots.Select(s => s.Operator?.Operator.Id ?? "-"));
+        string skills = string.Join(" ", state.SkillRings.Select(r => $"{r.OperatorId}:{r.Icon}:{F(r.LeftShare)}"));
+        string buttons = string.Join(" ", state.Slots.Where(s => s.Operator?.Operator.Id == "Si").Select(s => $"slot{s.Number}:{s.BattleSkill}"));
+        string shown = string.Join(" ", views.Select(v => $"{v.Key}:{(v.Value.Estimated ? "~" : "")}{v.Value.SecondsLeft:F1}"));
+        string ultShown = "";
+        Console.WriteLine($"{F(t)},{raw.PanelVisible},{state.Layout},{state.ActiveSlot},{squad},{F(raw.UltimateTimeLeft)},{F(state.UltimateTimeLeft)},{ultShown},{skills},{buttons},{shown}");
     }
     return 0;
 }
