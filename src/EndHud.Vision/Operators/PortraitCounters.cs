@@ -27,6 +27,9 @@ internal readonly struct CounterPlace
         Size = size;
     }
 
+    /// <summary>On a squad portrait rather than beside the HP bar.</summary>
+    public bool OnPortrait => _atPortrait;
+
     /// <summary>How much smaller than beside the HP bar the drawing is (1 there).</summary>
     public double Size { get; }
 
@@ -88,6 +91,87 @@ public static class PortraitCounters
             }
         }
         return readings;
+    }
+
+    /// <summary>
+    /// Whether the drawing's dark outline shows where it should: each pair is a point on the outline
+    /// and a point of the drawing beside it (4K, beside the HP bar), and the outline must be clearly
+    /// the darker of the two. Beside the HP bar the drawing sits on the HUD's own dark backing; on a
+    /// portrait it sits on art and scenery of any colour, and on portraits with no counter grey hair
+    /// read as Typhoeus's empty bars and Zhuang Fangyi's empty cells. True for a counter without
+    /// pairs: Si's badge has its own checks, and Laevatain's flower has no outline that tells it
+    /// from a portrait (see <see cref="OutlinePairs"/>).
+    /// </summary>
+    internal static bool OutlineShows(Frame frame, CounterDefinition counter, CounterPlace place) =>
+        OutlineContrasts(frame, counter, place) is not { } contrasts
+        || contrasts.Count(c => c >= OutlineContrast) >= contrasts.Length * OutlineShare;
+
+    /// <summary>Per pair, how much darker the outline point is; null for a counter without pairs.</summary>
+    internal static double[]? OutlineContrasts(Frame frame, CounterDefinition counter, CounterPlace place) =>
+        OutlinePairs.TryGetValue(counter.Id, out var pairs)
+            ? [.. pairs.Select(p => Brightness(frame, place, p.Light, darkest: false) - Brightness(frame, place, p.Dark, darkest: true))]
+            : null;
+
+    /// <summary>The brightest channel around a point (3 x 3 pixels): the darkest of them, or their mean.</summary>
+    private static double Brightness(Frame frame, CounterPlace place, (double X, double Y) at, bool darkest)
+    {
+        var p = place.Map(new PixelRect((int)Math.Floor(at.X), (int)Math.Floor(at.Y), 1, 1));
+        double sum = 0, min = 255;
+        int n = 0;
+        for (int y = p.Y - 1; y <= p.Y + 1; y++)
+        for (int x = p.X - 1; x <= p.X + 1; x++)
+        {
+            if ((uint)x >= (uint)frame.Width || (uint)y >= (uint)frame.Height) continue;
+            var (r, g, b) = frame.GetPixel(x, y);
+            int v = Math.Max(r, Math.Max(g, b));
+            sum += v;
+            min = Math.Min(min, v);
+            n++;
+        }
+        return n == 0 ? 0 : darkest ? min : sum / n;
+    }
+
+    // Measured on the fixtures (Fixtures/portrait-counters), every portrait of an operator who isn't
+    // controlled: with the outline at least 25 darker, the drawn icons had all their pairs (100 %;
+    // Typhoeus's two arrow-fill flashes 23-25 %, which then read as unknown), the portraits without a
+    // counter at most 58 % (Typhoeus's pairs) and 50 % (Zhuang Fangyi's).
+    internal const double OutlineContrast = 25;
+    internal const double OutlineShare = 0.8;
+
+    // Laevatain's flower has none: the outline round its petals' tips was clear on 67-92 % of the
+    // pairs on drawn flowers and on up to 83 % on portraits without one, at every radius (32-38) and
+    // contrast (10-25) tried; its seam between the lower petals did no better. It is read only on
+    // Laevatain's own portrait, where the flower was drawn in every in-combat frame recorded.
+    private static readonly Dictionary<string, ((double X, double Y) Dark, (double X, double Y) Light)[]> OutlinePairs = BuildOutlinePairs();
+
+    private static Dictionary<string, ((double X, double Y) Dark, (double X, double Y) Light)[]> BuildOutlinePairs()
+    {
+        // Typhoeus's icon: the dark line above and below each bar (bars 14 apart), against the bar.
+        var bars = new List<((double, double), (double, double))>();
+        foreach (int y in new[] { 1959, 1973, 1987, 2001 })
+        for (int x = 1516; x <= 1536; x += 4)
+        {
+            bars.Add(((x, y - 7), (x, y)));
+            bars.Add(((x, y + 7), (x, y)));
+        }
+        // Zhuang Fangyi's grid: the dark lattice between neighbouring cells, against each of them.
+        (int X, int Y)[] cells = [(1523, 1948), (1510, 1961), (1536, 1961), (1496, 1974), (1523, 1974), (1548, 1973), (1510, 1987), (1535, 1987), (1523, 2000)];
+        var grid = new List<((double, double), (double, double))>();
+        for (int i = 0; i < cells.Length; i++)
+        for (int j = i + 1; j < cells.Length; j++)
+        {
+            var (a, b) = (cells[i], cells[j]);
+            if (Math.Abs(a.X - b.X) > 14 || Math.Abs(a.Y - b.Y) > 14) continue;
+            var middle = ((a.X + b.X) / 2.0, (a.Y + b.Y) / 2.0);
+            grid.Add((middle, (a.X, a.Y)));
+            grid.Add((middle, (b.X, b.Y)));
+        }
+        return new()
+        {
+            [OperatorCounters.HuntingArrow.Id] = [.. bars],
+            [OperatorCounters.Sign.Id] = [.. bars],
+            [OperatorCounters.Sunderblade.Id] = [.. grid],
+        };
     }
 
     /// <summary>

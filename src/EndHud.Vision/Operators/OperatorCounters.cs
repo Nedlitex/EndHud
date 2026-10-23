@@ -48,6 +48,9 @@ public static class OperatorCounters
         return state.Slots[slot - 1].Operator?.Operator.Id is { } id ? Read(frame, id) : [];
     }
 
+    /// <summary>The squad's counters this reading. RED stub: the controlled operator's only, as before.</summary>
+    public static IReadOnlyList<CounterReading> ReadSquad(Frame frame, PartyState state) => ReadControlled(frame, state);
+
     /// <summary>Read the counters of <paramref name="operatorId"/>, which must be the controlled operator.</summary>
     public static IReadOnlyList<CounterReading> Read(Frame frame, string operatorId)
     {
