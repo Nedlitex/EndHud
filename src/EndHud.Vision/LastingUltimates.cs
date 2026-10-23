@@ -46,9 +46,11 @@ public sealed class LastingUltimates
 
     /// <summary>
     /// Each known lasting ultimate's bar colour, as a hue (degrees), measured on the owner's
-    /// recordings (Fixtures/lasting-ultimate-background and ultimate-time, at 4K and on ten simulated
-    /// 16:9-class screens): Laevatain red 4–8, Zhuang Fangyi gold 48–51 (a dimmed gold bar, #AE941E,
-    /// is still 49–50). The unnamed slot-3 operator's teal bar is 171: no one's here.
+    /// recordings: on the fixtures (Fixtures/lasting-ultimate-background and ultimate-time, at 4K and
+    /// on ten simulated 16:9-class screens) Laevatain red 4–8, Zhuang Fangyi gold 48–51 (a dimmed
+    /// gold bar, #AE941E, is still 49–50); every 0.25 s of the two Zhuang recordings, red 3–8 (15
+    /// readings), gold 47–51 (134). The unnamed slot-3 operator's teal bar is 171–176 (9): no one's
+    /// here. Within <see cref="SameHueWithin"/> that leaves 12 degrees of room on either known one.
     /// </summary>
     public static readonly IReadOnlyDictionary<string, double> BarHues = new Dictionary<string, double>
     {
