@@ -92,15 +92,23 @@ public static class PortraitCounters
 
     /// <summary>
     /// Each counter on slot 1's portrait, keyboard and mouse: where the anchor beside the HP bar
-    /// lands (4K, bottom-left anchored) and how big the drawing is there. WIP: first estimates,
-    /// to be fitted on the owner's recordings.
+    /// lands (4K, bottom-left anchored) and how big the drawing is there; other slots are the same
+    /// distance from their own portrait. Measured on the owner's four recordings at 4K (Si in slots
+    /// 1 and 3, Laevatain in 2, Typhoeus and Zhuang Fangyi in 1): the drawing is about 0.7 the size
+    /// (Si's badge 36 × 38 px against 53 × 52 beside the HP bar). Each value is the middle of the
+    /// placements under which every labelled frame reads right (a sweep over x, y and size); the
+    /// room either side is in the comment.
     /// </summary>
     internal static readonly Dictionary<string, (double X, double Y, double Size)> Placements = new()
     {
-        [OperatorCounters.SiStacks.Id] = (97.5, 1941.5, 0.7),
-        [OperatorCounters.MeltingFlame.Id] = (97.5, 1941.5, 0.7),
-        [OperatorCounters.HuntingArrow.Id] = (97.5, 1941.5, 0.7),
-        [OperatorCounters.Sign.Id] = (97.5, 1941.5, 0.7),
-        [OperatorCounters.Sunderblade.Id] = (97.5, 1941.5, 0.7),
+        // x 94.5-100.5, y 1940.5-1943.5 at this size; sizes 0.64-0.68.
+        [OperatorCounters.SiStacks.Id] = (97.5, 1942, 0.68),
+        // x 96.5-100.5, y 1940.5-1942.5; sizes 0.66-0.94 at this point.
+        [OperatorCounters.MeltingFlame.Id] = (98.5, 1941.5, 0.74),
+        // Typhoeus's arrows: x 85.5-103.5, y 1940.5-1945.5; his dots: x 94.5-99.5, y 1940.5-1944.5.
+        [OperatorCounters.HuntingArrow.Id] = (97, 1942.5, 0.7),
+        [OperatorCounters.Sign.Id] = (97, 1942.5, 0.7),
+        // x 95.5-99.5, y 1940.5-1943.5; sizes 0.68-0.72.
+        [OperatorCounters.Sunderblade.Id] = (97.5, 1942, 0.7),
     };
 }
