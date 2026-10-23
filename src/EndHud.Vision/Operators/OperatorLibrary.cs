@@ -181,8 +181,34 @@ public sealed class OperatorLibrary
     /// <summary>The operator's avatar from the roster (the wiki icon), or null if it has none.</summary>
     public Frame? FindAvatar(string id) => Icons.GetValueOrDefault(id);
 
-    /// <summary>Decode one of an operator's skill icons.</summary>
-    public Task<Frame> LoadSkillIconAsync(SkillIcon icon) => ImageFile.LoadAsync(_reference.Read(icon.File));
+    /// <summary>Decode one of an operator's skill icons, its drawing centred (see <see cref="CentredIcon"/>).</summary>
+    public async Task<Frame> LoadSkillIconAsync(SkillIcon icon) => CentredIcon(await ImageFile.LoadAsync(_reference.Read(icon.File)));
+
+    /// <summary>
+    /// <paramref name="icon"/> on a square canvas with its drawing (the pixels that aren't
+    /// transparent) in the middle, at the same size. Some wiki icons aren't centred in their file:
+    /// Gilberta's combo is 8 % of its width left of centre, Ember's battle skill 9 % low, Chen's and
+    /// Xaihi's combos 7–8 % low, so they sat off-centre in their circles.
+    /// </summary>
+    internal static Frame CentredIcon(Frame icon)
+    {
+        const byte Opaque = 40;
+        int left = icon.Width, top = icon.Height, right = -1, bottom = -1;
+        for (int y = 0; y < icon.Height; y++)
+        for (int x = 0; x < icon.Width; x++)
+        {
+            if (icon.GetAlpha(x, y) <= Opaque) continue;
+            left = Math.Min(left, x); right = Math.Max(right, x);
+            top = Math.Min(top, y); bottom = Math.Max(bottom, y);
+        }
+        if (right < 0) return icon;
+        int size = Math.Max(icon.Width, icon.Height), w = right - left + 1, h = bottom - top + 1;
+        int dx = (size - w) / 2 - left, dy = (size - h) / 2 - top;
+        var bgra = new byte[size * size * 4];
+        for (int y = top; y <= bottom; y++)
+            Buffer.BlockCopy(icon.Bgra, (y * icon.Width + left) * 4, bgra, ((y + dy) * size + left + dx) * 4, w * 4);
+        return new Frame(size, size, bgra);
+    }
 
     /// <summary>Snapshot of all learned portraits.</summary>
     internal List<(OperatorInfo Operator, Frame Portrait)> LearnedPortraits()

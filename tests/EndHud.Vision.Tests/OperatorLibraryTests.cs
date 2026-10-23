@@ -69,6 +69,30 @@ public sealed class OperatorLibraryTests : IDisposable
             Assert.InRange((await library.LoadSkillIconAsync(icon)).Width, 60, 160);
     }
 
+    /// <summary>
+    /// Every skill icon comes out square with its drawing in the middle (within a pixel), so it sits
+    /// centred in its circle: some wiki files aren't (Gilberta's combo was 8 % left of centre, seen in
+    /// the rotation editor's preview).
+    /// </summary>
+    [Fact]
+    public async Task Every_skill_icon_is_drawn_centred()
+    {
+        var library = await OperatorCache.LoadAsync(_userFolder);
+        var off = new List<string>();
+        foreach (var icon in library.Operators.SelectMany(o => o.Skills))
+        {
+            var frame = await library.LoadSkillIconAsync(icon);
+            int left = frame.Width, top = frame.Height, right = -1, bottom = -1;
+            for (int y = 0; y < frame.Height; y++)
+            for (int x = 0; x < frame.Width; x++)
+                if (frame.GetAlpha(x, y) > 40) { left = Math.Min(left, x); right = Math.Max(right, x); top = Math.Min(top, y); bottom = Math.Max(bottom, y); }
+            double cx = (left + right + 1) / 2.0 - frame.Width / 2.0, cy = (top + bottom + 1) / 2.0 - frame.Height / 2.0;
+            if (frame.Width != frame.Height || Math.Abs(cx) > 1 || Math.Abs(cy) > 1)
+                off.Add($"{icon.File}: {frame.Width}x{frame.Height}, centre off by ({cx:F1}, {cy:F1})");
+        }
+        Assert.True(off.Count == 0, string.Join("; ", off));
+    }
+
     [Fact]
     public async Task Once_taught_the_squad_is_recognised_in_a_frame_it_never_saw()
     {
