@@ -167,15 +167,21 @@ readings, and carries on the ones running off the bar:
 
 - **By its colour** (`LastingUltimates.OwnerByColour`): the bar is in its operator's colour, read
   as a hue. Laevatain red (hue 3–8), Zhuang Fangyi gold (47–51; a dimmed gold bar is still 49–50),
-  measured every 0.25 s over the two Zhuang recordings and on the fixtures at 4K and ten simulated
-  16:9-class screens; a bar within 15 degrees of one of them is hers, if she's in the squad. A
-  bar of another colour is shown for no one: a teal one (171–176) ran for a pink-haired operator
-  in slot 3 of one recording who isn't named there, and no other lasting ultimate has been
-  measured.
+  Yvonne teal (171–176; named by the owner), measured every 0.25 s over the two Zhuang recordings
+  and on the fixtures at 4K and ten simulated 16:9-class screens; a bar within 15 degrees of one of
+  them is hers, if she's in the squad (12 degrees of room or more on each; red and gold, the
+  nearest two, are 44 apart). A bar of another colour, or of an operator not in the squad, is
+  shown for no one: no other lasting ultimate has been measured.
+- **Yvonne's**, on test_zhuang_laevatine_background1.mp4: her ultimate's cutscene 39.25–41 s, her
+  bar full at 41.25 s and 0.57 at 44.25 s, about 0.14 a second (0.15 while she was switched out
+  between, as while controlled), so about 7 s in all, over by about 48 s; at 56 s, with her
+  controlled again, the bar is Zhuang's. Her bar is on screen only while she's controlled, so it
+  hasn't been seen under another operator; it drained on while she was switched out, and is
+  carried on then like the others.
 - **When its colour isn't read** (a reading without it): by inference, the controlled operator's
   if hers runs or she just spent hers, else the running one nearest to where it would be by now,
   else the one just spent. This picked wrong on the recording (a teal bar given to Laevatain at
-  41.25 s) before the colour was read.
+  41.25 s, Yvonne's) before the colour was read.
 - **Carried on:** a running one off the bar (another's shown, or the bar hidden a moment) goes on
   at the rate it drained, shown "≈"; its time stands still while the panel is out of sight (the
   game pauses it in a cutscene). No bar for 2 s with the panel in sight ends them all.
@@ -468,7 +474,7 @@ release.yml).
 | `RotationEnabled` | `true` | Show the rotation strip when the recognised squad has a rotation. |
 | `RotationCenterX`, `RotationY` | `0.5`, `0.13` | Where the strip sits, as a fraction of the game window: the middle of its width (it stays centred as it changes width) and its top. |
 | `RotationScale` | `1` | The strip's size on top of following the game window, 0.5–2 (the menu's 大小 slider; a value outside is brought back into range). |
-| `GaugesEnabled` | `true` | Show the gauges in battle: team buffs (Link with its stacks, once seen in the battle), and each recognised operator's ultimate charge and own counters, as circles with the operator's avatar in the middle. While a lasting ultimate runs (Laevatain's, Zhuang Fangyi's), its own operator's ultimate circle shows its time left instead, whoever is controlled: violet, glowing, draining anticlockwise, labelled 持续中 ("≈持续中" while it's carried on off the bar); see [Lasting ultimates](#lasting-ultimates). Counters are live for the whole squad in combat with keyboard and mouse (the switched-out operators' are read on their portraits). With Si in the squad: her damage stacks as a plain number, and while her battle skill lasts its time left (grey-white, "≈" when estimated); see [Gauges for Si](#gauges-for-si). |
+| `GaugesEnabled` | `true` | Show the gauges in battle: team buffs (Link with its stacks, once seen in the battle), and each recognised operator's ultimate charge and own counters, as circles with the operator's avatar in the middle. While a lasting ultimate runs (Laevatain's, Zhuang Fangyi's, Yvonne's), its own operator's ultimate circle shows its time left instead, whoever is controlled: violet, glowing, draining anticlockwise, labelled 持续中 ("≈持续中" while it's carried on off the bar); see [Lasting ultimates](#lasting-ultimates). Counters are live for the whole squad in combat with keyboard and mouse (the switched-out operators' are read on their portraits). With Si in the squad: her damage stacks as a plain number, and while her battle skill lasts its time left (grey-white, "≈" when estimated); see [Gauges for Si](#gauges-for-si). |
 | `GaugesScale` | `1` | The gauges' size on top of following the game window (the menu's slider): 0.5–2; a value outside that is clamped when the file is read. |
 | `GaugesCenterX`, `GaugesBottomY` | `0.5`, `0.885` | Where the gauges sit, as a fraction of the game window: the middle of their width and their bottom edge (so a bigger size grows upwards): bottom middle, just above the game's HP and skill-point bars. |
 | `ActiveRotations` | `{}` | The rotation chosen for each squad: squad key (the four operator ids, sorted, joined by `\|`) → rotation id. Set by saving in the editor. |
@@ -1599,7 +1605,7 @@ like everything else.
 | Reading | Where | How |
 |---|---|---|
 | Skill points ([`SkillPointBar`](src/EndHud.Vision/SkillPointBar.cs)) | the segmented bar above the battle skill buttons, bottom centre | yellow segments are full; the white fill of the next one gives the fraction (e.g. 1.4) |
-| Lasting ultimate ([`UltimateTimeBar`](src/EndHud.Vision/UltimateTimeBar.cs)) | the thin line right above the skill points, while a lasting ultimate runs (Laevatain's, Zhuang Fangyi's): the controlled operator's own if she has one running, else one running in the background | one colour from the left over a grey track; its length is the time left, its colour (`PartyState.UltimateTimeColour`, the mean of the fill's columns) whose it is (see [Lasting ultimates](#lasting-ultimates)). Taken as the bar only with that shape and a line's edges (bright sky there read as a full bar before). Kept, with its colour, through gaps of up to 4 s (PartyTracker). |
+| Lasting ultimate ([`UltimateTimeBar`](src/EndHud.Vision/UltimateTimeBar.cs)) | the thin line right above the skill points, while a lasting ultimate runs (Laevatain's, Zhuang Fangyi's, Yvonne's): the controlled operator's own if she has one running, else one running in the background | one colour from the left over a grey track; its length is the time left, its colour (`PartyState.UltimateTimeColour`, the mean of the fill's columns) whose it is (see [Lasting ultimates](#lasting-ultimates)). Taken as the bar only with that shape and a line's edges (bright sky there read as a full bar before). Kept, with its colour, through gaps of up to 4 s (PartyTracker). |
 | Controlled operator ([`ActiveSlot`](src/EndHud.Vision/ActiveSlot.cs)) | the chevron over the controlled operator's portrait | shape match against the chevron |
 | Battle skill ([`BattleSkillButton`](src/EndHud.Vision/BattleSkillButton.cs)) | each battle skill button, bottom right | a dark disc with white digits is cooling; the white icon is available |
 | Operator counters ([`OperatorCounters`](src/EndHud.Vision/Operators/OperatorCounters.cs)) | the controlled operator's resource, bottom centre; in combat with keyboard and mouse, each other operator's on the lower left of their squad portrait, about 0.7 the size ([`PortraitCounters`](src/EndHud.Vision/Operators/PortraitCounters.cs), see [Counters on the portraits](#counters-on-the-portraits)) | the same readers in both places. Laevatain's 熔火 (0–4): lit petals of the flower; pink petals mean full. Typhoeus's 猎矢 (`hunting-arrow`, 0–4): bars lit cyan (with a white streak over them when full); and 启示 (`sign`, 0–8): dots lit white, filling from the bottom row. Unknown when a bar or dot is neither lit nor grey, or the lit ones aren't in their fill order (the HUD moving). Zhuang Fangyi's 青霆剑 (`sunderblade`, 0–9): cells of a diamond grid lit cyan. Si's 伤害层数 (`damage-stacks`, no maximum): the badge left of the HP bar where Laevatain's flower is; 0 is a hollow green four-lobed flower with no number, from 1 a green cross with a white number on it, read digit by digit against the game's digit shapes ([`BadgeNumber`](src/EndHud.Vision/BadgeNumber.cs); Windows OCR reads nothing from one or two lone digits). Any number of digits; only 1–2 measured (up to 45 seen) |
@@ -1846,9 +1852,9 @@ exception: hosted runners can't capture windows, so they only run on a developer
   [`Fixtures/lasting-ultimate-background`](tests/data/Fixtures/lasting-ultimate-background)):
   the time bar's share and its absence over scenery, at 4K and on simulated 16:9-class screens;
   whose it is, on frames from two recordings where it isn't the controlled operator's (Zhuang
-  Fangyi's under Perlica's HP; Zhuang's, Laevatain's and an unnamed operator's teal one with the
-  player switching between the three): each bar given to its colour's operator, the teal one to
-  no one, and the recordings' readings replayed across the switches. "Ultimate active" in
+  Fangyi's under Perlica's HP; Zhuang's, Laevatain's and Yvonne's teal one with the player
+  switching between the three): each bar given to its colour's operator, a bar whose operator
+  isn't in the squad to no one, and the recordings' readings replayed across the switches. "Ultimate active" in
   rotations and alerts holds for Zhuang's while Perlica is controlled.
 - **Counters on the portraits** ([`Fixtures/portrait-counters`](tests/data/Fixtures/portrait-counters)):
   42 frames from the owner's four recordings, each switched-out operator's counter read right or
@@ -2076,10 +2082,10 @@ Copy `src/EndHud/i18n/zh-CN.xaml` to, for example, `en-US.xaml`, translate the v
   dimmed. Laevatain's flower has no outline to tell it from a portrait's art, so it's read only
   on her own portrait, where it has always been drawn in combat. A battle skill's cooldown is read
   as available or cooling, not its seconds.
-- Lasting ultimates: the time bar's owner is told by its colour for Laevatain (red) and Zhuang
-  Fangyi (gold) only; a bar of another colour (a teal one was seen on an operator not named in
-  the recording) is shown for no one, and "ultimate active" for an operator not known to have one
-  is unknown while a bar shows.
+- Lasting ultimates: the time bar's owner is told by its colour for Laevatain (red), Zhuang
+  Fangyi (gold) and Yvonne (teal) only; a bar of another colour is shown for no one, and
+  "ultimate active" for an operator not known to have one is unknown while a bar shows. Yvonne's
+  is measured on one recording, and her bar only while she was controlled.
 - Enemy counts: the infliction ring's stacks (1–4), Vulnerable's stacks (1–4, drawn in the same
   ring) and the levels of Corrosion and Electrification (I–IV) are read. The levels of Combustion,
   Solidification and any reaction not yet seen with a badge aren't, so the editor offers only
