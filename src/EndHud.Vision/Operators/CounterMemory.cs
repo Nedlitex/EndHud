@@ -1,14 +1,17 @@
 namespace EndHud.Vision.Operators;
 
 /// <param name="Value">The count as last seen; null when it hasn't been seen yet.</param>
-/// <param name="Live">Seen in this reading. False: it's the last value seen, from when the operator was controlled.</param>
+/// <param name="Live">Seen in this reading (beside the HP bar, or on the operator's squad portrait). False: it's
+/// the last value seen, and the count may have changed since.</param>
 public sealed record RememberedCounter(string OperatorId, CounterDefinition Counter, int? Value, bool Live);
 
 /// <summary>
-/// Every squad operator's own counters (<see cref="OperatorCounters"/>) across readings. The game
-/// draws a counter only while its operator is controlled, so after a switch the last value seen is
-/// kept, marked as not live: the count may have changed since. An operator who leaves the squad is
-/// forgotten; <see cref="Clear"/> forgets everyone (the battle ended).
+/// Every squad operator's own counters (<see cref="OperatorCounters"/>) across readings. In combat
+/// the game draws each counter beside the HP bar for the controlled operator and on the squad
+/// portrait for the others (<see cref="OperatorCounters.ReadSquad"/>), so a switched-out operator's
+/// counter stays live. When a reading can't tell it (an effect over it, the controller layout, a
+/// portrait reader not measured yet), the last value seen is kept, marked as not live. An operator
+/// who leaves the squad is forgotten; <see cref="Clear"/> forgets everyone (the battle ended).
 /// </summary>
 public sealed class CounterMemory
 {

@@ -882,10 +882,11 @@ internal sealed class PartyMonitor : IDisposable
                             names = now;
                             DiagnosticLog.Info($"squad: {now}");
                         }
-                        // The controlled operator's own counter (e.g. Melting Flame): drawn differently per
-                        // operator, so read once we know who it is.
+                        // The squad's own counters (e.g. Melting Flame): drawn differently per operator, so
+                        // read once we know who it is; the controlled operator's beside the HP bar, the
+                        // others' on their squad portraits, so a switched-out operator's stays live.
                         Enter("counters");
-                        state = state with { Counters = OperatorCounters.ReadControlled(gameFrame, state) };
+                        state = state with { Counters = OperatorCounters.ReadSquad(gameFrame, state) };
                         // Battle skills that change their button while they last (Si's): which icon,
                         // and how much of the ring is left, for the gauge row's timer.
                         Enter("skill rings");

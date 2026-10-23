@@ -4,8 +4,9 @@ using Xunit;
 namespace EndHud.Vision.Tests;
 
 /// <summary>
-/// The counters the gauges show (<see cref="CounterMemory"/>): the game draws a counter only while
-/// its operator is controlled, so the last value seen is kept, marked as not live.
+/// The counters the gauges show (<see cref="CounterMemory"/>): a counter not read this time (an
+/// effect over it, a layout whose portraits aren't read) keeps the last value seen, marked as not
+/// live. Read on a portrait, it's live (<see cref="PortraitCounterTests"/>).
 /// </summary>
 public class CounterMemoryTests
 {
