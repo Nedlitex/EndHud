@@ -792,6 +792,13 @@ internal sealed class PartyMonitor : IDisposable
                         // Death first, so a fallen operator's death mark is never matched as a portrait.
                         gameFrame = frame.Crop(client);
                     }
+                    // A screen that isn't 16:9: the game's picture between black bars (Letterbox).
+                    var content = Letterbox.Content(gameFrame);
+                    if (content.Width != gameFrame.Width || content.Height != gameFrame.Height)
+                    {
+                        DiagnosticLog.Throttled("letterbox", RepeatLogEvery, $"black bars cut off: game area {gameFrame.Width}x{gameFrame.Height}, picture {content}", "INFO");
+                        gameFrame = gameFrame.Crop(content);
+                    }
                     LatestFrame = gameFrame;
                     var frameAt = InnClock.Now;
                     FrameRead(frameAt);

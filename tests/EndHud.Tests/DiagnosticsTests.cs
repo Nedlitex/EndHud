@@ -63,6 +63,30 @@ public class DiagnosticsTests : IDisposable
         Assert.EndsWith(message + " (and 4 more like it since the last one)", lines[1]);
     }
 
+    /// <summary>
+    /// A 16:10 screen: the game's 16:9 picture between black bars. The UID is blacked out where it is
+    /// in that picture, 80 px above the frame's bottom bar (a 0.6.4 export showed a player's UID).
+    /// </summary>
+    [Fact]
+    public void Between_black_bars_the_uid_in_the_picture_is_blacked_out()
+    {
+        var bgra = new byte[2560 * 1600 * 4];
+        for (int y = 0; y < 1600; y++)
+        for (int x = 0; x < 2560; x++)
+        {
+            int i = (y * 2560 + x) * 4;
+            byte v = y is >= 80 and < 1520 ? (byte)255 : (byte)0;
+            bgra[i] = bgra[i + 1] = bgra[i + 2] = v;
+            bgra[i + 3] = 255;
+        }
+
+        var masked = DiagnosticExport.WithoutUid(new Frame(2560, 1600, bgra));
+
+        var uid = DiagnosticExport.UidArea(2560, 1440);
+        Assert.Equal((byte)0, masked.GetPixel(uid.X + uid.Width / 2, 80 + uid.Y + uid.Height / 2).R);
+        Assert.Equal((byte)255, masked.GetPixel(1280, 800).R);
+    }
+
     [Theory]
     [InlineData(3840, 2160)]
     [InlineData(1600, 900)]

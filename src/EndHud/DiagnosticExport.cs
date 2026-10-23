@@ -222,7 +222,11 @@ internal static class DiagnosticExport
     internal static Frame WithoutUid(Frame picture)
     {
         var bgra = (byte[])picture.Bgra.Clone();
-        var uid = UidArea(picture.Width, picture.Height);
+        // Inside the game's 16:9 picture: on a 16:10 screen with black bars, the UID is 80 px above
+        // where the whole frame would put it (a 0.6.4 export showed a player's UID that way).
+        var content = Letterbox.Content(picture);
+        var inPicture = UidArea(content.Width, content.Height);
+        var uid = new PixelRect(content.X + inPicture.X, content.Y + inPicture.Y, inPicture.Width, inPicture.Height);
         for (int y = uid.Y; y < uid.Bottom; y++)
         for (int x = uid.X; x < uid.Right; x++)
         {
