@@ -71,11 +71,17 @@ public static class PortraitCounters
     /// <summary>
     /// The counters on the portraits of the recognised operators who aren't controlled. None when no
     /// slot is clearly controlled, when the squad panel is remembered rather than seen
-    /// (<see cref="PartyState.ReadingsSinceSeen"/>), or in the controller layouts (not recorded yet).
+    /// (<see cref="PartyState.ReadingsSinceSeen"/>), out of combat, or in the controller layouts
+    /// (not recorded yet). Out of combat the game draws no counter on a portrait: the level text is
+    /// there instead of the combo bars (all four recordings), and as a fight ends the dimmed portrait
+    /// read as Typhoeus's empty bars and dots. The combo bars are the sign of combat here rather than
+    /// <see cref="PartyState.InCombat"/>, which also needs the skill points, unreadable for a moment
+    /// when a segment fills.
     /// </summary>
     public static IReadOnlyList<CounterReading> Read(Frame frame, PartyState state)
     {
-        if (state.ReadingsSinceSeen > 0 || state.ActiveSlot is not { } active || state.Layout != HudLayout.KeyboardMouse) return [];
+        if (state.ReadingsSinceSeen > 0 || !state.Slots.Any(s => s.Combo is not null)
+            || state.ActiveSlot is not { } active || state.Layout != HudLayout.KeyboardMouse) return [];
         var squad = SquadGeometry.For(state.Layout);
         var first = squad.Portrait(0);
         var readings = new List<CounterReading>();
