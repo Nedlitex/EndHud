@@ -12,7 +12,7 @@ public static class InflictionRing
 {
     /// <summary>A 160 px square around the ring at 4K, top-centre anchored; the ring's centre is at (80, 82) in it.</summary>
     internal static readonly PixelRect Area = new(2400, 60, 160, 160);
-    private const double CentreX = 80, CentreY = 82;
+    internal const double CentreX = 80, CentreY = 82;
     private const double DiscRadius = 17;
     private const double ArcInner = 30, ArcOuter = 34;
 
@@ -70,37 +70,44 @@ public static class InflictionRing
     /// For each segment (top, right, bottom, left): the share of its angles where a white arc stands
     /// out of its surroundings, for measuring thresholds.
     /// </summary>
-    internal static double[] SegmentShares(Frame frame)
+    internal static double[] SegmentShares(Frame frame) => [.. Enumerable.Range(0, 4).Select(s => ArcShare(frame, s * 90, SegmentHalfWidth))];
+
+    /// <summary>
+    /// For each gap between the segments (45°, 135°, 225°, 315°): the same share, over ±<see cref="GapHalfWidth"/>°.
+    /// The game draws nothing there, so a lit gap is an effect over the ring (a circle sweeping through it).
+    /// </summary>
+    internal static double[] GapShares(Frame frame) => [.. Enumerable.Range(0, 4).Select(s => ArcShare(frame, 45 + s * 90, GapHalfWidth))];
+
+    /// <summary>The gaps between arcs are 35°-55° wide: ±8° around their middle stays clear of the arcs' ends.</summary>
+    internal const int GapHalfWidth = 8;
+
+    /// <summary>The share of the angles within ±<paramref name="halfWidth"/>° of <paramref name="centre"/> (0° = top, clockwise) where a white arc stands out of its surroundings.</summary>
+    private static double ArcShare(Frame frame, double centre, int halfWidth)
     {
         var ui = new UiScaler(frame.Width, frame.Height);
         var area = ui.TopCenter(Area);
         double k = area.Width / (double)Area.Width;
         double cx = area.X + CentreX * k, cy = area.Y + CentreY * k;
-        var shares = new double[4];
-        for (int s = 0; s < 4; s++)
+        int lit = 0, n = 0;
+        for (int a = -halfWidth; a <= halfWidth; a += 4)
         {
-            int lit = 0, n = 0;
-            for (int a = -SegmentHalfWidth; a <= SegmentHalfWidth; a += 4)
+            double rad = (centre + a) * Math.PI / 180;
+            int peak = 0, outline = 255;
+            for (double r = PeakInner; r <= PeakOuter; r += 0.5)
             {
-                double rad = (s * 90 + a) * Math.PI / 180;
-                int peak = 0, outline = 255;
-                for (double r = PeakInner; r <= PeakOuter; r += 0.5)
-                {
-                    var (pr, pg, pb) = Pixel(frame, cx + r * k * Math.Sin(rad), cy - r * k * Math.Cos(rad));
-                    int min = Math.Min(pr, Math.Min(pg, pb)), max = Math.Max(pr, Math.Max(pg, pb));
-                    peak = Math.Max(peak, max - min < 40 ? min : 0);
-                }
-                for (double r = OutlineInner; r <= OutlineOuter; r += 0.5)
-                {
-                    var (pr, pg, pb) = Pixel(frame, cx + r * k * Math.Sin(rad), cy - r * k * Math.Cos(rad));
-                    outline = Math.Min(outline, Math.Min(pr, Math.Min(pg, pb)));
-                }
-                n++;
-                if (peak >= MinArcWhiteness && peak - outline >= MinOutlineContrast) lit++;
+                var (pr, pg, pb) = Pixel(frame, cx + r * k * Math.Sin(rad), cy - r * k * Math.Cos(rad));
+                int min = Math.Min(pr, Math.Min(pg, pb)), max = Math.Max(pr, Math.Max(pg, pb));
+                peak = Math.Max(peak, max - min < 40 ? min : 0);
             }
-            shares[s] = lit / (double)n;
+            for (double r = OutlineInner; r <= OutlineOuter; r += 0.5)
+            {
+                var (pr, pg, pb) = Pixel(frame, cx + r * k * Math.Sin(rad), cy - r * k * Math.Cos(rad));
+                outline = Math.Min(outline, Math.Min(pr, Math.Min(pg, pb)));
+            }
+            n++;
+            if (peak >= MinArcWhiteness && peak - outline >= MinOutlineContrast) lit++;
         }
-        return shares;
+        return lit / (double)n;
     }
 
     /// <summary>What the reading is based on, for measuring thresholds.</summary>
