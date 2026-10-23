@@ -45,7 +45,13 @@ public static class UltimateTimeBar
     /// The share of the ultimate's time left, 0–1, or null when there's no such bar (no ultimate
     /// running, or something covers it). Read it in combat only, where the skill point bar is.
     /// </summary>
-    public static double? Measure(Frame frame, UiScaler ui)
+    public static double? Measure(Frame frame, UiScaler ui) => Read(frame, ui)?.Left;
+
+    /// <summary>
+    /// The bar as read: the share of time left and the fill's colour (whose ultimate it is, see
+    /// <see cref="LastingUltimates.OwnerByColour"/>); null when there's no such bar.
+    /// </summary>
+    public static UltimateTimeBarReading? Read(Frame frame, UiScaler ui)
     {
         var r = ui.BottomCenter(Rect).ClampTo(frame.Width, frame.Height);
         if (r.Width < 20 || r.Height < 1) return null;
@@ -88,13 +94,19 @@ public static class UltimateTimeBar
 
         // One colour: scenery that happens to be bright and saturated isn't.
         var middle = colours[Enumerable.Range(start + filled / 2, end - start - filled / 2).First(x => !bridged[x])];
-        int offColour = 0;
+        int offColour = 0, inColour = 0;
+        (int R, int G, int B) total = (0, 0, 0);
         for (int x = start; x < end; x++)
         {
             if (bridged[x]) continue;
             var c = colours[x];
             if (Math.Abs(c.R - middle.R) > SameColour || Math.Abs(c.G - middle.G) > SameColour || Math.Abs(c.B - middle.B) > SameColour)
                 offColour++;
+            else
+            {
+                inColour++;
+                total = (total.R + c.R, total.G + c.G, total.B + c.B);
+            }
         }
         if (offColour > Math.Max(1, filled * OffColourAllowed)) return null;
 
@@ -119,8 +131,32 @@ public static class UltimateTimeBar
         // The rest is the dark track, to the right end.
         int rest = r.Width - end;
         if (rest > 0 && kinds.Skip(end).Count(k => k != Column.Track) > rest * StrayAllowed) return null;
-        return Math.Clamp(filled / (double)(r.Width - start), 0, 1);
+        var colour = new BarColour(total.R / inColour, total.G / inColour, total.B / inColour);
+        return new UltimateTimeBarReading(Math.Clamp(filled / (double)(r.Width - start), 0, 1), colour);
     }
 
     private enum Column { Other, Fill, Track }
+}
+
+/// <param name="Left">The share of the ultimate's time left, 0–1.</param>
+/// <param name="Colour">The fill's colour: the mean of its columns of the bar's one colour.</param>
+public sealed record UltimateTimeBarReading(double Left, BarColour Colour);
+
+/// <summary>A colour as read on screen, 0–255 a channel.</summary>
+public readonly record struct BarColour(int R, int G, int B)
+{
+    /// <summary>The hue, 0–360 degrees (0 red, 60 yellow, 180 cyan).</summary>
+    public double Hue
+    {
+        get
+        {
+            int max = Math.Max(R, Math.Max(G, B)), min = Math.Min(R, Math.Min(G, B));
+            if (max == min) return 0;
+            double d = max - min;
+            double h = max == R ? (G - B) / d : max == G ? 2 + (B - R) / d : 4 + (R - G) / d;
+            return (h * 60 + 360) % 360;
+        }
+    }
+
+    public override string ToString() => $"#{R:X2}{G:X2}{B:X2} (hue {Hue:F0})";
 }
