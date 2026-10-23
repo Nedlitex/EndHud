@@ -68,9 +68,11 @@ public sealed class BossStatusTests : IDisposable
     {
         var frame = await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("vulnerable", "vulnerable-3-110s.jpg")));
 
-        var ring = Assert.Single((await ReaderAsync()).Read(frame), s => s.Position == BossStatusReading.RingPosition);
+        var statuses = (await ReaderAsync()).Read(frame);
 
-        Assert.Equal(("Vulnerable", 3), (ring.StatusId, ring.Stacks));
+        // Once only: the row's own icons aren't 破防, so a condition finds the ring's reading with its count.
+        var vulnerable = Assert.Single(statuses, s => s.StatusId == "Vulnerable");
+        Assert.Equal((BossStatusReading.RingPosition, 3), (vulnerable.Position, vulnerable.Stacks));
     }
 
     /// <summary>A reaction shown with no badge is named, at level I (the game draws no badge at I).</summary>

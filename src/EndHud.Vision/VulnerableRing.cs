@@ -42,7 +42,6 @@ public static class VulnerableRing
     /// <summary>破防 and its stacks, or null when the ring doesn't show it.</summary>
     public static InflictionRing.Infliction? Read(Frame frame)
     {
-        if (frame is not null) return null; // RED stub
         var (whiteness, _, _, element) = InflictionRing.Measure(frame);
         if (element is not null || whiteness < MinTopArc) return null;
         var (white, slash) = Shield(frame);

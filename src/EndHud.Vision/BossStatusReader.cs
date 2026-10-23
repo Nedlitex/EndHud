@@ -4,9 +4,9 @@ namespace EndHud.Vision;
 
 /// <summary>A status the enemy has, recognised by its icon under the boss's bars.</summary>
 /// <param name="Position">Its place in the row, from 0 (the row reflows as statuses come and go);
-/// <see cref="RingPosition"/> for the elemental infliction (<see cref="InflictionRing"/>).</param>
+/// <see cref="RingPosition"/> for the ring at the end of the HP bar: an elemental infliction (<see cref="InflictionRing"/>) or 破防 (<see cref="VulnerableRing"/>).</param>
 /// <param name="Score">How well the icon matched (normalised correlation, 1 = identical).</param>
-/// <param name="Stacks">Stacks (inflictions, 1–4) or level (reactions, I–IV as 1–4; a reaction with no badge
+/// <param name="Stacks">Stacks (inflictions and 破防, 1–4) or level (reactions, I–IV as 1–4; a reaction with no badge
 /// is I); null when not read (covered, a dark scene that could hide a badge, or a status whose count
 /// EndHud doesn't read yet: see <see cref="BossStatusReader.CountsRead"/>).</param>
 public sealed record BossStatusReading(string StatusId, int Position, double Score, int? Stacks)
@@ -45,7 +45,7 @@ public sealed class BossStatusReader(OperatorLibrary library)
 
     /// <summary>
     /// The statuses recognised in the row (empty when there's no row or none is recognised), then the
-    /// elemental infliction if there is one (<see cref="InflictionRing"/>). Each carries its count where
+    /// ring's elemental infliction or 破防 if there is one (<see cref="InflictionRing"/>, <see cref="VulnerableRing"/>). Each carries its count where
     /// EndHud reads one: the infliction's stacks, a measured reaction's level (<see cref="ReactionLevel"/>).
     /// </summary>
     public IReadOnlyList<BossStatusReading> Read(Frame frame)
@@ -58,14 +58,15 @@ public sealed class BossStatusReader(OperatorLibrary library)
             int? level = ReactionLevel.Measured.Contains(b.Id) ? ReactionLevel.ReadLevel(frame, ui.TopCenter(FirstSquare.Offset(position * Pitch, 0))) : null;
             found.Add(new BossStatusReading(b.Id, position, b.Score, level));
         }
-        if (InflictionRing.ReadWithStacks(frame) is { } infliction)
-            found.Add(new BossStatusReading(infliction.Element, BossStatusReading.RingPosition, 1, infliction.Stacks));
+        // The ring holds an elemental infliction or 破防 (a shield with a slash), each with its stack arcs.
+        if ((InflictionRing.ReadWithStacks(frame) ?? VulnerableRing.Read(frame)) is { } ring)
+            found.Add(new BossStatusReading(ring.Element, BossStatusReading.RingPosition, 1, ring.Stacks));
         return found;
     }
 
     /// <summary>Statuses whose stack count or level EndHud reads (the editor offers a count only for these).</summary>
     public static IReadOnlySet<string> CountsRead { get; } =
-        new HashSet<string>(["Heat Infliction", "Cryo Infliction", "Electric Infliction", "Nature Infliction", .. ReactionLevel.Measured], StringComparer.Ordinal);
+        new HashSet<string>(["Heat Infliction", "Cryo Infliction", "Electric Infliction", "Nature Infliction", VulnerableRing.StatusId, .. ReactionLevel.Measured], StringComparer.Ordinal);
 
     /// <summary>For each position: the accepted status (if any) and the two best scores (for measuring thresholds).</summary>
     internal IEnumerable<(int Position, (string Id, double Score)? Accepted, ((string Id, double Score) First, (string Id, double Score) Second) Top)> Scores(Frame frame)
