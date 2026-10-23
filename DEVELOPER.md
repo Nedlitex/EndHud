@@ -2084,9 +2084,11 @@ Copy `src/EndHud/i18n/zh-CN.xaml` to, for example, `en-US.xaml`, translate the v
   ring) and the levels of Corrosion and Electrification (I–IV) are read. The levels of Combustion,
   Solidification and any reaction not yet seen with a badge aren't, so the editor offers only
   present/absent for them, and a shared rotation or alert asking for level II+ of one treats that
-  check as unknown. Vulnerable is measured on one physical-team recording; no recording shows it
-  together with an elemental infliction, so which one the ring shows when both are on the boss is
-  not known (an infliction found in the ring is read first). Infliction stacks 3–4
+  check as unknown. Vulnerable is measured on one physical-team recording. The owner says the game
+  shows both when the boss has Vulnerable and an elemental infliction at once, but no recording
+  has that yet, so where the second one is drawn isn't measured: while an infliction is in the
+  ring, Vulnerable isn't read (a check on its stacks is then unknown or false). Vulnerable is
+  consumed by skills (owner), which is when its shield goes. Infliction stacks 3–4
   have been seen only for cryo; the infliction fixtures have no electric ring (its colour range
   comes from the wiki's icon). A badgeless reaction
   over a dark or busy scene stays unknown rather than I. A few boss icons aren't on the wiki's
