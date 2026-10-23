@@ -125,7 +125,7 @@ static async Task<int> TraceSkillsAsync(string path, double everySeconds, double
     var identifier = new SquadIdentifier(await OperatorLibrary.LoadAsync(user, reference));
     var timers = new SkillTimers();
     static string F(double? v) => v is { } x ? x.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) : "";
-    Console.WriteLine("t,panel,layout,active,squad,ultBar,ultTracked,lasting,skill,skillButton,timer");
+    Console.WriteLine("t,panel,layout,active,squad,ultimates,ultBar,ultTracked,lasting,skill,skillButton,timer");
     bool prepared = false;
     for (double t = from; t < Math.Min(to ?? double.MaxValue, video.Duration.TotalSeconds); t += everySeconds)
     {
@@ -146,7 +146,8 @@ static async Task<int> TraceSkillsAsync(string path, double everySeconds, double
         string buttons = string.Join(" ", state.Slots.Where(s => s.Operator?.Operator.Id == "Si").Select(s => $"slot{s.Number}:{s.BattleSkill}"));
         string shown = string.Join(" ", views.Select(v => $"{v.Key}:{(v.Value.Estimated ? "~" : "")}{v.Value.SecondsLeft:F1}"));
         string ultShown = "";
-        Console.WriteLine($"{F(t)},{raw.PanelVisible},{state.Layout},{state.ActiveSlot},{squad},{F(raw.UltimateTimeLeft)},{F(state.UltimateTimeLeft)},{ultShown},{skills},{buttons},{shown}");
+        string ultimates = string.Join("/", state.Slots.Select(s => s.Ultimate is { } u ? (u.Ready ? "R" : F(u.Progress)) : "-"));
+        Console.WriteLine($"{F(t)},{raw.PanelVisible},{state.Layout},{state.ActiveSlot},{squad},{ultimates},{F(raw.UltimateTimeLeft)},{F(state.UltimateTimeLeft)},{ultShown},{skills},{buttons},{shown}");
     }
     return 0;
 }
