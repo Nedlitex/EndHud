@@ -82,21 +82,26 @@ public static class PortraitCounters
     {
         if (state.ReadingsSinceSeen > 0 || !state.Slots.Any(s => s.Combo is not null)
             || state.ActiveSlot is not { } active || state.Layout != HudLayout.KeyboardMouse) return [];
-        var squad = SquadGeometry.For(state.Layout);
-        var first = squad.Portrait(0);
         var readings = new List<CounterReading>();
         foreach (var slot in state.Slots)
         {
             if (slot.Number == active || slot.Empty || slot.Dead || slot.Operator?.Operator.Id is not { } id) continue;
-            var portrait = squad.Portrait(slot.Number - 1);
             foreach (var counter in OperatorCounters.For(id))
             {
-                if (!Placements.TryGetValue(counter.Id, out var at)) continue; // not seen on a portrait yet
-                var place = CounterPlace.AtPortrait(frame, at.X + portrait.X - first.X, at.Y + portrait.Y - first.Y, at.Size);
+                if (PlaceOn(frame, state.Layout, slot.Number, counter) is not { } place) continue; // not seen on a portrait yet
                 readings.Add(new CounterReading(id, counter.Id, OperatorCounters.ReadAt(frame, counter, place)));
             }
         }
         return readings;
+    }
+
+    /// <summary>Where <paramref name="counter"/> is drawn on slot <paramref name="slot"/>'s portrait (1-based); null if not measured.</summary>
+    internal static CounterPlace? PlaceOn(Frame frame, HudLayout layout, int slot, CounterDefinition counter)
+    {
+        if (!Placements.TryGetValue(counter.Id, out var at)) return null;
+        var squad = SquadGeometry.For(layout);
+        var (first, portrait) = (squad.Portrait(0), squad.Portrait(slot - 1));
+        return CounterPlace.AtPortrait(frame, at.X + portrait.X - first.X, at.Y + portrait.Y - first.Y, at.Size);
     }
 
     /// <summary>
