@@ -22,6 +22,10 @@ public partial class OverlayWindow
     // last reading showed, for a redraw between readings.
     private readonly SkillTimers _skillTimers = new();
     private IReadOnlyDictionary<string, SkillTimerView> _timerViews = new Dictionary<string, SkillTimerView>();
+    // Lasting ultimates (Laevatain's, Zhuang Fangyi's), by operator id: whose the time bar is, and
+    // the ones running in the background, across readings; and what the last reading showed.
+    private readonly LastingUltimates _lastingUltimates = new();
+    private IReadOnlyDictionary<string, LastingUltimateView> _ultimateViews = new Dictionary<string, LastingUltimateView>();
     private readonly Dictionary<string, BitmapSource?> _statusIcons = [];
     private GaugeBoard? _gauges;
     private string? _gaugeKey;
@@ -41,11 +45,13 @@ public partial class OverlayWindow
             _counterMemory.Clear();
             _buffsSeen.Clear();
             _skillTimers.Clear();
+            _lastingUltimates.Clear();
         }
         if (state is not null && inBattle) _buffsSeen.AddRange(state.Buffs.Select(b => b.Id).Except(_buffsSeen).ToList());
         _timerViews = state is not null && inBattle ? _skillTimers.Update(state, _clock.Elapsed) : new Dictionary<string, SkillTimerView>();
+        _ultimateViews = state is not null && inBattle ? _lastingUltimates.Update(state, _clock.Elapsed) : new Dictionary<string, LastingUltimateView>();
         _gauges = state is not null && inBattle && _config.GaugesEnabled && _config.PartyOcrEnabled
-            ? GaugesView.Build(state, _counterMemory.Update(state), _buffsSeen, _timerViews, SkillIcon, Avatar, StatusIcon)
+            ? GaugesView.Build(state, _counterMemory.Update(state), _buffsSeen, _timerViews, _ultimateViews, SkillIcon, Avatar, StatusIcon)
             : null;
         RenderGauges();
     }
@@ -68,7 +74,7 @@ public partial class OverlayWindow
     {
         if (_lastState is { } state && _gauges is not null)
         {
-            _gauges = GaugesView.Build(state, _counterMemory.Update(state), _buffsSeen, _timerViews, SkillIcon, Avatar, StatusIcon);
+            _gauges = GaugesView.Build(state, _counterMemory.Update(state), _buffsSeen, _timerViews, _ultimateViews, SkillIcon, Avatar, StatusIcon);
             RenderGauges();
         }
     }

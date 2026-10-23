@@ -23,9 +23,11 @@ public class GaugesTests
 
     private static RememberedCounter Counter(string id, CounterDefinition counter, int? value, bool live = true) => new(id, counter, value, live);
 
+    /// <param name="ultimates">Lasting ultimates; by default as <see cref="LastingUltimates"/> gives them from this reading alone.</param>
     private static GaugeBoard Build(PartyState state, IReadOnlyList<RememberedCounter>? counters = null, IReadOnlyList<string>? buffsSeen = null,
-        IReadOnlyDictionary<string, SkillTimerView>? timers = null) =>
-        GaugesView.Build(state, counters ?? [], buffsSeen ?? [], timers ?? new Dictionary<string, SkillTimerView>(), (_, _) => null, _ => null, _ => null);
+        IReadOnlyDictionary<string, SkillTimerView>? timers = null, IReadOnlyDictionary<string, LastingUltimateView>? ultimates = null) =>
+        GaugesView.Build(state, counters ?? [], buffsSeen ?? [], timers ?? new Dictionary<string, SkillTimerView>(),
+            ultimates ?? new LastingUltimates().Update(state, TimeSpan.Zero), (_, _) => null, _ => null, _ => null);
 
     private static PartyState SiSquad() => new([Slot(1, "Si", new UltimateReading(false, 0.3)), Slot(2, "Arcane")], PanelMarks: 8);
 
@@ -234,11 +236,11 @@ public class GaugesTests
     private static bool Violet(byte r, byte g, byte b) => r > 190 && g is > 90 and < 160 && b > 230;
 
     /// <summary>
-    /// A lasting ultimate running (Laevatain's, Zhuang Fangyi's): the controlled operator's gauge shows
-    /// its time left instead of the charge, labelled 持续中; the others keep their charge.
+    /// A lasting ultimate running (Laevatain's, Zhuang Fangyi's): its operator's gauge shows its
+    /// time left instead of the charge, labelled 持续中; the others keep their charge.
     /// </summary>
     [Fact]
-    public void A_running_ultimate_shows_its_time_left_on_the_controlled_operators_gauge()
+    public void A_running_ultimate_shows_its_time_left_on_its_operators_gauge()
     {
         var state = new PartyState([Slot(1, "Laevatain", new UltimateReading(false, 0)), Slot(2, "Arcane", new UltimateReading(false, 0.4))], PanelMarks: 8)
         {
@@ -272,6 +274,26 @@ public class GaugesTests
         var perlica = gauges.Single(g => g.Kind == GaugeKind.Ultimate && !ReferenceEquals(g, zhuang));
         Assert.Equal((true, 0.86, Loc.Get("Gauge.UltimateRunning")), (zhuang.Running, zhuang.Fill, zhuang.Label));
         Assert.Equal((false, 1.0, true, Loc.Get("Gauge.Ultimate")), (perlica.Running, perlica.Fill, perlica.Ready, perlica.Label));
+    }
+
+    /// <summary>Two running: the one on the bar as read, the other carried on and marked "≈", each on its own operator.</summary>
+    [Fact]
+    public void A_lasting_ultimate_carried_on_off_the_bar_is_marked_as_an_estimate()
+    {
+        var state = new PartyState([Slot(1, "Zhuang_Fangyi", new UltimateReading(false, 0)), Slot(2, "Laevatain", new UltimateReading(false, 0))], PanelMarks: 8)
+        {
+            ActiveSlot = 2,
+            UltimateTimeLeft = 0.5,
+        };
+        var ultimates = new Dictionary<string, LastingUltimateView>
+        {
+            ["Zhuang_Fangyi"] = new("Zhuang_Fangyi", 0.4, Estimated: true),
+            ["Laevatain"] = new("Laevatain", 0.5, Estimated: false),
+        };
+
+        var running = Build(state, ultimates: ultimates).Gauges.Where(g => g.Running).ToList();
+
+        Assert.Equal([("≈" + Loc.Get("Gauge.UltimateRunning"), 0.4), (Loc.Get("Gauge.UltimateRunning"), 0.5)], running.Select(g => (g.Label, g.Fill ?? -1)));
     }
 
     /// <summary>Drawn violet and glowing, not gold, and draining: less time left, less ring.</summary>

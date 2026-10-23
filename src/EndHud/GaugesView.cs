@@ -18,16 +18,19 @@ internal static class GaugesView
 {
     /// <summary>
     /// For a replay of readings that has no battle-skill buttons in it (the README's demo): no
-    /// skill timers, because none can be known.
+    /// skill timers, because none can be known; a lasting ultimate given from this reading alone.
     /// </summary>
     public static GaugeBoard Build(PartyState state, IReadOnlyList<RememberedCounter> counters, IReadOnlyList<string> buffsSeen,
         Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, Func<string, BitmapSource?> statusIcon) =>
-        Build(state, counters, buffsSeen, new Dictionary<string, SkillTimerView>(), skillIcon, avatar, statusIcon);
+        Build(state, counters, buffsSeen, new Dictionary<string, SkillTimerView>(), new LastingUltimates().Update(state, TimeSpan.Zero),
+            skillIcon, avatar, statusIcon);
 
     /// <param name="buffsSeen">Buffs seen so far this battle (the reading's own included), in the order first seen.</param>
     /// <param name="timers">Lasting battle skills running now (Si's), by operator id (see <see cref="SkillTimer"/>).</param>
+    /// <param name="ultimates">Lasting ultimates running now, by operator id (see <see cref="LastingUltimates"/>):
+    /// each on its own operator's gauge, whoever is controlled.</param>
     public static GaugeBoard Build(PartyState state, IReadOnlyList<RememberedCounter> counters, IReadOnlyList<string> buffsSeen,
-        IReadOnlyDictionary<string, SkillTimerView> timers,
+        IReadOnlyDictionary<string, SkillTimerView> timers, IReadOnlyDictionary<string, LastingUltimateView> ultimates,
         Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, Func<string, BitmapSource?> statusIcon)
     {
         var gauges = new List<Gauge>();
@@ -48,12 +51,12 @@ internal static class GaugesView
         {
             if (slot.Operator?.Operator is not { } op) continue;
             var face = avatar(op);
-            // A lasting ultimate running (the controlled operator's time bar): its time left, draining.
+            // Their lasting ultimate running (whoever is controlled): its time left, draining; "≈" before
+            // the label when it's carried on while the bar shows someone else's.
             // Otherwise the charge. Fill null: not readable this time (an effect over it); drawn empty, without a guess.
-            bool running = state.UltimateTimeLeft is not null && state.ActiveSlot == slot.Number;
-            gauges.Add(running
-                ? new Gauge(GaugeKind.Ultimate, face, skillIcon(op, StepAction.Ultimate), Loc.Get("Gauge.UltimateRunning"),
-                    state.UltimateTimeLeft, false) { Running = true, Fallen = slot.Dead, FirstOfOperator = true }
+            gauges.Add(ultimates.TryGetValue(op.Id, out var lasting)
+                ? new Gauge(GaugeKind.Ultimate, face, skillIcon(op, StepAction.Ultimate), (lasting.Estimated ? "≈" : "") + Loc.Get("Gauge.UltimateRunning"),
+                    lasting.LeftShare, false) { Running = true, Fallen = slot.Dead, FirstOfOperator = true }
                 : new Gauge(GaugeKind.Ultimate, face, skillIcon(op, StepAction.Ultimate), Loc.Get("Gauge.Ultimate"),
                     slot.Ultimate?.Progress, slot.Ultimate?.Ready == true) { Fallen = slot.Dead, FirstOfOperator = true });
             // A lasting battle skill running (Si's): its time left, draining; the seconds in the corner,
