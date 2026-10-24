@@ -1566,6 +1566,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   | `battleSkill` | `operatorId`, `ready` | that operator's battle skill button is available (`true`) or cooling (its countdown seconds aren't read) |
   | `ultimate` | `operatorId`, `ready` | that operator's ultimate is ready or charging |
   | `ultimateCharge` | `operatorId`, `is`, `percent` (0–100) | that operator's ultimate is charged so far (ready is 100; at most 0 is just used) |
+  | `battleSkillActive` | `operatorId`, `active` (format 7) | that operator's lasting battle skill is running (`true`) or not: Si's, from the swirl on her battle-skill button until the butterfly is back (the purple countdown round her stacks' circle, see [Si's battle-skill timer](#sis-battle-skill-timer)). This reading's button decides (swirl or crossed-out butterfly: running; butterfly: not); a reading that can't tell it (an effect, a countdown look) goes by the overlay's timer (`PartyState.RunningSkills`, the estimate while it lasts): running while it shows one, else unknown. Unknown with a controller (the buttons aren't read). Only Si's is read (`SkillRing.Operators`); naming anyone else is refused (`SkillTimeNotRead`), and the editors offer only Si, greyed out without her |
   | `ultimateActive` | `operatorId`, `active` (format 3) | that operator's lasting ultimate is running (`true`) or not, whoever is controlled: one of the running ones from [Lasting ultimates](#lasting-ultimates) (`PartyState.RunningUltimates`), on the time bar or carried on in the background. Unknown while the skill points can't be read, and, for an operator whose ultimate isn't one of the known lasting ones, while a bar shows (it could be hers); with no bar, false |
   | `counter` | `operatorId`, `counterId`, `is`, `value` | an operator's own resource compares so (see below) |
   | `bossStatus` | `statusId` (the wiki's English name), `present`, `minStacks` | the enemy shows (or doesn't show) that status; with `minStacks` above 1, with at least that many stacks (inflictions) or that level (Corrosion, Electrification: I–IV as 1–4). An absent status counts as 0; a present one whose count isn't read (covered, a dark scene, or a status whose count EndHud doesn't read: `BossStatusReader.CountsRead`) is unknown |
@@ -1613,7 +1614,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   offer the kind, greyed out with a sentence saying it needs 读取战技按键, and a condition already
   there shows that sentence under it.
 
-- `format`: 6 when a phase sets `priority` (other than 0) or `priorityRules`; else 5 when it uses `phasePlayed`; else 4 when it uses a `BasicAttack` step, `Below`/`Above` or `phaseShown`; else 3 when it
+- `format`: 7 when it uses `battleSkillActive`; else 6 when a phase sets `priority` (other than 0) or `priorityRules`; else 5 when it uses `phasePlayed`; else 4 when it uses a `BasicAttack` step, `Below`/`Above` or `phaseShown`; else 3 when it
   uses `not`, `ultimateActive` or `lastMatchWins`; else 2. A rotation is saved in the lowest
   format that holds it (`Rotation.FormatNeeded`), so one using nothing new stays readable by older
   builds, and the published `rotations/*.json` stay at format 3 or lower (a test checks). A
@@ -1714,6 +1715,11 @@ ring is one clock for the whole skill, and the swirl and the crossed-out butterf
   on a recording, the ring dropped to empty early and the butterfly followed half a second later).
 
 With a controller the battle skill buttons aren't read, so there is no timer there.
+
+The overlay works the timer out once per reading, before anything reads it
+(`OverlayWindow.WithRunningSkills`, as `WithRunningUltimates` does for the lasting ultimates), and puts
+it on the state (`PartyState.RunningSkills`): the gauge, the rotation's and the alerts' `battleSkillActive`
+all read the same one. Readings the overlay didn't stamp (`endhud-cli`, tests) go by the button alone.
 
 ### Choosing the phase
 
@@ -1909,7 +1915,7 @@ One file for every rule, global (every fight, every squad): `%APPDATA%\EndHud\al
   `phasePlayed` is offered: an alert has no rotation of its own, so it names a phase of any of the
   player's rotations (listed as "rotation · phase", `AlertEditor.PhaseChoices`), and is known while
   that rotation is the one the strip follows (else unknown: the rule neither fires nor re-arms).
-- `format`: 2 when a rule uses `phasePlayed`, else 1, the lowest that holds the rules
+- `format`: 3 when a rule uses `battleSkillActive`, else 2 when one uses `phasePlayed`, else 1, the lowest that holds the rules
   (`AlertFile.FormatNeeded`): rules using nothing new stay readable by builds from before format 2,
   which refuse the rest as newer (left as it is, never renamed as unreadable). The share code keeps
   its `EHA1:` prefix (the code's own version).
