@@ -116,6 +116,20 @@ public class SkillInputDecoderTests
     [Fact]
     public void Xbox_a_alone_casts_nothing() => Assert.Empty(XboxChord(0x1000));
 
+    [Theory]
+    [InlineData(@"\\?\hid#vid_054c&pid_0ce6#a&1", 0x054C, 0x05, "Sony")]          // DualSense: gamepad
+    [InlineData(@"\\?\hid#vid_054c&pid_09cc#a&1", 0x054C, 0x04, "Sony")]          // a DualShock 4 as a joystick
+    [InlineData(@"\\?\hid#vid_045e&pid_02ea&ig_00#a&1", 0x045E, 0x05, "XInput")] // an Xbox pad's HID face
+    [InlineData(@"\\?\hid#vid_057e&pid_2009#a&1", 0x057E, 0x05, "Other")]        // a Switch Pro pad
+    [InlineData(@"\\?\hid#vid_054c&pid_0ce6&mi_03#a&1", 0x054C, 0x06, "NotAPad")] // a Sony device's keyboard face
+    [InlineData(@"\\?\hid#vid_046d&pid_c52b#a&1", 0x046D, 0x02, "NotAPad")]       // a mouse
+    public void Hid_devices_are_told_apart(string path, int vendor, ushort usage, string kind) =>
+        Assert.Equal(Enum.Parse<PadKind>(kind), SonyPads.Classify(path, vendor, 0x01, usage));
+
+    [Fact]
+    public void A_device_off_the_generic_desktop_page_is_no_pad() =>
+        Assert.Equal(PadKind.NotAPad, SonyPads.Classify(@"\\?\hid#vid_054c&pid_0ce6#a&1", 0x054C, 0x0C, 0x05)); // consumer page
+
     private static IReadOnlyList<int> XboxChord(ushort buttons) =>
         Defaults().Pad(-1, SkillInputDecoder.FromXInput(buttons));
 }

@@ -269,6 +269,23 @@ public class SkillInputReaderTests
     }
 
     [Fact]
+    public void Pads_are_looked_for_while_reading_and_let_go_after()
+    {
+        using var reader = new SkillInputReader();
+        Listen(reader, true);
+
+        // Every Windows machine has HID devices (keyboard, mouse...): seeing none would mean the look itself is broken.
+        Assert.True(reader.HidDevicesSeen > 0, reader.Describe());
+        Assert.True(reader.HidDevicesDescribed > 0, $"no HID device's vendor and usage could be read, of {reader.HidDevicesSeen}");
+        Assert.Matches(@"PlayStation pads \d+ \(not opened \d+\), XInput pads \d+, other pads \d+", reader.Describe());
+
+        Listen(reader, false);
+
+        Assert.Equal(0, reader.SonyPadsOpen);
+        Assert.Equal(0, reader.HidDevicesSeen);
+    }
+
+    [Fact]
     public void Disposing_the_reader_lets_the_keys_go()
     {
         var reader = new SkillInputReader();

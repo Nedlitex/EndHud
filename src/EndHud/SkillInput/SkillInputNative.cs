@@ -1,46 +1,48 @@
 using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.Win32.SafeHandles;
 
 namespace EndHud.SkillInput;
 
 /// <summary>
-/// The Win32 calls the battle-skill key reader uses: Raw Input (which only listens; nothing is taken
-/// from any program), a message-only window to receive it, HID parsing for PlayStation pads and XInput
-/// for Xbox pads. No keyboard hook and no hotkey: see <see cref="SkillInputReader"/>.
+/// The Win32 calls the battle-skill key reader uses: hotkeys for the four bound keys on a message-only
+/// window, HID device reading for PlayStation pads and XInput for Xbox pads. No keyboard hook and no
+/// Raw Input: see <see cref="SkillInputReader"/>.
 /// </summary>
 internal static class SkillInputNative
 {
     public const int WM_CLOSE = 0x0010;
     public const int WM_TIMER = 0x0113;
-    public const int WM_INPUT = 0x00FF;
     public const int WM_HOTKEY = 0x0312;
-    public const int WM_INPUT_DEVICE_CHANGE = 0x00FE;
     public const int WM_KEYDOWN = 0x0100;
     public const int WM_SYSKEYDOWN = 0x0104;
 
-    public const int GIDC_ARRIVAL = 1, GIDC_REMOVAL = 2;
-
     public static readonly IntPtr HWND_MESSAGE = new(-3);
 
-    public const uint RIDEV_REMOVE = 0x00000001;
-    public const uint RIDEV_INPUTSINK = 0x00000100;
-    public const uint RIDEV_DEVNOTIFY = 0x00002000;
-
-    public const uint RID_INPUT = 0x10000003;
-    public const uint RIM_TYPEKEYBOARD = 1, RIM_TYPEHID = 2;
-
-    public const uint RIDI_PREPARSEDDATA = 0x20000005;
-    public const uint RIDI_DEVICENAME = 0x20000007;
-    public const uint RIDI_DEVICEINFO = 0x2000000b;
-
-    /// <summary>The generic desktop page's usages registered: keyboard, gamepad, joystick.</summary>
-    public const ushort UsagePageGeneric = 0x01, UsageJoystick = 0x04, UsageGamepad = 0x05, UsageKeyboard = 0x06;
+    /// <summary>The generic desktop page's usages a game controller has: gamepad, joystick.</summary>
+    public const ushort UsagePageGeneric = 0x01, UsageJoystick = 0x04, UsageGamepad = 0x05;
 
     public const ushort UsagePageButton = 0x09;
     public const int HidP_Input = 0;
     public const int HIDP_STATUS_SUCCESS = 0x00110000;
 
+    /// <summary>HIDP_CAPS: 5 USHORTs, Reserved[17], 10 USHORTs.</summary>
+    public const int HidpCapsSize = 64;
+
     public const uint ERROR_SUCCESS = 0;
+
+    public const uint GENERIC_READ = 0x80000000;
+    public const uint FILE_SHARE_READ = 1, FILE_SHARE_WRITE = 2;
+    public const uint OPEN_EXISTING = 3;
+    public const uint FILE_FLAG_OVERLAPPED = 0x40000000;
+
+    public const uint DIGCF_PRESENT = 0x02, DIGCF_DEVICEINTERFACE = 0x10;
+
+    public const uint INFINITE = 0xFFFFFFFF;
+    public const uint WAIT_FAILED = 0xFFFFFFFF;
+    public const uint QS_ALLINPUT = 0x04FF;
+    public const uint MWMO_INPUTAVAILABLE = 0x0004;
+    public const uint PM_REMOVE = 0x0001;
 
     public delegate IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
@@ -74,24 +76,6 @@ internal static class SkillInputNative
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct RAWINPUTDEVICE
-    {
-        public ushort usUsagePage;
-        public ushort usUsage;
-        public uint dwFlags;
-        public IntPtr hwndTarget;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    public struct RAWINPUTHEADER
-    {
-        public uint dwType;
-        public uint dwSize;
-        public IntPtr hDevice;
-        public IntPtr wParam;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
     public struct XINPUT_STATE
     {
         public uint dwPacketNumber;
@@ -104,11 +88,26 @@ internal static class SkillInputNative
         public short sThumbRY;
     }
 
-    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    public static extern ushort RegisterClassExW(ref WNDCLASSEX wc);
+    [StructLayout(LayoutKind.Sequential)]
+    public struct HIDD_ATTRIBUTES
+    {
+        public uint Size;
+        public ushort VendorID;
+        public ushort ProductID;
+        public ushort VersionNumber;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SP_DEVICE_INTERFACE_DATA
+    {
+        public uint cbSize;
+        public Guid InterfaceClassGuid;
+        public uint Flags;
+        public UIntPtr Reserved;
+    }
 
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    public static extern bool UnregisterClassW(string className, IntPtr hInstance);
+    public static extern ushort RegisterClassExW(ref WNDCLASSEX wc);
 
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     public static extern IntPtr CreateWindowExW(uint exStyle, string className, string? windowName, uint style,
@@ -120,8 +119,11 @@ internal static class SkillInputNative
     [DllImport("user32.dll")]
     public static extern IntPtr DefWindowProcW(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
+    [DllImport("user32.dll")]
+    public static extern bool PeekMessageW(out MSG msg, IntPtr hWnd, uint filterMin, uint filterMax, uint remove);
+
     [DllImport("user32.dll", SetLastError = true)]
-    public static extern int GetMessageW(out MSG msg, IntPtr hWnd, uint filterMin, uint filterMax);
+    public static extern uint MsgWaitForMultipleObjectsEx(uint count, IntPtr[] handles, uint milliseconds, uint wakeMask, uint flags);
 
     [DllImport("user32.dll")]
     public static extern IntPtr DispatchMessageW(ref MSG msg);
@@ -139,29 +141,65 @@ internal static class SkillInputNative
     public static extern IntPtr GetModuleHandleW(string? moduleName);
 
     [DllImport("user32.dll", SetLastError = true)]
-    public static extern bool RegisterRawInputDevices([In] RAWINPUTDEVICE[] devices, uint count, uint size);
+    public static extern bool RegisterHotKey(IntPtr hWnd, int id, uint modifiers, uint vk);
 
     [DllImport("user32.dll", SetLastError = true)]
-    public static extern uint GetRegisteredRawInputDevices([Out] RAWINPUTDEVICE[]? devices, ref uint count, uint size);
+    public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
-    [DllImport("user32.dll", SetLastError = true)]
-    public static extern uint GetRawInputData(IntPtr rawInput, uint command, [Out] byte[]? data, ref uint size, uint headerSize);
+    [DllImport("hid.dll")]
+    public static extern void HidD_GetHidGuid(out Guid hidGuid);
 
-    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    public static extern uint GetRawInputDeviceInfoW(IntPtr device, uint command, IntPtr data, ref uint size);
+    [DllImport("hid.dll", SetLastError = true)]
+    public static extern bool HidD_GetAttributes(SafeFileHandle device, ref HIDD_ATTRIBUTES attributes);
+
+    [DllImport("hid.dll", SetLastError = true)]
+    public static extern bool HidD_GetPreparsedData(SafeFileHandle device, out IntPtr preparsedData);
+
+    [DllImport("hid.dll")]
+    public static extern bool HidD_FreePreparsedData(IntPtr preparsedData);
+
+    [DllImport("hid.dll")]
+    public static extern int HidP_GetCaps(IntPtr preparsedData, IntPtr capabilities);
 
     [DllImport("hid.dll")]
     public static extern int HidP_GetUsages(int reportType, ushort usagePage, ushort linkCollection, [Out] ushort[] usages,
         ref uint usageLength, IntPtr preparsedData, [In] byte[] report, uint reportLength);
 
+    [DllImport("setupapi.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    public static extern IntPtr SetupDiGetClassDevsW(ref Guid classGuid, IntPtr enumerator, IntPtr parent, uint flags);
+
+    [DllImport("setupapi.dll", SetLastError = true)]
+    public static extern bool SetupDiEnumDeviceInterfaces(IntPtr set, IntPtr deviceInfo, ref Guid classGuid, uint index,
+        ref SP_DEVICE_INTERFACE_DATA data);
+
+    [DllImport("setupapi.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    public static extern bool SetupDiGetDeviceInterfaceDetailW(IntPtr set, ref SP_DEVICE_INTERFACE_DATA data, IntPtr detail,
+        uint detailSize, out uint requiredSize, IntPtr deviceInfo);
+
+    [DllImport("setupapi.dll", SetLastError = true)]
+    public static extern bool SetupDiDestroyDeviceInfoList(IntPtr set);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    public static extern SafeFileHandle CreateFileW(string path, uint access, uint share, IntPtr security, uint disposition,
+        uint flags, IntPtr template);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool ReadFile(SafeFileHandle file, IntPtr buffer, uint toRead, IntPtr read, IntPtr overlapped);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool GetOverlappedResult(SafeFileHandle file, IntPtr overlapped, out uint transferred, bool wait);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool CancelIoEx(SafeFileHandle file, IntPtr overlapped);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    public static extern IntPtr CreateEventW(IntPtr security, bool manualReset, bool initialState, string? name);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool CloseHandle(IntPtr handle);
+
     [DllImport("xinput1_4.dll")]
     public static extern uint XInputGetState(uint userIndex, out XINPUT_STATE state);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    public static extern bool RegisterHotKey(IntPtr hWnd, int id, uint modifiers, uint vk);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
     [DllImport("user32.dll")]
     private static extern uint MapVirtualKeyW(uint code, uint mapType);

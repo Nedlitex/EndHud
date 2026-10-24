@@ -32,13 +32,13 @@ public class DiagnosticsTests : IDisposable
             for (int verdict = 0; verdict < tally.GetLength(1); verdict++)
                 tally[slot, verdict] = slot * 10 + verdict + 1;
 
-        var lines = OverlayWindow.PressLines("listening: keyboard, PlayStation pads 0, XInput pads 1, other pads 0; PlayStation reports without buttons 0", tally).ToList();
+        var lines = OverlayWindow.PressLines("listening: keyboard (4 of 4 keys held), PlayStation pads 0 (not opened 0), XInput pads 1, other pads 0; PlayStation reports without buttons 0", tally).ToList();
 
         Assert.Equal(5, lines.Count);
         var allowed = new System.Text.RegularExpressions.Regex(
             @"^(battle-skill key reading: .*|  slot [1-4] battle skill: counted \d+, cooling \d+, no skill points \d+, repeat \d+, not in battle \d+, empty slot \d+)$");
         Assert.All(lines, line => Assert.Matches(allowed, line));
-        Assert.Equal("battle-skill key reading: listening: keyboard, PlayStation pads 0, XInput pads 1, other pads 0; PlayStation reports without buttons 0", lines[0]);
+        Assert.Equal("battle-skill key reading: listening: keyboard (4 of 4 keys held), PlayStation pads 0 (not opened 0), XInput pads 1, other pads 0; PlayStation reports without buttons 0", lines[0]);
         var counted = (int)EndHud.Vision.Rotations.PressVerdict.Counted;
         var repeat = (int)EndHud.Vision.Rotations.PressVerdict.Repeat;
         Assert.Contains($"counted {tally[1, counted]},", lines[2]);

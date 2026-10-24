@@ -6,32 +6,33 @@ namespace EndHud.SkillInput;
 
 /// <summary>
 /// Reads the player's battle-skill presses while they have turned it on (<see cref="HudConfig.ReadSkillPresses"/>),
-/// and only then: "slot N, at time T" (<see cref="SkillPress"/>), nothing else.
+/// and only then: "slot N, at time T" (<see cref="SkillPress"/>), nothing else. The game runs as
+/// administrator and EndHud doesn't, and Windows' privilege isolation (UIPI) keeps an elevated window's
+/// input from a lower process's Raw Input: so nothing here is Raw Input.
 /// <list type="bullet">
 /// <item>The keyboard: the four bound keys as hotkeys (<see cref="SkillHotkeys"/>: bare, MOD_NOREPEAT, so a
-/// held key casts once) on a message-only window, on a thread of its own. The game runs as administrator
-/// and EndHud doesn't: Windows (UIPI) keeps the game's keystrokes from EndHud's Raw Input, but delivers a
-/// hotkey. Windows tells EndHud only of these four keys, never of any other. They are held only while
-/// reading, which is only while the game is in front, so the digits work as usual in every other program.
-/// A low-level keyboard hook (WH_KEYBOARD_LL) sits in every keystroke's path and is never used.</item>
-/// <item>PlayStation pads through Raw Input (the pad's HID report, parsed by Windows); Xbox pads through
-/// XInput (polled every 10 ms), whose button bits are fixed and documented. An Xbox pad's own Raw Input
-/// reports are ignored. Other pads are counted, never read.</item>
+/// held key casts once) on a message-only window, on a thread of its own. Windows delivers a hotkey
+/// whatever window is in front, and tells EndHud only of these four keys, never of any other. They are
+/// held only while reading, which is only while the game is in front, so the digits type as usual in
+/// every other program. A low-level keyboard hook (WH_KEYBOARD_LL) sits in every keystroke's path and is
+/// never used.</item>
+/// <item>PlayStation pads read straight from the device (<see cref="SonyPads"/>: shared, overlapped reads);
+/// Xbox pads through XInput (polled every 10 ms), whose button bits are fixed and documented. Other pads
+/// are counted, never read.</item>
 /// <item>Every button goes straight into <see cref="SkillInputDecoder"/>, which drops anything that isn't
-/// one of the four chords; the buffers Windows filled are cleared after each event.</item>
-/// <item>Off: every hotkey and registration removed (UnregisterHotKey, RIDEV_REMOVE), the window destroyed,
-/// the thread ended, the queue and the decoder dropped.</item>
+/// one of the four chords; each report is cleared once parsed.</item>
+/// <item>Off: every hotkey unregistered, every pad closed, the window destroyed, the thread ended, the
+/// queue and the decoder dropped.</item>
 /// <item>Logged: "listening", "stopped", and Windows refusing (a slot whose key another program holds, by
-/// its slot number). Never a key, a button, a device's name
-/// or a press's time.</item>
+/// its slot number). Never a key, a button, a device's name or a press's time.</item>
 /// </list>
 /// </summary>
 internal sealed class SkillInputReader : ISkillPressSource, IDisposable
 {
     private const int MaxQueued = 32;
     private const uint XInputPollMs = 10;
-    /// <summary>An XInput slot without a pad is asked again only every second: asking an empty slot is slow.</summary>
-    private const int XInputEmptySlotEvery = 100;
+    /// <summary>An XInput slot without a pad, and the HID devices, are looked at again only every second: both are slow to ask.</summary>
+    private const int EverySecond = 100;
     private const string ClassName = "EndHud.SkillInput";
 
     private static readonly WndProc Proc = (hwnd, msg, wParam, lParam) => DefWindowProcW(hwnd, msg, wParam, lParam);
@@ -53,20 +54,13 @@ internal sealed class SkillInputReader : ISkillPressSource, IDisposable
     private volatile int _error;
 
     // The reader thread's own, reset at each start.
-    private readonly Dictionary<IntPtr, Device> _devices = [];
+    private SonyPads? _sony;
     private readonly bool[] _xinputConnected = new bool[4];
     private bool _xinputMissing;
     private long _ticks;
-    private byte[] _buffer = new byte[256];
-    private byte[] _report = [];
-    private readonly ushort[] _usages = new ushort[64];
 
-    // For Describe: counts only.
-    private volatile int _sonyPads, _xinputPads, _otherPads, _sonyReportsWithoutButtons;
-
-    private enum PadKind { Sony, XInput, Other }
-
-    private sealed record Device(PadKind Kind, IntPtr Preparsed);
+    // For Describe and tests: counts only.
+    private volatile int _hidSeen, _hidDescribed, _sonyPads, _sonyUnopened, _xinputPads, _otherPads, _sonyReportsWithoutButtons;
 
     /// <summary>A hotkey as it was registered with Windows: the id, the modifiers passed and the virtual key.</summary>
     internal readonly record struct HeldHotkey(int Id, uint Modifiers, uint VirtualKey);
@@ -74,10 +68,10 @@ internal sealed class SkillInputReader : ISkillPressSource, IDisposable
     /// <summary>The reader for the app: reads Windows' input while listening.</summary>
     public SkillInputReader() : this(readWindows: true) { }
 
-    /// <param name="readWindows">False for tests: nothing is registered with Windows; presses come only through <see cref="Feed"/>.</param>
+    /// <param name="readWindows">False for tests: nothing is registered with Windows; presses come only through <see cref="Hotkey"/>.</param>
     internal SkillInputReader(bool readWindows) => _readWindows = readWindows;
 
-    /// <summary>Windows refused to deliver input (Raw Input registration failed); see <see cref="Describe"/>.</summary>
+    /// <summary>Windows refused to deliver input (the reader's window could not be made); see <see cref="Describe"/>.</summary>
     public bool Failed => _error != 0;
 
     /// <summary>The bound keys the last start could not hold (another program has them): kept until the next start, so the menu can say so.</summary>
@@ -85,6 +79,15 @@ internal sealed class SkillInputReader : ISkillPressSource, IDisposable
 
     /// <summary>The hotkeys held now, as registered (tests).</summary>
     internal IReadOnlyList<HeldHotkey> HeldHotkeys => _held;
+
+    /// <summary>HID devices of any kind seen at the last look for pads, while listening (tests).</summary>
+    internal int HidDevicesSeen => _hidSeen;
+
+    /// <summary>HID devices whose vendor and usage Windows told, at the last look (tests: the asking works).</summary>
+    internal int HidDevicesDescribed => _hidDescribed;
+
+    /// <summary>PlayStation pads open for reading now (tests: none after a stop).</summary>
+    internal int SonyPadsOpen => _sonyPads;
 
     /// <summary>The message-only window input is delivered to, while listening (tests).</summary>
     internal IntPtr Window => _window;
@@ -124,11 +127,12 @@ internal sealed class SkillInputReader : ISkillPressSource, IDisposable
         return taken;
     }
 
-    /// <summary>For the diagnostics: whether it reads, and how many pads of each kind; counts only.</summary>
+    /// <summary>For the diagnostics: whether it reads, how many keys it holds and how many pads of each kind; counts only.</summary>
     public string Describe() =>
         _keys is null ? "off"
         : Failed ? $"failed (Windows refused, error {_error})"
-        : $"listening: keyboard ({_held.Select(h => SkillHotkeys.SlotOf(h.Id)).Distinct().Count()} of 4 keys held), PlayStation pads {_sonyPads}, XInput pads {_xinputPads}, other pads {_otherPads}; " +
+        : $"listening: keyboard ({_held.Select(h => SkillHotkeys.SlotOf(h.Id)).Distinct().Count()} of 4 keys held), " +
+          $"PlayStation pads {_sonyPads} (not opened {_sonyUnopened}), XInput pads {_xinputPads}, other pads {_otherPads}; " +
           $"PlayStation reports without buttons {_sonyReportsWithoutButtons}";
 
     /// <summary>A WM_HOTKEY, by its id: a press of the slot it stands for; nothing for any other id or while not listening.</summary>
@@ -168,7 +172,7 @@ internal sealed class SkillInputReader : ISkillPressSource, IDisposable
         }
         _decoder = null;
         _keys = null;
-        // A refusal stays known (Failed) until the next start: the menu, which stops reading, still says so.
+        // A refusal stays known (Failed, UnreadKeys) until the next start: the menu, which stops reading, still says so.
         lock (_queueLock) _queue.Clear();
         DiagnosticLog.Info("skill input: stopped");
     }
@@ -183,27 +187,9 @@ internal sealed class SkillInputReader : ISkillPressSource, IDisposable
         }
     }
 
-    private static RAWINPUTDEVICE[] Devices(uint flags, IntPtr target) =>
-    [
-        new() { usUsagePage = UsagePageGeneric, usUsage = UsageGamepad, dwFlags = flags, hwndTarget = target },
-        new() { usUsagePage = UsagePageGeneric, usUsage = UsageJoystick, dwFlags = flags, hwndTarget = target },
-    ];
-
-    /// <summary>This process's Raw Input registrations (tests: none are left when reading is off).</summary>
-    internal static RAWINPUTDEVICE[] Registered()
-    {
-        uint size = (uint)Marshal.SizeOf<RAWINPUTDEVICE>(), count = 0;
-        GetRegisteredRawInputDevices(null, ref count, size);
-        if (count == 0) return [];
-        var devices = new RAWINPUTDEVICE[count];
-        uint got = GetRegisteredRawInputDevices(devices, ref count, size);
-        return got == uint.MaxValue ? [] : devices[..(int)got];
-    }
-
     private void Run()
     {
         IntPtr window = IntPtr.Zero;
-        bool registered = false;
         try
         {
             IntPtr instance = GetModuleHandleW(null);
@@ -214,25 +200,14 @@ internal sealed class SkillInputReader : ISkillPressSource, IDisposable
                 Refused(Marshal.GetLastPInvokeError());
                 return;
             }
-            var devices = Devices(RIDEV_INPUTSINK | RIDEV_DEVNOTIFY, window);
-            if (!RegisterRawInputDevices(devices, (uint)devices.Length, (uint)Marshal.SizeOf<RAWINPUTDEVICE>()))
-            {
-                Refused(Marshal.GetLastPInvokeError());
-                return;
-            }
-            registered = true;
             HoldKeys(window);
+            _sony = new SonyPads(PadButtonsNow, device => _decoder?.Forget(device));
+            LookForPads();
             SetTimer(window, 1, XInputPollMs, IntPtr.Zero);
             _window = window;
             _started.Set();
             if (_stopRequested) return;
-
-            while (GetMessageW(out var msg, IntPtr.Zero, 0, 0) > 0)
-            {
-                if (msg.message == WM_CLOSE) break;
-                Handle(msg);
-                DispatchMessageW(ref msg);
-            }
+            Loop();
         }
         catch (Exception ex)
         {
@@ -240,15 +215,12 @@ internal sealed class SkillInputReader : ISkillPressSource, IDisposable
         }
         finally
         {
-            // The hotkeys and registrations also go with the window when this thread ends (measured: without
-            // these calls another program can still take the keys at once after a stop); removing them by
-            // name is the documented way, kept explicit.
+            // The hotkeys also go with the window when this thread ends (measured: without LetKeysGo another
+            // program can still take the keys at once after a stop); unregistering them by name is the
+            // documented way, kept explicit. The pads' reads are cancelled and waited for before their memory goes.
             LetKeysGo(window);
-            if (registered)
-            {
-                var remove = Devices(RIDEV_REMOVE, IntPtr.Zero);
-                RegisterRawInputDevices(remove, (uint)remove.Length, (uint)Marshal.SizeOf<RAWINPUTDEVICE>());
-            }
+            _sony?.Dispose();
+            _sony = null;
             if (window != IntPtr.Zero)
             {
                 KillTimer(window, 1);
@@ -257,6 +229,33 @@ internal sealed class SkillInputReader : ISkillPressSource, IDisposable
             _window = IntPtr.Zero;
             ForgetDevices();
             _started.Set();
+        }
+    }
+
+    /// <summary>Waits for a message (a hotkey, the poll timer, the stop) or a pad's report, whichever comes first.</summary>
+    private void Loop()
+    {
+        while (true)
+        {
+            var events = _sony!.Events;
+            uint woke = MsgWaitForMultipleObjectsEx((uint)events.Length, events, INFINITE, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+            if (woke == WAIT_FAILED)
+            {
+                DiagnosticLog.Error($"skill input: waiting for input failed (error {Marshal.GetLastPInvokeError()})");
+                return;
+            }
+            if (woke < events.Length)
+            {
+                _sony.Complete((int)woke);
+                CountPads();
+                continue;
+            }
+            while (PeekMessageW(out var msg, IntPtr.Zero, 0, 0, PM_REMOVE))
+            {
+                if (msg.message == WM_CLOSE) return;
+                Handle(msg);
+                DispatchMessageW(ref msg);
+            }
         }
     }
 
@@ -334,147 +333,53 @@ internal sealed class SkillInputReader : ISkillPressSource, IDisposable
             case WM_HOTKEY:
                 Hotkey((int)msg.wParam);
                 break;
-            case WM_INPUT:
-                ReadInput(msg.lParam);
-                break;
             case WM_TIMER:
-                PollXInput();
-                break;
-            case WM_INPUT_DEVICE_CHANGE when (int)msg.wParam == GIDC_REMOVAL:
-                _decoder?.Forget(msg.lParam);
-                if (_devices.Remove(msg.lParam, out var gone) && gone.Preparsed != IntPtr.Zero) Marshal.FreeHGlobal(gone.Preparsed);
-                CountDevices();
+                bool everySecond = _ticks++ % EverySecond == 0;
+                PollXInput(everySecond);
+                if (everySecond && _ticks > 1) LookForPads();
                 break;
         }
     }
 
-    private void ReadInput(IntPtr rawInput)
+    private void PadButtonsNow(nint device, PadButtons buttons)
     {
-        uint headerSize = (uint)(8 + 2 * IntPtr.Size), size = 0;
-        if (GetRawInputData(rawInput, RID_INPUT, null, ref size, headerSize) != 0 || size == 0) return;
-        if (_buffer.Length < size) _buffer = new byte[size];
-        try
-        {
-            if (GetRawInputData(rawInput, RID_INPUT, _buffer, ref size, headerSize) == uint.MaxValue) return;
-            uint type = BitConverter.ToUInt32(_buffer, 0);
-            if (type == RIM_TYPEHID)
-            {
-                IntPtr device = IntPtr.Size == 8 ? (IntPtr)BitConverter.ToInt64(_buffer, 8) : BitConverter.ToInt32(_buffer, 8);
-                ReadHid(device, (int)headerSize, (int)size);
-            }
-        }
-        finally
-        {
-            Array.Clear(_buffer, 0, (int)Math.Min(size, (uint)_buffer.Length));
-        }
+        foreach (int slot in _decoder?.Pad(device, buttons) ?? []) Enqueue(slot);
     }
 
-    private void ReadHid(IntPtr handle, int at, int end)
+    private void LookForPads()
     {
-        var device = DeviceFor(handle);
-        if (device is not { Kind: PadKind.Sony, Preparsed: var preparsed } || preparsed == IntPtr.Zero) return;
-        int reportSize = (int)BitConverter.ToUInt32(_buffer, at), count = (int)BitConverter.ToUInt32(_buffer, at + 4);
-        if (_report.Length != reportSize) _report = new byte[reportSize];
-        for (int i = 0, from = at + 8; i < count && from + reportSize <= end; i++, from += reportSize)
-        {
-            Buffer.BlockCopy(_buffer, from, _report, 0, reportSize);
-            uint length = (uint)_usages.Length;
-            int status = HidP_GetUsages(HidP_Input, UsagePageButton, 0, _usages, ref length, preparsed, _report, (uint)reportSize);
-            Array.Clear(_report);
-            if (status != HIDP_STATUS_SUCCESS)
-            {
-                _sonyReportsWithoutButtons++;
-                continue;
-            }
-            var buttons = SkillInputDecoder.FromSonyUsages(_usages.Take((int)length));
-            Array.Clear(_usages);
-            foreach (int slot in _decoder?.Pad(handle, buttons) ?? []) Enqueue(slot);
-        }
+        _sony!.Rescan();
+        CountPads();
     }
 
-    /// <summary>What kind of pad a HID device is, asked of Windows once per device.</summary>
-    private Device? DeviceFor(IntPtr handle)
+    private void CountPads()
     {
-        if (_devices.TryGetValue(handle, out var known)) return known;
-        string name = DeviceName(handle);
-        int vendor = VendorId(handle);
-        var kind = name.Contains("IG_", StringComparison.OrdinalIgnoreCase) ? PadKind.XInput
-            : vendor == 0x054C ? PadKind.Sony
-            : PadKind.Other;
-        var device = new Device(kind, kind == PadKind.Sony ? Preparsed(handle) : IntPtr.Zero);
-        _devices[handle] = device;
-        CountDevices();
-        return device;
-    }
-
-    private static string DeviceName(IntPtr handle)
-    {
-        uint chars = 0;
-        GetRawInputDeviceInfoW(handle, RIDI_DEVICENAME, IntPtr.Zero, ref chars);
-        if (chars == 0) return "";
-        IntPtr buffer = Marshal.AllocHGlobal((int)chars * 2);
-        try
-        {
-            return GetRawInputDeviceInfoW(handle, RIDI_DEVICENAME, buffer, ref chars) == uint.MaxValue ? "" : Marshal.PtrToStringUni(buffer) ?? "";
-        }
-        finally { Marshal.FreeHGlobal(buffer); }
-    }
-
-    /// <summary>RID_DEVICE_INFO's HID vendor id (cbSize 32; dwType at 4, dwVendorId at 8); 0 when unknown.</summary>
-    private static int VendorId(IntPtr handle)
-    {
-        const int size = 32;
-        IntPtr info = Marshal.AllocHGlobal(size);
-        try
-        {
-            for (int i = 0; i < size; i += 4) Marshal.WriteInt32(info, i, 0);
-            Marshal.WriteInt32(info, 0, size);
-            uint got = size;
-            if (GetRawInputDeviceInfoW(handle, RIDI_DEVICEINFO, info, ref got) == uint.MaxValue) return 0;
-            return Marshal.ReadInt32(info, 4) == (int)RIM_TYPEHID ? Marshal.ReadInt32(info, 8) : 0;
-        }
-        finally { Marshal.FreeHGlobal(info); }
-    }
-
-    private static IntPtr Preparsed(IntPtr handle)
-    {
-        uint size = 0;
-        GetRawInputDeviceInfoW(handle, RIDI_PREPARSEDDATA, IntPtr.Zero, ref size);
-        if (size == 0) return IntPtr.Zero;
-        IntPtr data = Marshal.AllocHGlobal((int)size);
-        if (GetRawInputDeviceInfoW(handle, RIDI_PREPARSEDDATA, data, ref size) != uint.MaxValue) return data;
-        Marshal.FreeHGlobal(data);
-        return IntPtr.Zero;
-    }
-
-    private void CountDevices()
-    {
-        _sonyPads = _devices.Values.Count(d => d.Kind == PadKind.Sony);
-        _otherPads = _devices.Values.Count(d => d.Kind == PadKind.Other);
+        _hidSeen = _sony!.Seen;
+        _hidDescribed = _sony.Described;
+        _sonyPads = _sony.Open;
+        _sonyUnopened = _sony.Unopened;
+        _otherPads = _sony.Other;
+        _sonyReportsWithoutButtons = _sony.ReportsWithoutButtons;
     }
 
     private void ForgetDevices()
     {
-        foreach (var device in _devices.Values)
-            if (device.Preparsed != IntPtr.Zero) Marshal.FreeHGlobal(device.Preparsed);
-        _devices.Clear();
         Array.Clear(_xinputConnected);
         _xinputMissing = false;
         _ticks = 0;
-        _sonyPads = _xinputPads = _otherPads = _sonyReportsWithoutButtons = 0;
+        _hidSeen = _hidDescribed = _sonyPads = _sonyUnopened = _xinputPads = _otherPads = _sonyReportsWithoutButtons = 0;
     }
 
-    private void PollXInput()
+    private void PollXInput(bool everyone)
     {
         if (_xinputMissing) return;
-        bool everyone = _ticks++ % XInputEmptySlotEvery == 0;
         try
         {
             for (uint user = 0; user < 4; user++)
             {
                 if (!_xinputConnected[user] && !everyone) continue;
                 bool connected = XInputGetState(user, out var state) == ERROR_SUCCESS;
-                IntPtr device = -1 - (int)user; // never a Raw Input handle
+                IntPtr device = -1 - (int)user; // never a PlayStation pad's id (those count up from 1)
                 if (!connected && _xinputConnected[user]) _decoder?.Forget(device);
                 _xinputConnected[user] = connected;
                 if (!connected) continue;
