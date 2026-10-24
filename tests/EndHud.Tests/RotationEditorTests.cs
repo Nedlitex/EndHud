@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using EndHud.Vision.Operators;
 using EndHud.Vision.Rotations;
 using Xunit;
@@ -164,6 +165,71 @@ public sealed class RotationEditorTests : IDisposable
         Assert.Equal(new UltimateChargeCondition("Laevatain", Comparison.AtMost, 37), saved.Phases[1].When[1]);
         Assert.Equal(new SkillPointsCondition(Comparison.AtMost, 1.85), saved.Phases[1].When[2]);
     }
+
+    /// <summary>
+    /// The owner's ask (2026-10-24): "why do we need to right click in the rotation menu for the steps?
+    /// support left click as well". The phase and step lists held drop-down items, which a list selects
+    /// only on a right click. A left click now picks a phase and a step; a right click still does.
+    /// </summary>
+    [Fact]
+    public void A_left_click_picks_a_phase_and_a_step_and_a_right_click_still_does()
+    {
+        var library = new RotationLibrary(_folder);
+        var mine = Published() with { Id = "mine" };
+        library.Own.Save(mine with
+        {
+            Phases =
+            [
+                .. mine.Phases,
+                new RotationPhase("burst", "Burst", [new RotationStep("Laevatain", StepAction.Ultimate), new RotationStep("Ardelia", StepAction.Combo)]),
+            ],
+        });
+
+        int phaseAfterLeft = -1, stepAfterLeft = -1, stepAfterRight = -1;
+        object? actionAfterLeft = null;
+        OnEditor(library, _ => { }, editor =>
+        {
+            // Shown off-screen, without taking focus: a list item only takes a click in a shown window.
+            editor.WindowStartupLocation = WindowStartupLocation.Manual;
+            editor.Left = -20000;
+            editor.Top = -20000;
+            editor.ShowActivated = false;
+            editor.Show();
+            try
+            {
+                editor.UpdateLayout();
+                var phases = (ListBox)editor.FindName("PhaseList");
+                LeftClick((UIElement)phases.Items[1]);
+                phaseAfterLeft = phases.SelectedIndex;
+                editor.UpdateLayout();
+                var steps = (ListBox)editor.FindName("StepList");
+                if (steps.Items.Count < 2) return; // the phase wasn't picked: Burst's steps aren't listed
+                LeftClick((UIElement)steps.Items[1]);
+                stepAfterLeft = steps.SelectedIndex;
+                actionAfterLeft = ((ComboBoxItem?)((ComboBox)editor.FindName("StepActionPicker")).SelectedItem)?.Tag;
+                Press((UIElement)steps.Items[0], MouseButton.Right, UIElement.MouseRightButtonDownEvent);
+                stepAfterRight = steps.SelectedIndex;
+            }
+            finally
+            {
+                editor.Close();
+            }
+        });
+
+        Assert.Equal(1, phaseAfterLeft);
+        Assert.Equal(1, stepAfterLeft);
+        Assert.Equal(StepAction.Combo, actionAfterLeft);
+        Assert.Equal(0, stepAfterRight);
+    }
+
+    private static void LeftClick(UIElement item)
+    {
+        Press(item, MouseButton.Left, UIElement.MouseLeftButtonDownEvent);
+        Press(item, MouseButton.Left, UIElement.MouseLeftButtonUpEvent);
+    }
+
+    private static void Press(UIElement item, MouseButton button, RoutedEvent routed) =>
+        item.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, button) { RoutedEvent = routed });
 
     private static void Pick(ComboBox picker, object value) =>
         picker.SelectedItem = picker.Items.Cast<ComboBoxItem>().Single(i => Equals(i.Tag, value));
