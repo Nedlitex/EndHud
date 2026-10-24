@@ -102,7 +102,7 @@ public partial class OverlayWindow
     /// <summary>The operator's icon for this action, from the library; loaded once, in the background.</summary>
     private BitmapSource? SkillIcon(OperatorInfo op, StepAction action)
     {
-        if (action == StepAction.BasicAttack) return null; // no skill icon: never borrow the battle skill's
+        if (action.IsDisplayOnly()) return null; // no skill icon: never borrow the battle skill's
         var kind = action switch
         {
             StepAction.Combo => SkillKind.Combo,

@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace EndHud.Vision.Rotations;
 
-/// <summary>What a step does: the three skills are tracked; a basic attack is only drawn (heavy attacks aren't offered).</summary>
+/// <summary>What a step does: the three skills are tracked; a basic or heavy attack is only drawn.</summary>
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum StepAction
 {
@@ -23,6 +23,15 @@ public enum StepAction
 
     /// <summary>Heavy attack: drawn only, as <see cref="BasicAttack"/>. Format 8.</summary>
     HeavyAttack,
+}
+
+public static class StepActions
+{
+    /// <summary>
+    /// A basic or heavy attack: drawn only. EndHud never sees one used and can't tell if it's
+    /// available, so following never waits on it and the next real cast passes it.
+    /// </summary>
+    public static bool IsDisplayOnly(this StepAction action) => action is StepAction.BasicAttack or StepAction.HeavyAttack;
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
@@ -270,6 +279,7 @@ public sealed record Rotation(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool LastMatchWins = false)
 {
     /// <summary>
+    /// 8: heavy-attack steps (<see cref="StepAction.HeavyAttack"/>).
     /// 7: "battle skill running" conditions (<see cref="BattleSkillActiveCondition"/>).
     /// 6: phase priorities (<see cref="RotationPhase.Priority"/>, <see cref="RotationPhase.PriorityRules"/>).
     /// 5: "phase played" conditions (<see cref="PhasePlayedCondition"/>). 4: basic-attack steps, "phase shown" conditions, the "below"/"above" (<see cref="Comparison.Below"/>,
@@ -278,13 +288,14 @@ public sealed record Rotation(
     /// holds it (<see cref="FormatNeeded"/>), so one that uses nothing new stays readable by builds
     /// from before format 3.
     /// </summary>
-    public const int CurrentFormat = 7;
+    public const int CurrentFormat = 8;
 
     /// <summary>The lowest format that holds these phases and options.</summary>
     public static int FormatNeeded(IEnumerable<RotationPhase> phases, bool lastMatchWins)
     {
         var list = phases.ToList();
         var conditions = ConditionWalk.Of(list).ToList();
+        if (list.Any(p => p.Steps.Any(s => s.Action == StepAction.HeavyAttack))) return 8;
         if (conditions.Any(c => c is BattleSkillActiveCondition)) return 7;
         if (list.Any(p => p.Prioritised)) return 6;
         if (conditions.Any(c => c is PhasePlayedCondition)) return 5;

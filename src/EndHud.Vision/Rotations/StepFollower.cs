@@ -26,12 +26,12 @@ public sealed record StepPosition(int Phase, IReadOnlyList<StepMark> Marks, bool
 /// the phase changes. A step is done when it is seen used: a counted press of its slot for a battle
 /// skill (<see cref="SkillPressJudge"/>), the combo bar emptying for a combo, the ultimate going
 /// from ready to spent. Screen-seen battle-skill cooldowns are NOT used: the press is the cast, and
-/// counting both would count one cast twice. A basic-attack step never holds the marker: the next
+/// counting both would count one cast twice. A basic- or heavy-attack step (display-only) never holds the marker: the next
 /// real cast of a later step passes it. A phase played through starts again at its first step.
 /// <para>It counts, per phase, the rounds played through this fight (<see cref="TimesPlayed"/>, for
 /// "phase played" conditions): a round counts the moment its last step that can be seen used is
-/// done (trailing basic attacks are never seen), once. A phase left half way doesn't count; a phase
-/// of nothing but basic attacks never does.</para>
+/// done (trailing basic or heavy attacks are never seen), once. A phase left half way doesn't count; a phase
+/// of nothing but basic or heavy attacks never does.</para>
 /// </summary>
 public sealed class StepFollower(Rotation rotation)
 {
@@ -97,7 +97,7 @@ public sealed class StepFollower(Rotation rotation)
     }
 
     /// <summary>
-    /// Mark the step this use is: in the current group, or past groups of basic attacks only. A use
+    /// Mark the step this use is: in the current group, or past groups of basic or heavy attacks only. A use
     /// that matches nothing reachable (a skill off-script, a later step while an earlier skill is
     /// undone) moves nothing.
     /// </summary>
@@ -112,15 +112,15 @@ public sealed class StepFollower(Rotation rotation)
             {
                 var step = steps[i].Step;
                 if (_done[i] || step.Action != use.Action || !slots.TryGetValue(step.OperatorId, out int s) || s != use.Slot) continue;
-                for (int j = at; j < start; j++) _done[j] = true; // basic attacks passed
+                for (int j = at; j < start; j++) _done[j] = true; // basic or heavy attacks passed
                 _done[i] = true;
                 return;
             }
             // A skill not yet seen used holds the marker here.
             for (int i = start; i <= end; i++)
-                if (!_done[i] && steps[i].Step.Action != StepAction.BasicAttack) return;
+                if (!_done[i] && !steps[i].Step.Action.IsDisplayOnly()) return;
         }
-        // Only basic attacks were left: the phase is over, the use may be its first step again.
+        // Only basic or heavy attacks were left: the phase is over, the use may be its first step again.
         if (!wrapped)
         {
             NewRound();
@@ -141,7 +141,7 @@ public sealed class StepFollower(Rotation rotation)
         bool seen = false;
         for (int i = 0; i < steps.Count; i++)
         {
-            if (steps[i].Step.Action == StepAction.BasicAttack) continue;
+            if (steps[i].Step.Action.IsDisplayOnly()) continue;
             if (!_done[i]) return;
             seen = true;
         }
@@ -172,8 +172,8 @@ public sealed class StepFollower(Rotation rotation)
         if (at < 0) return new StepPosition(phase, marks, false, []);
 
         var step = steps[at].Step;
-        // A basic attack's availability can't be seen, and there's never anything to wait for.
-        bool? own = step.Action == StepAction.BasicAttack ? true : RotationTracker.AbilityAvailable(step, now, slots);
+        // A basic or heavy attack's availability can't be seen, and there's never anything to wait for.
+        bool? own = step.Action.IsDisplayOnly() ? true : RotationTracker.AbilityAvailable(step, now, slots);
         var checks = new List<ConditionCheck> { new(CheckKind.OwnAbility, null, own) };
         foreach (var condition in step.Expect)
             checks.Add(new ConditionCheck(CheckKind.Expected, condition, RotationTracker.Holds(condition, now, slots, history)));

@@ -249,9 +249,9 @@ public partial class RotationEditor : Window
         BuildConditionRows();
     }
 
-    /// <summary>A basic attack isn't detected: say so under the action, and how its phase's condition decides when it shows.</summary>
+    /// <summary>A basic or heavy attack isn't detected: say so under the action, and how its phase's condition decides when it shows.</summary>
     private void ShowBasicAttackHint() =>
-        BasicAttackHint.Visibility = _step?.Action == StepAction.BasicAttack ? Visibility.Visible : Visibility.Collapsed;
+        BasicAttackHint.Visibility = _step?.Action.IsDisplayOnly() == true ? Visibility.Visible : Visibility.Collapsed;
 
     // ---- Name and squad ----
 
@@ -657,7 +657,7 @@ public partial class RotationEditor : Window
 
     private BitmapSource? SkillIcon(OperatorInfo op, StepAction action)
     {
-        if (action == StepAction.BasicAttack) return null; // no skill icon: never borrow the battle skill's
+        if (action.IsDisplayOnly()) return null; // no skill icon: never borrow the battle skill's
         var kind = action switch { StepAction.Combo => SkillKind.Combo, StepAction.Ultimate => SkillKind.Ultimate, _ => SkillKind.BattleSkill };
         var icon = op.Skills.FirstOrDefault(s => s.Kind == kind);
         if (icon is null) return null;

@@ -79,8 +79,8 @@ internal static class RotationStripView
         Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, bool mayOverlap, StripStepState state)
     {
         var op = library?.Find(p.Step.OperatorId);
-        // A basic attack has no skill icon: the operator's face fills the circle instead, and no small face in the corner.
-        bool basic = p.Step.Action == StepAction.BasicAttack;
+        // A basic or heavy attack has no skill icon: the operator's face fills the circle instead, and no small face in the corner.
+        bool basic = p.Step.Action.IsDisplayOnly();
         var icon = op is null ? null : basic ? avatar(op) : skillIcon(op, p.Step.Action);
         return new StripStep(icon, op is null || basic ? null : avatar(op),
             p.Step.Label ?? Loc.Get($"Rotation.Action.{p.Step.Action}"), p.Step.Note, state, mayOverlap && p.Step.WithPrevious);
@@ -97,7 +97,7 @@ internal static class RotationStripView
                 StepAction.BattleSkill => state?.SkillPoints is < 1 ? Loc.Format("Rotation.Reason.SkillPoints", Points(state.SkillPoints), 1)
                     : Loc.Format("Rotation.Reason.Cooling", Name(step.OperatorId), Loc.Get("Rotation.Action.BattleSkill")),
                 StepAction.Combo => Loc.Format("Rotation.Reason.Cooling", Name(step.OperatorId), Loc.Get("Rotation.Action.Combo")),
-                StepAction.BasicAttack => null, // display-only: nothing to wait for
+                StepAction.BasicAttack or StepAction.HeavyAttack => null, // display-only: nothing to wait for
                 _ => Loc.Format("Rotation.Reason.UltimateCharging", Name(step.OperatorId)),
             };
         }

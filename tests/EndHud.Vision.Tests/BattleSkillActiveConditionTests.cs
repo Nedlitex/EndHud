@@ -89,7 +89,7 @@ public class BattleSkillActiveConditionTests
     {
         var rotation = Gated(new NotCondition(SiRunning));
 
-        Assert.Equal(7, Rotation.CurrentFormat);
+        Assert.True(Rotation.CurrentFormat >= 7);
         Assert.Equal(7, Rotation.FormatNeeded(rotation.Phases, lastMatchWins: false));
         string json = RotationFormat.ToJson(rotation with { Format = 7 });
         Assert.Contains("\"kind\": \"battleSkillActive\"", json);

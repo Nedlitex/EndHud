@@ -35,6 +35,7 @@
     <sys:String x:Key="Rotation.Action.Combo">连携技</sys:String>
     <sys:String x:Key="Rotation.Action.Ultimate">终结技</sys:String>
     <sys:String x:Key="Rotation.Action.BasicAttack">普攻</sys:String>
+    <sys:String x:Key="Rotation.Action.HeavyAttack">重击</sys:String>
     <sys:String x:Key="Rotation.Next">接下来</sys:String>
     <sys:String x:Key="Rotation.Reason.SkillPoints">技力 {0}/{1}</sys:String>
     <sys:String x:Key="Rotation.Reason.Cooling">{0} {1}冷却中</sys:String>
@@ -157,7 +158,7 @@
     <sys:String x:Key="Editor.Condition.Group">条件组</sys:String>
     <sys:String x:Key="Editor.Compare.Below">小于</sys:String>
     <sys:String x:Key="Editor.Compare.Above">大于</sys:String>
-    <sys:String x:Key="Editor.BasicAttackHint">普攻只用来显示，EndHud 不会识别普攻。用轴段的进入条件决定什么时候显示，例如“技力 小于 2.0”。</sys:String>
+    <sys:String x:Key="Editor.BasicAttackHint">普攻和重击只用来显示，EndHud 不会识别它们。用轴段的进入条件决定什么时候显示，例如“技力 小于 2.0”。</sys:String>
     <sys:String x:Key="Editor.ChargeHint">终结技和连携技的百分比按画面估算，误差约 ±4%。</sys:String>
     <sys:String x:Key="Editor.Condition.PhaseShown">轴段已显示次数</sys:String>
     <sys:String x:Key="Editor.PhaseShownHint">本场战斗中这个轴段出现在排轴条上的次数（出现一次算一次），离开战斗后清零。</sys:String>
