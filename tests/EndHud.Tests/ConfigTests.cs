@@ -165,8 +165,47 @@ public class ConfigTests
         Assert.DoesNotContain("DebugPanel", ConfigStore.Serialize(config)); // and it's dropped when saved
     }
 
+    /// <summary>Reading battle-skill keys is the player's consent: off until they turn it on, and an older config.json has it off.</summary>
+    [Fact]
+    public void Reading_skill_presses_is_off_until_the_player_turns_it_on()
+    {
+        Assert.False(new HudConfig().ReadSkillPresses);
+        Assert.False(ConfigStore.Parse("""{ "SettingsVersion": 6, "RotationEnabled": true }""").ReadSkillPresses);
+        Assert.True(ConfigStore.Parse("""{ "ReadSkillPresses": true }""").ReadSkillPresses);
+    }
+
+    [Fact]
+    public void Skill_keys_default_to_1_to_4()
+    {
+        // Set-1 scan codes of the top-row 1, 2, 3, 4.
+        Assert.Equal([0x02, 0x03, 0x04, 0x05], new HudConfig().SkillKeys);
+        Assert.Equal([0x02, 0x03, 0x04, 0x05], ConfigStore.Parse("{}").SkillKeys);
+        Assert.Equal([0x10, 0x11, 0x12, 0x13], ConfigStore.Parse("""{ "SkillKeys": [16, 17, 18, 19] }""").SkillKeys);
+    }
+
     [Theory]
-    [InlineData("""{ "OcrIntervalMs": 1000 }""", 250)]                          // the old default, never chosen
+    [InlineData("""{ "SkillKeys": [2, 2, 4, 5] }""")]      // two slots on one key
+    [InlineData("""{ "SkillKeys": [2, 3, 4] }""")]         // a slot missing
+    [InlineData("""{ "SkillKeys": [2, 3, 4, 5, 6] }""")]   // one too many
+    [InlineData("""{ "SkillKeys": [0, 3, 4, 5] }""")]      // not a key
+    [InlineData("""{ "SkillKeys": [2, 3, 4, 512] }""")]    // beyond any key
+    [InlineData("""{ "SkillKeys": null }""")]
+    public void A_skill_key_list_with_a_duplicate_goes_back_to_the_defaults(string json) =>
+        Assert.Equal([0x02, 0x03, 0x04, 0x05], ConfigStore.Parse(json).SkillKeys);
+
+    /// <summary>A rebinding survives a save and load, and the default list is not shared between configs.</summary>
+    [Fact]
+    public void Chosen_skill_keys_survive_a_save_and_load()
+    {
+        var config = ConfigStore.Parse("{}");
+        config.SkillKeys[0] = 0x10;
+
+        Assert.Equal([0x10, 0x03, 0x04, 0x05], ConfigStore.Parse(ConfigStore.Serialize(config)).SkillKeys);
+        Assert.Equal(0x02, new HudConfig().SkillKeys[0]);
+    }
+
+    [Theory]
+    [InlineData("""{ "OcrIntervalMs": 1000 }""", 250)]                        // the old default, never chosen
     [InlineData("""{ "OcrIntervalMs": 500 }""", 500)]                           // chosen by the player: kept
     [InlineData("""{ "OcrIntervalMs": 1000, "SettingsVersion": 2 }""", 1000)]   // chosen after the change: kept
     [InlineData("""{ }""", 250)]
