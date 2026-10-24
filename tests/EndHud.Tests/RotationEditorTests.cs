@@ -624,6 +624,230 @@ public sealed class RotationEditorTests : IDisposable
         Assert.Equal(new BossStatusCondition("Combustion", true), Assert.Single(saved.Phases[1].When));
     }
 
+    // ---- Priorities: a number per phase, and rules "if this holds, the priority is that" ----
+
+    /// <summary>Charge (no entry condition) and Burst (Laevatain's ultimate ready) with this priority and these rules.</summary>
+    private RotationLibrary Ranked(int burstPriority = 0, int chargePriority = 0, params PriorityRule[] burstRules)
+    {
+        var library = new RotationLibrary(_folder);
+        library.Own.Save(Published() with
+        {
+            Id = "mine",
+            Phases =
+            [
+                new RotationPhase("p", "Charge", [new RotationStep("Ardelia", StepAction.BattleSkill)]) { Priority = chargePriority },
+                new RotationPhase("burst", "Burst", [new RotationStep("Laevatain", StepAction.Ultimate)], [new UltimateCondition("Laevatain", true)])
+                {
+                    Priority = burstPriority,
+                    PriorityRules = burstRules,
+                },
+            ],
+        });
+        return library;
+    }
+
+    /// <summary>Everything under an element in the logical tree.</summary>
+    private static IEnumerable<DependencyObject> Inside(DependencyObject root) =>
+        LogicalTreeHelper.GetChildren(root).OfType<DependencyObject>().SelectMany(c => Inside(c).Prepend(c));
+
+    /// <summary>The rule's own controls (its number, its buttons): not those of its conditions.</summary>
+    private static List<FrameworkElement> Rules(RotationEditor editor) =>
+        ((Panel)editor.FindName("PriorityRuleRows")).Children.OfType<FrameworkElement>().ToList();
+
+    private static TextBox RuleNumber(FrameworkElement rule) => Inside(rule).OfType<TextBox>().First();
+
+    private static void ClickRule(FrameworkElement rule, string tag) =>
+        Inside(rule).OfType<Button>().First(b => Equals(b.Tag, tag)).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+
+    private static Panel RuleConditions(FrameworkElement rule) => Inside(rule).OfType<Panel>().First(p => Equals(p.Tag, "Conditions"));
+
+    private static RotationPhase SavedBurst(RotationLibrary library) => Assert.Single(library.Own.Load().Rotations).Phases[1];
+
+    /// <summary>
+    /// The owner's ask (2026-10-24): "if condition, priority is x". A number for the phase and a rule,
+    /// built in the editor, are saved; a new rule starts one above the phase's number, with a condition
+    /// to change.
+    /// </summary>
+    [Fact]
+    public void A_priority_and_a_rule_built_in_the_editor_are_saved()
+    {
+        var library = Ranked();
+
+        string said = "", started = "";
+        OnEditor(library, _ => { }, editor =>
+        {
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;               // Burst
+            ((TextBox)editor.FindName("PriorityBox")).Text = "5";
+            Click(editor, "AddPriorityRuleButton");
+            var rule = Assert.Single(Rules(editor));
+            started = RuleNumber(rule).Text;
+            Assert.Single(RuleConditions(rule).Children);                             // one condition to start with
+            RuleNumber(rule).Text = "-3";
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        });
+
+        Assert.Equal("6", started);
+        var burst = SavedBurst(library);
+        Assert.True(burst.Priority == 5, $"editor said: {said}");
+        Assert.Equal([new PriorityRule([new UltimateCondition("Laevatain", true)], -3)], burst.PriorityRules);
+        Assert.Equal(6, Assert.Single(library.Own.Load().Rotations).Format);
+    }
+
+    /// <summary>A number that isn't a whole number is refused with a sentence, under the box and on saving; nothing is saved.</summary>
+    [Fact]
+    public void A_priority_that_isnt_a_whole_number_is_refused_in_words()
+    {
+        var library = Ranked();
+
+        List<(Visibility Shown, string Text, string Said)> refused = [];
+        (Visibility Shown, string Said) fullWidth = default;
+        string ruleSaid = "";
+        OnEditor(library, _ => { }, editor =>
+        {
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;
+            var box = (TextBox)editor.FindName("PriorityBox");
+            var error = (TextBlock)editor.FindName("PriorityError");
+            foreach (string bad in new[] { "abc", "1.5", "", "99999999999" })
+            {
+                box.Text = bad;
+                Click(editor, "SaveButton");
+                refused.Add((error.Visibility, error.Text, ((TextBlock)editor.FindName("ProblemsText")).Text));
+            }
+            Assert.Equal(0, SavedBurst(library).Priority); // not saved
+
+            box.Text = "－２";                                                       // typed with a Chinese input method
+            Click(editor, "SaveButton");
+            fullWidth = (error.Visibility, ((TextBlock)editor.FindName("ProblemsText")).Text);
+
+            Click(editor, "AddPriorityRuleButton");
+            RuleNumber(Rules(editor)[0]).Text = "x";
+            Click(editor, "SaveButton");
+            ruleSaid = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        });
+
+        Assert.All(refused, r => Assert.Equal((Visibility.Visible, "Editor.PriorityNotNumber"), (r.Shown, r.Text)));
+        Assert.All(refused, r => Assert.Contains("Rotation.Problem.PriorityNotNumber", r.Said));
+        Assert.Equal(Visibility.Collapsed, fullWidth.Shown);
+        Assert.DoesNotContain("Rotation.Problem", fullWidth.Said);
+        Assert.Contains("Rotation.Problem.RuleNotNumber", ruleSaid);
+        Assert.Equal(-2, SavedBurst(library).Priority);                              // saved before the bad rule
+        Assert.Empty(SavedBurst(library).PriorityRules);
+        Assert.True(Translated("Rotation.Problem.PriorityNotNumber") && Translated("Rotation.Problem.RuleNotNumber"));
+    }
+
+    /// <summary>Rules are added, moved up and down, given conditions and removed; they're saved in their order.</summary>
+    [Fact]
+    public void Rules_are_added_reordered_and_removed()
+    {
+        var library = Ranked();
+
+        string said = "";
+        OnEditor(library, _ => { }, editor =>
+        {
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;
+            for (int i = 1; i <= 3; i++)
+            {
+                Click(editor, "AddPriorityRuleButton");
+                RuleNumber(Rules(editor)[i - 1]).Text = i.ToString();
+            }
+            ClickRule(Rules(editor)[2], "Up");                                       // 1, 3, 2
+            ClickRule(Rules(editor)[0], "Down");                                     // 3, 1, 2
+            ClickRule(Rules(editor)[1], "Remove");                                   // 3, 2
+            ClickRule(Rules(editor)[0], "AddCondition");                             // the first rule: two conditions
+            Assert.Equal(["3", "2"], Rules(editor).Select(r => RuleNumber(r).Text));
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        });
+
+        var burst = SavedBurst(library);
+        Assert.True(burst.PriorityRules.Count == 2, $"editor said: {said}");
+        Assert.Equal([3, 2], burst.PriorityRules.Select(r => r.Priority));
+        Assert.Equal([2, 1], burst.PriorityRules.Select(r => r.When.Count));
+    }
+
+    /// <summary>
+    /// No rules: just the number, with the line saying how priorities work. On a phase without an entry
+    /// condition (the otherwise phase, not ranked) the number and rules are greyed out, saying why.
+    /// </summary>
+    [Fact]
+    public void The_priority_is_offered_only_where_it_ranks()
+    {
+        var library = Ranked();
+
+        (bool Box, bool Add, Visibility Why, int Rules) charge = default, burst = default;
+        string hint = "";
+        OnEditor(library, _ => { }, editor =>
+        {
+            var phases = (ListBox)editor.FindName("PhaseList");
+            (bool, bool, Visibility, int) Now() => (((TextBox)editor.FindName("PriorityBox")).IsEnabled, ((Button)editor.FindName("AddPriorityRuleButton")).IsEnabled,
+                ((TextBlock)editor.FindName("PriorityNeedsGate")).Visibility, Rules(editor).Count);
+            phases.SelectedIndex = 0;
+            charge = Now();
+            phases.SelectedIndex = 1;
+            burst = Now();
+            hint = ((TextBlock)editor.FindName("PriorityHint")).Text;
+        });
+
+        Assert.Equal((false, false, Visibility.Visible, 0), charge);
+        Assert.Equal((true, true, Visibility.Collapsed, 0), burst);
+        Assert.Equal("Editor.PriorityHint", hint);
+    }
+
+    /// <summary>
+    /// A priority left on a phase without an entry condition is refused in words, and can be put back
+    /// to 0 there (the box stays usable while it is set).
+    /// </summary>
+    [Fact]
+    public void A_priority_on_the_otherwise_phase_is_refused_and_can_be_reset()
+    {
+        var library = Ranked(chargePriority: 2);
+
+        string said = "", after = "";
+        bool usable = false;
+        OnEditor(library, _ => { }, editor =>
+        {
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 0;
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+            var box = (TextBox)editor.FindName("PriorityBox");
+            usable = box.IsEnabled;
+            box.Text = "0";
+            Click(editor, "SaveButton");
+            after = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        });
+
+        Assert.Contains("Rotation.Problem.PriorityWithoutGate", said);
+        Assert.True(usable);
+        Assert.DoesNotContain("Rotation.Problem", after);
+        Assert.Equal(0, Assert.Single(library.Own.Load().Rotations).Phases[0].Priority);
+        Assert.True(Translated("Rotation.Problem.PriorityWithoutGate"));
+    }
+
+    /// <summary>A rule's problems are said in words naming its phase and the rule's number: a deleted phase, no condition left.</summary>
+    [Fact]
+    public void A_rules_problems_are_refused_in_words()
+    {
+        var library = Ranked(0, 0, new PriorityRule([new PhaseShownCondition("gone", Comparison.AtLeast, 1)], 1));
+
+        string missing = "", empty = "";
+        OnEditor(library, _ => { }, editor =>
+        {
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;
+            Click(editor, "SaveButton");
+            missing = ((TextBlock)editor.FindName("ProblemsText")).Text;
+            var rule = Rules(editor)[0];
+            Inside(RuleConditions(rule)).OfType<Button>().First(b => (string)b.Content == "✕").RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            Click(editor, "SaveButton");
+            empty = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        });
+
+        Assert.Contains("Rotation.Problem.RuleMissingPhase", missing);
+        Assert.Contains("Rotation.Problem.RuleWithoutCondition", empty);
+        Assert.All(new[] { "RuleMissingPhase", "RuleWithoutCondition", "RuleOperator", "EmptyRuleGroup" },
+            key => Assert.True(Translated($"Rotation.Problem.{key}"), key));
+    }
+
     private static void Click(Window window, string name) =>
         ((Button)window.FindName(name)).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
 
