@@ -57,8 +57,13 @@ rotation charts.
   爆发轴), each with a condition for when it applies ("4 arrows and no ultimate ready"). The strip
   shows the first phase whose condition holds; in between, the one it showed. See
   [Rotations](#rotations).
-- **Every step alike.** EndHud can't see which button was pressed, so it doesn't mark a current
-  step: the strip shows the phase's steps in order, with their notes.
+- **The current step, when the player allows reading their battle-skill keys.** With the menu's
+  "read my battle-skill keys" switch (rotation card; `ReadSkillPresses`, off until the player turns
+  it on) the strip marks where the player is in the phase: finished steps fade, the current one has
+  two chevrons, cyan when it can be used now, white when not yet, with the reason under the strip
+  (skill points short, the battle skill cooling down). With the switch off, nothing is read and
+  every step looks the same: the phase's steps in order, with their notes. See
+  [Battle-skill key reading](#battle-skill-key-reading).
 - **Shown in battle only** ([`StripVisibility`](src/EndHud.Vision/StripVisibility.cs)). A reading that
   misses the battle signs, or the panel covered by an ultimate animation (up to 3 s), doesn't take
   it down; it goes 2 s after the battle signs are gone (exploration, menus, loading). The gauges
@@ -495,6 +500,8 @@ release.yml).
 | `GaugesEnabled` | `true` | Show the gauges in battle: team buffs (Link with its stacks, once seen in the battle), and each recognised operator's ultimate charge and own counters, as circles with the operator's avatar in the middle. While a lasting ultimate runs (Laevatain's, Zhuang Fangyi's, Yvonne's), its own operator's ultimate circle shows its time left instead, whoever is controlled: violet, glowing, draining anticlockwise, labelled 持续中 ("≈持续中" while it's carried on off the bar); see [Lasting ultimates](#lasting-ultimates). Counters are live for the whole squad in combat with keyboard and mouse (the switched-out operators' are read on their portraits). With Si in the squad: her damage stacks as a plain number, and while her battle skill lasts its time left (grey-white, "≈" when estimated); see [Gauges for Si](#gauges-for-si). |
 | `GaugesScale` | `1` | The gauges' size on top of following the game window (the menu's slider): 0.5–2; a value outside that is clamped when the file is read. |
 | `GaugesCenterX`, `GaugesBottomY` | `0.5`, `0.885` | Where the gauges sit, as a fraction of the game window: the middle of their width and their bottom edge (so a bigger size grows upwards): bottom middle, just above the game's HP and skill-point bars. |
+| `ReadSkillPresses` | `false` | Read the battle-skill keys and controller chords so the rotation strip can mark the current step. The player's consent: with it off no input is read at all (Windows isn't even asked for it). Not a rollout flag; see [Battle-skill key reading](#battle-skill-key-reading). |
+| `SkillKeys` | `[2, 3, 4, 5]` | The key that casts each slot's battle skill, slot 1 first, as the key's scan code (plus 256 for an extended key): the defaults are the top-row 1, 2, 3, 4. Chosen in the menu by pressing the key. A list that isn't four different real keys goes back to the defaults when the file is read. |
 | `ActiveRotations` | `{}` | The rotation chosen for each squad: squad key (the four operator ids, sorted, joined by `\|`) → rotation id. Set by saving in the editor. |
 
 ### Command-line options
@@ -1693,8 +1700,9 @@ gate on another phase's count opens on the reading after that phase first shows.
 (`ReloadRotations`, e.g. after the editor saves) starts every selector afresh as well, counts included.
 
 [`RotationTracker`](src/EndHud.Vision/Rotations/RotationTracker.cs) also follows the steps inside a
-phase from skills it sees used, as below. The app doesn't use that part while the strip shows no
-current step (it couldn't tell reliably which button was pressed):
+phase from skills it sees used, as below. The app doesn't use that part: the current step comes from
+the battle-skill presses instead (see [Battle-skill key reading](#battle-skill-key-reading)), since
+the screen alone can't tell reliably which button was pressed:
 
 1. **Entry conditions first.** Every `when` is checked; the value last *seen* is remembered
    (unknown readings change nothing). A condition that turns true (it wasn't seen true before)
@@ -1715,6 +1723,92 @@ current step (it couldn't tell reliably which button was pressed):
    condition turns true).
 
 The current step is "ready" (lit) when all its known checks hold.
+
+### Battle-skill key reading
+
+Why: the screen shows that a battle skill went into cooldown, but not reliably which step of the
+phase that was, so without the player's keys the strip can't say "you are here". With the player's
+consent EndHud reads the keys that cast battle skills, and nothing else, and the strip marks the
+current step.
+
+**The switch.** The menu's rotation card has "read my battle-skill keys" (`ReadSkillPresses`, off by
+default: the owner's privacy decision, 2026-10-23). It is usable only with the rotation strip and
+the squad reading on. Below it, the four keys, one per slot, chosen by clicking "change" and
+pressing the key (Esc keeps the old one; a key another slot uses is refused, naming that slot), and
+"restore default keys (1-4)". Combos and ultimates are still seen on the screen, as before.
+
+**What is read** ([`SkillInputReader`](src/EndHud/SkillInput/SkillInputReader.cs), on its own thread,
+only while the switch is on, the strip and the squad reading are on, and the game itself is in
+front: never in another program, never in EndHud's menu):
+
+- The keyboard through Raw Input (it only listens: no key is taken from any program, unlike a
+  hotkey on a bare 1-4, which would stop digits working in a browser while EndHud runs). A
+  low-level keyboard hook is never used.
+- Xbox pads through XInput (Microsoft's documented button bits), PlayStation pads through Raw
+  Input's HID reports. A chord is the left shoulder (L1/LB) held plus the face button in the slot's
+  place on the diamond: left (square / X) slot 1, top (triangle / Y) slot 2, right (circle / B)
+  slot 3, bottom (cross / A) slot 4.
+- [`SkillInputDecoder`](src/EndHud/SkillInput/SkillInputDecoder.cs) turns each event into "slot N was
+  cast" or nothing. An unbound key is dropped inside the call that receives it; the only state kept
+  is which of the four bound keys are held (a held key casts once) and each pad's five buttons.
+  Every press becomes a `SkillPress` (slot, time on the reading clock): nothing else about the key
+  exists anywhere.
+- Turning it off unregisters everything from Windows (`RIDEV_REMOVE`) and ends the thread. If
+  Windows refuses to deliver input, the card says so and the reason is logged; the strip then shows
+  the phase as without the switch.
+
+**Which presses count** ([`SkillPressJudge`](src/EndHud.Vision/Rotations/SkillPressJudge.cs)). Each
+reading takes the presses made up to its own time (`PartyState.ReadAt`) and judges them against the
+reading before: a press counts only in battle (a digit typed in a chat window or a menu does not),
+for a slot with an operator, whose battle-skill button wasn't cooling down, with a skill point left
+once the presses already counted since that reading have spent theirs, and at most once per slot
+between two readings (a mashed key casts once). With a controller the button's cooldown isn't read,
+so the skill points decide.
+
+**Following the steps** ([`StepFollower`](src/EndHud.Vision/Rotations/StepFollower.cs)). The phase
+still comes from `PhaseSelector`; the follower only follows inside it and starts at the first step
+when the phase changes or the fight ends. A step is done when it is seen used: a counted press of
+its slot for a battle skill, the combo bar emptying for a combo, the ultimate going from ready to
+spent. Battle-skill cooldowns seen on the screen are not used (the press is the cast; both would
+count it twice). Steps drawn together may be used in either order. A use that matches no reachable
+step (off-script, or a later step while an earlier skill is undone) moves nothing. Basic-attack
+steps never hold the marker: the next real cast of a later step passes them. A phase played
+through starts again at its first step. [`RotationFollower`](src/EndHud/OverlayWindow.Rotation.cs)
+runs it once per reading when it is handed the presses (`OverlayWindow.PressesFor`: the reader with
+the switch on, none with it off); with none it returns no step marks and the strip is drawn as
+without the switch.
+
+**Privacy rules, each held by a test** (`SkillInputPrivacyTests`, `SkillPressTests`,
+`SkillInputReaderTests`, `DiagnosticsTests`):
+
+- `SkillPress` has exactly two properties, the slot and the time.
+- Every unbound key code, pressed and released, gives nothing and leaves nothing in the decoder.
+- The log gets one line when reading starts and one when it stops (and Windows' refusal, with its
+  error number); never a key, scan code, button, device name or press time.
+- The diagnostics carry only counts (below); nothing about presses goes into `recent/readings.txt`
+  (a list of press times would be a record of keystrokes). The four chosen keys are in
+  `config.json`, as the menu says.
+
+**Diagnostics.** The summary has, after the last reading:
+
+```
+battle-skill key reading: listening: keyboard, PlayStation pads 0, XInput pads 1, other pads 0; PlayStation reports without buttons 0
+  slot 1 battle skill: counted 12, cooling 1, no skill points 0, repeat 3, not in battle 4, empty slot 0
+  ...
+```
+
+The status is `off (not consented)` with the switch off, `off` while not listening (the game not in
+front), or `failed (Windows refused, error N)`. The counts are since EndHud started.
+
+**Not covered** (each absent, not a placeholder):
+
+| Cut | Why | What brings it back |
+|---|---|---|
+| Pads that are neither XInput nor Sony (DirectInput pads) | Their HID button numbers vary by maker; a table would be a guess | A diagnostics zip shows "other pads" with presses never counted, and the pad is named |
+| DualSense on Bluetooth after something switches it to its extended report | That report carries no buttons the HID parser can see | Diagnostics shows "PlayStation reports without buttons" above 0 |
+| A replay test over a recorded clip with a presses file | No clip with a presses file exists yet; `trace-video --presses` is what makes one usable | A recording with its `seconds,slot` lines |
+| Moving on to the next phase of the flow when a phase is finished | `PhaseSelector` stays the phase authority; a finished phase starts over at its first step | The owner asks for it |
+| Mashing the same slot across readings on a controller | The controller layout's battle-skill cooldown isn't read, so a second press one reading later is refused only by the skill points | Battle-skill button reading in the controller layout |
 
 ## Alerts
 
@@ -1952,6 +2046,7 @@ package, add it to `requirements.txt` with an exact version.
 | `identify <screenshot> --library <dir>` | Show each slot's learned match and closest wiki avatars (model differences, lower = closer). |
 | `learn <screenshot> --library <dir> --slots A,B,C,D` | Teach a library the squad in a screenshot (operator ids, slot order). |
 | `build-portrait-references <squads.json> <out.json>` | Rebuild EndHud's built-in in-game portrait references from labelled 4K squad screenshots. |
+| `trace-video <video>` `[--every <s>] [--from <s>] [--to <s>] [--presses <file>] [--rotation <rotation.json> --squad <id1>,<id2>,<id3>,<id4>]` | One CSV row per sampled frame: skill points and, per slot, combo, ultimate and battle-skill button, for studying when abilities are used. `--presses`: a file of the battle skills cast in the recording, lines `seconds,slot` (`#` starts a comment; a bad line is refused with its line number); a `presses` column says how each press was judged against the row before (e.g. `2:Counted 2:Repeat`). `--rotation` with `--squad` (the operator ids by slot, so no naming is needed): `phase,step` columns, the phase the strip shows and the step it marks current (1-based; `-` out of battle or with no step marked). |
 | `trace-inn <video>` `[--every <s>] [--from <s>] [--to <s>] [--end-margin <s>] [--reference <dir>]` | Text only, never an image: per sampled frame (0.5 s) the inn screen, the timer, each table card's state and item ids and the dispatch panel's dishes and queue; then every order once (counted only after its table was seen choosing, items by a vote over the frames that showed them), the counts per dish and drink, gourmand orders apart, the menu and the theme as the screens state them. For measuring what guests order. `--end-margin` leaves out a recording's last seconds. |
 | `fetch-operators <dir>` | Download or update the roster, avatars and skill icons from the wiki into `<dir>/reference`, as the app does (`identify` and `learn` use the same layout). |
 

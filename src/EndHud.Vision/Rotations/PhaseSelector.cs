@@ -14,8 +14,9 @@ namespace EndHud.Vision.Rotations;
 /// <item>At the start, before anything holds, the first phase without a condition is shown, or the
 /// first phase when every phase has one.</item>
 /// </list>
-/// <para>EndHud can't see which button the player pressed, so this doesn't follow the steps inside
-/// a phase (the strip shows them all alike).</para>
+/// <para>This only picks the phase; it doesn't follow the steps inside it. That is
+/// <see cref="StepFollower"/>'s job, from the battle-skill presses when the player has turned on
+/// reading their keys (without them the strip shows every step alike).</para>
 /// <para>It counts how many times each phase has come onto the strip this fight, for "phase shown"
 /// conditions (<see cref="PhaseShownCondition"/>); <see cref="EndFight"/> forgets them.</para>
 /// </summary>
