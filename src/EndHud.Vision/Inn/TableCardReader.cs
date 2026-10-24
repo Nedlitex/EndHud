@@ -58,9 +58,10 @@ public sealed class TableCardReader(InnText text, InnPictures pictures)
     {
         double left = FirstCardLeft + CardStep * (table - 1);
         var colour = CardColour(frame, layout, left);
-        // No card: an empty table, unless an overlay drawn into the frame covers the card's edge (unknown, then).
+        // No card: an empty table, unless an overlay drawn into the frame (an on-screen display such as Afterburner's)
+        // covers the card's edge, where its colour is read: unknown, then.
         if (colour is CardKind.None)
-            return OverlayShare(frame, layout, left) >= MinOverlayShare ? null : new TableCard(table, TableState.Empty, [], []);
+            return OverlayShare(frame, layout, CardEdge with { X = (int)left }) >= MinOverlayShare ? null : new TableCard(table, TableState.Empty, [], []);
 
         string word = await ReadWordAsync(frame, layout, left, colour);
         bool Says(string[] words) => words.Any(word.Contains);
@@ -84,6 +85,8 @@ public sealed class TableCardReader(InnText text, InnPictures pictures)
                 foreach (double x in new[] { FirstDiscX, SecondDiscX })
                     if (FindDisc(frame, layout, left + x) is { } disc) discs.Add(disc);
                 if (discs.Count == 0) return null;
+                // An overlay over the card hides a disc or part of one: a wrong count or picture, so unknown.
+                if (OverlayShare(frame, layout, CardBox with { X = (int)left }) >= MinOverlayShare) return null;
                 // An item is served when its pip is green or the game is serving it on its own (the spinner).
                 IReadOnlyList<bool> pips = discs.Count == 2 ? Pips(frame, layout, left) : [];
                 var items = discs.Select((disc, i) => new OrderItem(Identify(frame, disc), (pips.Count == discs.Count && pips[i]) || HasSpinner(frame, disc))).ToList();
@@ -93,34 +96,34 @@ public sealed class TableCardReader(InnText text, InnPictures pictures)
 
     private enum CardKind { None, Neutral, Yellow, Red }
 
-    // At 4K, from a card's left edge: the strip where its colour is read (the two patches and between them).
-    private static readonly PixelRect CardEdge = new(0, 110, 60, 140);
+    // At 4K, from a card's left edge: the strip where its colour is read (the two patches and between them), and the
+    // whole card under its number tab.
+    private static readonly PixelRect CardEdge = new(0, 110, 60, 140), CardBox = new(0, 110, (int)CardWidth, 160);
 
-    // The least overlay share that makes a place without a card colour unknown rather than empty. Measured on every inn
-    // fixture at 4K and 1080p: 0.00 % on all 270 places read empty; 1.14 % at the least on an occupied place that the
-    // synthetic RivaTuner display at the top centre made read empty (InnUnderOverlayTests).
-    private const double MinOverlayShare = 0.003;
+    // The least overlay share that makes a card unknown. Measured on every session frame of Fixtures/inn at 4K, 1080p and
+    // 1080p between bars (1920x1200): 0.00 % on all 189 places read empty (card edge) and at most 0.02 % on the 219 order
+    // cards (whole card); with the synthetic RivaTuner display at the top centre, at least 7.8 % on the edge of an
+    // occupied place it made read empty and 2.7 % on an order card it made read wrong.
+    private const double MinOverlayShare = 0.005;
 
     /// <summary>
-    /// How much of the card's edge is in an overlay's ink: the lesser of its shares of pure black (a drawn text's shadow) and
-    /// of vivid, nearly pure colour (an on-screen display's lettering, such as Afterburner's). Lettering comes with both;
-    /// the dining room shows neither together.
+    /// The share of <paramref name="area"/> (4K, from the top left) in a vivid, nearly pure colour: an on-screen display's
+    /// lettering and graph (Afterburner's orange, cyan, magenta, green, yellow), which the dining room and the cards'
+    /// order pictures don't show. Not its white lettering, which the cards are made of.
     /// </summary>
-    internal static double OverlayShare(Frame frame, InnLayout layout, double left)
+    internal static double OverlayShare(Frame frame, InnLayout layout, PixelRect area)
     {
-        var r = layout.TopLeft(CardEdge with { X = (int)left }).ClampTo(frame.Width, frame.Height);
+        var r = layout.TopLeft(area).ClampTo(frame.Width, frame.Height);
         if (r.IsEmpty) return 0;
-        int black = 0, vivid = 0, all = 0;
+        int vivid = 0, all = 0;
         for (int y = r.Y; y < r.Bottom; y += 2)
         for (int x = r.X; x < r.Right; x += 2)
         {
             var (cr, cg, cb) = frame.GetPixel(x, y);
-            int max = Math.Max(cr, Math.Max(cg, cb)), min = Math.Min(cr, Math.Min(cg, cb));
             all++;
-            if (max <= 16) black++;
-            else if (max >= 230 && min <= 40) vivid++;
+            if (Math.Max(cr, Math.Max(cg, cb)) >= 230 && Math.Min(cr, Math.Min(cg, cb)) <= 40) vivid++;
         }
-        return Math.Min(black, vivid) / (double)all;
+        return vivid / (double)all;
     }
 
     /// <summary>
