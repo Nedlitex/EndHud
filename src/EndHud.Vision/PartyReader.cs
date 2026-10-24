@@ -150,9 +150,10 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
 
     /// <summary>
     /// In a battle: the squad panel is on screen with a combo bar and the skill-point bar, which the
-    /// game draws in combat only. Not in exploration, menus, login or loading screens.
+    /// game draws in combat only. Not in exploration, menus, login or loading screens, and never
+    /// while the top-left mode switch says the player is out of battle (<see cref="OutOfBattle"/>).
     /// </summary>
-    public bool InCombat => PanelVisible && SkillPoints is not null && Slots.Any(s => s.Combo is not null);
+    public bool InCombat => PanelVisible && SkillPoints is not null && Slots.Any(s => s.Combo is not null) && !OutOfBattle;
 
     /// <summary>The top-left mode switch (<see cref="Vision.ModePill"/>): this frame's reading from
     /// <see cref="PartyReader"/>, held through a short misread by <see cref="PartyTracker"/>.</summary>

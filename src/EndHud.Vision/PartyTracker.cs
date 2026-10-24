@@ -28,6 +28,10 @@ namespace EndHud.Vision;
 /// Its last value is kept through a gap of up to <see cref="UltimateGapReadings"/> readings while
 /// the same operator is controlled, unless it was nearly out (<see cref="UltimateEndingBelow"/>):
 /// then a missing bar means it ended.
+/// The mode switch at the top left (<see cref="ModePill"/>): an effect over it, or the slider moving
+/// between modes, can misread it for a frame, which would take the battle HUD down (or let it up) for
+/// that frame. A new reading is taken once it has been read <see cref="ModePillReadings"/> times in a
+/// row; the first one ever at once.
 /// One tracker follows one game window; use a new one for another window.
 /// </summary>
 public sealed class PartyTracker
@@ -42,26 +46,51 @@ public sealed class PartyTracker
     public const int MoreOperatorsReadings = 12;
     public const int FewerOperatorsReadings = 4;
 
+    public const int ModePillReadings = 2;
+
     private readonly bool[] _dead = new bool[PartyLayout.SlotCount];
     private readonly Queue<double>[] _charge = Enumerable.Range(0, PartyLayout.SlotCount).Select(_ => new Queue<double>()).ToArray();
     private readonly PartySlot?[] _lastSlots = new PartySlot?[PartyLayout.SlotCount];
     private PartyState? _lastVisible;
     private int? _size;
     private (int Size, int Readings)? _newSize;
+    private ModePillReading? _modePill;
+    private (ModePillReading Reading, int Readings)? _newModePill;
 
     public PartyState Track(PartyState state)
     {
+        var modePill = TrackModePill(state.ModePill);
         if (!state.PanelVisible || !SizeSettled(state.SquadSize))
         {
-            if (_lastVisible is null) return state;
-            _lastVisible = _lastVisible with { ReadingsSinceSeen = _lastVisible.ReadingsSinceSeen + 1 };
+            if (_lastVisible is null) return state with { ModePill = modePill };
+            _lastVisible = _lastVisible with { ReadingsSinceSeen = _lastVisible.ReadingsSinceSeen + 1, ModePill = modePill };
             return _lastVisible;
         }
 
         var slots = state.Slots.Select(Track).ToList();
         var (timeLeft, timeColour) = TrackUltimateTime(state);
-        _lastVisible = state with { Slots = slots, ReadingsSinceSeen = 0, UltimateTimeLeft = timeLeft, UltimateTimeColour = timeColour };
+        _lastVisible = state with { Slots = slots, ReadingsSinceSeen = 0, UltimateTimeLeft = timeLeft, UltimateTimeColour = timeColour, ModePill = modePill };
         return _lastVisible;
+    }
+
+    /// <summary>The mode switch's reading, a new one taken once read <see cref="ModePillReadings"/> times in a row.</summary>
+    private ModePillReading TrackModePill(ModePillReading seen)
+    {
+        if (_modePill is not { } held || seen == held)
+        {
+            _newModePill = null;
+            _modePill = seen;
+            return seen;
+        }
+        int readings = _newModePill is { } pending && pending.Reading == seen ? pending.Readings + 1 : 1;
+        if (readings < ModePillReadings)
+        {
+            _newModePill = (seen, readings);
+            return held;
+        }
+        _newModePill = null;
+        _modePill = seen;
+        return seen;
     }
 
     /// <summary>Is <paramref name="size"/> the squad's size (the first one read, or one read enough times in a row)?</summary>

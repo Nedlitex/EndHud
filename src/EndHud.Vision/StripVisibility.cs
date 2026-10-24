@@ -3,6 +3,8 @@ namespace EndHud.Vision;
 /// <summary>
 /// Whether the rotation strip (and the gauges) are up: in battle only (<see cref="PartyState.InCombat"/>).
 /// <list type="bullet">
+/// <item>The top-left mode switch showing (探索 / 工业, <see cref="PartyState.OutOfBattle"/>): down at once,
+/// whatever the squad panel shows. Its icon turned red (a fight in the open world) is battle.</item>
 /// <item>The panel on screen without the battle signs for a moment (an effect over them): stays,
 /// for up to <see cref="PresenceMemory.ReadingsToLeave"/> readings.</item>
 /// <item>The panel out of sight (the tracker repeats the last reading): stays while that may be an
@@ -20,6 +22,13 @@ public sealed class StripVisibility
 
     public bool Update(PartyState state)
     {
+        // The mode switch says out of battle (already held over a misread frame by PartyTracker):
+        // down at once, not after the wait for missing battle signs.
+        if (state.OutOfBattle)
+        {
+            _battle.Forget();
+            return false;
+        }
         if (state.ReadingsSinceSeen == 0) return _battle.Update(state.InCombat);
         if (state.InCombat && state.ReadingsSinceSeen <= CoveredReadings) return _battle.Update(true);
         _battle.Forget();

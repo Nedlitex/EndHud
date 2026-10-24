@@ -13,6 +13,8 @@ public enum ComboHintMode
 /// <summary>
 /// Decides which slots get a combo-ready hint, from one tracked reading after another.
 /// <list type="bullet">
+/// <item>Never while the top-left mode switch says out of battle (<see cref="PartyState.OutOfBattle"/>,
+/// exploring or building), whatever the combo bars show.</item>
 /// <item>Only in combat: the combo bar is on screen (out of combat it isn't drawn), the operator
 /// hasn't fallen, and the panel was seen in the last <see cref="MaxReadingsSinceSeen"/> readings —
 /// so a kept reading carries the hint through a short cutscene, but not into menus.</item>
@@ -110,13 +112,15 @@ public sealed class ComboHints
     public IReadOnlyList<int> Update(PartyState state, TimeSpan now)
     {
         bool inView = state.PanelVisible && state.ReadingsSinceSeen <= MaxReadingsSinceSeen;
+        // The mode switch says out of battle (exploring or building): no hints, and start over like out of combat.
+        bool outOfBattle = state.OutOfBattle;
         bool newReading = !ReferenceEquals(state, _lastReading);
         _lastReading = state;
         var show = new List<int>();
         foreach (var slot in state.Slots)
         {
             int i = slot.Number - 1;
-            var combo = inView && !slot.Dead ? slot.Combo : null;
+            var combo = inView && !slot.Dead && !outOfBattle ? slot.Combo : null;
             if (!newReading)
             {
                 if (combo is { Ready: true } && (Mode == ComboHintMode.WhileReady || IsRecent(i, now))) show.Add(slot.Number);
@@ -129,7 +133,7 @@ public sealed class ComboHints
                 // fight starts doesn't count as having come off cooldown. Merely out of view (an
                 // ultimate cutscene, a menu) keeps the state: a cooldown that finished meanwhile
                 // is hinted when the panel is back.
-                if (slot.Dead || (inView && slot.Level is not null))
+                if (slot.Dead || outOfBattle || (inView && slot.Level is not null))
                 {
                     (_sawCooling[i], _coolingReadings[i], _readyAt[i]) = (false, 0, null);
                     _filling[i].Clear();
