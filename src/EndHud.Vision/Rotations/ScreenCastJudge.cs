@@ -99,7 +99,10 @@ public sealed class ScreenCastJudge
         var casts = new List<SkillCast>();
 
         int offset = 4 - Math.Clamp(now.SquadSize, 1, 4); // a squad of fewer than four is drawn from the right
-        foreach (var flash in now.Flashes)
+        // Out of battle by the mode switch (exploring, building): a flash there is no battle skill cast, and none
+        // told before it is left to count as a free empowered cast.
+        if (now.OutOfBattle) _flashes.Clear();
+        else foreach (var flash in now.Flashes)
         {
             int slot = flash.Button - offset + 1;
             if (slot is >= 1 and <= 4) _flashes.Add(new Flash(slot, flash.At, flash.Kind));

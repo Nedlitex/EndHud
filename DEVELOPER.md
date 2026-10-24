@@ -1896,8 +1896,9 @@ on its own, 30 times a second at most, from the frames Windows already sends:
 [`WindowCapture.SetCornerTap`](src/EndHud.Vision/Capture/WindowCapture.cs) copies only that corner off the GPU
 (`StagingCopy.CopyRegion`, `CopySubresourceRegion` into a small staging texture of its own) on the capture's thread;
 [`FlashSampler`](src/EndHud.Vision/FlashSampler.cs) measures and tells. `PartyMonitor` taps the corner (the game's
-area, then its 16:9 picture: letterbox-aware) only in the keyboard-and-mouse layout, through the window capture, and
-while the last reading in combat was at most 3 s ago (`SamplesFlashes`); each reading takes the flashes told since the
+area, then its 16:9 picture: letterbox-aware) only in the keyboard-and-mouse layout, through the window capture,
+while the last reading in combat was at most 3 s ago, and never while the top-left mode switch says out of battle
+(exploring or building: it stops at once; `SamplesFlashes`); each reading takes the flashes told since the
 one before (`PartyState.Flashes`). Cost, measured: 0.74 ms of CPU per sample at 4K (four discs and their scene rings,
 the rings sampled every other pixel; 0.23 ms at 1080p), about 2 % of one core at 30 a second, plus a 1.2 MB read
 back from the GPU per sample. The diagnostics line `battle-skill flash: N samples, X ms each; Fill …` counts them.
@@ -1912,7 +1913,9 @@ back from the GPU per sample. The diagnostics line `battle-skill flash: N sample
    countdown → else nobody (`Unattributed`). A drop waits up to 0.6 s for its flash, which is told after the fill.
 3. A flash with no drop counts only as an `EmpoweredCast` (not certain). A press and a screen cast of a slot within
    0.5 s are one cast. A press with no drop within 0.5 s while the points are read is refused (a digit in a chat, a
-   press the game ignored); while they can't be read, a counted press is a cast, not a certain one.
+   press the game ignored); while they can't be read, a counted press is a cast, not a certain one. Out of battle by
+   the mode switch nothing is a cast (no drop is measured there, presses are refused as not in battle, and flashes
+   are dropped).
 
 A cast is **certain** (`SkillCast.Certain`) when a point was spent and the slot is known: only certain uses may make
 the strip jump (below).

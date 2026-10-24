@@ -324,7 +324,7 @@ internal sealed class PartyMonitor : IDisposable
     /// not saying out of battle (exploring, building: then at once, not after the hold).
     /// </summary>
     internal static bool SamplesFlashes(HudLayout? layout, bool fromWindow, TimeSpan sinceCombat, bool outOfBattle) =>
-        layout == HudLayout.KeyboardMouse && fromWindow && sinceCombat <= FlashSamplingHold;
+        layout == HudLayout.KeyboardMouse && fromWindow && sinceCombat <= FlashSamplingHold && !outOfBattle;
     private readonly Queue<RecentFrame> _recent = new();
     private DateTime _recentAt = DateTime.MinValue;
     private static readonly TimeSpan RecentFrameEvery = TimeSpan.FromSeconds(2);
