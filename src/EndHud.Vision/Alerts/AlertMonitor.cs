@@ -14,13 +14,15 @@ public sealed class AlertMonitor
     private readonly Dictionary<string, bool> _lastSeen = new(StringComparer.Ordinal);
 
     /// <summary>The rules that pop up on this reading (in the rules' order).</summary>
-    public IReadOnlyList<AlertRule> Update(PartyState state, IReadOnlyList<AlertRule> rules)
+    /// <param name="history">The phases played through, from the rotation the strip follows now; <see cref="PhaseHistory.KeysNotRead"/>
+    /// while the battle-skill keys aren't read (then "phase played" is ignored), <see cref="PhaseHistory.None"/> when no rotation is followed.</param>
+    public IReadOnlyList<AlertRule> Update(PartyState state, IReadOnlyList<AlertRule> rules, IPhaseHistory history)
     {
         var popped = new List<AlertRule>();
         foreach (var rule in rules)
         {
             if (rule.When.Count == 0) continue;
-            bool? now = RotationTracker.Evaluate(new AllCondition(rule.When), state, PhaseHistory.None);
+            bool? now = RotationTracker.Evaluate(new AllCondition(rule.When), state, history);
             if (now is not { } holds) continue;
             bool was = _lastSeen.TryGetValue(rule.Id, out bool seen) && seen;
             _lastSeen[rule.Id] = holds;

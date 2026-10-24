@@ -122,8 +122,8 @@ public class UltimateActiveConditionTests
         var monitor = new AlertMonitor();
         var rule = new AlertRule("zhuang-on", [ZhuangActive], "");
 
-        Assert.Empty(monitor.Update(Reading(null, null, Running()), [rule]));
-        Assert.Equal("zhuang-on", Assert.Single(monitor.Update(Reading(0.98, Gold, Running(new LastingUltimateView("Zhuang_Fangyi", 0.98, false))), [rule])).Id);
+        Assert.Empty(monitor.Update(Reading(null, null, Running()), [rule], PhaseHistory.None));
+        Assert.Equal("zhuang-on", Assert.Single(monitor.Update(Reading(0.98, Gold, Running(new LastingUltimateView("Zhuang_Fangyi", 0.98, false))), [rule], PhaseHistory.None)).Id);
     }
 
     /// <summary>A rotation's phase on Zhuang's ultimate is shown while it runs in the background.</summary>
@@ -136,7 +136,7 @@ public class UltimateActiveConditionTests
             new RotationPhase("charge", "Charge", [new RotationStep("Arcane", StepAction.Combo)]),
         ]));
 
-        Assert.Equal("Charge II", selector.Update(Reading(null, null, Running())).Step.PhaseLabel);
-        Assert.Equal("Burst I", selector.Update(Reading(0.7, Gold, Running(new LastingUltimateView("Zhuang_Fangyi", 0.7, false)))).Step.PhaseLabel);
+        Assert.Equal("Charge II", selector.Update(Reading(null, null, Running()), null).Step.PhaseLabel);
+        Assert.Equal("Burst I", selector.Update(Reading(0.7, Gold, Running(new LastingUltimateView("Zhuang_Fangyi", 0.7, false))), null).Step.PhaseLabel);
     }
 }

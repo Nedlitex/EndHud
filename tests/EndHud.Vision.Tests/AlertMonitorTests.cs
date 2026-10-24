@@ -27,7 +27,7 @@ public class AlertMonitorTests
 
     /// <summary>The rules that popped on each reading, in turn.</summary>
     private static List<int> Fired(AlertMonitor monitor, IReadOnlyList<AlertRule> rules, params PartyState[] readings) =>
-        readings.Select(r => monitor.Update(r, rules).Count).ToList();
+        readings.Select(r => monitor.Update(r, rules, PhaseHistory.None).Count).ToList();
 
     [Fact]
     public void Pops_once_when_skill_points_reach_1_8()
@@ -48,7 +48,7 @@ public class AlertMonitorTests
 
         Assert.Equal([1, 0, 1], Fired(monitor, [CastNow], Reading(1.8), Reading(1.5), Reading(1.9)));
         Assert.True(monitor.StillHolds(CastNow.Id));
-        monitor.Update(Reading(1.0), [CastNow]);
+        monitor.Update(Reading(1.0), [CastNow], PhaseHistory.None);
         Assert.False(monitor.StillHolds(CastNow.Id));
     }
 
@@ -62,7 +62,7 @@ public class AlertMonitorTests
     public void A_new_fight_pops_it_again()
     {
         var monitor = new AlertMonitor();
-        monitor.Update(Reading(1.8), [CastNow]);
+        monitor.Update(Reading(1.8), [CastNow], PhaseHistory.None);
 
         monitor.EndFight();
 
@@ -95,8 +95,8 @@ public class AlertMonitorTests
         var low = AlertRule.New([new SkillPointsCondition(Comparison.Below, 1)], "Low");
         var monitor = new AlertMonitor();
 
-        Assert.Equal([low], monitor.Update(Reading(0.5), [CastNow, low]));
-        Assert.Equal([CastNow], monitor.Update(Reading(2), [CastNow, low]));
+        Assert.Equal([low], monitor.Update(Reading(0.5), [CastNow, low], PhaseHistory.None));
+        Assert.Equal([CastNow], monitor.Update(Reading(2), [CastNow, low], PhaseHistory.None));
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public class AlertMonitorTests
             var vulnerable = AlertRule.New([new BossStatusCondition("Vulnerable", true, 3)], "Vulnerable 3");
             var both = AlertRule.New([new BossStatusCondition("Cryo Infliction", true, 1), new BossStatusCondition("Vulnerable", true, 3)], "Both");
 
-            var popped = new AlertMonitor().Update(Reading(statuses: reader.Read(frame)), [cryo, vulnerable, both]);
+            var popped = new AlertMonitor().Update(Reading(statuses: reader.Read(frame)), [cryo, vulnerable, both], PhaseHistory.None);
 
             Assert.Equal(["Cryo", "Vulnerable 3", "Both"], popped.Select(r => r.Message));
         }

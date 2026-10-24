@@ -310,6 +310,13 @@ public sealed class RotationTracker(Rotation rotation)
     public static bool? Evaluate(StateCondition condition, PartyState state, IPhaseHistory history) =>
         Holds(condition, state, SlotsByOperator(state), history);
 
+    /// <summary>
+    /// Is this condition ignored, as if it weren't there? Only while the battle-skill keys aren't read
+    /// (<see cref="IPhaseHistory.PlayedIgnored"/>), and only when it is made of nothing but "phase
+    /// played" parts (<see cref="ConditionWalk.OnlyPlayed"/>).
+    /// </summary>
+    public static bool Ignored(StateCondition condition, IPhaseHistory history) => false;
+
     /// <summary>All of them hold: false if any is false, else unknown if any can't be seen, else true.</summary>
     private static bool? HoldsAll(IEnumerable<StateCondition> conditions, PartyState state, IReadOnlyDictionary<string, int> slots, IPhaseHistory history)
     {

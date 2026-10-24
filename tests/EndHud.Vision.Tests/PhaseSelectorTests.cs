@@ -32,7 +32,7 @@ public class PhaseSelectorTests
     private static Rotation Load(string id) =>
         RotationFormat.FromJson(File.ReadAllText(Path.Combine(OperatorCache.RepositoryRoot(), "rotations", id + ".json")));
 
-    private static string Shown(PhaseSelector selector, PartyState state) => selector.Update(state).Step.PhaseLabel;
+    private static string Shown(PhaseSelector selector, PartyState state) => selector.Update(state, null).Step.PhaseLabel;
 
     [Fact]
     public void Typhoeus_charge_one_with_four_arrows_and_no_ultimate_ready()
@@ -213,7 +213,7 @@ public class PhaseSelectorTests
     {
         var selector = ChargeAndBurst();
 
-        foreach (var reading in new[] { Charging, Bursting, Charging, Bursting }) selector.Update(reading);
+        foreach (var reading in new[] { Charging, Bursting, Charging, Bursting }) selector.Update(reading, null);
 
         Assert.Equal(2, selector.TimesShown("a"));
         Assert.Equal(2, selector.TimesShown("b"));
@@ -225,7 +225,7 @@ public class PhaseSelectorTests
     {
         var selector = ChargeAndBurst();
 
-        for (int i = 0; i < 10; i++) selector.Update(Charging);
+        for (int i = 0; i < 10; i++) selector.Update(Charging, null);
 
         Assert.Equal(1, selector.TimesShown("b"));
         Assert.Equal(0, selector.TimesShown("a"));
@@ -235,8 +235,8 @@ public class PhaseSelectorTests
     public void End_of_fight_forgets_the_counts_and_the_phase()
     {
         var selector = ChargeAndBurst();
-        selector.Update(Charging);
-        selector.Update(Bursting);
+        selector.Update(Charging, null);
+        selector.Update(Bursting, null);
         Assert.Equal(1, selector.TimesShown("a"));
 
         selector.EndFight();

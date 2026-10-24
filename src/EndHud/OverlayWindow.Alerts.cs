@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using EndHud.Vision;
 using EndHud.Vision.Alerts;
+using EndHud.Vision.Rotations;
 
 namespace EndHud;
 
@@ -62,9 +63,9 @@ public partial class OverlayWindow
     /// A reading in or out of battle (the strip's rule for "in battle"): pop up the rules that turned
     /// true, take down those that stopped holding. True when a rule asks about the boss's statuses.
     /// </summary>
-    private bool TrackAlerts(PartyState? state, bool inBattle)
+    private bool TrackAlerts(PartyState? state, bool inBattle, IPhaseHistory history)
     {
-        var follow = _alertFollower.Update(state, inBattle, _config.AlertsEnabled && _config.PartyOcrEnabled, _alertRules, _clock.Elapsed);
+        var follow = _alertFollower.Update(state, inBattle, _config.AlertsEnabled && _config.PartyOcrEnabled, _alertRules, history, _clock.Elapsed);
         foreach (string id in follow.TakeDown) TakeDownAlert(id);
         foreach (var rule in follow.Show) ShowAlert(rule);
         return follow.ReadBossStatuses;

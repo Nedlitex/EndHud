@@ -34,6 +34,18 @@ public sealed class StepFollower(Rotation rotation)
     private readonly IReadOnlyList<PlayedStep> _played = rotation.Played();
     private int _phase = -1;
     private bool[] _done = [];
+    private readonly int[] _timesPlayed = new int[rotation.Phases.Count];
+
+    /// <summary>
+    /// Times the phase was played through this fight (<see cref="PhasePlayedCondition"/>); null for a
+    /// phase not in the rotation.
+    /// </summary>
+    public int? TimesPlayed(string phaseId)
+    {
+        for (int i = 0; i < rotation.Phases.Count; i++)
+            if (rotation.Phases[i].Id == phaseId) return _timesPlayed[i];
+        return null;
+    }
 
     /// <summary>The fight ended: the next one starts at the first step.</summary>
     public void EndFight() => _phase = -1;

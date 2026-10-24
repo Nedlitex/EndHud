@@ -27,8 +27,15 @@ public sealed class PhaseSelector(Rotation rotation) : IPhaseHistory
     private readonly int? _otherwise = Array.FindIndex(rotation.Phases.ToArray(), p => !p.Gated) is var i and >= 0 ? i : null;
     private int? _current;
     private readonly int[] _timesShown = new int[rotation.Phases.Count];
+    private StepFollower? _plays;
 
     public Rotation Rotation => rotation;
+
+    /// <summary>Times the phase was played through this fight, from the step follower of the last <see cref="Update"/>; null without one.</summary>
+    public int? TimesPlayed(string phaseId) => _plays?.TimesPlayed(phaseId);
+
+    /// <summary>The last <see cref="Update"/> had no step follower: the battle-skill keys aren't read, "phase played" is ignored.</summary>
+    public bool PlayedIgnored => _plays is null;
 
     /// <summary>Times the phase has come onto the strip this fight (the one on it now included); null for a phase not in the rotation.</summary>
     public int? TimesShown(string phaseId)
@@ -46,8 +53,11 @@ public sealed class PhaseSelector(Rotation rotation) : IPhaseHistory
     }
 
     /// <summary>Take a reading; where the strip is now (the first step of the phase that applies).</summary>
-    public RotationPosition Update(PartyState state)
+    /// <param name="plays">The step follower of this rotation, which counts the phases played through; null
+    /// when the player hasn't turned on reading their battle-skill keys (then "phase played" is ignored).</param>
+    public RotationPosition Update(PartyState state, StepFollower? plays)
     {
+        _plays = plays;
         // The conditions see the counts as they were before this reading's switch, so a gate on
         // another phase's count opens on the reading after that phase first shows.
         int? before = _current;

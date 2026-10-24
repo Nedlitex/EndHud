@@ -67,7 +67,7 @@ public partial class OverlayWindow
         _rotationPosition = follow.Position;
         _stepPosition = follow.Steps;
         // The boss's statuses are read when the rotation or an alert rule asks about them.
-        bool alertsNeedStatuses = TrackAlerts(state, follow.InBattle);
+        bool alertsNeedStatuses = TrackAlerts(state, follow.InBattle, follow.History);
         _party.ReadBossStatuses = follow.ReadBossStatuses || alertsNeedStatuses;
         RenderRotation();
         TrackGauges(state, follow.InBattle);
@@ -320,7 +320,10 @@ public partial class OverlayWindow
 /// <param name="Steps">Where the player is inside the phase (<see cref="StepFollower"/>); null when the
 /// player hasn't turned on reading their battle-skill keys, or nothing is shown.</param>
 /// <param name="ReadBossStatuses">The squad's rotation asks about the boss's statuses, so they must be read.</param>
-internal sealed record RotationFollowing(bool InBattle, (Rotation Rotation, RotationPosition Position)? Position, StepPosition? Steps, bool ReadBossStatuses);
+/// <param name="History">The phases shown and played through, for alerts' "phase played": the selector of the
+/// rotation followed now; <see cref="PhaseHistory.KeysNotRead"/> while the battle-skill keys aren't read (then
+/// "phase played" is ignored); <see cref="PhaseHistory.None"/> when no rotation is followed (unknown).</param>
+internal sealed record RotationFollowing(bool InBattle, (Rotation Rotation, RotationPosition Position)? Position, StepPosition? Steps, bool ReadBossStatuses, IPhaseHistory History);
 
 /// <summary>
 /// The overlay's rotation following, without the drawing (<see cref="OverlayWindow"/> draws what it
@@ -365,6 +368,7 @@ internal sealed class RotationFollower
         Rotation? rotation = null;
         (Rotation, RotationPosition)? position = null;
         StepPosition? steps = null;
+        IPhaseHistory history = presses is null ? PhaseHistory.KeysNotRead : PhaseHistory.None;
         // In battle only (through short gaps: see StripVisibility), for a rotation made for the recognised squad.
         bool inBattle = state is not null && _visibility.Update(state);
         // The fight ended (StripVisibility already rides over short gaps): every phase-shown count back
@@ -381,11 +385,14 @@ internal sealed class RotationFollower
             if (rotation is not null)
             {
                 if (!_selectors.TryGetValue(rotation.Id, out var selector)) _selectors[rotation.Id] = selector = new PhaseSelector(rotation);
-                var shown = selector.Update(state);
+                // The step follower counts the phases played through, for "phase played"; without the keys there is none.
+                StepFollower? follower = null;
+                if (presses is not null && !_steps.TryGetValue(rotation.Id, out follower)) _steps[rotation.Id] = follower = new StepFollower(rotation);
+                var shown = selector.Update(state, follower);
                 position = (rotation, shown);
-                if (presses is not null)
+                if (follower is not null)
                 {
-                    if (!_steps.TryGetValue(rotation.Id, out var follower)) _steps[rotation.Id] = follower = new StepFollower(rotation);
+                    history = selector;
                     var cast = judged.Where(j => j.Verdict == PressVerdict.Counted).Select(j => j.Press.Slot).ToList();
                     steps = follower.Update(shown.Step.PhaseIndex, _previous, state, cast, selector);
                 }
@@ -394,6 +401,6 @@ internal sealed class RotationFollower
         _previous = state;
         // The boss's statuses take a while to read: only when this rotation asks about them, anywhere: a
         // phase's entry condition (what the strip follows) or a step, at any depth of and/or/not.
-        return new RotationFollowing(inBattle, position, steps, ConditionWalk.NeedsBossStatuses(rotation));
+        return new RotationFollowing(inBattle, position, steps, ConditionWalk.NeedsBossStatuses(rotation), history);
     }
 }

@@ -102,7 +102,7 @@ static class RotationDemo
             // As the overlay: in battle (StripVisibility), only for the squad the rotation is for.
             bool inBattle = stripVisibility.Update(state);
             RotationPosition? position = inBattle && rotation.IsFor(state.Slots.Select(s => s.Operator?.Operator.Id).ToList())
-                ? rotationTracker.Update(state) : null;
+                ? rotationTracker.Update(state, null) : null;
             if (!inBattle)
             {
                 counterMemory.Clear();

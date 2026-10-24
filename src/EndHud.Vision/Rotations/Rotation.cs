@@ -55,6 +55,7 @@ public enum Comparison
 [JsonDerivedType(typeof(NotCondition), "not")]
 [JsonDerivedType(typeof(UltimateActiveCondition), "ultimateActive")]
 [JsonDerivedType(typeof(PhaseShownCondition), "phaseShown")]
+[JsonDerivedType(typeof(PhasePlayedCondition), "phasePlayed")]
 public abstract record StateCondition;
 
 /// <summary>The team's skill points (技力), 0–3; a part-filled segment counts as a fraction.</summary>
@@ -115,20 +116,47 @@ public sealed record NotCondition(StateCondition Of) : StateCondition;
 /// </summary>
 public sealed record PhaseShownCondition(string PhaseId, Comparison Is, int Times) : StateCondition;
 
-/// <summary>How many times each phase has been shown this fight; null for a phase it doesn't know.</summary>
+/// <summary>
+/// The phase <paramref name="PhaseId"/> has been played through <paramref name="Is"/>
+/// <paramref name="Times"/> times in this fight: every step of it seen done, as the step follower
+/// follows them from the player's battle-skill presses (<see cref="StepFollower"/>; back to 0 when
+/// the fight ends). Only counted while the player has turned on reading their battle-skill keys;
+/// while that is off the condition is ignored, as if it weren't there
+/// (<see cref="IPhaseHistory.PlayedIgnored"/>). Format 5.
+/// </summary>
+public sealed record PhasePlayedCondition(string PhaseId, Comparison Is, int Times) : StateCondition;
+
+/// <summary>How many times each phase has been shown and played through this fight; null for a phase it doesn't know.</summary>
 public interface IPhaseHistory
 {
     int? TimesShown(string phaseId);
+
+    /// <summary>Times the phase was played through this fight (<see cref="PhasePlayedCondition"/>); null when it can't be told.</summary>
+    int? TimesPlayed(string phaseId);
+
+    /// <summary>
+    /// The player hasn't turned on reading their battle-skill keys, so nothing is played through:
+    /// "phase played" conditions are ignored, as if they weren't there (see
+    /// <see cref="ConditionWalk.OnlyPlayed"/> and <see cref="RotationTracker.Ignored"/>).
+    /// </summary>
+    bool PlayedIgnored { get; }
 }
 
-/// <summary>For checks made outside a phase selector (alerts, explanations): "phase shown" is unknown there.</summary>
 public static class PhaseHistory
 {
-    public static IPhaseHistory None { get; } = new NoHistory();
+    /// <summary>For checks made outside a phase selector (explanations): "phase shown" and "phase played" are unknown there.</summary>
+    public static IPhaseHistory None { get; } = new NoHistory(playedIgnored: false);
 
-    private sealed class NoHistory : IPhaseHistory
+    /// <summary>The battle-skill keys aren't read: "phase played" is ignored and "phase shown" unknown (alerts while the keys aren't read).</summary>
+    public static IPhaseHistory KeysNotRead { get; } = new NoHistory(playedIgnored: true);
+
+    private sealed class NoHistory(bool playedIgnored) : IPhaseHistory
     {
         public int? TimesShown(string phaseId) => null;
+
+        public int? TimesPlayed(string phaseId) => null;
+
+        public bool PlayedIgnored => playedIgnored;
     }
 }
 

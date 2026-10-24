@@ -1,5 +1,6 @@
 using EndHud.Vision;
 using EndHud.Vision.Alerts;
+using EndHud.Vision.Rotations;
 
 namespace EndHud;
 
@@ -32,8 +33,9 @@ internal sealed class AlertFollower
 
     /// <param name="inBattle">In battle, riding over short gaps (the strip's rule, <see cref="StripVisibility"/>).</param>
     /// <param name="enabled">Alerts on and the squad panel read.</param>
+    /// <param name="history">The phases shown and played through (<see cref="RotationFollowing.History"/>), for "phase played".</param>
     /// <param name="now">The overlay's clock.</param>
-    public AlertFollowing Update(PartyState? state, bool inBattle, bool enabled, IReadOnlyList<AlertRule> rules, TimeSpan now)
+    public AlertFollowing Update(PartyState? state, bool inBattle, bool enabled, IReadOnlyList<AlertRule> rules, IPhaseHistory history, TimeSpan now)
     {
         if (!inBattle || !enabled)
         {
@@ -46,7 +48,7 @@ internal sealed class AlertFollower
         }
         _wasInBattle = true;
 
-        var shown = state is null ? [] : _monitor.Update(state, rules);
+        var shown = state is null ? [] : _monitor.Update(state, rules, history);
         var down = new List<string>();
         foreach (var (id, since) in _up.ToList())
         {

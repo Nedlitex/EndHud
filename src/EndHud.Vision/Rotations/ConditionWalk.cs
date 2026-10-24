@@ -29,6 +29,14 @@ public static class ConditionWalk
         ComboChargeCondition k => k.Is,
         CounterCondition n => n.Is,
         PhaseShownCondition p => p.Is,
+        PhasePlayedCondition p => p.Is,
         _ => null,
     };
+
+    /// <summary>
+    /// Is this condition made of nothing but "phase played" parts (a "not" of one, a group whose every
+    /// part is one, at any depth)? While the battle-skill keys aren't read such a condition is ignored,
+    /// as if it weren't there. An empty group isn't: it is a problem of its own.
+    /// </summary>
+    public static bool OnlyPlayed(StateCondition condition) => false;
 }
