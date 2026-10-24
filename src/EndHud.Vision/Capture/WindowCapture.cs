@@ -27,6 +27,21 @@ public sealed class WindowCapture : IDisposable
     private SizeInt32 _poolSize;
     private int _arrived, _resized, _copied, _copyFailed, _copying;
     private string? _copyError;
+    private volatile CornerTap? _tap;
+    private long _tappedAt;
+    private int _tapped, _tapFailed;
+
+    /// <summary>A corner of the frames handed on, no more often than <paramref name="Every"/> (<see cref="SetCornerTap"/>).</summary>
+    private sealed record CornerTap(PixelRect Region, TimeSpan Every, Action<Frame> OnCorner);
+
+    /// <summary>
+    /// Hand <paramref name="onCorner"/> a copy of <paramref name="region"/> (in the captured frame's pixels) of the frames
+    /// Windows sends, at most once per <paramref name="every"/>, on the capture's own thread; null stops it. Only the
+    /// region is copied off the GPU (<see cref="StagingCopy.CopyRegion"/>). For what changes too fast for the readings:
+    /// the battle-skill buttons' cast flash (<see cref="BattleSkillFlash"/>).
+    /// </summary>
+    public void SetCornerTap(PixelRect? region, TimeSpan every, Action<Frame>? onCorner) =>
+        _tap = region is { IsEmpty: false } r && onCorner is not null ? new CornerTap(r, every, onCorner) : null;
 
     /// <summary>
     /// What Windows has sent so far, for the diagnostic log when no picture comes: the callback
@@ -35,6 +50,7 @@ public sealed class WindowCapture : IDisposable
     public string Describe() =>
         $"capture item {_poolSize.Width}x{_poolSize.Height}: {_arrived} frames arrived, {_resized} resizes, {_copied} copied, " +
         $"{_copyFailed} copies failed{(_copyError is null ? "" : $" (last: {_copyError})")}, {_copying} copying now" +
+        $", {_tapped} corner copies ({_tapFailed} failed)" +
         (_copying > 0 ? $" (step: {_reader.Step})" : "") + (_reader.LastCopy is { } last ? $"; last copy {last}" : "");
 
     /// <summary>The graphics adapter the capture device is on (for the diagnostic log).</summary>
@@ -118,6 +134,8 @@ public sealed class WindowCapture : IDisposable
             return;
         }
 
+        if (_tap is { } tap && tap.Every < TimeSpan.Zero) Tap(frame, tap); // RED: never
+
         TaskCompletionSource<Frame>? tcs;
         lock (_lock)
         {
@@ -152,8 +170,34 @@ public sealed class WindowCapture : IDisposable
         }
     }
 
+    private void Tap(Direct3D11CaptureFrame frame, CornerTap tap)
+    {
+        long now = System.Diagnostics.Stopwatch.GetTimestamp();
+        if (_tappedAt != 0 && System.Diagnostics.Stopwatch.GetElapsedTime(_tappedAt, now) < tap.Every) return;
+        _tappedAt = now;
+        try
+        {
+            Frame? corner;
+            lock (_copyLock)
+            {
+                if (_disposed) return;
+                corner = _reader.CopyRegion(frame.Surface, tap.Region);
+            }
+            if (corner is null) return;
+            Interlocked.Increment(ref _tapped);
+            tap.OnCorner(corner);
+        }
+        catch (Exception ex)
+        {
+            // The reading goes on without the corner: counted for the diagnostic log, never thrown at Windows.
+            Interlocked.Increment(ref _tapFailed);
+            _copyError = $"corner: {ex.GetType().Name}: {ex.Message}";
+        }
+    }
+
     public void Dispose()
     {
+        _tap = null;
         lock (_lock) _pending?.TrySetCanceled();
         _pool.FrameArrived -= OnFrameArrived;
         _session.Dispose();

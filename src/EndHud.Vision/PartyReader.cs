@@ -71,6 +71,13 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
     /// judged with this reading.</summary>
     public TimeSpan? ReadAt { get; init; }
 
+    /// <summary>
+    /// The battle-skill buttons' flashes told since the reading before (<see cref="FlashSampler"/>, on the same clock as
+    /// <see cref="ReadAt"/>), oldest first. Empty when the buttons aren't sampled: out of battle, in the controller
+    /// layout, or while the game is read from the screen instead of its window.
+    /// </summary>
+    public IReadOnlyList<FlashEvent> Flashes { get; init; } = [];
+
     /// <summary>How many operators the squad has (1-4): the slots that aren't <see cref="PartySlot.Empty"/>.</summary>
     public int SquadSize => Slots.Count(s => !s.Empty);
 

@@ -22,6 +22,8 @@ internal sealed class StagingCopy : IDisposable
     private readonly IntPtr _context;  // ID3D11DeviceContext*, owned
     private IntPtr _staging;           // ID3D11Texture2D*, recreated when the size changes
     private uint _width, _height;
+    private IntPtr _cornerStaging;     // ID3D11Texture2D*, the small one for CopyRegion
+    private uint _cornerWidth, _cornerHeight;
     private volatile string _step = "idle";
     private long _stepSince = System.Diagnostics.Stopwatch.GetTimestamp();
 
@@ -86,6 +88,63 @@ internal sealed class StagingCopy : IDisposable
         }
     }
 
+    /// <summary>
+    /// Only <paramref name="region"/> of the surface (clamped to it): copied on the GPU into a small staging texture of
+    /// its own, so reading a corner many times a second costs that corner's pixels, not the whole window's. Null when
+    /// the region lies outside the surface.
+    /// </summary>
+    public Frame? CopyRegion(IDirect3DSurface surface, PixelRect region)
+    {
+        IntPtr texture = TextureOf(surface);
+        try
+        {
+            var desc = new D3D11_TEXTURE2D_DESC();
+            Vtbl<GetDescFn>(texture, 10)(texture, ref desc);
+            var r = region.ClampTo((int)desc.Width, (int)desc.Height);
+            if (r.IsEmpty) return null;
+            if (_cornerStaging == IntPtr.Zero || _cornerWidth != r.Width || _cornerHeight != r.Height)
+            {
+                if (_cornerStaging != IntPtr.Zero) Marshal.Release(_cornerStaging);
+                _cornerStaging = IntPtr.Zero;
+                var small = desc with
+                {
+                    Width = (uint)r.Width,
+                    Height = (uint)r.Height,
+                    MipLevels = 1,
+                    ArraySize = 1,
+                    SampleCount = 1,
+                    SampleQuality = 0,
+                    Usage = D3D11_USAGE_STAGING,
+                    BindFlags = 0,
+                    CPUAccessFlags = D3D11_CPU_ACCESS_READ,
+                    MiscFlags = 0,
+                };
+                Check(Vtbl<CreateTexture2DFn>(_device, 5)(_device, ref small, IntPtr.Zero, out _cornerStaging), "CreateTexture2D");
+                (_cornerWidth, _cornerHeight) = ((uint)r.Width, (uint)r.Height);
+            }
+            var box = new D3D11_BOX { Left = (uint)r.X, Top = (uint)r.Y, Front = 0, Right = (uint)r.Right, Bottom = (uint)r.Bottom, Back = 1 };
+            Vtbl<CopySubresourceRegionFn>(_context, 46)(_context, _cornerStaging, 0, 0, 0, 0, texture, 0, ref box);
+            Check(Vtbl<MapFn>(_context, 14)(_context, _cornerStaging, 0, D3D11_MAP_READ, 0, out var mapped), "Map");
+            try
+            {
+                int row = r.Width * 4;
+                var bgra = new byte[row * r.Height];
+                for (int y = 0; y < r.Height; y++)
+                    Marshal.Copy(mapped.pData + (int)(y * mapped.RowPitch), bgra, y * row, row);
+                for (int i = 3; i < bgra.Length; i += 4) bgra[i] = 255;
+                return new Frame(r.Width, r.Height, bgra);
+            }
+            finally
+            {
+                Vtbl<UnmapFn>(_context, 15)(_context, _cornerStaging, 0);
+            }
+        }
+        finally
+        {
+            Marshal.Release(texture);
+        }
+    }
+
     private void EnsureStaging(D3D11_TEXTURE2D_DESC source)
     {
         if (_staging != IntPtr.Zero && source.Width == _width && source.Height == _height) return;
@@ -118,6 +177,8 @@ internal sealed class StagingCopy : IDisposable
     {
         if (_staging != IntPtr.Zero) Marshal.Release(_staging);
         _staging = IntPtr.Zero;
+        if (_cornerStaging != IntPtr.Zero) Marshal.Release(_cornerStaging);
+        _cornerStaging = IntPtr.Zero;
         Marshal.Release(_context);
         Marshal.Release(_device);
     }
@@ -140,7 +201,7 @@ internal sealed class StagingCopy : IDisposable
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     private delegate int CreateTexture2DFn(IntPtr self, ref D3D11_TEXTURE2D_DESC desc, IntPtr initialData, out IntPtr texture);
 
-    // ID3D11DeviceContext::Map (14), Unmap (15), CopyResource (47).
+    // ID3D11DeviceContext::Map (14), Unmap (15), CopyResource (47); CopySubresourceRegion (46) below.
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     private delegate int MapFn(IntPtr self, IntPtr resource, uint subresource, int mapType, uint flags, out D3D11_MAPPED_SUBRESOURCE mapped);
 
@@ -149,6 +210,22 @@ internal sealed class StagingCopy : IDisposable
 
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     private delegate void CopyResourceFn(IntPtr self, IntPtr destination, IntPtr source);
+
+    // ID3D11DeviceContext::CopySubresourceRegion (46).
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate void CopySubresourceRegionFn(IntPtr self, IntPtr destination, uint destinationSubresource, uint x, uint y, uint z,
+        IntPtr source, uint sourceSubresource, ref D3D11_BOX box);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct D3D11_BOX
+    {
+        public uint Left;
+        public uint Top;
+        public uint Front;
+        public uint Right;
+        public uint Bottom;
+        public uint Back;
+    }
 
     private const int D3D11_USAGE_STAGING = 3;
     private const uint D3D11_CPU_ACCESS_READ = 0x20000;

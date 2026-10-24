@@ -27,7 +27,7 @@ public class WindowCaptureTests
 
         Assert.Equal(window.ClientSize, new Size(captured.Width, captured.Height));
         // The diagnostic log's account of the capture: frames copied, and how the last one was.
-        Assert.Matches(@"\d+ copied, 0 copies failed, 0 copying now; last copy \d+x\d+, format 87, row pitch \d+, copied in \d+ ms", capture.Describe());
+        Assert.Matches(@"\d+ copied, 0 copies failed, 0 copying now, \d+ corner copies \(0 failed\); last copy \d+x\d+, format 87, row pitch \d+, copied in \d+ ms", capture.Describe());
         var expected = await reader.ReadAsync((await ImageFile.LoadAsync(fixture)).Resize(captured.Width, captured.Height));
         var actual = await reader.ReadAsync(captured);
 
@@ -40,6 +40,36 @@ public class WindowCaptureTests
             Assert.InRange(a.Combo.Progress, e.Combo.Progress - 0.04, e.Combo.Progress + 0.04);
             Assert.Equal(e.Ultimate!.Ready, a.Ultimate!.Ready);
         }
+    }
+
+    [Fact]
+    public async Task The_corner_tap_hands_on_just_that_corner_of_the_frames_as_they_arrive()
+    {
+        using var window = StandInGameWindow.Show(CombatFrameTests.Fixture("combat-combos-nearly-refilled.jpg"));
+        using var capture = new WindowCapture(window.Handle);
+        await capture.GetFrameAsync();
+        var whole = await capture.GetFrameAsync();
+        var region = BattleSkillFlash.Region(whole.Width, whole.Height);
+
+        var corners = new System.Collections.Concurrent.ConcurrentQueue<Frame>();
+        capture.SetCornerTap(region, TimeSpan.FromMilliseconds(30), corners.Enqueue);
+        var waited = System.Diagnostics.Stopwatch.StartNew();
+        while (corners.Count < 3 && waited.Elapsed < TimeSpan.FromSeconds(5)) await Task.Delay(50);
+        capture.SetCornerTap(null, TimeSpan.Zero, null);
+        int stopped = corners.Count;
+        await Task.Delay(400);
+
+        Assert.True(stopped >= 3, $"{stopped} corners in 5 s; {capture.Describe()}");
+        Assert.Equal(stopped, corners.Count); // none after the tap is taken away
+        Assert.True(corners.TryPeek(out var corner));
+        Assert.Equal((region.Width, region.Height), (corner.Width, corner.Height));
+        // The same pixels as that corner of the whole frame (the window shows one still picture).
+        var expected = whole.Crop(region);
+        int differ = 0;
+        for (int i = 0; i < corner.Bgra.Length; i++)
+            if (Math.Abs(corner.Bgra[i] - expected.Bgra[i]) > 2) differ++;
+        Assert.True(differ < corner.Bgra.Length / 100, $"{differ} of {corner.Bgra.Length} bytes differ");
+        Assert.Matches(@"\d+ corner copies \(0 failed\)", capture.Describe());
     }
 
     /// <summary>A borderless window on its own UI thread showing one image, redrawn like a game.</summary>

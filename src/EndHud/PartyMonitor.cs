@@ -310,6 +310,20 @@ internal sealed class PartyMonitor : IDisposable
     }
 
     private volatile WindowCapture? _capture; // the window capture in use, for Describe
+
+    /// <summary>The battle-skill buttons sampled many times a second for the cast flash, between readings (keyboard and mouse, in battle).</summary>
+    private readonly FlashSampler _flashes = new();
+
+    /// <summary>The buttons are sampled this long after the last reading in combat (an ultimate's cutscene hides the panel).</summary>
+    internal static readonly TimeSpan FlashSamplingHold = TimeSpan.FromSeconds(3);
+
+    /// <summary>
+    /// Sample the battle-skill buttons between readings? In the keyboard-and-mouse layout (the controller's
+    /// buttons sit elsewhere and aren't measured), through the game's own window (a corner of its frames), and in
+    /// battle: the last reading in combat at most <see cref="FlashSamplingHold"/> ago.
+    /// </summary>
+    internal static bool SamplesFlashes(HudLayout? layout, bool fromWindow, TimeSpan sinceCombat) =>
+        layout == HudLayout.KeyboardMouse && fromWindow && sinceCombat <= FlashSamplingHold;
     private readonly Queue<RecentFrame> _recent = new();
     private DateTime _recentAt = DateTime.MinValue;
     private static readonly TimeSpan RecentFrameEvery = TimeSpan.FromSeconds(2);
@@ -380,7 +394,8 @@ internal sealed class PartyMonitor : IDisposable
         var library = _identifier?.Library;
         return $"reading {(_active ? "on" : "off")} from {_source}, step {_stage} for {since.TotalSeconds:F1} s, last problem {LastProblem ?? "none"}; " +
                $"library {(library is null ? "not loaded" : $"{library.Operators.Count} operators")}; " +
-               $"last frame {(LatestFrame is { } f ? $"{f.Width}x{f.Height}" : "none")}" +
+               $"last frame {(LatestFrame is { } f ? $"{f.Width}x{f.Height}" : "none")}; " +
+               _flashes.Describe() +
                (_capture is { } capture ? $"; {capture.Describe()}" : "");
     }
 
@@ -693,6 +708,8 @@ internal sealed class PartyMonitor : IDisposable
         IReadOnlyList<TeamBuff> lastBuffs = []; // kept while the panel is out of sight (a cutscene over the HUD)
         var panelReadAt = DateTime.MinValue; // when a reading last saw the squad panel
         bool panelSeenLast = false; // the last squad reading saw the panel (then the inn isn't looked for)
+        TimeSpan? combatAt = null; // when a reading last saw the fight (for sampling the battle-skill buttons)
+        bool samplingFlashes = false;
         try
         {
             while (!ct.IsCancellationRequested)
@@ -723,6 +740,7 @@ internal sealed class PartyMonitor : IDisposable
                     var clock = Stopwatch.StartNew();
                     Enter("capture");
                     Frame gameFrame;
+                    PixelRect? gameArea = null; // where the game's area is in the window capture's frames
                     if (captured != hwnd)
                     {
                         // Another game window (the game restarted): nothing carries over, and its
@@ -792,6 +810,7 @@ internal sealed class PartyMonitor : IDisposable
                         }
                         // Death first, so a fallen operator's death mark is never matched as a portrait.
                         gameFrame = frame.Crop(client);
+                        gameArea = client;
                     }
                     // A screen that isn't 16:9: the game's picture between black bars (Letterbox).
                     var content = Letterbox.Content(gameFrame);
@@ -802,6 +821,11 @@ internal sealed class PartyMonitor : IDisposable
                     }
                     LatestFrame = gameFrame;
                     var frameAt = InnClock.Now;
+                    // The battle-skill buttons' corner, in the window capture's frames (the game's area, then its picture).
+                    PixelRect? flashCorner = gameArea is { } area && BattleSkillFlash.Region(content.Width, content.Height) is var corner
+                        ? new PixelRect(area.X + content.X + corner.X, area.Y + content.Y + corner.Y, corner.Width, corner.Height)
+                        : null;
+                    double flashScale = new UiScaler(content.Width, content.Height).Scale;
                     FrameRead(frameAt);
                     // The inn first: in it the squad panel isn't on screen, and its screens are read instead.
                     Enter("inn");
@@ -926,7 +950,18 @@ internal sealed class PartyMonitor : IDisposable
                         firstReading = false;
                         DiagnosticLog.Info($"first reading in {clock.ElapsedMilliseconds} ms (panel {(state.PanelVisible ? "seen" : "not seen")}, library {(_identifier is null ? "not loaded yet" : "loaded")})");
                     }
-                    Report(state with { ReadAt = frameAt }, null);
+                    // Between readings, the battle-skill buttons many times a second for the cast flash (FlashSampler).
+                    if (state.InCombat) combatAt = frameAt;
+                    bool sample = capture is not null && combatAt is { } fought
+                        && SamplesFlashes(layoutSeen, flashCorner is not null, frameAt - fought);
+                    if (sample != samplingFlashes)
+                    {
+                        samplingFlashes = sample;
+                        if (!sample) _flashes.Forget();
+                    }
+                    capture?.SetCornerTap(sample ? flashCorner : null, FlashSampler.Every,
+                        sample ? cornerFrame => _flashes.Sample(cornerFrame, flashScale, InnClock.Now) : null);
+                    Report(state with { ReadAt = frameAt, Flashes = sample ? _flashes.Take() : [] }, null);
                 }
                 catch (TimeoutException)
                 {

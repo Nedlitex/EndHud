@@ -27,6 +27,16 @@ public static class Recordings
     /// </summary>
     public const string BattleFight2 = "battle-fight2.mp4";
 
+    /// <summary>
+    /// 30 s at 30 fps (the battle-skill cast flash lasts 2-10 frames): a loading screen, then a fight of Si, Last_Rite,
+    /// Tangtang and Arcane; scene light behind slots 2-4 (~14.4 s), Tangtang's battle skill (slot 3, ~16.4 s). Its casts,
+    /// labelled by eye, are in <see cref="BattleCastsLabels"/>.
+    /// </summary>
+    public const string BattleCasts = "battle-casts-30fps.mp4";
+
+    /// <summary>The battle skills cast in <see cref="BattleCasts"/>: lines "seconds,slot".</summary>
+    public const string BattleCastsLabels = "battle-casts-30fps.casts.txt";
+
     public static string PathOf(string recording) => Path.Combine(AppContext.BaseDirectory, "Recordings", recording);
 }
 
