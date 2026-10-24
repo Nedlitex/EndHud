@@ -528,7 +528,7 @@ public sealed class RotationEditorTests : IDisposable
             Assert.NotNull(editor.FindName("CopyPhaseButton"));
             ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 0;               // Charge
             Click(editor, "CopyPhaseButton");
-            listed = ((ListBox)editor.FindName("PhaseList")).Items.Cast<ComboBoxItem>().Select(i => (string)i.Content).ToList();
+            listed = ((ListBox)editor.FindName("PhaseList")).Items.Cast<ListBoxItem>().Select(i => (string)i.Content).ToList();
             Click(editor, "SaveButton");
             said = ((TextBlock)editor.FindName("ProblemsText")).Text;
         });

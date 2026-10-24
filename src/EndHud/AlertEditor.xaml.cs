@@ -119,8 +119,9 @@ public partial class AlertEditor : Window
     {
         _loading = true;
         RuleList.Items.Clear();
-        foreach (var rule in _rules) RuleList.Items.Add(new ComboBoxItem { Content = ListText(rule), ToolTip = RuleName(rule), Tag = rule.Id });
-        RuleList.SelectedItem = RuleList.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == _rule?.Id);
+        // List entries, not drop-down items: a list selects those only on a right click.
+        foreach (var rule in _rules) RuleList.Items.Add(new ListBoxItem { Content = ListText(rule), ToolTip = RuleName(rule), Tag = rule.Id });
+        RuleList.SelectedItem = RuleList.Items.Cast<ListBoxItem>().FirstOrDefault(i => (string)i.Tag == _rule?.Id);
         _loading = false;
         EmptyText.Visibility = _rules.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         CopyAllCodeButton.IsEnabled = ExportFileButton.IsEnabled = _rules.Count > 0;
@@ -140,7 +141,7 @@ public partial class AlertEditor : Window
 
     private void RuleList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_loading || RuleList.SelectedItem is not ComboBoxItem { Tag: string id }) return;
+        if (_loading || RuleList.SelectedItem is not ListBoxItem { Tag: string id }) return;
         Show(_rules.FirstOrDefault(r => r.Id == id));
     }
 
@@ -224,8 +225,8 @@ public partial class AlertEditor : Window
         if (_rule is null) return;
         int index = _rules.IndexOf(_rule);
         _loading = true;
-        if (index >= 0 && index < RuleList.Items.Count) ((ComboBoxItem)RuleList.Items[index]).Content = ListText(_rule);
-        if (index >= 0 && index < RuleList.Items.Count) ((ComboBoxItem)RuleList.Items[index]).ToolTip = RuleName(_rule);
+        if (index >= 0 && index < RuleList.Items.Count) ((ListBoxItem)RuleList.Items[index]).Content = ListText(_rule);
+        if (index >= 0 && index < RuleList.Items.Count) ((ListBoxItem)RuleList.Items[index]).ToolTip = RuleName(_rule);
         _loading = false;
     }
 

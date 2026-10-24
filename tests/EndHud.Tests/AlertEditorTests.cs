@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using EndHud.Vision.Alerts;
 using EndHud.Vision.Operators;
 using EndHud.Vision.Rotations;
@@ -114,6 +115,39 @@ public sealed class AlertEditorTests : IDisposable
         {
             ((ListBox)editor.FindName("RuleList")).SelectedIndex = 1;
             editor.DeleteSelected(confirm: false);
+        });
+
+        Assert.Equal([first], Store().Load().Rules);
+    }
+
+    /// <summary>The rule list takes a left click, as the rotation editor's lists do (they took only a right click).</summary>
+    [Fact]
+    public void A_left_click_picks_a_rule()
+    {
+        var first = AlertRule.New([new SkillPointsCondition(Comparison.AtLeast, 1.8)], "First");
+        var second = AlertRule.New([new BossStatusCondition("Cryo Infliction", true, 3)], "Second");
+        Store().Save([first, second]);
+
+        OnEditor(Store(), () => { }, editor =>
+        {
+            // Shown off-screen, without taking focus: a list item only takes a click in a shown window.
+            editor.WindowStartupLocation = WindowStartupLocation.Manual;
+            editor.Left = -20000;
+            editor.Top = -20000;
+            editor.ShowActivated = false;
+            editor.Show();
+            try
+            {
+                editor.UpdateLayout();
+                var item = (UIElement)((ListBox)editor.FindName("RuleList")).Items[1];
+                item.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left) { RoutedEvent = UIElement.MouseLeftButtonDownEvent });
+                item.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left) { RoutedEvent = UIElement.MouseLeftButtonUpEvent });
+                editor.DeleteSelected(confirm: false);
+            }
+            finally
+            {
+                editor.Close();
+            }
         });
 
         Assert.Equal([first], Store().Load().Rules);

@@ -205,8 +205,8 @@ public partial class RotationEditor : Window
         PhaseList.Items.Clear();
         var phases = _draft?.Phases ?? [];
         for (int i = 0; i < phases.Count; i++)
-            PhaseList.Items.Add(Item(Loc.Format(phases[i].When.Count > 0 ? "Editor.PhaseItemGated" : "Editor.PhaseItem", i + 1, phases[i].Name), phases[i].Id));
-        PhaseList.SelectedItem = PhaseList.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == _phase?.Id);
+            PhaseList.Items.Add(ListItem(Loc.Format(phases[i].When.Count > 0 ? "Editor.PhaseItemGated" : "Editor.PhaseItem", i + 1, phases[i].Name), phases[i].Id));
+        PhaseList.SelectedItem = PhaseList.Items.Cast<ListBoxItem>().FirstOrDefault(i => (string)i.Tag == _phase?.Id);
         _loading = false;
     }
 
@@ -216,7 +216,7 @@ public partial class RotationEditor : Window
         StepList.Items.Clear();
         if (_phase is not null)
         {
-            for (int i = 0; i < _phase.Steps.Count; i++) StepList.Items.Add(Item(StepText(i, _phase.Steps[i]), i));
+            for (int i = 0; i < _phase.Steps.Count; i++) StepList.Items.Add(ListItem(StepText(i, _phase.Steps[i]), i));
             if (_step is not null) StepList.SelectedIndex = _phase.Steps.IndexOf(_step);
         }
         _loading = false;
@@ -290,7 +290,7 @@ public partial class RotationEditor : Window
 
     private void PhaseList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_loading || _draft is null || PhaseList.SelectedItem is not ComboBoxItem { Tag: string id }) return;
+        if (_loading || _draft is null || PhaseList.SelectedItem is not ListBoxItem { Tag: string id }) return;
         _phase = _draft.Phases.FirstOrDefault(p => p.Id == id);
         RefreshPhases();
     }
@@ -410,7 +410,7 @@ public partial class RotationEditor : Window
         MarkDirty();
         int index = _phase!.Steps.IndexOf(_step);
         _loading = true;
-        if (index >= 0 && index < StepList.Items.Count) ((ComboBoxItem)StepList.Items[index]).Content = StepText(index, _step);
+        if (index >= 0 && index < StepList.Items.Count) ((ListBoxItem)StepList.Items[index]).Content = StepText(index, _step);
         _loading = false;
         Preview();
     }
@@ -618,7 +618,7 @@ public partial class RotationEditor : Window
         if (_phase is null || _step is null) return;
         int index = _phase.Steps.IndexOf(_step);
         _loading = true;
-        if (index >= 0 && index < StepList.Items.Count) ((ComboBoxItem)StepList.Items[index]).Content = StepText(index, _step);
+        if (index >= 0 && index < StepList.Items.Count) ((ListBoxItem)StepList.Items[index]).Content = StepText(index, _step);
         _loading = false;
         Preview();
     }
@@ -865,4 +865,10 @@ public partial class RotationEditor : Window
     private static void Select(ComboBox picker, string? id) => ConditionEditor.Select(picker, id);
 
     private static ComboBoxItem Item(string text, object tag) => ConditionEditor.Item(text, tag);
+
+    /// <summary>
+    /// An entry of the phase or step list. Not a drop-down's item: a list selects those only on a right
+    /// click (their left button is kept for a drop-down that isn't there).
+    /// </summary>
+    private static ListBoxItem ListItem(string text, object tag) => new() { Content = text, Tag = tag };
 }
