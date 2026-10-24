@@ -29,6 +29,9 @@ public partial class OverlayWindow
 
     /// <summary>Where the player is inside the phase on the strip; null when their battle-skill keys aren't read.</summary>
     private StepPosition? _stepPosition;
+
+    /// <summary>The phases shown and played this fight, of the rotation followed (for the strip's reasons and the alerts).</summary>
+    private IPhaseHistory _phaseHistory = PhaseHistory.None;
     private readonly DrawnKey _stripKey = new();
     private Point? _rotationDragOffset;
 
@@ -66,6 +69,7 @@ public partial class OverlayWindow
         var follow = _rotationFollower.Update(state, _config.RotationEnabled && _config.PartyOcrEnabled, RotationFor, ActiveSkillPresses);
         _rotationPosition = follow.Position;
         _stepPosition = follow.Steps;
+        _phaseHistory = follow.History;
         // The boss's statuses are read when the rotation or an alert rule asks about them.
         bool alertsNeedStatuses = TrackAlerts(state, follow.InBattle, follow.History);
         _party.ReadBossStatuses = follow.ReadBossStatuses || alertsNeedStatuses;
@@ -97,7 +101,7 @@ public partial class OverlayWindow
     }
 
     private StripView View(Rotation rotation, RotationPosition position) =>
-        RotationStripView.Build(rotation, position, _lastState, _party.Identifier?.Library, SkillIcon, Avatar, _stepPosition);
+        RotationStripView.Build(rotation, position, _lastState, _party.Identifier?.Library, SkillIcon, Avatar, _stepPosition, _phaseHistory);
 
     /// <summary>The operator's icon for this action, from the library; loaded once, in the background.</summary>
     private BitmapSource? SkillIcon(OperatorInfo op, StepAction action)

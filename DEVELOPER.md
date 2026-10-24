@@ -110,7 +110,14 @@ it turns true. See [Alerts](#alerts) for the file, the firing rule and the edito
 - **How long:** 3 s, or less if the rule stops holding first; at most three at once (the oldest
   goes); all down on leaving battle. No sound.
 - **Words:** a rule with no text shows its conditions in words from the `Alert.Describe.*`
-  strings, e.g. "技力 ≥ 1.8", "寒冷附着 ≥ 3 层" ([`AlertText`](src/EndHud/AlertText.cs)).
+  strings, e.g. "技力 ≥ 1.8", "寒冷附着 ≥ 3 层". These are the one wording every condition has
+  ([`ConditionWords`](src/EndHud/ConditionWords.cs)): the strip's reason under a waiting step is
+  the same statement as a need, `Rotation.Reason.Need` "需要：{0}", or `NeedNow`
+  "需要：{0}（当前 {1}）" when the value it compares is read now (skill points, a charge's or
+  cooldown's %, a counter found by operator and counter, a status's stacks or level, a phase's
+  showings or plays). An unmet `all` lists the needs of its parts that don't hold. A lasting skill
+  that stopped is 已结束 everywhere. The icon rule is shared too
+  ([`ConditionIcon`](src/EndHud/ConditionIcon.cs)): the alert pop-up and the condition step use it.
 - **Menu and tray:** a 战斗提示 card (on/off, the number of rules, 编辑战斗提示…; while the menu is
   open a sample pop-up shows where alerts appear) and a tray item 编辑战斗提示. Editing works with
   the pop-ups off.

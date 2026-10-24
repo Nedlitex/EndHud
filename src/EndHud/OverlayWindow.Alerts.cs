@@ -94,17 +94,11 @@ public partial class OverlayWindow
         AlertPopUp.SlideOut(shown.Holder, shown.PopUp, () => AlertStack.Children.Remove(shown.Holder));
     }
 
-    /// <summary>The circle's icon: the subject of the rule's first condition (owner, 2026-10-22).</summary>
+    /// <summary>The circle's icon: the subject of the rule's first condition (owner, 2026-10-22; the shared rule, <see cref="ConditionIcon"/>).</summary>
     private UIElement AlertIcon(AlertRule rule)
     {
-        var subject = AlertText.Subject(rule.When);
-        var library = _party.Identifier?.Library;
-        BitmapSource? picture = subject switch
-        {
-            { Kind: AlertSubjectKind.Status, Id: { } status } => StatusIcon(status),
-            { Kind: AlertSubjectKind.Operator, Id: { } op } when library?.Find(op) is { } info => Avatar(info),
-            _ => null,
-        };
+        var subject = ConditionIcon.Subject(rule.When);
+        var picture = ConditionIcon.Picture(subject, _party.Identifier?.Library, StatusIcon, Avatar);
         return AlertPopUp.Icon(picture, subject.Kind == AlertSubjectKind.SkillPoints);
     }
 

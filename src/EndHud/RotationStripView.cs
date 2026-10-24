@@ -18,15 +18,16 @@ internal static class RotationStripView
 
     /// <summary>What to draw for a tracker position: its phase (see <see cref="ForPhase"/>), with the steps marked when <paramref name="steps"/> says where the player is.</summary>
     /// <param name="steps">Where the player is inside the phase (<see cref="StepFollower"/>); null: every step alike.</param>
+    /// <param name="history">The phases shown and played this fight (the phase selector), for the reasons' current counts.</param>
     public static StripView Build(Rotation rotation, RotationPosition position, PartyState? state, OperatorLibrary? library,
-        Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, StepPosition? steps = null)
+        Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, StepPosition? steps = null, IPhaseHistory? history = null)
     {
         var view = ForPhase(rotation, position.Step.PhaseIndex, library, skillIcon, avatar, steps);
         if (steps is not { Ready: false } || steps.Phase != position.Step.PhaseIndex) return view;
         int current = steps.Marks.ToList().IndexOf(StepMark.Current);
         if (current < 0) return view;
         var step = rotation.Played().Where(p => p.PhaseIndex == steps.Phase).ElementAt(current).Step;
-        var reasons = steps.Checks.Where(c => c.Holds == false).Select(c => Reason(c, step, state, library)).OfType<string>().ToList();
+        var reasons = steps.Checks.Where(c => c.Holds == false).Select(c => Reason(c, step, state, library, history, PhaseName(rotation))).OfType<string>().ToList();
         return view with { Reasons = reasons };
     }
 
@@ -86,8 +87,19 @@ internal static class RotationStripView
             p.Step.Label ?? Loc.Get($"Rotation.Action.{p.Step.Action}"), p.Step.Note, state, mayOverlap && p.Step.WithPrevious);
     }
 
-    /// <summary>Why the current step isn't ready, in words.</summary>
-    public static string? Reason(ConditionCheck check, RotationStep step, PartyState? state, OperatorLibrary? library, IPhaseHistory? history = null)
+    /// <summary>A rotation's phases by the strip's names ("充能轴 II"), by id; null for one it doesn't have.</summary>
+    internal static Func<string, string?> PhaseName(Rotation rotation) => id =>
+        rotation.Phases.Select((p, i) => (p.Id, i)).Where(p => p.Id == id).Select(p => rotation.PhaseLabel(p.i)).FirstOrDefault();
+
+    /// <summary>
+    /// Why the current step isn't ready, in words. Its own ability: skill points short, cooling,
+    /// charging. A condition: what it needs, in the same words as everywhere else
+    /// (<see cref="ConditionWords.Need"/>: "需要：寒冷附着 ≥ 3 层（当前 1）"); an unmet "all" gives the
+    /// needs of its parts that don't hold.
+    /// </summary>
+    /// <param name="history">The phases shown and played this fight, for "phase shown/played" (their current count, and an "all" telling its unmet parts).</param>
+    /// <param name="phaseName">The phases by the strip's names; null: ids as they are.</param>
+    public static string? Reason(ConditionCheck check, RotationStep step, PartyState? state, OperatorLibrary? library, IPhaseHistory? history = null, Func<string, string?>? phaseName = null)
     {
         string Name(string id) => library?.Find(id)?.NameZh ?? id;
         if (check.Kind == CheckKind.OwnAbility)
@@ -97,38 +109,20 @@ internal static class RotationStripView
                 StepAction.BattleSkill => state?.SkillPoints is < 1 ? Loc.Format("Rotation.Reason.SkillPoints", Points(state.SkillPoints), 1)
                     : Loc.Format("Rotation.Reason.Cooling", Name(step.OperatorId), Loc.Get("Rotation.Action.BattleSkill")),
                 StepAction.Combo => Loc.Format("Rotation.Reason.Cooling", Name(step.OperatorId), Loc.Get("Rotation.Action.Combo")),
-                StepAction.BasicAttack or StepAction.HeavyAttack => null, // display-only: nothing to wait for
-                _ => Loc.Format("Rotation.Reason.UltimateCharging", Name(step.OperatorId)),
+                StepAction.Ultimate => Loc.Format("Rotation.Reason.UltimateCharging", Name(step.OperatorId)),
+                _ => null, // display-only: nothing to wait for
             };
         }
-        return check.Condition switch
+        if (check.Condition is not { } condition) return null;
+        phaseName ??= id => id;
+        // An unmet "all": the needs of its parts that don't hold (a part that can't be told isn't listed).
+        if (condition is AllCondition all)
         {
-            SkillPointsCondition c => Loc.Format("Rotation.Reason.SkillPoints", Points(state?.SkillPoints), $"{c.Value:0.#}"),
-            ComboCondition c => Loc.Format(c.Ready ? "Rotation.Reason.NeedComboReady" : "Rotation.Reason.NeedComboCooling", Name(c.OperatorId)),
-            UltimateCondition c => Loc.Format(c.Ready ? "Rotation.Reason.NeedUltimateReady" : "Rotation.Reason.NeedUltimateUsed", Name(c.OperatorId)),
-            UltimateActiveCondition c => Loc.Format(c.Active ? "Rotation.Reason.NeedUltimateActive" : "Rotation.Reason.NeedUltimateOver", Name(c.OperatorId)),
-            BattleSkillActiveCondition c => Loc.Format(c.Active ? "Rotation.Reason.NeedBattleSkillActive" : "Rotation.Reason.NeedBattleSkillOver", Name(c.OperatorId)),
-            CounterCondition c => Loc.Format("Rotation.Reason.Counter", Name(c.OperatorId),
-                OperatorCounters.Definitions.FirstOrDefault(d => d.Id == c.CounterId)?.NameZh ?? c.CounterId,
-                c.Is switch { Comparison.AtLeast => "≥", Comparison.AtMost => "≤", _ => "=" } + c.Value,
-                state?.Counters.FirstOrDefault(r => r.CounterId == c.CounterId)?.Value?.ToString() ?? "?"),
-            BossStatusCondition c => Loc.Format(c.Present ? "Rotation.Reason.BossLacks" : "Rotation.Reason.BossHas",
-                StatusNames.Zh(c.StatusId) ?? c.StatusId),
-            ControllingCondition c => Loc.Format("Rotation.Reason.Controlling", Name(c.OperatorId)),
-            // An unmet "all": its parts that don't hold. An unmet "any": every part, as alternatives.
-            // No phase history here: a "phase shown" part stays unknown, so it isn't listed as unmet.
-            AllCondition all => JoinReasons(all.Of.Where(part => state is null || RotationTracker.Evaluate(part, state, PhaseHistory.None) == false), "　", step, state, library),
-            AnyCondition any => JoinReasons(any.Of, Loc.Get("Rotation.Reason.Or"), step, state, library) is { } alternatives ? Loc.Format("Rotation.Reason.AnyOf", alternatives) : null,
-            NotCondition not => Reason(new ConditionCheck(CheckKind.Expected, not.Of, false), step, state, library) is { } inner ? Loc.Format("Rotation.Reason.Not", inner) : null,
-            _ => null,
-        };
-    }
-
-    /// <summary>The reasons for these conditions, as if each were unmet, joined.</summary>
-    private static string? JoinReasons(IEnumerable<StateCondition> parts, string separator, RotationStep step, PartyState? state, OperatorLibrary? library)
-    {
-        var texts = parts.Select(part => Reason(new ConditionCheck(CheckKind.Expected, part, false), step, state, library)).Where(t => t is not null).ToList();
-        return texts.Count == 0 ? null : string.Join(separator, texts);
+            var unmet = all.Of.Where(part => state is null || RotationTracker.Evaluate(part, state, history ?? PhaseHistory.None) == false)
+                .Select(part => Reason(new ConditionCheck(CheckKind.Expected, part, false), step, state, library, history, phaseName)).OfType<string>().ToList();
+            return unmet.Count == 0 ? null : string.Join("　", unmet);
+        }
+        return ConditionWords.Need(condition, state, history, library, phaseName);
     }
 
     /// <summary>
