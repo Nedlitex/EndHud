@@ -47,7 +47,7 @@ still being recognised (the first second or so), a hint waits for the name inste
 ### Rotation strip (排轴)
 
 A rotation is the order a squad's skills are used in: battle skills, combos and ultimates, plus
-basic-attack steps that are only drawn (EndHud can't see a basic attack). In battle, a strip at the top centre shows the
+basic- and heavy-attack steps that are only drawn (EndHud can't see either). In battle, a strip at the top centre shows the
 phase of the recognised squad's rotation that fits the game right now, styled after community
 rotation charts.
 
@@ -88,6 +88,9 @@ rotation charts.
   row saved it as 0.5). 复制轴段 copies the selected phase (its steps and entry condition, new id,
   named "X（副本）") right after it. The condition pickers are one control
   ([`ConditionEditor`](src/EndHud/ConditionEditor.cs)) shared with the alert editor.
+  The phase and step lists (and the alert editor's rule list) hold `ListBoxItem` entries: a
+  `ComboBoxItem` in a `ListBox` takes only a right click (its left button is kept for a parent
+  drop-down that isn't there), which is how picking a step needed a right click until 2026-10-24.
 
 ### Combat alerts (战斗提示)
 
@@ -1547,10 +1550,12 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
     "priorityRules": [ { "when": [ { "kind": "ultimate", "operatorId": "Laevatain", "ready": true } ], "priority": 10 } ],
     "steps": [ … ] }
   ```
-- `action`: `BattleSkill`, `Combo`, `Ultimate` or `BasicAttack` (format 4). The skill being
+- `action`: `BattleSkill`, `Combo`, `Ultimate`, `BasicAttack` (format 4) or `HeavyAttack`
+  (format 8). The skill being
   available (a skill point for a battle skill, the combo or ultimate ready) is implied; `expect`
-  lists anything else. `BasicAttack` is drawn only: the strip shows the operator's avatar as its
-  icon (no skill icon, no small face in the corner) labelled 普攻; it is never seen "used" and its
+  lists anything else. `BasicAttack` and `HeavyAttack` are drawn only (`StepActions.IsDisplayOnly`):
+  the strip shows the operator's avatar as the icon (no skill icon, no small face in the corner)
+  labelled with the action's name (`Rotation.Action.*`); it is never seen "used" and its
   availability is unknown, so the phase's `when` says when it shows (e.g. a 普攻 phase gated on
   `skillPoints` `Below` 2).
 - `withPrevious`: used right after the previous step of the same phase, drawn overlapping it.
@@ -1614,7 +1619,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   offer the kind, greyed out with a sentence saying it needs 读取战技按键, and a condition already
   there shows that sentence under it.
 
-- `format`: 7 when it uses `battleSkillActive`; else 6 when a phase sets `priority` (other than 0) or `priorityRules`; else 5 when it uses `phasePlayed`; else 4 when it uses a `BasicAttack` step, `Below`/`Above` or `phaseShown`; else 3 when it
+- `format`: 8 when it uses a `HeavyAttack` step; else 7 when it uses `battleSkillActive`; else 6 when a phase sets `priority` (other than 0) or `priorityRules`; else 5 when it uses `phasePlayed`; else 4 when it uses a `BasicAttack` step, `Below`/`Above` or `phaseShown`; else 3 when it
   uses `not`, `ultimateActive` or `lastMatchWins`; else 2. A rotation is saved in the lowest
   format that holds it (`Rotation.FormatNeeded`), so one using nothing new stays readable by older
   builds, and the published `rotations/*.json` stay at format 3 or lower (a test checks). A
@@ -1848,13 +1853,13 @@ when the phase changes or the fight ends. A step is done when it is seen used: a
 its slot for a battle skill, the combo bar emptying for a combo, the ultimate going from ready to
 spent. Battle-skill cooldowns seen on the screen are not used (the press is the cast; both would
 count it twice). Steps drawn together may be used in either order. A use that matches no reachable
-step (off-script, or a later step while an earlier skill is undone) moves nothing. Basic-attack
+step (off-script, or a later step while an earlier skill is undone) moves nothing. Basic- and heavy-attack
 steps never hold the marker: the next real cast of a later step passes them. A phase played
 through starts again at its first step.
 It also counts, per phase, the rounds **played through** this fight (`StepFollower.TimesPlayed`, for
 `phasePlayed`; owner, 2026-10-23): a round counts once, the moment its last step that can be seen
-used is done (trailing basic-attack steps are never seen, so they don't hold it up). A phase left
-half way doesn't count; a phase of nothing but basic attacks never does; `EndFight` sets every
+used is done (trailing basic- and heavy-attack steps are never seen, so they don't hold it up). A phase left
+half way doesn't count; a phase of nothing but basic or heavy attacks never does; `EndFight` sets every
 count back to 0. [`RotationFollower`](src/EndHud/OverlayWindow.Rotation.cs)
 runs it once per reading when it is handed the presses (`OverlayWindow.PressesFor`: the reader with
 the switch on, none with it off); with none it returns no step marks and the strip is drawn as
@@ -2092,7 +2097,7 @@ exception: hosted runners can't capture windows, so they only run on a developer
   the tracker (picking a step with no reset, moving only on seen use, steps used together, going
   off-script, looping, nothing on screen, stacks and levels in status conditions); the phase
   selector's counts and their reset at the end of a fight; the editor's working copy and the
-  editor itself (普攻 steps, 0.1 skill points, 1 % charge, a value off the list kept, 复制轴段,
+  editor itself (basic- and heavy-attack steps, picking phases and steps with a left click, 0.1 skill points, 1 % charge, a value off the list kept, 复制轴段,
   轴段已显示次数, 轴段已完成次数 greyed out with its reason without the keys); the strip's layout; every UI string translated, including keys built at run time.
 
 - **Other screen sizes**, simulated from the 4K fixtures and recordings (see
