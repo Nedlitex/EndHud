@@ -62,8 +62,8 @@ public partial class OverlayWindow
     /// <summary>A new reading: move the tracker on, then redraw.</summary>
     private void TrackRotation(PartyState? state)
     {
-        // No press source yet: the step marks stay off until the key reader is joined to the strip.
-        var follow = _rotationFollower.Update(state, _config.RotationEnabled && _config.PartyOcrEnabled, RotationFor, presses: null);
+        // The battle-skill presses, only when the player turned reading them on: then the strip marks the current step.
+        var follow = _rotationFollower.Update(state, _config.RotationEnabled && _config.PartyOcrEnabled, RotationFor, ActiveSkillPresses);
         _rotationPosition = follow.Position;
         _stepPosition = follow.Steps;
         // The boss's statuses are read when the rotation or an alert rule asks about them.

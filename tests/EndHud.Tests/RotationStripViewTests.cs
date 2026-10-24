@@ -395,6 +395,43 @@ public class RotationFollowerTests
         Assert.Equal(3, tally.Cast<int>().Sum());
     }
 
+    /// <summary>Camille's battle skill (slot 2), then Ardelia's (slot 4).</summary>
+    private static readonly Rotation CamilleFirst = new(Rotation.CurrentFormat, "r", "r", Squad,
+        [new RotationPhase("charge", "Charge", [new RotationStep("Camille", StepAction.BattleSkill), new RotationStep("Ardelia", StepAction.BattleSkill)])]);
+
+    /// <summary>
+    /// The app's wiring (<c>OverlayWindow.TrackRotation</c>): with reading turned on, the presses the
+    /// strip follows are the reader's, so key 2 in battle marks slot 2's battle skill done.
+    /// </summary>
+    [Fact]
+    public void Key_2_in_battle_marks_slot_2s_battle_skill_done()
+    {
+        var reader = new Presses(Press(2, 1.0));
+        var presses = OverlayWindow.PressesFor(new HudConfig { ReadSkillPresses = true }, reader);
+        var follower = new RotationFollower();
+        static Vision.PartyState Ready(double seconds) => At(seconds) with
+        {
+            Slots = [.. At(seconds).Slots.Select(s => s with { BattleSkill = Vision.BattleSkillState.Available })],
+        };
+
+        follower.Update(Ready(0.75), true, For(CamilleFirst), presses);
+        var follow = follower.Update(Ready(1.0), true, For(CamilleFirst), presses);
+
+        Assert.NotNull(follow.Steps); // null: the strip was handed no presses, so it marks no step
+        Assert.Equal(StepMark.Done, follow.Steps.Marks[0]);
+        Assert.Equal(0, reader.Left);
+    }
+
+    /// <summary>The player hasn't turned reading on: the strip gets no presses at all, not the reader's.</summary>
+    [Fact]
+    public void With_reading_off_the_strip_gets_no_presses()
+    {
+        var reader = new Presses(Press(2, 1.0));
+
+        Assert.Null(OverlayWindow.PressesFor(new HudConfig { ReadSkillPresses = false }, reader));
+        Assert.Same(reader, OverlayWindow.PressesFor(new HudConfig { ReadSkillPresses = true }, reader));
+    }
+
     [Fact]
     public void A_rotation_without_status_conditions_leaves_status_reading_off()
     {

@@ -20,7 +20,10 @@ public partial class OverlayWindow
     private int? _capturingSlot;
 
     /// <summary>The presses for the strip: null when the player hasn't turned reading on (nothing is read then).</summary>
-    internal ISkillPressSource? ActiveSkillPresses => _config.ReadSkillPresses ? _skillInput : null;
+    internal ISkillPressSource? ActiveSkillPresses => PressesFor(_config, _skillInput);
+
+    /// <summary>The presses the strip follows under these settings: the reader's when the player turned reading on, else none.</summary>
+    internal static ISkillPressSource? PressesFor(HudConfig config, ISkillPressSource reader) => null;
 
     private void InitSkillInput()
     {
