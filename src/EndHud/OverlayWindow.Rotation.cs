@@ -398,9 +398,7 @@ internal sealed class RotationFollower
                 var shown = selector.Update(state, follower);
                 position = (rotation, shown);
                 history = selector;
-                // RED: the steps are followed only with the keys read, as before.
-                var followed = follower.Update(shown.Step.PhaseIndex, _previous, state, judging.Casts, selector);
-                steps = presses is null ? null : followed;
+                steps = follower.Update(shown.Step.PhaseIndex, _previous, state, judging.Casts, selector);
             }
         }
         _previous = state;
