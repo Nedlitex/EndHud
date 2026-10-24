@@ -351,7 +351,7 @@ public sealed class RotationFormatTests : IDisposable
 
         Assert.Equal(2, Rotation.FormatNeeded(plain, lastMatchWins: false));
         Assert.Equal(3, Rotation.FormatNeeded(plain, lastMatchWins: true));
-        Assert.Equal(5, Rotation.CurrentFormat);
+        Assert.Equal(6, Rotation.CurrentFormat);
     }
 
     [Fact]
@@ -404,7 +404,6 @@ public sealed class RotationFormatTests : IDisposable
         var played = new AnyCondition([new NotCondition(new PhasePlayedCondition("charge", Comparison.Below, 2)), new UltimateCondition("Laevatain", true)]);
         var rotation = guide with { Phases = [guide.Phases[0], guide.Phases[1], guide.Phases[2] with { When = [played] }] };
 
-        Assert.Equal(5, Rotation.CurrentFormat);
         Assert.Equal(5, Rotation.FormatNeeded(rotation.Phases, lastMatchWins: false));
         Assert.Equal(4, Rotation.FormatNeeded([guide.Phases[0] with { When = [new PhaseShownCondition("charge-2", Comparison.AtLeast, 1)] }], lastMatchWins: false));
         string json = RotationFormat.ToJson(rotation with { Format = Rotation.FormatNeeded(rotation.Phases, false) });
@@ -469,5 +468,137 @@ public sealed class RotationFormatTests : IDisposable
         string json = RotationFormat.ToJson(Guide() with { Format = Rotation.CurrentFormat + 1 });
 
         Assert.Equal(RotationReadError.NewerFormat, Assert.Throws<RotationReadException>(() => RotationFormat.FromJson(json)).Error);
+    }
+
+    // ---- Priorities (format 6) ----
+
+    /// <summary>Burst gated on Laevatain's ultimate, with this base priority and these rules.</summary>
+    private static Rotation Prioritised(int priority, params PriorityRule[] rules)
+    {
+        var guide = Guide();
+        return guide with
+        {
+            Phases =
+            [
+                guide.Phases[0],
+                guide.Phases[1],
+                guide.Phases[2] with { When = [new UltimateCondition("Laevatain", true)], Priority = priority, PriorityRules = rules },
+            ],
+        };
+    }
+
+    /// <summary>A priority or a rule is new in format 6: only a rotation that uses one needs it; it round-trips, rules in order.</summary>
+    [Fact]
+    public void A_priority_needs_format_6_and_round_trips()
+    {
+        var rules = new[]
+        {
+            new PriorityRule([new AnyCondition([new BossStatusCondition("Heat Infliction", true, 2), new NotCondition(new ComboCondition("Ardelia", true))])], 7),
+            new PriorityRule([new PhaseShownCondition("charge", Comparison.AtLeast, 2)], -4),
+        };
+        var rotation = Prioritised(3, rules);
+
+        Assert.Equal(6, Rotation.CurrentFormat);
+        Assert.Equal(6, Rotation.FormatNeeded(rotation.Phases, lastMatchWins: false));
+        Assert.Equal(6, Rotation.FormatNeeded(Prioritised(-2).Phases, lastMatchWins: false));          // a base number alone
+        Assert.Equal(6, Rotation.FormatNeeded(Prioritised(0, rules[1]).Phases, lastMatchWins: false)); // a rule alone
+        string json = RotationFormat.ToJson(rotation with { Format = 6 });
+        Assert.Contains("\"priority\": 3", json);
+        Assert.Contains("\"priorityRules\"", json);
+        var back = RotationFormat.FromJson(json);
+        Assert.Equal(3, back.Phases[2].Priority);
+        Assert.Equal(rules, back.Phases[2].PriorityRules);
+        Assert.Equal(0, back.Phases[0].Priority);
+        Assert.Empty(back.Phases[0].PriorityRules);
+        Assert.Empty(back.Problems());
+        // And through a share code.
+        Assert.Equal(rules, RotationFormat.FromShareCode(RotationFormat.ToShareCode(rotation with { Format = 6 })).Phases[2].PriorityRules);
+    }
+
+    /// <summary>A rotation without priorities stays in its old format, with no priority in the file (older builds read it as before).</summary>
+    [Fact]
+    public void A_rotation_without_priorities_keeps_its_format_and_writes_none()
+    {
+        var plain = Prioritised(0);
+
+        Assert.Equal(2, Rotation.FormatNeeded(plain.Phases, lastMatchWins: false));
+        string json = RotationFormat.ToJson(plain with { Format = 2 });
+        Assert.DoesNotContain("priority", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>A format 5 file (from the build before priorities) still loads, every phase at 0 with no rules.</summary>
+    [Fact]
+    public void A_format_5_file_still_loads_with_no_priorities()
+    {
+        const string json = """
+            { "format": 5, "id": "old", "name": "旧轴", "squad": ["Laevatain", "Camille", "Arcane", "Ardelia"],
+              "phases": [
+                { "id": "charge", "name": "充能轴", "steps": [ { "operatorId": "Ardelia", "action": "BattleSkill" } ] },
+                { "id": "burst", "name": "爆发轴", "when": [ { "kind": "phasePlayed", "phaseId": "charge", "is": "AtLeast", "times": 2 } ],
+                  "steps": [ { "operatorId": "Laevatain", "action": "Ultimate" } ] } ] }
+            """;
+
+        var rotation = RotationFormat.FromJson(json);
+
+        Assert.Equal(5, rotation.Format);
+        Assert.All(rotation.Phases, p => Assert.Equal((0, 0), (p.Priority, p.PriorityRules.Count)));
+    }
+
+    /// <summary>A boss status asked only by a priority rule is still read.</summary>
+    [Fact]
+    public void A_status_in_a_priority_rule_is_read()
+    {
+        var noStatus = Prioritised(0);
+        noStatus = noStatus with { Phases = [.. noStatus.Phases.Select(p => p with { Steps = [new RotationStep(p.Steps[0].OperatorId, p.Steps[0].Action)] })] };
+        var burst = noStatus.Phases[2];
+
+        Assert.False(ConditionWalk.NeedsBossStatuses(noStatus));
+        Assert.True(ConditionWalk.NeedsBossStatuses(noStatus with
+        {
+            Phases = [noStatus.Phases[0], noStatus.Phases[1], burst with { PriorityRules = [new PriorityRule([new BossStatusCondition("Heat Infliction", true)], 1)] }],
+        }));
+    }
+
+    /// <summary>
+    /// A rule's conditions are checked like an entry condition's (a deleted phase, an operator not in
+    /// the squad, an empty group), each pointing at its rule; a rule with no condition is a problem of
+    /// its own (it would always hold).
+    /// </summary>
+    [Fact]
+    public void Problems_in_priority_rules_point_at_the_rule()
+    {
+        var rotation = Prioritised(0,
+            new PriorityRule([new UltimateCondition("Laevatain", true)], 1),
+            new PriorityRule([new PhaseShownCondition("gone", Comparison.AtLeast, 1)], 2),
+            new PriorityRule([new PhasePlayedCondition("gone", Comparison.AtLeast, 1)], 3),
+            new PriorityRule([new ComboCondition("Si", true)], 4),
+            new PriorityRule([new AnyCondition([])], 5),
+            new PriorityRule([], 6));
+        string burst = rotation.Phases[2].Name;
+
+        var problems = rotation.Problems();
+
+        Assert.Equal(
+        [
+            new RotationProblem(RotationProblemKind.PhaseShownMissingPhase, burst, null, 2),
+            new RotationProblem(RotationProblemKind.PhasePlayedMissingPhase, burst, null, 3),
+            new RotationProblem(RotationProblemKind.ConditionOperatorNotInSquad, burst, null, 4),
+            new RotationProblem(RotationProblemKind.EmptyConditionGroup, burst, null, 5),
+            new RotationProblem(RotationProblemKind.PriorityRuleWithoutCondition, burst, null, 6),
+        ], problems);
+        // A rule may count its own phase: it only ranks the phase once its entry condition holds.
+        Assert.Empty(Prioritised(0, new PriorityRule([new PhaseShownCondition("burst", Comparison.AtLeast, 1)], 1)).Problems());
+    }
+
+    /// <summary>The otherwise phase isn't ranked: a priority or a rule on a phase without an entry condition would do nothing, so it's pointed out.</summary>
+    [Fact]
+    public void A_priority_on_a_phase_without_an_entry_condition_is_a_problem()
+    {
+        var guide = Guide();
+        var based = guide with { Phases = [guide.Phases[0] with { Priority = 2 }, guide.Phases[1], guide.Phases[2]] };
+        var ruled = guide with { Phases = [guide.Phases[0], guide.Phases[1] with { PriorityRules = [new PriorityRule([new UltimateCondition("Laevatain", true)], 2)] }, guide.Phases[2]] };
+
+        Assert.Equal([new RotationProblem(RotationProblemKind.PriorityWithoutEntryCondition, guide.Phases[0].Name)], based.Problems());
+        Assert.Equal([new RotationProblem(RotationProblemKind.PriorityWithoutEntryCondition, guide.Phases[1].Name)], ruled.Problems());
     }
 }

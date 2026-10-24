@@ -460,8 +460,18 @@ public enum RotationProblemKind
     /// never open (the phase must be shown to be played, and played to be shown).
     /// </summary>
     PhasePlayedOwnGateNeverOpens,
+
+    /// <summary>A priority rule with no condition: it would always hold (set the phase's own priority instead).</summary>
+    PriorityRuleWithoutCondition,
+
+    /// <summary>
+    /// A phase without an entry condition sets a priority or rules: it is the "otherwise" phase, shown
+    /// when no other holds, and priorities only rank the phases whose entry condition holds.
+    /// </summary>
+    PriorityWithoutEntryCondition,
 }
 
 /// <param name="Phase">The phase concerned (its name), if any.</param>
 /// <param name="Step">The step concerned, from 1, if any (null: the phase's entry condition, or the phase itself).</param>
-public sealed record RotationProblem(RotationProblemKind Kind, string? Phase = null, int? Step = null);
+/// <param name="Rule">The phase's priority rule concerned, from 1, if any (then <paramref name="Step"/> is null).</param>
+public sealed record RotationProblem(RotationProblemKind Kind, string? Phase = null, int? Step = null, int? Rule = null);
