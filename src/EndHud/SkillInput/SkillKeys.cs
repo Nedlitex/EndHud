@@ -23,3 +23,36 @@ internal static class SkillKeyCodes
     public static bool AreValid(int[]? keys) =>
         keys is { Length: 4 } && keys.Distinct().Count() == 4 && keys.All(k => k is > 0 and <= Max);
 }
+
+/// <summary>What pressing a key did while the player was choosing a slot's key.</summary>
+internal enum CaptureResult
+{
+    /// <summary>The key is now the slot's.</summary>
+    Saved,
+
+    /// <summary>Esc: the slot keeps its key.</summary>
+    Cancelled,
+
+    /// <summary>Another slot has that key: refused; still choosing.</summary>
+    Taken,
+
+    /// <summary>A message with no physical key (scan code 0, e.g. an injected one): still choosing.</summary>
+    Ignored,
+}
+
+/// <summary>The menu's "press the key for slot N" (OverlayWindow.SkillInput), as a pure rule.</summary>
+internal static class SkillKeyCapture
+{
+    private const int Esc = 0x01;
+
+    /// <summary>The player pressed <paramref name="code"/> while choosing slot <paramref name="slot"/>'s key; <paramref name="keys"/> is changed when saved.</summary>
+    public static (CaptureResult Result, int TakenBy) Capture(int[] keys, int slot, int code)
+    {
+        if (code == Esc) return (CaptureResult.Cancelled, 0);  // Esc keeps the old key
+        if ((code & 0xFF) == 0) return (CaptureResult.Ignored, 0);
+        int other = Array.IndexOf(keys, code);
+        if (other >= 0 && other != slot - 1) return (CaptureResult.Taken, other + 1);
+        keys[slot - 1] = code;
+        return (CaptureResult.Saved, 0);
+    }
+}

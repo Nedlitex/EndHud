@@ -74,6 +74,7 @@ public partial class OverlayWindow : Window
         _publishedRotations = new PublishedRotationService(_rotationLibrary);
         ReloadRotations();
         InitRotationSettings();
+        InitSkillInput();
         InitGaugeSettings();
         InitAlertSettings();
         VersionText.Text = ReleaseChecker.DisplayVersion;
@@ -203,6 +204,7 @@ public partial class OverlayWindow : Window
     {
         _timer.Stop();
         _party.Dispose();
+        _skillInput.Dispose();
         foreach (var hook in _hooks) Native.UnhookWinEvent(hook);
         Native.UnregisterHotKey(_hwnd, HotkeyToggle);
         Native.UnregisterHotKey(_hwnd, HotkeyQuit);
@@ -384,6 +386,7 @@ public partial class OverlayWindow : Window
             w = Native.GetSystemMetrics(Native.SM_CXSCREEN);
             h = Native.GetSystemMetrics(Native.SM_CYSCREEN);
             show = _hudOn && !_config.AutoShowOnGameFocus;
+            UpdateSkillInput(gameInFront: false);
             StatusText.Text = _options.TargetTitle is null
                 ? Loc.Get("Hud.Status.NotFound")
                 : Loc.Format("Hud.Status.TargetNotFound", _options.TargetTitle);
@@ -400,6 +403,7 @@ public partial class OverlayWindow : Window
 
             IntPtr fg = Native.GetForegroundWindow();
             bool gameFocused = fg == _game || fg == _hwnd;
+            UpdateSkillInput(gameInFront: fg == _game);
             show = _hudOn && !Native.IsIconic(_game) && (gameFocused || !_config.AutoShowOnGameFocus);
             StatusText.Text = Loc.Format("Hud.Status.Tracking", _gameTitle);
         }

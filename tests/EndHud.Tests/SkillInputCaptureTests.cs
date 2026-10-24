@@ -6,7 +6,7 @@ using Xunit;
 namespace EndHud.Tests;
 
 /// <summary>
-/// Choosing a slot's battle-skill key in the menu: click 更改, press the key (<see cref="SkillKeyCapture"/>).
+/// Choosing a slot's battle-skill key in the menu: click Change, press the key (<see cref="SkillKeyCapture"/>).
 /// Nothing is typed; Esc keeps the old key; a key another slot has is refused, saying which.
 /// </summary>
 public class SkillInputCaptureTests

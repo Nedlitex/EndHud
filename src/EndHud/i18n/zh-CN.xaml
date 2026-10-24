@@ -202,6 +202,18 @@
     <sys:String x:Key="Menu.Rotation.Edit">编辑排轴…</sys:String>
     <sys:String x:Key="Menu.Rotation.ResetPosition">恢复默认位置</sys:String>
     <sys:String x:Key="Menu.Rotation.Opacity">不透明度</sys:String>
+    <sys:String x:Key="Menu.SkillInput">读取战技按键</sys:String>
+    <sys:String x:Key="Menu.SkillInput.Hint">开启后，EndHud 会读取你释放战技的按键（键盘或手柄），让排轴标出你打到了哪一步。只识别下面 4 个战技键和手柄 L1/LB 组合键，其他按键当场丢弃，不保存、不记录。默认关闭。</sys:String>
+    <sys:String x:Key="Menu.SkillInput.Slot">{0} 号位战技</sys:String>
+    <sys:String x:Key="Menu.SkillInput.Change">更改</sys:String>
+    <sys:String x:Key="Menu.SkillInput.Waiting">请按下按键…（按 Esc 取消）</sys:String>
+    <sys:String x:Key="Menu.SkillInput.Reset">恢复默认键位（1–4）</sys:String>
+    <sys:String x:Key="Menu.SkillInput.Controller">手柄：按住 L1/LB，再按对应方向的键：□/X = 1 号位，△/Y = 2 号位，○/B = 3 号位，×/A = 4 号位。</sys:String>
+    <sys:String x:Key="Menu.SkillInput.SavedNote">键位保存在设置文件中，导出诊断信息时会一并导出（只有这 4 个键位，没有任何按键记录）。</sys:String>
+    <sys:String x:Key="Menu.SkillInput.NeedsRotation">需要先开启排轴和小队识别。</sys:String>
+    <sys:String x:Key="Menu.SkillInput.Taken">这个键已用于 {0} 号位战技。请换一个键，或按 Esc 保留原来的键。</sys:String>
+    <sys:String x:Key="Menu.SkillInput.Failed">无法读取按键：Windows 拒绝了请求。排轴仍会按画面显示轴段，只是不会标出当前步骤。原因已记录在诊断信息中。</sys:String>
+    <sys:String x:Key="Menu.SkillInput.UnnamedKey">未命名的按键</sys:String>
     <sys:String x:Key="Menu.Gauges">状态监视</sys:String>
     <sys:String x:Key="Menu.Gauges.Hint">战斗中在屏幕下方，用圆形图标显示每位干员的终结技充能（就绪时发光）、干员的专属计数（如青霆剑、猎矢、启示），以及连击等队伍增益（生效时发光）。专属计数只有操控该干员时才能看到，切换干员后显示最后看到的数值（变暗）。菜单打开时，可直接拖动屏幕上的状态监视调整位置。</sys:String>
     <sys:String x:Key="Menu.Gauges.ResetPosition">恢复默认位置</sys:String>

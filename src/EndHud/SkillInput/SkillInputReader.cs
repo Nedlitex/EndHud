@@ -154,7 +154,7 @@ internal sealed class SkillInputReader : ISkillPressSource, IDisposable
         }
         _decoder = null;
         _keys = null;
-        _error = 0;
+        // A refusal stays known (Failed) until the next start: the menu, which stops reading, still says so.
         lock (_queueLock) _queue.Clear();
         DiagnosticLog.Info("skill input: stopped");
     }

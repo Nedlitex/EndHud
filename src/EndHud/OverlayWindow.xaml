@@ -324,6 +324,57 @@
                         <Button x:Name="RotationResetButton" Padding="10,2"
                                 Content="{DynamicResource Menu.Rotation.ResetPosition}" Click="RotationResetButton_Click" />
                     </StackPanel>
+                    <!-- Battle-skill key reading: the player's consent, off until ticked (OverlayWindow.SkillInput). -->
+                    <Border BorderBrush="#33FFFFFF" BorderThickness="0,1,0,0" Margin="0,8,0,0" Padding="0,6,0,0">
+                        <StackPanel>
+                            <DockPanel>
+                                <CheckBox x:Name="SkillInputCheckBox" DockPanel.Dock="Right" Click="SkillInputCheckBox_Click" Margin="0">
+                                    <TextBlock Text="{DynamicResource Menu.Feature.On}" />
+                                </CheckBox>
+                                <TextBlock Text="{DynamicResource Menu.SkillInput}" FontWeight="SemiBold" VerticalAlignment="Center"
+                                           TextWrapping="Wrap" />
+                            </DockPanel>
+                            <TextBlock x:Name="SkillInputNeedsRotation" Text="{DynamicResource Menu.SkillInput.NeedsRotation}"
+                                       Style="{StaticResource FeatureNote}" Visibility="Collapsed" />
+                            <TextBlock x:Name="SkillInputFailed" Text="{DynamicResource Menu.SkillInput.Failed}"
+                                       Style="{StaticResource FeatureNote}" Visibility="Collapsed" />
+                            <TextBlock Text="{DynamicResource Menu.SkillInput.Hint}" Foreground="#99FFFFFF" FontSize="11"
+                                       TextWrapping="Wrap" Margin="0,4,0,4" />
+                            <StackPanel x:Name="SkillKeyRows">
+                                <DockPanel Margin="0,2">
+                                    <Button DockPanel.Dock="Right" Padding="10,2" Tag="1" Click="ChangeSkillKey_Click"
+                                            Content="{DynamicResource Menu.SkillInput.Change}" />
+                                    <TextBlock x:Name="SkillKeyLabel1" Width="96" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="SkillKeyName1" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,8,0" />
+                                </DockPanel>
+                                <DockPanel Margin="0,2">
+                                    <Button DockPanel.Dock="Right" Padding="10,2" Tag="2" Click="ChangeSkillKey_Click"
+                                            Content="{DynamicResource Menu.SkillInput.Change}" />
+                                    <TextBlock x:Name="SkillKeyLabel2" Width="96" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="SkillKeyName2" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,8,0" />
+                                </DockPanel>
+                                <DockPanel Margin="0,2">
+                                    <Button DockPanel.Dock="Right" Padding="10,2" Tag="3" Click="ChangeSkillKey_Click"
+                                            Content="{DynamicResource Menu.SkillInput.Change}" />
+                                    <TextBlock x:Name="SkillKeyLabel3" Width="96" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="SkillKeyName3" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,8,0" />
+                                </DockPanel>
+                                <DockPanel Margin="0,2">
+                                    <Button DockPanel.Dock="Right" Padding="10,2" Tag="4" Click="ChangeSkillKey_Click"
+                                            Content="{DynamicResource Menu.SkillInput.Change}" />
+                                    <TextBlock x:Name="SkillKeyLabel4" Width="96" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="SkillKeyName4" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,8,0" />
+                                </DockPanel>
+                                <TextBlock x:Name="SkillKeyTaken" Style="{StaticResource FeatureNote}" Visibility="Collapsed" />
+                                <Button x:Name="ResetSkillKeysButton" HorizontalAlignment="Left" Padding="10,2" Margin="0,4,0,0"
+                                        Content="{DynamicResource Menu.SkillInput.Reset}" Click="ResetSkillKeys_Click" />
+                                <TextBlock Text="{DynamicResource Menu.SkillInput.Controller}" Foreground="#99FFFFFF" FontSize="11"
+                                           TextWrapping="Wrap" Margin="0,6,0,0" />
+                                <TextBlock Text="{DynamicResource Menu.SkillInput.SavedNote}" Foreground="#99FFFFFF" FontSize="11"
+                                           TextWrapping="Wrap" Margin="0,4,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Border>
 
