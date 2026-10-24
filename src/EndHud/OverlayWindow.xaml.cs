@@ -16,6 +16,9 @@ namespace EndHud;
 /// </summary>
 public partial class OverlayWindow : Window
 {
+    /// <summary>The menu's height at most, in screen units (2/3 of a 1080-high game); the rest of it scrolls.</summary>
+    public const double MenuMaxHeight = 720;
+
     private const int HotkeyToggle = 1;
     private const int HotkeyQuit = 2;
     private const int HotkeyMenu = 3;

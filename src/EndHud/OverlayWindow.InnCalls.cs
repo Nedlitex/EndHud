@@ -42,6 +42,7 @@ public partial class OverlayWindow
             rows.Add(new InnBannerRow("sample", InnCallView.Sample(_party.Identifier?.Library.Inn, Loc.Get)));
         InnCallStack.Visibility = away && !_menuOpen ? Visibility.Hidden : Visibility.Visible;
         InnCallBanners.Update(rows);
+        SetInnCallEditing(_menuOpen);
     }
 
     private void InnCallsCheckBox_Click(object sender, RoutedEventArgs e)
@@ -62,12 +63,22 @@ public partial class OverlayWindow
 
     // ---- Placing the banners ----
 
+    /// <summary>
+    /// The banners' drag frame (outline, label, move cursor) while the menu is open, only while they're on: with the inn
+    /// helper or its calls turned off there is nothing to place (owner 2026-10-24: the frame stayed with the helper off).
+    /// Applied on every render, so turning either switch off takes the frame away at once.
+    /// </summary>
     private void SetInnCallEditing(bool editing)
     {
-        InnCallFrame.BorderBrush = editing ? (Brush)FindResource("Accent") : Brushes.Transparent;
-        InnCallDragLabel.Visibility = editing && _config.InnHelperEnabled && _config.InnCallsEnabled ? Visibility.Visible : Visibility.Collapsed;
-        InnCallFrame.Cursor = editing ? Cursors.SizeAll : null;
+        bool placing = InnCallPlacing(editing, _config);
+        InnCallFrame.BorderBrush = placing ? (Brush)FindResource("Accent") : Brushes.Transparent;
+        InnCallDragLabel.Visibility = placing ? Visibility.Visible : Visibility.Collapsed;
+        InnCallFrame.Cursor = placing ? Cursors.SizeAll : null;
+        InnCallFrame.IsHitTestVisible = placing;
     }
+
+    /// <summary>Whether the banners' drag frame is up: the menu is open and the inn helper and its calls are both on.</summary>
+    internal static bool InnCallPlacing(bool editing, HudConfig config) => editing && config.InnHelperEnabled && config.InnCallsEnabled;
 
     /// <param name="size">The game window's scale (ComboHintLayout) times the player's size.</param>
     private void ScaleInnCalls(double size)

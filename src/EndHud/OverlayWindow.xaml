@@ -1,6 +1,7 @@
 <Window x:Class="EndHud.OverlayWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:EndHud"
         Title="EndHud Overlay"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -132,7 +133,7 @@
     <!-- Menu: while open, the overlay accepts mouse/keyboard input; closed, it is click-through again.
          Dragged by any part that isn't a control (config MenuOffsetX/Y). -->
     <Border x:Name="MenuPanel" Visibility="Collapsed"
-            HorizontalAlignment="Center" VerticalAlignment="Center" Width="480" Margin="0,16"
+            HorizontalAlignment="Center" VerticalAlignment="Center" Width="480" MaxHeight="{x:Static local:OverlayWindow.MenuMaxHeight}" Margin="0,16"
             Padding="0,16" CornerRadius="6"
             Background="#E6101418" BorderBrush="{StaticResource Accent}" BorderThickness="0,3,0,0"
             SizeChanged="DraggablePanel_SizeChanged"
@@ -170,7 +171,7 @@
                 <Setter Property="Margin" Value="0,2,0,4" />
             </Style>
         </Border.Resources>
-        <!-- Scrolls when the game window is too short for the whole menu. -->
+        <!-- At most MenuMaxHeight tall (owner 2026-10-24: a menu as tall as the screen was far too tall); the rest scrolls. -->
         <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20,0">
         <StackPanel>
             <TextBlock Text="{DynamicResource Menu.Title}" Foreground="{StaticResource Accent}" FontWeight="Bold" FontSize="16" />
