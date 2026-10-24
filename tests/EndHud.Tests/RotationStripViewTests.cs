@@ -422,6 +422,42 @@ public class RotationFollowerTests
         Assert.Equal(0, reader.Left);
     }
 
+    /// <summary>
+    /// The owner's ask (2026-10-23): with the keys read, the phases played through reach the alerts
+    /// (an alert "Charge played at least once" fires after Ardelia's and Laevatain's battle skills),
+    /// and leaving battle sets the count back to 0.
+    /// </summary>
+    [Fact]
+    public void Phases_played_through_reach_the_alerts_and_reset_when_the_fight_ends()
+    {
+        var follower = new RotationFollower();
+        var alerts = new AlertFollower();
+        var rule = Vision.Alerts.AlertRule.New([new PhasePlayedCondition("charge", Comparison.AtLeast, 1)], "");
+        var presses = new Presses(Press(4, 1.0), Press(1, 1.2));
+        IReadOnlyList<Vision.Alerts.AlertRule> Shown(RotationFollowing follow, double seconds) =>
+            alerts.Update(At(seconds), follow.InBattle, true, [rule], follow.History, TimeSpan.FromSeconds(seconds)).Show;
+
+        Assert.Empty(Shown(follower.Update(At(0.75), true, For(TwoSkills), presses), 0.75));
+        Assert.Empty(Shown(follower.Update(At(1.0), true, For(TwoSkills), presses), 1.0));
+        Assert.Equal([rule], Shown(follower.Update(At(1.25), true, For(TwoSkills), presses), 1.25));
+
+        RotationFollowing? outside = null;
+        for (int i = 0; i < 20; i++) outside = follower.Update(At(2 + i * 0.25, inBattle: false), true, For(TwoSkills), presses);
+        var again = follower.Update(At(10), true, For(TwoSkills), presses);
+        Assert.Equal(0, again.History.TimesPlayed("charge"));
+    }
+
+    /// <summary>Without the keys the alerts are told "phase played" is ignored: a rule of nothing else never fires.</summary>
+    [Fact]
+    public void Without_the_keys_alerts_ignore_phase_played()
+    {
+        var follow = new RotationFollower().Update(At(1.0), true, For(TwoSkills), presses: null);
+
+        Assert.True(follow.History.PlayedIgnored);
+        var rule = Vision.Alerts.AlertRule.New([new PhasePlayedCondition("charge", Comparison.AtLeast, 0)], "");
+        Assert.Empty(new AlertFollower().Update(At(1.0), true, true, [rule], follow.History, TimeSpan.Zero).Show);
+    }
+
     /// <summary>The player hasn't turned reading on: the strip gets no presses at all, not the reader's.</summary>
     [Fact]
     public void With_reading_off_the_strip_gets_no_presses()
