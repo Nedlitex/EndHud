@@ -23,8 +23,6 @@ namespace EndHud;
 /// (for alerts, every rotation's phases, by rotation and phase).</param>
 /// <param name="host">Where the conditions are used: the kinds offered are the catalogue's for it (a stored condition of another kind is still shown, as itself).</param>
 /// <param name="avatar">An operator's avatar for the pickers, if there is one.</param>
-/// <param name="keysRead">The player reads their battle-skill keys. While not, "phase played" is listed but
-/// greyed out, saying why, and one already there says it is ignored.</param>
 /// <param name="defaultPhaseId">The phase a new "phase shown" or "phase played" condition names.</param>
 internal sealed class ConditionEditor(
     OperatorLibrary library,
@@ -33,7 +31,6 @@ internal sealed class ConditionEditor(
     Func<IReadOnlyList<(string Id, string Label)>> phases,
     ConditionHostKind host,
     Func<OperatorInfo, BitmapSource?> avatar,
-    Func<bool> keysRead,
     Func<string?>? defaultPhaseId = null)
 {
     /// <summary>Where these conditions are used.</summary>
@@ -243,8 +240,7 @@ internal sealed class ConditionEditor(
                 row.Children.Add(which);
                 row.Children.Add(played);
                 read = () => new PhaseCurrentCondition((((string Id, string Label))Picked(which)).Id, (int)Picked(played) switch { 1 => true, 2 => false, _ => null });
-                // Kept and editable while the keys aren't read, saying the played-through part is ignored until they are.
-                hint = Loc.Get(keysRead() ? "Editor.PhaseCurrentHint" : "Editor.PhaseCurrentNeedsKeys");
+                hint = Loc.Get("Editor.PhaseCurrentHint");
                 kind.ToolTip = hint;
                 break;
             }
@@ -365,8 +361,7 @@ internal sealed class ConditionEditor(
             {
                 var (which, compare, times) = PhaseCountPickers(row, c.PhaseId, c.Is, c.Times);
                 read = () => new PhasePlayedCondition((((string Id, string Label))Picked(which)).Id, (Comparison)Picked(compare), (int)Picked(times));
-                // Kept and editable while the keys aren't read, saying it is ignored until they are.
-                hint = Loc.Get(keysRead() ? "Editor.PhasePlayedHint" : "Editor.PhasePlayedNeedsKeys");
+                hint = Loc.Get("Editor.PhasePlayedHint");
                 kind.ToolTip = hint;
                 break;
             }
@@ -418,8 +413,8 @@ internal sealed class ConditionEditor(
 
     /// <summary>
     /// A kind in the kind picker. One that can't be told in this setting stays listed, greyed out,
-    /// saying why, by what its kind needs (<see cref="ConditionKind.Needs"/>): the battle-skill keys
-    /// read ("phase played"), a phase to name, an operator whose time is read (Si's battle skill). The
+    /// saying why, by what its kind needs (<see cref="ConditionKind.Needs"/>): a phase to name, an operator
+    /// whose time is read (Si's battle skill). The
     /// row's own kind is always pickable (it is what the row shows).
     /// </summary>
     private ComboBoxItem KindItem(string kind, string rowKind)
@@ -428,14 +423,12 @@ internal sealed class ConditionEditor(
         if (kind == rowKind) return item;
         var needs = ConditionCatalogue.Kinds.First(k => k.EditorKind == kind);
         string? why =
-            needs.Needs.HasFlag(ConditionNeeds.KeysRead) && !keysRead() ? "Editor.PhasePlayedNeedsKeys"
-            : needs.Needs.HasFlag(ConditionNeeds.Phase) && phases().Count == 0 ? "Editor.PhasePlayedNoPhases"
+            needs.Needs.HasFlag(ConditionNeeds.Phase) && phases().Count == 0 ? "Editor.PhasePlayedNoPhases"
             // Only Si's skill time is read, only some lasting ultimates: without them in the list, nobody to ask about.
             : needs.OnlyFor is { } only && !operators().Any(o => only.Contains(o.Id))
                 ? needs.Needs.HasFlag(ConditionNeeds.SkillTime) ? "Editor.SkillTimeNoOperator" : "Editor.UltimateTimeNoOperator"
             : null;
         if (why is null) return item;
-        if (why == "Editor.PhasePlayedNeedsKeys") item.Content = Loc.Get($"Editor.Condition.{kind}.NeedsKeys");
         item.IsEnabled = false;
         item.ToolTip = Loc.Get(why);
         ToolTipService.SetShowOnDisabled(item, true);

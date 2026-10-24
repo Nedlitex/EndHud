@@ -44,9 +44,8 @@ public partial class AlertEditor : Window
 
     /// <param name="store">The rules' file.</param>
     /// <param name="rotations">The player's rotations: "phase played" names one of their phases.</param>
-    /// <param name="keysRead">The player reads their battle-skill keys (else "phase played" is greyed out).</param>
     /// <param name="saved">Called after the rules were saved (the overlay reloads them).</param>
-    internal AlertEditor(AlertStore store, OperatorLibrary library, Func<IReadOnlyList<Rotation>> rotations, Func<bool> keysRead, Action saved)
+    internal AlertEditor(AlertStore store, OperatorLibrary library, Func<IReadOnlyList<Rotation>> rotations, Action saved)
     {
         _store = store;
         _library = library;
@@ -54,7 +53,7 @@ public partial class AlertEditor : Window
         _saved = saved;
         // Alerts are global: every operator in the library, every operator resource, every rotation's phases
         // ("phase shown" and "phase played" name one: known while that rotation is followed). The same full set of kinds as a rotation.
-        _conditions = new ConditionEditor(library, () => _library.Operators, () => OperatorCounters.Definitions, () => PhaseChoices(_rotations()), ConditionHostKind.Alert, Avatar, keysRead);
+        _conditions = new ConditionEditor(library, () => _library.Operators, () => OperatorCounters.Definitions, () => PhaseChoices(_rotations()), ConditionHostKind.Alert, Avatar);
         InitializeComponent();
         Load();
         Closing += (_, e) => e.Cancel = !ConfirmDiscard();

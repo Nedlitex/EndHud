@@ -77,13 +77,10 @@ public class NextReleaseRotationsTests
         public StepFollower Steps { get; } = new(rotation);
         private PartyState? _before;
 
-        /// <summary>The player hasn't turned on reading their battle-skill keys: no step follower.</summary>
-        public bool KeysOff { get; init; }
-
         public string Read(Reading reading, params int[] presses)
         {
             var now = reading.ToState();
-            var shown = Selector.Update(now, KeysOff ? null : Steps);
+            var shown = Selector.Update(now, Steps);
             Steps.Update(shown.Step.PhaseIndex, _before, now, Casts.Seen(presses), Selector);
             _before = now;
             return shown.Step.PhaseLabel;
@@ -186,21 +183,28 @@ public class NextReleaseRotationsTests
     }
 
     /// <summary>
-    /// Without the keys read, "the phase now is X and this showing is (not) played through" is ignored as a whole, like
-    /// "phase played": the rotation is 充能轴 I with the burst while every ultimate is charged. (Ignoring only the
-    /// played-through part left "the phase now is 爆发轴", which held the burst for the rest of the fight, and showed
-    /// 普攻 straight after 祀's first battle skill.)
+    /// The bug that started following battle skills from the screen (test_battle_track_bug1, 2026-10-24): Tangtang's
+    /// battle skill, the burst's first step, wasn't tracked, and the burst was held "until played through" for the rest
+    /// of the fight. Now her combo seen used jumps past it (skipped), and one missed cast still plays the burst through.
     /// </summary>
     [Fact]
-    public void Without_the_keys_it_is_charge_one_and_the_burst_while_the_ultimates_are_charged()
+    public void The_burst_with_its_first_battle_skill_missed_is_still_played_through()
     {
-        var fight = new Fight(Si_rotation()) { KeysOff = true };
+        var fight = new Fight(Si_rotation());
         var charged = new Reading(false) { UltimateReady = [Si, LastRite, Arcane], TangtangCharge = 0.85 };
+        var spent = new Reading(true);
 
-        Assert.Equal("充能轴 I", fight.Read(new Reading(false)));
-        Assert.Equal("充能轴 I", fight.Read(new Reading(true)));   // 祀's skill running: no 普攻 without the keys
-        Assert.Equal("充能轴 I", fight.Read(new Reading(false)));
-        Assert.Equal("爆发轴 IV", fight.Read(charged));
-        Assert.Equal("充能轴 I", fight.Read(new Reading(true) { UltimateReady = [LastRite, Arcane] }));   // 祀 终结技 cast
+        Assert.Equal("爆发轴 IV", fight.Read(charged with { SiRunning = true }));
+        Assert.Equal("爆发轴 IV", fight.Read(charged with { SiRunning = true }));                                   // 汤汤 战技: not seen
+        Assert.Equal("爆发轴 IV", fight.Read(charged with { SiRunning = true, ComboUsed = Tangtang }));             // 汤汤 连携技: jumps
+        Assert.Equal("爆发轴 IV", fight.Read(charged with { SiRunning = true, UltimateReady = [LastRite, Arcane] })); // 祀 终结技
+        Assert.Equal("爆发轴 IV", fight.Read(spent with { UltimateReady = [Arcane], TangtangCharge = 0.85 }));      // 别礼 终结技
+        Assert.Equal("爆发轴 IV", fight.Read(spent with { UltimateReady = [Arcane, Tangtang] }));                  // 汤汤's ready …
+        Assert.Equal("爆发轴 IV", fight.Read(spent with { UltimateReady = [Arcane] }));                            // … and used
+        Assert.Equal("爆发轴 IV", fight.Read(spent));                                                              // 诀 终结技·意
+        Assert.Equal("爆发轴 IV", fight.Read(spent with { ComboUsed = Arcane }));                                  // 诀 连携技·意
+        Assert.Equal("爆发轴 IV", fight.Read(spent with { ComboUsed = LastRite }));                                // 别礼 连携技
+        Assert.Equal("爆发轴 IV", fight.Read(spent with { ComboUsed = Si }));                                      // 祀 连携技: played through
+        Assert.Equal("充能轴 I", fight.Read(spent));
     }
 }

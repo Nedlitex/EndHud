@@ -37,9 +37,8 @@ public partial class RotationEditor : Window
     /// <param name="select">The rotation to open with, if any.</param>
     /// <param name="restorePublished">Bring back deleted recommended rotations and download them again.</param>
     /// <param name="changed">Called after a rotation is saved (with it) or deleted (with null).</param>
-    /// <param name="keysRead">The player reads their battle-skill keys (else "phase played" is greyed out).</param>
     internal RotationEditor(RotationLibrary store, OperatorLibrary library, IReadOnlyList<string?> currentSquad, string? select,
-        Func<Task<RotationSyncResult?>> restorePublished, Action<Rotation?> changed, Func<bool> keysRead)
+        Func<Task<RotationSyncResult?>> restorePublished, Action<Rotation?> changed)
     {
         _store = store;
         _restorePublished = restorePublished;
@@ -47,7 +46,7 @@ public partial class RotationEditor : Window
         _currentSquad = currentSquad;
         _changed = changed;
         // Conditions offer the rotation's squad, its counters and its phases (by the strip's names).
-        ConditionEditor Conditions(ConditionHostKind host) => new(library, SquadOperators, Counters, PhaseChoices, host, Avatar, keysRead,
+        ConditionEditor Conditions(ConditionHostKind host) => new(library, SquadOperators, Counters, PhaseChoices, host, Avatar,
             () => (_draft?.Phases.FirstOrDefault(p => p != _phase) ?? _phase)?.Id);
         _gateConditions = Conditions(ConditionHostKind.PhaseGate);
         _ruleConditions = Conditions(ConditionHostKind.PriorityRule);

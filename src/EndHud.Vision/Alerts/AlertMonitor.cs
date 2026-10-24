@@ -14,8 +14,8 @@ public sealed class AlertMonitor
     private readonly Dictionary<string, bool> _lastSeen = new(StringComparer.Ordinal);
 
     /// <summary>The rules that pop up on this reading (in the rules' order).</summary>
-    /// <param name="history">The phases played through, from the rotation the strip follows now; <see cref="PhaseHistory.KeysNotRead"/>
-    /// while the battle-skill keys aren't read (then "phase played" is ignored), <see cref="PhaseHistory.None"/> when no rotation is followed.</param>
+    /// <param name="history">The phases shown and played through, from the rotation the strip follows now; <see cref="PhaseHistory.None"/>
+    /// when no rotation is followed.</param>
     public IReadOnlyList<AlertRule> Update(PartyState state, IReadOnlyList<AlertRule> rules, IPhaseHistory history)
     {
         var popped = new List<AlertRule>();
@@ -23,9 +23,6 @@ public sealed class AlertMonitor
         {
             if (rule.When.Count == 0) continue;
             var when = new AllCondition(rule.When);
-            // Nothing but "phase played" while the keys aren't read: ignored entirely, it never fires
-            // (as if it weren't there, it would be a rule with no condition, firing at every fight's start).
-            if (RotationTracker.Ignored(when, history)) continue;
             bool? now = RotationTracker.Evaluate(when, state, history);
             if (now is not { } holds) continue;
             bool was = _lastSeen.TryGetValue(rule.Id, out bool seen) && seen;

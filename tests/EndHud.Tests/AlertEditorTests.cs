@@ -283,9 +283,9 @@ public sealed class AlertEditorTests : IDisposable
         Assert.Equal(new PhasePlayedCondition("a-burst", Comparison.AtLeast, 3), rule.When[0]);
     }
 
-    /// <summary>While the battle-skill keys aren't read, "phase played" is greyed out in the alert editor too, saying why; one already in a rule says it.</summary>
+    /// <summary>"Phase played" is offered in the alert editor whether the battle-skill keys are read or not (it is followed from the screen); one in a rule says what it counts.</summary>
     [Fact]
-    public void Without_the_keys_phase_played_is_greyed_out_in_alerts()
+    public void Phase_played_is_offered_in_alerts_and_says_what_it_counts()
     {
         Store().Save([AlertRule.New([new PhasePlayedCondition("a-charge", Comparison.AtLeast, 1)], "x")]);
 
@@ -293,14 +293,14 @@ public sealed class AlertEditorTests : IDisposable
         bool hint = false;
         OnEditor(Store(), () => { }, editor =>
         {
-            hint = ((StackPanel)editor.FindName("ConditionRows")).Children[0] is StackPanel { Children: [_, TextBlock { Text: "Editor.PhasePlayedNeedsKeys" }] };
+            hint = ((StackPanel)editor.FindName("ConditionRows")).Children[0] is StackPanel { Children: [_, TextBlock { Text: "Editor.PhasePlayedHint" }] };
             Click(editor, "NewButton");
             var item = Pickers(editor)[0].Items.Cast<ComboBoxItem>().Single(i => Equals(i.Tag, "PhasePlayed"));
             offered = (item.IsEnabled, item.ToolTip);
-        }, keysRead: false, rotations: [Charging("a", "Mine")]);
+        }, rotations: [Charging("a", "Mine")]);
 
         Assert.True(hint);
-        Assert.Equal((false, (object)"Editor.PhasePlayedNeedsKeys"), offered);
+        Assert.Equal((true, (object?)null), offered);
     }
 
     /// <summary>
@@ -369,7 +369,7 @@ public sealed class AlertEditorTests : IDisposable
         throw new DirectoryNotFoundException("src/EndHud/i18n");
     }
 
-    private void OnEditor(AlertStore store, Action saved, Action<AlertEditor> act, bool keysRead = true, IReadOnlyList<Rotation>? rotations = null)
+    private void OnEditor(AlertStore store, Action saved, Action<AlertEditor> act, IReadOnlyList<Rotation>? rotations = null)
     {
         // Operators (with Si, whose counter has no maximum) and three statuses, without any art: enough for the pickers.
         string reference = Path.Combine(_folder, "reference");
@@ -391,7 +391,7 @@ public sealed class AlertEditorTests : IDisposable
             try
             {
                 if (Application.Current is null) _ = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-                act(new AlertEditor(store, library, () => rotations ?? [], () => keysRead, saved));
+                act(new AlertEditor(store, library, () => rotations ?? [], saved));
             }
             catch (Exception ex)
             {

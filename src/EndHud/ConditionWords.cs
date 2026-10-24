@@ -72,7 +72,7 @@ internal static class ConditionWords
             case PhaseShownCondition c:
                 return history?.TimesShown(c.PhaseId) is { } shown ? Number(shown) : null;
             case PhasePlayedCondition c:
-                return history is { PlayedIgnored: false } && history.TimesPlayed(c.PhaseId) is { } played ? Number(played) : null;
+                return history?.TimesPlayed(c.PhaseId) is { } played ? Number(played) : null;
             case UltimateTimeLeftCondition c:
                 if (state?.SkillPoints is null || !LastingUltimates.Operators.Contains(c.OperatorId)) return null;
                 var running = state.RunningUltimates ?? new LastingUltimates().Update(state, TimeSpan.Zero);

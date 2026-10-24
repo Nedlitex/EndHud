@@ -7,10 +7,8 @@ namespace EndHud.Vision.Tests;
 
 /// <summary>
 /// "Phase X played [cmp] N times" (owner, 2026-10-23): how many times the player finished every step
-/// of a phase this fight, as the step follower follows them from the battle-skill presses. Only
-/// counted while the player reads their keys; while they don't, the condition is ignored, as if it
-/// weren't there, and an alert made of nothing else never fires. Squad slots: Laevatain (1),
-/// Camille (2), Arcane (3), Ardelia (4).
+/// of a phase this fight, as the step follower follows them from the screen (battle skills cast, combos
+/// and ultimates seen used). Squad slots: Laevatain (1), Camille (2), Arcane (3), Ardelia (4).
 /// </summary>
 public sealed class PhasePlayedTests
 {
@@ -39,7 +37,7 @@ public sealed class PhasePlayedTests
     private static readonly PartyState Plain = Reading();
 
     /// <summary>The overlay's order per reading: the selector (seeing the counts so far), then the step follower inside its phase.</summary>
-    private sealed class Fight(Rotation rotation, bool keysRead = true)
+    private sealed class Fight(Rotation rotation)
     {
         public PhaseSelector Selector { get; } = new(rotation);
         public StepFollower Steps { get; } = new(rotation);
@@ -47,8 +45,8 @@ public sealed class PhasePlayedTests
 
         public string Read(PartyState now, params int[] presses)
         {
-            var shown = Selector.Update(now, keysRead ? Steps : null);
-            if (keysRead) Steps.Update(shown.Step.PhaseIndex, _before, now, Casts.Seen(presses), Selector);
+            var shown = Selector.Update(now, Steps);
+            Steps.Update(shown.Step.PhaseIndex, _before, now, Casts.Seen(presses), Selector);
             _before = now;
             return shown.Step.PhaseLabel;
         }
@@ -218,80 +216,10 @@ public sealed class PhasePlayedTests
         Assert.Null(RotationTracker.Evaluate(new PhasePlayedCondition("gone", Comparison.AtLeast, 0), Plain, new Fight(TwoPhases()).Selector.Also(Plain)));
     }
 
-    // ---- Keys not read: ignored ----
-
-    private static readonly PhasePlayedCondition Played = new("charge", Comparison.AtLeast, 5);
-    private static readonly SkillPointsCondition Points = new(Comparison.AtLeast, 1.5);
-
-    [Fact]
-    public void Without_the_keys_it_is_dropped_from_an_and()
-    {
-        Assert.True(RotationTracker.Evaluate(new AllCondition([Played, Points]), Reading(2), PhaseHistory.KeysNotRead));
-        Assert.False(RotationTracker.Evaluate(new AllCondition([Played, Points]), Reading(1), PhaseHistory.KeysNotRead));
-    }
-
-    [Fact]
-    public void Without_the_keys_it_is_dropped_from_an_or()
-    {
-        Assert.False(RotationTracker.Evaluate(new AnyCondition([Played, Points]), Reading(1), PhaseHistory.KeysNotRead));
-        Assert.False(RotationTracker.Evaluate(new AnyCondition([new NotCondition(Played), Points]), Reading(1), PhaseHistory.KeysNotRead));
-        // A group left empty is dropped as well: here the "or" is the skill points alone.
-        Assert.False(RotationTracker.Evaluate(new AnyCondition([new AllCondition([Played]), Points]), Reading(1), PhaseHistory.KeysNotRead));
-    }
-
-    [Fact]
-    public void Without_the_keys_a_steps_expected_state_made_only_of_it_holds()
-    {
-        Assert.True(RotationTracker.Evaluate(Played, Plain, PhaseHistory.KeysNotRead));
-        Assert.True(RotationTracker.Evaluate(new NotCondition(Played), Plain, PhaseHistory.KeysNotRead));
-        Assert.True(RotationTracker.Ignored(new AnyCondition([Played, new NotCondition(Played)]), PhaseHistory.KeysNotRead));
-        Assert.False(RotationTracker.Ignored(Played, PhaseHistory.None)); // keys read (or unknown): never ignored
-        Assert.False(RotationTracker.Ignored(new AnyCondition([]), PhaseHistory.KeysNotRead)); // an empty group is a problem of its own
-    }
-
-    /// <summary>A gate of nothing but "played" never opens without the keys (opening on every reading would pin the strip to it).</summary>
-    [Fact]
-    public void Without_the_keys_a_gate_made_only_of_it_never_opens()
-    {
-        var fight = new Fight(TwoPhases(new PhasePlayedCondition("charge", Comparison.AtLeast, 0)), keysRead: false);
-
-        Assert.Equal("Charge I", fight.Read(Plain));
-        Assert.Equal("Charge I", fight.Read(Plain));
-        Assert.True(fight.Selector.PlayedIgnored);
-    }
-
-    [Fact]
-    public void Without_the_keys_a_gate_with_more_opens_on_the_rest()
-    {
-        var fight = new Fight(TwoPhases(Played, new SkillPointsCondition(Comparison.AtLeast, 3)), keysRead: false);
-
-        Assert.Equal("Charge I", fight.Read(Plain));
-        Assert.Equal("Burst II", fight.Read(Reading(3)));
-    }
-
     // ---- Alerts ----
 
     [Fact]
-    public void Without_the_keys_an_alert_made_only_of_it_never_fires()
-    {
-        var monitor = new AlertMonitor();
-        var only = AlertRule.New([new PhasePlayedCondition("charge", Comparison.AtLeast, 0)], "");
-        var notOnly = AlertRule.New([new NotCondition(new PhasePlayedCondition("charge", Comparison.AtLeast, 5))], "");
-
-        Assert.Empty(monitor.Update(Plain, [only, notOnly], PhaseHistory.KeysNotRead));
-        Assert.Empty(monitor.Update(Plain, [only, notOnly], PhaseHistory.KeysNotRead));
-    }
-
-    [Fact]
-    public void Without_the_keys_an_alert_with_more_fires_on_the_rest()
-    {
-        var rule = AlertRule.New([Played, Points], "");
-
-        Assert.Equal([rule], new AlertMonitor().Update(Reading(2), [rule], PhaseHistory.KeysNotRead));
-    }
-
-    [Fact]
-    public void With_the_keys_an_alert_fires_once_the_phase_was_played_so_often()
+    public void An_alert_fires_once_the_phase_was_played_so_often()
     {
         var fight = new Fight(TwoPhases(new UltimateCondition("Laevatain", true)));
         var monitor = new AlertMonitor();
@@ -307,7 +235,7 @@ public sealed class PhasePlayedTests
 
 internal static class SelectorTestExtensions
 {
-    /// <summary>A selector that has taken one reading with a step follower (so "played" is read, not ignored).</summary>
+    /// <summary>A selector that has taken one reading with its step follower (so "played" is known).</summary>
     public static PhaseSelector Also(this PhaseSelector selector, PartyState state)
     {
         selector.Update(state, new StepFollower(selector.Rotation));

@@ -42,6 +42,8 @@ public partial class OverlayWindow
             foreach (var slot in state.Slots)
                 sb.AppendLine($"  slot {slot.Number}: {slot.Operator?.Operator.Id ?? "not named"}, level {slot.Level?.ToString() ?? "-"}, hp {slot.Hp?.ToString("P0") ?? "-"}{(slot.Dead ? ", fallen" : "")}");
         }
+        foreach (string line in CastLines(_rotationFollower.CastTally))
+            sb.AppendLine(line);
         foreach (string line in PressLines(_config.ReadSkillPresses ? _skillInput.Describe() : "off (not consented)", _rotationFollower.PressTally))
             sb.AppendLine(line);
         sb.AppendLine();
@@ -50,10 +52,24 @@ public partial class OverlayWindow
     }
 
     /// <summary>
+    /// The summary's lines about the battle skills the step follower was handed, per slot and by what named the slot
+    /// (<see cref="ScreenCastJudge"/>), since start. Counts only: never a time (a list of cast or press times would be
+    /// a keystroke timeline), so nothing about them goes into the recent readings either. A tally of zeros with skill
+    /// points spent tells a fast path that never ran (the controller layout, the screen fallback).
+    /// </summary>
+    internal static IEnumerable<string> CastLines(int[,] tally)
+    {
+        int Count(int row, CastSource source) => tally[row, (int)source];
+        yield return "battle skills seen cast (the step follower's, since start):";
+        for (int slot = 0; slot < 4; slot++)
+            yield return $"  slot {slot + 1}: by flash {Count(slot, CastSource.Flash)}, by countdown {Count(slot, CastSource.Cooldown)}, " +
+                $"by key press {Count(slot, CastSource.Press)}, empowered without a point {Count(slot, CastSource.Empowered)}";
+        yield return $"  skill points spent with nobody named: {Count(4, CastSource.Unattributed)}";
+    }
+
+    /// <summary>
     /// The summary's lines about battle-skill key reading: whether it reads, then for each slot how
-    /// its presses were judged since start. Counts only: never a key, a button or a press's time (a
-    /// list of press times would be a keystroke timeline), so nothing about presses goes into the
-    /// recent readings either.
+    /// its presses were judged since start. Counts only, like <see cref="CastLines"/>.
     /// </summary>
     internal static IEnumerable<string> PressLines(string status, int[,] tally)
     {

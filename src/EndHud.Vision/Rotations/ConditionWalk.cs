@@ -27,19 +27,4 @@ public static class ConditionWalk
 
     /// <summary>The comparison a condition uses, if it has one.</summary>
     public static Comparison? ComparisonOf(StateCondition c) => ConditionCatalogue.ComparisonOf(c);
-
-    /// <summary>
-    /// Is this condition made of nothing but "phase played" parts (a "not" of one, a group whose every
-    /// part is one, at any depth)? While the battle-skill keys aren't read such a condition is ignored,
-    /// as if it weren't there. An empty group isn't: it is a problem of its own.
-    /// </summary>
-    public static bool OnlyPlayed(StateCondition condition) => condition switch
-    {
-        PhasePlayedCondition => true,
-        PhaseCurrentCondition { PlayedThrough: not null } => true, // "now X, this showing (not) played through" needs the keys as a whole
-        NotCondition not => OnlyPlayed(not.Of),
-        AllCondition all => all.Of.Count > 0 && all.Of.All(OnlyPlayed),
-        AnyCondition any => any.Of.Count > 0 && any.Of.All(OnlyPlayed),
-        _ => false,
-    };
 }

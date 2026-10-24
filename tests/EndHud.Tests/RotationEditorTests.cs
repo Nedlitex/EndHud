@@ -570,11 +570,11 @@ public sealed class RotationEditorTests : IDisposable
     }
 
     /// <summary>
-    /// While the battle-skill keys aren't read, "phase played" is listed but greyed out, saying it needs
-    /// them; one already in the rotation stays, with that same sentence under it.
+    /// "Phase played" is offered whether the battle-skill keys are read or not (it is followed from the screen); one in
+    /// the rotation says what it counts.
     /// </summary>
     [Fact]
-    public void Without_the_keys_phase_played_is_greyed_out_and_says_why()
+    public void Phase_played_is_offered_and_says_what_it_counts()
     {
         var library = TwoPhases(new PhasePlayedCondition("p", Comparison.AtLeast, 1));
 
@@ -586,15 +586,15 @@ public sealed class RotationEditorTests : IDisposable
             ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;
             var gate = (StackPanel)editor.FindName("GateRows");
             kept = ((ComboBoxItem)RowOf(gate.Children[0]).Children.OfType<ComboBox>().First().SelectedItem).Tag;
-            hint = gate.Children[0] is StackPanel { Children: [_, TextBlock { Text: "Editor.PhasePlayedNeedsKeys" }] };
+            hint = gate.Children[0] is StackPanel { Children: [_, TextBlock { Text: "Editor.PhasePlayedHint" }] };
             Click(editor, "AddGateButton");
             var item = RowOf(gate.Children[1]).Children.OfType<ComboBox>().First().Items.Cast<ComboBoxItem>().Single(i => Equals(i.Tag, "PhasePlayed"));
             offered = (item.IsEnabled, item.Content, item.ToolTip);
-        }, keysRead: false);
+        });
 
         Assert.Equal("PhasePlayed", kept);
         Assert.True(hint);
-        Assert.Equal((false, (object)"Editor.Condition.PhasePlayed.NeedsKeys", (object)"Editor.PhasePlayedNeedsKeys"), offered);
+        Assert.Equal((true, (object)"Editor.Condition.PhasePlayed", (object?)null), offered);
     }
 
     /// <summary>A gate needing its own phase played before it can show is refused in words.</summary>
@@ -1126,7 +1126,7 @@ public sealed class RotationEditorTests : IDisposable
     private static void Click(Window window, string name) =>
         ((Button)window.FindName(name)).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
 
-    private void OnEditor(RotationLibrary library, Action<Rotation?> changed, Action<RotationEditor> act, bool keysRead = true, string[]? squad = null)
+    private void OnEditor(RotationLibrary library, Action<Rotation?> changed, Action<RotationEditor> act, string[]? squad = null)
     {
         // The squad's operators, without any art: enough for the pickers.
         string reference = Path.Combine(_folder, "reference");
@@ -1150,7 +1150,7 @@ public sealed class RotationEditorTests : IDisposable
             try
             {
                 if (Application.Current is null) _ = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-                var editor = new RotationEditor(library, operators, [null, null, null, null], null, () => Task.FromResult<RotationSyncResult?>(null), changed, () => keysRead);
+                var editor = new RotationEditor(library, operators, [null, null, null, null], null, () => Task.FromResult<RotationSyncResult?>(null), changed);
                 act(editor);
             }
             catch (Exception ex)

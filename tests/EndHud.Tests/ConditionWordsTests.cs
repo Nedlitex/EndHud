@@ -61,8 +61,6 @@ public class ConditionWordsTests
         public int? TimesShown(string phaseId) => phaseId == "charge" ? shown : null;
 
         public int? TimesPlayed(string phaseId) => phaseId == "charge" ? played : null;
-
-        public bool PlayedIgnored => false;
     }
 
     /// <summary>One of every kind (a new kind must be added here: the test below checks the catalogue).</summary>

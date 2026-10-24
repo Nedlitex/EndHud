@@ -38,9 +38,6 @@ public enum ConditionNeeds
     /// <summary>Names a phase of a rotation; known only while that rotation is followed.</summary>
     Phase = 1,
 
-    /// <summary>The player reads their battle-skill keys ("phase played"); while not, it is ignored.</summary>
-    KeysRead = 2,
-
     /// <summary>The boss's statuses must be read (they are read only when something asks).</summary>
     BossStatuses = 4,
 
@@ -115,8 +112,7 @@ public static class ConditionCatalogue
         Kind<ControllingCondition>("Controlling", "controlling", "Controlling", 2, 1, who: c => c.OperatorId),
         // An alert names a phase of any of the player's rotations, told while that rotation is followed.
         Kind<PhaseShownCondition>("PhaseShown", "phaseShown", "PhaseShown", 4, 4, ConditionNeeds.Phase, comparison: c => c.Is, phase: c => c.PhaseId),
-        Kind<PhasePlayedCondition>("PhasePlayed", "phasePlayed", "PhasePlayed", 5, 2, ConditionNeeds.Phase | ConditionNeeds.KeysRead, comparison: c => c.Is, phase: c => c.PhaseId),
-        // Its played-through part needs the keys read, but "the phase is X" doesn't: never greyed out.
+        Kind<PhasePlayedCondition>("PhasePlayed", "phasePlayed", "PhasePlayed", 5, 2, ConditionNeeds.Phase, comparison: c => c.Is, phase: c => c.PhaseId),
         Kind<PhaseCurrentCondition>("PhaseCurrent", "phaseCurrent", "PhaseCurrent", 9, 4, ConditionNeeds.Phase, phase: c => c.PhaseId),
         Kind<AllCondition>("All", "all", "Group", 2, 1),
         Kind<AnyCondition>("Any", "any", "Group", 2, 1),

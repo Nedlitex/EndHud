@@ -434,12 +434,11 @@ public class RotationFollowerTests
     }
 
     /// <summary>
-    /// Alerts read the phases of the rotation followed through the follower's history. Without the
-    /// keys read there is no step follower, but the phase selector still knows what it showed: "phase
-    /// shown" is known, "phase played" ignored (before, the alerts got no history at all).
+    /// Alerts read the phases of the rotation followed through the follower's history: the phases shown and played,
+    /// with the keys read or not (the step follower always runs, from the screen).
     /// </summary>
     [Fact]
-    public void Without_the_keys_the_history_still_knows_the_phases_shown()
+    public void Without_the_keys_the_history_knows_the_phases_shown_and_played()
     {
         var rotation = new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
             [new RotationPhase("charge", "Charge", [new RotationStep("Ardelia", StepAction.BattleSkill)])]);
@@ -448,8 +447,8 @@ public class RotationFollowerTests
         var follow = follower.Update(Reading(inBattle: true), true, For(rotation), presses: null);
 
         Assert.Equal(1, follow.History.TimesShown("charge"));
-        Assert.True(follow.History.PlayedIgnored);
-        Assert.Null(follow.History.TimesPlayed("charge"));
+        Assert.Equal(0, follow.History.TimesPlayed("charge"));
+        Assert.NotNull(follow.Steps);
     }
 
     /// <summary>BUG2: a phase gate on a boss status (here inside an "any") never opened: the statuses were read only for steps.</summary>
@@ -475,7 +474,20 @@ public class RotationFollowerTests
     private static readonly Rotation TwoSkills = new(Rotation.CurrentFormat, "r", "r", Squad,
         [new RotationPhase("charge", "Charge", [new RotationStep("Ardelia", StepAction.BattleSkill), new RotationStep("Laevatain", StepAction.BattleSkill)])]);
 
-    private static Vision.PartyState At(double seconds, bool inBattle = true) => Reading(inBattle) with { ReadAt = TimeSpan.FromSeconds(seconds) };
+    /// <param name="points">The skill points read (in battle).</param>
+    /// <param name="flashes">The battle-skill flashes told since the reading before.</param>
+    private static Vision.PartyState At(double seconds, bool inBattle = true, double points = 2, params Vision.FlashEvent[] flashes) =>
+        Reading(inBattle) with
+        {
+            ReadAt = TimeSpan.FromSeconds(seconds),
+            SkillPoints = inBattle ? points : null,
+            Flashes = flashes,
+            // The buttons read (a flash on a button that couldn't be read is scene light through it).
+            Slots = [.. Reading(inBattle).Slots.Select(s => s with { BattleSkill = inBattle ? Vision.BattleSkillState.Available : null })],
+        };
+
+    /// <summary>A flash on a slot's battle-skill button (a squad of four: button = slot - 1).</summary>
+    private static Vision.FlashEvent Flash(int slot, double seconds) => new(slot - 1, TimeSpan.FromSeconds(seconds), Vision.FlashKind.Fill);
 
     /// <summary>Presses from a list, as the key reader gives them.</summary>
     private sealed class Presses(params SkillPress[] presses) : ISkillPressSource
@@ -493,27 +505,42 @@ public class RotationFollowerTests
 
     private static SkillPress Press(int slot, double seconds) => new(slot, TimeSpan.FromSeconds(seconds));
 
-    /// <summary>The player hasn't turned on reading their keys: the strip is today's, with no step marked.</summary>
+    /// <summary>Owner, 2026-10-24: the strip always follows the steps, from the screen; the keys are only an assist.</summary>
     [Fact]
-    public void Without_a_press_source_there_are_no_step_marks()
+    public void Without_the_keys_a_cast_seen_on_the_screen_moves_the_marker()
     {
         var follower = new RotationFollower();
 
-        var follow = follower.Update(At(0.75), true, For(TwoSkills), presses: null);
-        follow = follower.Update(At(1.0), true, For(TwoSkills), presses: null);
+        Assert.Equal([StepMark.Current, StepMark.Upcoming], follower.Update(At(0.75, points: 2.4), true, For(TwoSkills), presses: null).Steps!.Marks);
+        // Ardelia's button flashed and a skill point was spent.
+        var follow = follower.Update(At(1.0, points: 1.4, flashes: Flash(4, 0.9)), true, For(TwoSkills), presses: null);
 
-        Assert.NotNull(follow.Position);
-        Assert.Null(follow.Steps);
+        Assert.Equal([StepMark.Done, StepMark.Current], follow.Steps!.Marks);
+        Assert.Equal(1, follower.CastTally[3, (int)CastSource.Flash]);
+    }
+
+    /// <summary>The flash missed (a bright scene): a skill point spent still marks the current battle skill, its operator could cast.</summary>
+    [Fact]
+    public void Without_the_keys_a_point_spent_with_no_flash_marks_the_current_battle_skill()
+    {
+        var follower = new RotationFollower();
+        follower.Update(At(0.75, points: 2.4), true, For(TwoSkills), presses: null);
+        follower.Update(At(1.0, points: 1.4), true, For(TwoSkills), presses: null);
+        follower.Update(At(1.25, points: 1.42), true, For(TwoSkills), presses: null);
+        var follow = follower.Update(At(1.75, points: 1.46), true, For(TwoSkills), presses: null); // waited for a flash
+
+        Assert.Equal([StepMark.Done, StepMark.Current], follow.Steps!.Marks);
+        Assert.Equal(1, follower.CastTally[4, (int)CastSource.Unattributed]);
     }
 
     [Fact]
-    public void A_press_before_the_reading_moves_the_marker()
+    public void A_press_before_the_reading_that_sees_the_point_spent_moves_the_marker()
     {
         var follower = new RotationFollower();
         var presses = new Presses(Press(4, 1.0));
 
-        Assert.Equal([StepMark.Current, StepMark.Upcoming], follower.Update(At(0.75), true, For(TwoSkills), presses).Steps!.Marks);
-        Assert.Equal([StepMark.Done, StepMark.Current], follower.Update(At(1.0), true, For(TwoSkills), presses).Steps!.Marks);
+        Assert.Equal([StepMark.Current, StepMark.Upcoming], follower.Update(At(0.75, points: 2.4), true, For(TwoSkills), presses).Steps!.Marks);
+        Assert.Equal([StepMark.Done, StepMark.Current], follower.Update(At(1.0, points: 1.4), true, For(TwoSkills), presses).Steps!.Marks);
     }
 
     [Fact]
@@ -521,10 +548,22 @@ public class RotationFollowerTests
     {
         var follower = new RotationFollower();
         var presses = new Presses(Press(4, 1.1));
-        follower.Update(At(0.75), true, For(TwoSkills), presses);
+        follower.Update(At(0.75, points: 2.4), true, For(TwoSkills), presses);
 
-        Assert.Equal([StepMark.Current, StepMark.Upcoming], follower.Update(At(1.0), true, For(TwoSkills), presses).Steps!.Marks);
-        Assert.Equal([StepMark.Done, StepMark.Current], follower.Update(At(1.25), true, For(TwoSkills), presses).Steps!.Marks);
+        Assert.Equal([StepMark.Current, StepMark.Upcoming], follower.Update(At(1.0, points: 2.4), true, For(TwoSkills), presses).Steps!.Marks);
+        Assert.Equal([StepMark.Done, StepMark.Current], follower.Update(At(1.25, points: 1.4), true, For(TwoSkills), presses).Steps!.Marks);
+    }
+
+    /// <summary>A press with no skill point spent (a digit in a chat, a press the game ignored) moves nothing.</summary>
+    [Fact]
+    public void A_press_with_no_point_spent_moves_nothing()
+    {
+        var follower = new RotationFollower();
+        var presses = new Presses(Press(4, 1.0));
+        follower.Update(At(0.75), true, For(TwoSkills), presses);
+        follower.Update(At(1.0), true, For(TwoSkills), presses);
+
+        Assert.Equal([StepMark.Current, StepMark.Upcoming], follower.Update(At(1.75), true, For(TwoSkills), presses).Steps!.Marks);
     }
 
     [Fact]
@@ -545,8 +584,8 @@ public class RotationFollowerTests
     {
         var follower = new RotationFollower();
         var presses = new Presses(Press(4, 1.0));
-        follower.Update(At(0.75), true, For(TwoSkills), presses);
-        Assert.Equal([StepMark.Done, StepMark.Current], follower.Update(At(1.0), true, For(TwoSkills), presses).Steps!.Marks);
+        follower.Update(At(0.75, points: 2.4), true, For(TwoSkills), presses);
+        Assert.Equal([StepMark.Done, StepMark.Current], follower.Update(At(1.0, points: 1.4), true, For(TwoSkills), presses).Steps!.Marks);
 
         RotationFollowing? outside = null;
         for (int i = 0; i < 20; i++) outside = follower.Update(At(2 + i * 0.25, inBattle: false), true, For(TwoSkills), presses);
@@ -577,8 +616,8 @@ public class RotationFollowerTests
         [new RotationPhase("charge", "Charge", [new RotationStep("Camille", StepAction.BattleSkill), new RotationStep("Ardelia", StepAction.BattleSkill)])]);
 
     /// <summary>
-    /// The app's wiring (<c>OverlayWindow.TrackRotation</c>): with reading turned on, the presses the
-    /// strip follows are the reader's, so key 2 in battle marks slot 2's battle skill done.
+    /// The app's wiring (<c>OverlayWindow.TrackRotation</c>): with reading turned on, the presses that assist the
+    /// strip are the reader's, so key 2 in battle, a skill point spent, marks slot 2's battle skill done.
     /// </summary>
     [Fact]
     public void Key_2_in_battle_marks_slot_2s_battle_skill_done()
@@ -586,7 +625,7 @@ public class RotationFollowerTests
         var reader = new Presses(Press(2, 1.0));
         var presses = OverlayWindow.PressesFor(new HudConfig { ReadSkillPresses = true }, reader);
         var follower = new RotationFollower();
-        static Vision.PartyState Ready(double seconds) => At(seconds) with
+        static Vision.PartyState Ready(double seconds) => At(seconds, points: seconds < 1 ? 2.4 : 1.4) with
         {
             Slots = [.. At(seconds).Slots.Select(s => s with { BattleSkill = Vision.BattleSkillState.Available })],
         };
@@ -594,13 +633,13 @@ public class RotationFollowerTests
         follower.Update(Ready(0.75), true, For(CamilleFirst), presses);
         var follow = follower.Update(Ready(1.0), true, For(CamilleFirst), presses);
 
-        Assert.NotNull(follow.Steps); // null: the strip was handed no presses, so it marks no step
-        Assert.Equal(StepMark.Done, follow.Steps.Marks[0]);
+        Assert.Equal(StepMark.Done, follow.Steps!.Marks[0]);
+        Assert.Equal(1, follower.CastTally[1, (int)CastSource.Press]);
         Assert.Equal(0, reader.Left);
     }
 
     /// <summary>
-    /// The owner's ask (2026-10-23): with the keys read, the phases played through reach the alerts
+    /// The owner's ask (2026-10-23): the phases played through reach the alerts
     /// (an alert "Charge played at least once" fires after Ardelia's and Laevatain's battle skills),
     /// and leaving battle sets the count back to 0.
     /// </summary>
@@ -614,9 +653,9 @@ public class RotationFollowerTests
         IReadOnlyList<Vision.Alerts.AlertRule> Shown(RotationFollowing follow, double seconds) =>
             alerts.Update(At(seconds), follow.InBattle, true, [rule], follow.History, TimeSpan.FromSeconds(seconds)).Show;
 
-        Assert.Empty(Shown(follower.Update(At(0.75), true, For(TwoSkills), presses), 0.75));
-        Assert.Empty(Shown(follower.Update(At(1.0), true, For(TwoSkills), presses), 1.0));
-        Assert.Equal([rule], Shown(follower.Update(At(1.25), true, For(TwoSkills), presses), 1.25));
+        Assert.Empty(Shown(follower.Update(At(0.75, points: 2.4), true, For(TwoSkills), presses), 0.75));
+        Assert.Empty(Shown(follower.Update(At(1.0, points: 1.4), true, For(TwoSkills), presses), 1.0));
+        Assert.Equal([rule], Shown(follower.Update(At(1.25, points: 0.4), true, For(TwoSkills), presses), 1.25));
 
         RotationFollowing? outside = null;
         for (int i = 0; i < 20; i++) outside = follower.Update(At(2 + i * 0.25, inBattle: false), true, For(TwoSkills), presses);
@@ -624,18 +663,22 @@ public class RotationFollowerTests
         Assert.Equal(0, again.History.TimesPlayed("charge"));
     }
 
-    /// <summary>Without the keys the alerts are told "phase played" is ignored: a rule of nothing else never fires.</summary>
+    /// <summary>Without the keys the phases played through reach the alerts too, from the screen.</summary>
     [Fact]
-    public void Without_the_keys_alerts_ignore_phase_played()
+    public void Without_the_keys_phase_played_reaches_the_alerts()
     {
-        var follow = new RotationFollower().Update(At(1.0), true, For(TwoSkills), presses: null);
+        var follower = new RotationFollower();
+        var alerts = new AlertFollower();
+        var rule = Vision.Alerts.AlertRule.New([new PhasePlayedCondition("charge", Comparison.AtLeast, 1)], "");
+        IReadOnlyList<Vision.Alerts.AlertRule> Shown(RotationFollowing follow, double seconds) =>
+            alerts.Update(At(seconds), follow.InBattle, true, [rule], follow.History, TimeSpan.FromSeconds(seconds)).Show;
 
-        Assert.True(follow.History.PlayedIgnored);
-        var rule = Vision.Alerts.AlertRule.New([new PhasePlayedCondition("charge", Comparison.AtLeast, 0)], "");
-        Assert.Empty(new AlertFollower().Update(At(1.0), true, true, [rule], follow.History, TimeSpan.Zero).Show);
+        Assert.Empty(Shown(follower.Update(At(0.75, points: 2.4), true, For(TwoSkills), presses: null), 0.75));
+        Assert.Empty(Shown(follower.Update(At(1.0, points: 1.4, flashes: Flash(4, 0.9)), true, For(TwoSkills), presses: null), 1.0));
+        Assert.Equal([rule], Shown(follower.Update(At(1.25, points: 0.4, flashes: Flash(1, 1.15)), true, For(TwoSkills), presses: null), 1.25));
     }
 
-    /// <summary>The player hasn't turned reading on: the strip gets no presses at all, not the reader's.</summary>
+    /// <summary>The player hasn't turned reading on: the strip gets no presses at all, not the reader's (it follows the screen alone).</summary>
     [Fact]
     public void With_reading_off_the_strip_gets_no_presses()
     {

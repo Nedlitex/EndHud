@@ -159,8 +159,7 @@ public sealed record UltimateTimeLeftCondition(string OperatorId, Comparison Is,
 /// The phase on the strip now is <paramref name="PhaseId"/> (as of the reading before this one, as
 /// the phase selector sees its own showings). With <paramref name="PlayedThrough"/>, also whether the
 /// step follower has played it through since it last came onto the strip (true: played through this
-/// showing; false: not yet). The played-through part needs the battle-skill keys read; while they
-/// aren't, it is ignored and only "the phase is X" is asked. Format 9.
+/// showing; false: not yet). Format 9.
 /// </summary>
 public sealed record PhaseCurrentCondition(string PhaseId, bool? PlayedThrough = null) : StateCondition;
 
@@ -177,10 +176,7 @@ public sealed record PhaseShownCondition(string PhaseId, Comparison Is, int Time
 /// <summary>
 /// The phase <paramref name="PhaseId"/> has been played through <paramref name="Is"/>
 /// <paramref name="Times"/> times in this fight: every step of it seen done, as the step follower
-/// follows them from the player's battle-skill presses (<see cref="StepFollower"/>; back to 0 when
-/// the fight ends). Only counted while the player has turned on reading their battle-skill keys;
-/// while that is off the condition is ignored, as if it weren't there
-/// (<see cref="IPhaseHistory.PlayedIgnored"/>). Format 5.
+/// follows them from the screen (<see cref="StepFollower"/>; back to 0 when the fight ends). Format 5.
 /// </summary>
 public sealed record PhasePlayedCondition(string PhaseId, Comparison Is, int Times) : StateCondition;
 
@@ -192,19 +188,12 @@ public interface IPhaseHistory
     /// <summary>Times the phase was played through this fight (<see cref="PhasePlayedCondition"/>); null when it can't be told.</summary>
     int? TimesPlayed(string phaseId);
 
-    /// <summary>
-    /// The player hasn't turned on reading their battle-skill keys, so nothing is played through:
-    /// "phase played" conditions are ignored, as if they weren't there (see
-    /// <see cref="ConditionWalk.OnlyPlayed"/> and <see cref="RotationTracker.Ignored"/>).
-    /// </summary>
-    bool PlayedIgnored { get; }
-
     /// <summary>The phase on the strip (<see cref="PhaseCurrentCondition"/>); null when there is none or it can't be told.</summary>
     string? CurrentPhase => null;
 
     /// <summary>
     /// Has the step follower played this phase through since it last came onto the strip? False for a
-    /// phase not on the strip; null when it can't be told (no follower: the keys aren't read).
+    /// phase not on the strip; null when it can't be told (no rotation followed).
     /// </summary>
     bool? PlayedThroughThisShowing(string phaseId) => null;
 }
@@ -212,18 +201,13 @@ public interface IPhaseHistory
 public static class PhaseHistory
 {
     /// <summary>For checks made outside a phase selector (explanations): "phase shown" and "phase played" are unknown there.</summary>
-    public static IPhaseHistory None { get; } = new NoHistory(playedIgnored: false);
+    public static IPhaseHistory None { get; } = new NoHistory();
 
-    /// <summary>The battle-skill keys aren't read: "phase played" is ignored and "phase shown" unknown (alerts while the keys aren't read).</summary>
-    public static IPhaseHistory KeysNotRead { get; } = new NoHistory(playedIgnored: true);
-
-    private sealed class NoHistory(bool playedIgnored) : IPhaseHistory
+    private sealed class NoHistory : IPhaseHistory
     {
         public int? TimesShown(string phaseId) => null;
 
         public int? TimesPlayed(string phaseId) => null;
-
-        public bool PlayedIgnored => playedIgnored;
     }
 }
 
@@ -274,8 +258,7 @@ public sealed record RotationPhase(string Id, string Name, IReadOnlyList<Rotatio
 
     /// <summary>
     /// "If this holds, the priority is that", in order: the first rule whose condition holds sets the
-    /// phase's priority, else <see cref="Priority"/> applies. A rule that can't be read, or made only of
-    /// ignored parts ("phase played" without the keys), doesn't hold. Format 6 when there is one.
+    /// phase's priority, else <see cref="Priority"/> applies. A rule that can't be read doesn't hold. Format 6 when there is one.
     /// </summary>
     [JsonIgnore]
     public IReadOnlyList<PriorityRule> PriorityRules { get; init; } = [];

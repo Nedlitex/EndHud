@@ -18,8 +18,7 @@ namespace EndHud.Vision.Rotations;
 /// first phase when every phase has one.</item>
 /// </list>
 /// <para>This only picks the phase; it doesn't follow the steps inside it. That is
-/// <see cref="StepFollower"/>'s job, from the battle-skill presses when the player has turned on
-/// reading their keys (without them the strip shows every step alike).</para>
+/// <see cref="StepFollower"/>'s job, from the battle skills, combos and ultimates seen used.</para>
 /// <para>It counts how many times each phase has come onto the strip this fight, for "phase shown"
 /// conditions (<see cref="PhaseShownCondition"/>); <see cref="EndFight"/> forgets them.</para>
 /// </summary>
@@ -36,11 +35,8 @@ public sealed class PhaseSelector(Rotation rotation) : IPhaseHistory
 
     public Rotation Rotation => rotation;
 
-    /// <summary>Times the phase was played through this fight, from the step follower of the last <see cref="Update"/>; null without one.</summary>
+    /// <summary>Times the phase was played through this fight, from the step follower of the last <see cref="Update"/>; null before the first.</summary>
     public int? TimesPlayed(string phaseId) => _plays?.TimesPlayed(phaseId);
-
-    /// <summary>The last <see cref="Update"/> had no step follower: the battle-skill keys aren't read, "phase played" is ignored.</summary>
-    public bool PlayedIgnored => _plays is null;
 
     /// <summary>
     /// The phase on the strip (<see cref="PhaseCurrentCondition"/>): during an <see cref="Update"/>, the
@@ -48,7 +44,7 @@ public sealed class PhaseSelector(Rotation rotation) : IPhaseHistory
     /// </summary>
     public string? CurrentPhase => _current is { } i ? rotation.Phases[i].Id : null;
 
-    /// <summary>Played through since it last came onto the strip, from the step follower of the last <see cref="Update"/>; null without one.</summary>
+    /// <summary>Played through since it last came onto the strip, from the step follower of the last <see cref="Update"/>; null before the first.</summary>
     public bool? PlayedThroughThisShowing(string phaseId) => _plays?.PlayedThroughThisShowing(phaseId);
 
     /// <summary>Times the phase has come onto the strip this fight (the one on it now included); null for a phase not in the rotation.</summary>
@@ -67,9 +63,8 @@ public sealed class PhaseSelector(Rotation rotation) : IPhaseHistory
     }
 
     /// <summary>Take a reading; where the strip is now (the first step of the phase that applies).</summary>
-    /// <param name="plays">The step follower of this rotation, which counts the phases played through; null
-    /// when the player hasn't turned on reading their battle-skill keys (then "phase played" is ignored).</param>
-    public RotationPosition Update(PartyState state, StepFollower? plays)
+    /// <param name="plays">The step follower of this rotation, which counts the phases played through.</param>
+    public RotationPosition Update(PartyState state, StepFollower plays)
     {
         _plays = plays;
         // The conditions see the counts as they were before this reading's switch, so a gate on
@@ -81,9 +76,6 @@ public sealed class PhaseSelector(Rotation rotation) : IPhaseHistory
         for (int i = 0; i < _conditions.Length; i++)
         {
             if (_conditions[i] is not { } condition) continue;
-            // A gate of nothing but "phase played" while the keys aren't read never opens: ignored, it
-            // would hold on every reading and pin the strip to its phase.
-            if (RotationTracker.Ignored(condition, this)) continue;
             switch (RotationTracker.Evaluate(condition, state, this))
             {
                 case true:
@@ -108,13 +100,12 @@ public sealed class PhaseSelector(Rotation rotation) : IPhaseHistory
 
     /// <summary>
     /// The phase's priority in this reading: the first of its rules whose condition holds, else its base
-    /// number. A rule that can't be read doesn't hold, nor does one made only of ignored parts ("phase
-    /// played" without the keys: it would hold on every reading).
+    /// number. A rule that can't be read doesn't hold.
     /// </summary>
     private int PriorityOf(int phase, PartyState state)
     {
         foreach (var (condition, priority) in _rules[phase])
-            if (!RotationTracker.Ignored(condition, this) && RotationTracker.Evaluate(condition, state, this) == true) return priority;
+            if (RotationTracker.Evaluate(condition, state, this) == true) return priority;
         return rotation.Phases[phase].Priority;
     }
 }

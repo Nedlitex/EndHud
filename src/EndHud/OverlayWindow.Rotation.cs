@@ -27,7 +27,7 @@ public partial class OverlayWindow
 
     private (Rotation Rotation, RotationPosition Position)? _rotationPosition;
 
-    /// <summary>Where the player is inside the phase on the strip; null when their battle-skill keys aren't read.</summary>
+    /// <summary>Where the player is inside the phase on the strip; null when nothing is shown.</summary>
     private StepPosition? _stepPosition;
 
     /// <summary>The phases shown and played this fight, of the rotation followed (for the strip's reasons and the alerts).</summary>
@@ -65,7 +65,7 @@ public partial class OverlayWindow
     /// <summary>A new reading: move the tracker on, then redraw.</summary>
     private void TrackRotation(PartyState? state)
     {
-        // The battle-skill presses, only when the player turned reading them on: then the strip marks the current step.
+        // The step follower always runs from the screen; the battle-skill presses assist it when the player turned reading them on.
         var follow = _rotationFollower.Update(state, _config.RotationEnabled && _config.PartyOcrEnabled, RotationFor, ActiveSkillPresses);
         _rotationPosition = follow.Position;
         _stepPosition = follow.Steps;
@@ -225,7 +225,7 @@ public partial class OverlayWindow
                 ConfigStore.Save(_config);
             }
             ReloadRotations();
-        }, () => _config.ReadSkillPresses);
+        });
         _editor.Closed += (_, _) => _editor = null;
         if (_menuOpen) SetMenuOpen(false); // hand the screen to the editor
         _editor.Show();
@@ -317,25 +317,25 @@ public partial class OverlayWindow
 /// <summary>What the overlay's rotation following decided for a reading.</summary>
 /// <param name="InBattle">In battle, riding over short gaps (<see cref="StripVisibility"/>).</param>
 /// <param name="Position">The rotation and where the strip is in it; null when nothing is shown.</param>
-/// <param name="Steps">Where the player is inside the phase (<see cref="StepFollower"/>); null when the
-/// player hasn't turned on reading their battle-skill keys, or nothing is shown.</param>
+/// <param name="Steps">Where the player is inside the phase (<see cref="StepFollower"/>); null when nothing is shown.</param>
 /// <param name="ReadBossStatuses">The squad's rotation asks about the boss's statuses, so they must be read.</param>
-/// <param name="History">The phases shown and played through, for alerts' "phase played": the selector of the
-/// rotation followed now; <see cref="PhaseHistory.KeysNotRead"/> while the battle-skill keys aren't read (then
-/// "phase played" is ignored); <see cref="PhaseHistory.None"/> when no rotation is followed (unknown).</param>
+/// <param name="History">The phases shown and played through, for alerts' "phase shown" and "phase played": the selector
+/// of the rotation followed now; <see cref="PhaseHistory.None"/> when no rotation is followed (unknown).</param>
 internal sealed record RotationFollowing(bool InBattle, (Rotation Rotation, RotationPosition Position)? Position, StepPosition? Steps, bool ReadBossStatuses, IPhaseHistory History);
 
 /// <summary>
 /// The overlay's rotation following, without the drawing (<see cref="OverlayWindow"/> draws what it
-/// says): in battle, the phase selector of the rotation for the recognised squad, one per rotation;
-/// with a press source, the step follower inside the phase it shows, fed the presses the screen
-/// confirms (<see cref="SkillPressJudge"/>).
+/// says): in battle, the phase selector of the rotation for the recognised squad, one per rotation, and
+/// always the step follower inside the phase it shows, fed the battle skills cast as the screen shows them
+/// (<see cref="ScreenCastJudge"/>: skill points spent, the flash on a button), with the player's presses as an
+/// assist when they turned on reading their keys.
 /// </summary>
 internal sealed class RotationFollower
 {
     private readonly StripVisibility _visibility = new();
     private readonly Dictionary<string, PhaseSelector> _selectors = [];
     private readonly Dictionary<string, StepFollower> _steps = [];
+    private readonly ScreenCastJudge _casts = new();
     private PartyState? _previous;
     private bool _wasInBattle;
 
@@ -344,6 +344,12 @@ internal sealed class RotationFollower
 
     /// <summary>How each press was judged since start, by slot (0-3) and <see cref="PressVerdict"/>: counts only, for diagnostics.</summary>
     internal int[,] PressTally { get; } = new int[4, Enum.GetValues<PressVerdict>().Length];
+
+    /// <summary>
+    /// The battle skills cast since start, by slot (0-3, a fifth row for the casts nobody was named for) and
+    /// <see cref="CastSource"/>: counts only, for diagnostics.
+    /// </summary>
+    internal int[,] CastTally { get; } = new int[5, Enum.GetValues<CastSource>().Length];
 
     /// <summary>The rotations changed (the editor saved one): start every rotation afresh.</summary>
     public void Forget()
@@ -354,21 +360,23 @@ internal sealed class RotationFollower
 
     /// <param name="enabled">The strip is on and the squad panel is read.</param>
     /// <param name="rotationFor">The rotation for a squad (operator ids by slot, null where unrecognised), if any.</param>
-    /// <param name="presses">The player's battle-skill presses; null when the player hasn't turned reading them on
-    /// (then no step is marked: the strip is as it always was).</param>
+    /// <param name="presses">The player's battle-skill presses, an assist to what the screen shows; null when the player
+    /// hasn't turned reading them on.</param>
     public RotationFollowing Update(PartyState? state, bool enabled, Func<IReadOnlyList<string?>, Rotation?> rotationFor, ISkillPressSource? presses)
     {
         // Every reading takes its presses, in battle or not, so none pile up for later; each is
         // judged against the reading before it.
         var taken = presses is not null && state?.ReadAt is { } readAt ? presses.TakeUntil(readAt) : [];
-        var judged = SkillPressJudge.Judge(_previous, taken);
-        foreach (var j in judged)
+        var judging = state is not null ? _casts.Update(_previous, state, taken) : new CastJudging([], SkillPressJudge.Judge(_previous, taken));
+        foreach (var j in judging.Presses)
             if (j.Press.Slot is >= 1 and <= 4) PressTally[j.Press.Slot - 1, (int)j.Verdict]++;
+        foreach (var cast in judging.Casts)
+            CastTally[cast.Slot is >= 1 and <= 4 ? cast.Slot.Value - 1 : 4, (int)cast.Source]++;
 
         Rotation? rotation = null;
         (Rotation, RotationPosition)? position = null;
         StepPosition? steps = null;
-        IPhaseHistory history = presses is null ? PhaseHistory.KeysNotRead : PhaseHistory.None;
+        IPhaseHistory history = PhaseHistory.None;
         // In battle only (through short gaps: see StripVisibility), for a rotation made for the recognised squad.
         bool inBattle = state is not null && _visibility.Update(state);
         // The fight ended (StripVisibility already rides over short gaps): every phase-shown count back
@@ -377,6 +385,7 @@ internal sealed class RotationFollower
         {
             foreach (var each in _selectors.Values) each.EndFight();
             foreach (var each in _steps.Values) each.EndFight();
+            _casts.EndFight();
         }
         _wasInBattle = inBattle;
         if (state is not null && inBattle && enabled)
@@ -385,18 +394,13 @@ internal sealed class RotationFollower
             if (rotation is not null)
             {
                 if (!_selectors.TryGetValue(rotation.Id, out var selector)) _selectors[rotation.Id] = selector = new PhaseSelector(rotation);
-                // The step follower counts the phases played through, for "phase played"; without the keys there is none.
-                StepFollower? follower = null;
-                if (presses is not null && !_steps.TryGetValue(rotation.Id, out follower)) _steps[rotation.Id] = follower = new StepFollower(rotation);
+                if (!_steps.TryGetValue(rotation.Id, out var follower)) _steps[rotation.Id] = follower = new StepFollower(rotation);
                 var shown = selector.Update(state, follower);
                 position = (rotation, shown);
-                // The selector knows what it showed, keys read or not ("phase played" is ignored without a follower).
                 history = selector;
-                if (follower is not null)
-                {
-                    var cast = judged.Where(j => j.Verdict == PressVerdict.Counted).Select(j => new SkillCast(j.Press.Slot, j.Press.At, CastSource.Press, Paid: true)).ToList();
-                    steps = follower.Update(shown.Step.PhaseIndex, _previous, state, cast, selector);
-                }
+                // RED: the steps are followed only with the keys read, as before.
+                var followed = follower.Update(shown.Step.PhaseIndex, _previous, state, judging.Casts, selector);
+                steps = presses is null ? null : followed;
             }
         }
         _previous = state;

@@ -379,12 +379,4 @@ public class PhaseSelectorTests
         Assert.Equal("Burst II", Shown(Ranked(Charge(5), Burst(7, new PriorityRule([LiinoReady], 1))), BothHold(liinoReady: false)));
     }
 
-    /// <summary>A rule of nothing but "phase played" while the keys aren't read is ignored, so it doesn't hold (else it would hold always).</summary>
-    [Fact]
-    public void A_rule_of_only_phase_played_without_the_keys_does_not_hold()
-    {
-        var burst = Burst(0, new PriorityRule([new PhasePlayedCondition("charge", Comparison.AtMost, 5)], 9));
-
-        Assert.Equal("Charge I", Shown(Ranked(Charge(5), burst), BothHold()));
-    }
 }

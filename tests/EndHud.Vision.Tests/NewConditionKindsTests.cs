@@ -113,7 +113,7 @@ public class NewConditionKindsTests
             [new AnyCondition([new PhaseCurrentCondition("charge", PlayedThrough: true), new PhaseCurrentCondition("basic")]), new SkillPointsCondition(Comparison.Below, 3)]),
     ]);
 
-    private sealed class Fight(Rotation rotation, bool keysRead = true)
+    private sealed class Fight(Rotation rotation)
     {
         public PhaseSelector Selector { get; } = new(rotation);
         public StepFollower Steps { get; } = new(rotation);
@@ -121,8 +121,8 @@ public class NewConditionKindsTests
 
         public string Read(PartyState now, params int[] presses)
         {
-            var shown = Selector.Update(now, keysRead ? Steps : null);
-            if (keysRead) Steps.Update(shown.Step.PhaseIndex, _before, now, Casts.Seen(presses), Selector);
+            var shown = Selector.Update(now, Steps);
+            Steps.Update(shown.Step.PhaseIndex, _before, now, Casts.Seen(presses), Selector);
             _before = now;
             return shown.Step.PhaseLabel;
         }
@@ -145,27 +145,11 @@ public class NewConditionKindsTests
         Assert.Equal("charge", ((IPhaseHistory)fight.Selector).CurrentPhase);
     }
 
-    /// <summary>
-    /// Without the keys "the phase is Charge and played through" is ignored as a whole, like "phase played": Basic's gate
-    /// is left with "the phase is Basic", which never opens from Charge. (Ignoring only the played-through part made it
-    /// "the phase is Charge", which opened at once and held a phase gated on its own showing for the rest of the fight.)
-    /// </summary>
-    [Fact]
-    public void Without_the_keys_the_played_through_condition_is_ignored_as_a_whole()
-    {
-        var fight = new Fight(ChargeThenBasic(), keysRead: false);
-
-        Assert.Equal("Charge I", fight.Read(Plain()));
-        Assert.Equal("Charge I", fight.Read(Plain()));
-    }
-
-    private sealed class FakeHistory(string? current, bool? played, bool ignored = false) : IPhaseHistory
+    private sealed class FakeHistory(string? current, bool? played) : IPhaseHistory
     {
         public int? TimesShown(string phaseId) => null;
 
         public int? TimesPlayed(string phaseId) => null;
-
-        public bool PlayedIgnored => ignored;
 
         public string? CurrentPhase => current;
 
@@ -184,7 +168,6 @@ public class NewConditionKindsTests
         Assert.Equal(false, Holds(new PhaseCurrentCondition("a", false), new FakeHistory("a", true)));
         Assert.Equal(true, Holds(new PhaseCurrentCondition("a", true), new FakeHistory("a", true)));
         Assert.Null(Holds(new PhaseCurrentCondition("a", true), new FakeHistory("a", null)));
-        Assert.Equal(true, Holds(new PhaseCurrentCondition("a", true), new FakeHistory("a", null, ignored: true)));
         // No rotation followed (an alert's history then): can't be told.
         Assert.Null(Holds(new PhaseCurrentCondition("a"), PhaseHistory.None));
     }
