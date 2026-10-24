@@ -1882,21 +1882,49 @@ pressing the key (Esc keeps the old one; a key another slot uses is refused, nam
 only while the switch is on, the strip and the squad reading are on, and the game itself is in
 front: never in another program, never in EndHud's menu):
 
-- The keyboard through Raw Input (it only listens: no key is taken from any program, unlike a
-  hotkey on a bare 1-4, which would stop digits working in a browser while EndHud runs). A
-  low-level keyboard hook is never used.
-- Xbox pads through XInput (Microsoft's documented button bits), PlayStation pads through Raw
-  Input's HID reports. A chord is the left shoulder (L1/LB) held plus the face button in the slot's
-  place on the diamond: left (square / X) slot 1, top (triangle / Y) slot 2, right (circle / B)
-  slot 3, bottom (cross / A) slot 4.
-- [`SkillInputDecoder`](src/EndHud/SkillInput/SkillInputDecoder.cs) turns each event into "slot N was
-  cast" or nothing. An unbound key is dropped inside the call that receives it; the only state kept
-  is which of the four bound keys are held (a held key casts once) and each pad's five buttons.
-  Every press becomes a `SkillPress` (slot, time on the reading clock): nothing else about the key
-  exists anywhere.
-- Turning it off unregisters everything from Windows (`RIDEV_REMOVE`) and ends the thread. If
-  Windows refuses to deliver input, the card says so and the reason is logged; the strip then shows
-  the phase as without the switch.
+- The keyboard as **hotkeys**: the four bound keys, bare (no Ctrl/Shift/Alt), registered with
+  `RegisterHotKey` on the reader's own message-only window ([`SkillHotkeys`](src/EndHud/SkillInput/SkillKeys.cs)).
+  Why not Raw Input, which this used first: `Endfield.exe` requires administrator and EndHud runs
+  without it, and Windows' privilege isolation (UIPI) keeps an elevated window's keystrokes from a
+  lower process's Raw Input sink, so while the game was in front no press ever arrived (2026-10-24,
+  the strip never moved). A hotkey is delivered whatever window is in front (the owner: EndHud's
+  Ctrl+Shift+H works in the game, and the game still opens its chat on the H). Windows tells EndHud of these four keys only,
+  never of any other. Because a bare hotkey holds its key system-wide, the keys are registered
+  **only while the game is in front** (with the switch on) and unregistered the moment it isn't
+  (`OverlayWindow.SkillInputListens`, checked on every refresh), so digits type as usual in every
+  other program and in EndHud's own menu. `MOD_NOREPEAT`: holding a key sends one `WM_HOTKEY`, so a
+  held key casts once. A numpad digit is held by both its NumLock-on and NumLock-off keys. Hotkey ids
+  start at `0x5E00` (the overlay's own are 1-7). A low-level keyboard hook is never used.
+- A bound key another program already holds can't be registered: that slot isn't read, the others
+  are. The card says which, in a sentence naming the key and the slot (`Menu.SkillInput.KeyTaken`),
+  and the log names the slot only. The sentence stays until reading starts again.
+- Xbox pads through XInput (Microsoft's documented button bits; polling, not filtered by UIPI).
+  PlayStation pads straight from the device ([`SonyPads`](src/EndHud/SkillInput/SonyPads.cs)): the
+  HID devices are listed (SetupDi), each asked its vendor and usage without being read, and a Sony
+  (`0x054C`) gamepad or joystick opened for **shared** reading (the game keeps reading it), its input
+  reports read with overlapped I/O on the reader's thread and parsed by Windows' HID parser
+  (`HidP_GetUsages`). Raw Input HID would be filtered like the keyboard. Pads are looked for at the
+  start and every second after. A chord is the left shoulder (L1/LB) held plus the face button in
+  the slot's place on the diamond: left (square / X) slot 1, top (triangle / Y) slot 2, right
+  (circle / B) slot 3, bottom (cross / A) slot 4.
+- [`SkillInputDecoder`](src/EndHud/SkillInput/SkillInputDecoder.cs) turns a pad's buttons into "slot N
+  was cast" or nothing; the only state kept is each pad's five buttons. Every press becomes a
+  `SkillPress` (slot, time on the reading clock, the same monotonic clock as the readings): nothing
+  else about the key exists anywhere.
+- Turning it off (or the game leaving the front) unregisters every hotkey, cancels and closes every
+  pad read, and ends the thread. If Windows refuses to make the reader's window, the card says so
+  and the reason is logged; the strip then shows the phase as without the switch.
+
+**When the strip never moves on battle-skill casts** (problem, cause, fix):
+
+- *Strip stuck on step 1 though casts are plainly on screen, diagnostics tally all zeros*: the
+  presses never reached EndHud. Before 2026-10-24 this was the elevated game and Raw Input (above);
+  with hotkeys, check the diagnostics line `keyboard (N of 4 keys held)`: below 4 means another
+  program holds a key, which the card names. Replaying the clip with `endhud-cli trace-video
+  --presses` tells a delivery problem (replay counts the press) from a judging one (it doesn't).
+- *PlayStation pad casts not counted*: `PlayStation pads 0 (not opened 1)` means another program
+  (often a pad remapper) holds the pad alone; `PlayStation reports without buttons` above 0 means
+  the pad switched to a report the HID parser can't read (see the table below).
 
 **Which presses count** ([`SkillPressJudge`](src/EndHud.Vision/Rotations/SkillPressJudge.cs)). Each
 reading takes the presses made up to its own time (`PartyState.ReadAt`) and judges them against the
@@ -1928,9 +1956,13 @@ without the switch.
 `SkillInputReaderTests`, `DiagnosticsTests`):
 
 - `SkillPress` has exactly two properties, the slot and the time.
-- Every unbound key code, pressed and released, gives nothing and leaves nothing in the decoder.
+- Windows is asked for the four bound keys and no other: an unbound key never reaches EndHud. The
+  keys are held only while the switch is on and the game is in front, and let go after (the desktop
+  test proves it by registering the same keys itself: refused while EndHud holds them, granted
+  after). The pad decoder keeps nothing but each pad's five buttons.
 - The log gets one line when reading starts and one when it stops (and Windows' refusal, with its
-  error number); never a key, scan code, button, device name or press time.
+  error number, or a slot whose key another program holds, by its slot number); never a key, scan
+  code, button, device name or press time.
 - The diagnostics carry only counts (below); nothing about presses goes into `recent/readings.txt`
   (a list of press times would be a record of keystrokes). The four chosen keys are in
   `config.json`, as the menu says.
@@ -1938,13 +1970,15 @@ without the switch.
 **Diagnostics.** The summary has, after the last reading:
 
 ```
-battle-skill key reading: listening: keyboard, PlayStation pads 0, XInput pads 1, other pads 0; PlayStation reports without buttons 0
+battle-skill key reading: listening: keyboard (4 of 4 keys held), PlayStation pads 0 (not opened 0), XInput pads 1, other pads 0; PlayStation reports without buttons 0
   slot 1 battle skill: counted 12, cooling 1, no skill points 0, repeat 3, not in battle 4, empty slot 0
   ...
 ```
 
 The status is `off (not consented)` with the switch off, `off` while not listening (the game not in
-front), or `failed (Windows refused, error N)`. The counts are since EndHud started.
+front), or `failed (Windows refused, error N)`. `N of 4 keys held` below 4 means another program
+holds a key; `not opened` counts PlayStation pads present that could not be opened for shared
+reading. The counts are since EndHud started.
 
 **Not covered** (each absent, not a placeholder):
 
@@ -1954,6 +1988,7 @@ front), or `failed (Windows refused, error N)`. The counts are since EndHud star
 | DualSense on Bluetooth after something switches it to its extended report | That report carries no buttons the HID parser can see | Diagnostics shows "PlayStation reports without buttons" above 0 |
 | A replay test over a recorded clip with a presses file | No clip with a presses file exists yet; `trace-video --presses` is what makes one usable | A recording with its `seconds,slot` lines |
 | Moving on to the next phase of the flow when a phase is finished | `PhaseSelector` stays the phase authority; a finished phase starts over at its first step | The owner asks for it |
+| A test with a real PlayStation pad's presses | No PlayStation pad on the development machine: the device listing and asking are tested on its other HID devices, the parsing on recorded usages | A fight with a PlayStation pad and the diagnostics' "PlayStation pads 1" and per-slot tally |
 | Mashing the same slot across readings on a controller | The controller layout's battle-skill cooldown isn't read, so a second press one reading later is refused only by the skill points | Battle-skill button reading in the controller layout |
 
 ## Alerts
