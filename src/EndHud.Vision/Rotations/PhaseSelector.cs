@@ -66,6 +66,9 @@ public sealed class PhaseSelector(Rotation rotation) : IPhaseHistory
         for (int i = 0; i < _conditions.Length; i++)
         {
             if (_conditions[i] is not { } condition) continue;
+            // A gate of nothing but "phase played" while the keys aren't read never opens: ignored, it
+            // would hold on every reading and pin the strip to its phase.
+            if (RotationTracker.Ignored(condition, this)) continue;
             switch (RotationTracker.Evaluate(condition, state, this))
             {
                 case true:

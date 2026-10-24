@@ -315,13 +315,13 @@ public sealed class RotationTracker(Rotation rotation)
     /// (<see cref="IPhaseHistory.PlayedIgnored"/>), and only when it is made of nothing but "phase
     /// played" parts (<see cref="ConditionWalk.OnlyPlayed"/>).
     /// </summary>
-    public static bool Ignored(StateCondition condition, IPhaseHistory history) => false;
+    public static bool Ignored(StateCondition condition, IPhaseHistory history) => history.PlayedIgnored && ConditionWalk.OnlyPlayed(condition);
 
     /// <summary>All of them hold: false if any is false, else unknown if any can't be seen, else true.</summary>
     private static bool? HoldsAll(IEnumerable<StateCondition> conditions, PartyState state, IReadOnlyDictionary<string, int> slots, IPhaseHistory history)
     {
         bool unknown = false;
-        foreach (var condition in conditions)
+        foreach (var condition in conditions.Where(c => !Ignored(c, history))) // a part ignored is as if it weren't there
         {
             switch (Holds(condition, state, slots, history))
             {
@@ -336,7 +336,7 @@ public sealed class RotationTracker(Rotation rotation)
     private static bool? HoldsAny(IEnumerable<StateCondition> conditions, PartyState state, IReadOnlyDictionary<string, int> slots, IPhaseHistory history)
     {
         bool unknown = false;
-        foreach (var condition in conditions)
+        foreach (var condition in conditions.Where(c => !Ignored(c, history)))
         {
             switch (Holds(condition, state, slots, history))
             {
@@ -350,6 +350,10 @@ public sealed class RotationTracker(Rotation rotation)
     /// <summary>Does the condition hold in this reading? Null when it can't be seen.</summary>
     internal static bool? Holds(StateCondition condition, PartyState state, IReadOnlyDictionary<string, int> slots, IPhaseHistory history)
     {
+        // Ignored (only "phase played" while the keys aren't read): as if it weren't there. Asked on its
+        // own, that is "nothing to wait for"; callers for whom that is wrong (a gate, an alert) check
+        // Ignored first.
+        if (Ignored(condition, history)) return true;
         switch (condition)
         {
             case AllCondition all:
@@ -360,6 +364,8 @@ public sealed class RotationTracker(Rotation rotation)
                 return !Holds(not.Of, state, slots, history);
             case PhaseShownCondition c:
                 return history.TimesShown(c.PhaseId) is { } shown ? Compare(shown, c.Is, c.Times) : null;
+            case PhasePlayedCondition c:
+                return history.TimesPlayed(c.PhaseId) is { } played ? Compare(played, c.Is, c.Times) : null;
             case SkillPointsCondition c:
                 return state.SkillPoints is { } sp ? Compare(sp, c.Is, c.Value) : null;
             case ComboCondition c:

@@ -28,6 +28,10 @@ public sealed record StepPosition(int Phase, IReadOnlyList<StepMark> Marks, bool
 /// from ready to spent. Screen-seen battle-skill cooldowns are NOT used: the press is the cast, and
 /// counting both would count one cast twice. A basic-attack step never holds the marker: the next
 /// real cast of a later step passes it. A phase played through starts again at its first step.
+/// <para>It counts, per phase, the rounds played through this fight (<see cref="TimesPlayed"/>, for
+/// "phase played" conditions): a round counts the moment its last step that can be seen used is
+/// done (trailing basic attacks are never seen), once. A phase left half way doesn't count; a phase
+/// of nothing but basic attacks never does.</para>
 /// </summary>
 public sealed class StepFollower(Rotation rotation)
 {
@@ -35,6 +39,9 @@ public sealed class StepFollower(Rotation rotation)
     private int _phase = -1;
     private bool[] _done = [];
     private readonly int[] _timesPlayed = new int[rotation.Phases.Count];
+
+    /// <summary>This round of the phase has been counted as played through.</summary>
+    private bool _counted;
 
     /// <summary>
     /// Times the phase was played through this fight (<see cref="PhasePlayedCondition"/>); null for a
@@ -47,8 +54,12 @@ public sealed class StepFollower(Rotation rotation)
         return null;
     }
 
-    /// <summary>The fight ended: the next one starts at the first step.</summary>
-    public void EndFight() => _phase = -1;
+    /// <summary>The fight ended: the next one starts at the first step, every phase played 0 times.</summary>
+    public void EndFight()
+    {
+        _phase = -1;
+        Array.Clear(_timesPlayed);
+    }
 
     /// <param name="phase">The phase on the strip (<see cref="PhaseSelector"/>).</param>
     /// <param name="before">The reading before this one; null for the first.</param>
@@ -61,12 +72,17 @@ public sealed class StepFollower(Rotation rotation)
         {
             _phase = phase;
             _done = new bool[steps.Count];
+            _counted = false;
         }
         var slots = RotationTracker.SlotsByOperator(now);
         var uses = castSlots.Select(s => (Slot: s - 1, Action: StepAction.BattleSkill)).ToList();
         if (before is not null) uses.AddRange(VisionUses(before, now));
-        foreach (var use in uses) Apply(use, steps, slots);
-        if (_done.Length > 0 && _done.All(d => d)) Array.Clear(_done);
+        foreach (var use in uses)
+        {
+            Apply(use, steps, slots);
+            CountIfPlayedThrough(steps);
+        }
+        if (_done.Length > 0 && _done.All(d => d)) NewRound();
         return Position(phase, steps, now, slots, history);
     }
 
@@ -107,9 +123,31 @@ public sealed class StepFollower(Rotation rotation)
         // Only basic attacks were left: the phase is over, the use may be its first step again.
         if (!wrapped)
         {
-            Array.Clear(_done);
+            NewRound();
             Apply(use, steps, slots, wrapped: true);
         }
+    }
+
+    private void NewRound()
+    {
+        Array.Clear(_done);
+        _counted = false;
+    }
+
+    /// <summary>Every step of this round that can be seen used is done: the phase was played through once more.</summary>
+    private void CountIfPlayedThrough(List<PlayedStep> steps)
+    {
+        if (_counted) return;
+        bool seen = false;
+        for (int i = 0; i < steps.Count; i++)
+        {
+            if (steps[i].Step.Action == StepAction.BasicAttack) continue;
+            if (!_done[i]) return;
+            seen = true;
+        }
+        if (!seen) return;
+        _timesPlayed[_phase]++;
+        _counted = true;
     }
 
     /// <summary>The last step of the group starting at <paramref name="at"/>: the steps after it marked WithPrevious belong to it.</summary>

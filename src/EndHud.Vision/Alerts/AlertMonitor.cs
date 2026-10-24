@@ -22,7 +22,11 @@ public sealed class AlertMonitor
         foreach (var rule in rules)
         {
             if (rule.When.Count == 0) continue;
-            bool? now = RotationTracker.Evaluate(new AllCondition(rule.When), state, history);
+            var when = new AllCondition(rule.When);
+            // Nothing but "phase played" while the keys aren't read: ignored entirely, it never fires
+            // (as if it weren't there, it would be a rule with no condition, firing at every fight's start).
+            if (RotationTracker.Ignored(when, history)) continue;
+            bool? now = RotationTracker.Evaluate(when, state, history);
             if (now is not { } holds) continue;
             bool was = _lastSeen.TryGetValue(rule.Id, out bool seen) && seen;
             _lastSeen[rule.Id] = holds;

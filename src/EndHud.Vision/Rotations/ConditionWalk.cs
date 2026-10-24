@@ -38,5 +38,12 @@ public static class ConditionWalk
     /// part is one, at any depth)? While the battle-skill keys aren't read such a condition is ignored,
     /// as if it weren't there. An empty group isn't: it is a problem of its own.
     /// </summary>
-    public static bool OnlyPlayed(StateCondition condition) => false;
+    public static bool OnlyPlayed(StateCondition condition) => condition switch
+    {
+        PhasePlayedCondition => true,
+        NotCondition not => OnlyPlayed(not.Of),
+        AllCondition all => all.Of.Count > 0 && all.Of.All(OnlyPlayed),
+        AnyCondition any => any.Of.Count > 0 && any.Of.All(OnlyPlayed),
+        _ => false,
+    };
 }
