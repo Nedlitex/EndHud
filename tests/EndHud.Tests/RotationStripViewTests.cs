@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Media;
+using EndHud.Vision.Input;
 using EndHud.Vision.Rotations;
 using Xunit;
 
@@ -248,12 +249,12 @@ public class RotationFollowerTests
         ]);
         var follower = new RotationFollower();
 
-        Assert.Equal("Charge I", follower.Update(Reading(inBattle: true), true, For(rotation)).Position!.Value.Position.Step.PhaseLabel);
-        Assert.Equal("Burst II", follower.Update(Reading(inBattle: true, laevatainUltimateReady: true), true, For(rotation)).Position!.Value.Position.Step.PhaseLabel);
+        Assert.Equal("Charge I", follower.Update(Reading(inBattle: true), true, For(rotation), presses: null).Position!.Value.Position.Step.PhaseLabel);
+        Assert.Equal("Burst II", follower.Update(Reading(inBattle: true, laevatainUltimateReady: true), true, For(rotation), presses: null).Position!.Value.Position.Step.PhaseLabel);
         RotationFollowing? outside = null;
-        for (int i = 0; i < 20; i++) outside = follower.Update(Reading(inBattle: false), true, For(rotation));
+        for (int i = 0; i < 20; i++) outside = follower.Update(Reading(inBattle: false), true, For(rotation), presses: null);
         Assert.False(outside!.InBattle); // the short-gap allowance (StripVisibility) is long over
-        Assert.Equal("Charge I", follower.Update(Reading(inBattle: true), true, For(rotation)).Position!.Value.Position.Step.PhaseLabel);
+        Assert.Equal("Charge I", follower.Update(Reading(inBattle: true), true, For(rotation), presses: null).Position!.Value.Position.Step.PhaseLabel);
 
         // The second fight's showing only (not 2), and Burst not yet in this fight.
         Assert.Equal(1, follower.Selectors["r"].TimesShown("charge"));
@@ -267,9 +268,9 @@ public class RotationFollowerTests
             [new RotationPhase("charge", "Charge", [new RotationStep("Ardelia", StepAction.BattleSkill)])]);
         var follower = new RotationFollower();
 
-        follower.Update(Reading(inBattle: true), true, For(rotation));
-        follower.Update(Reading(inBattle: false), true, For(rotation)); // one reading without the skill points
-        follower.Update(Reading(inBattle: true), true, For(rotation));
+        follower.Update(Reading(inBattle: true), true, For(rotation), presses: null);
+        follower.Update(Reading(inBattle: false), true, For(rotation), presses: null); // one reading without the skill points
+        follower.Update(Reading(inBattle: true), true, For(rotation), presses: null);
 
         Assert.Equal(1, follower.Selectors["r"].TimesShown("charge"));
     }
@@ -286,11 +287,112 @@ public class RotationFollowerTests
         ]);
         var follower = new RotationFollower();
 
-        Assert.True(follower.Update(Reading(inBattle: true), true, For(rotation)).ReadBossStatuses);
+        Assert.True(follower.Update(Reading(inBattle: true), true, For(rotation), presses: null).ReadBossStatuses);
         // Out of battle there's no rotation to follow: nothing to read.
         RotationFollowing? outside = null;
-        for (int i = 0; i < 20; i++) outside = follower.Update(Reading(inBattle: false), true, For(rotation));
+        for (int i = 0; i < 20; i++) outside = follower.Update(Reading(inBattle: false), true, For(rotation), presses: null);
         Assert.False(outside!.ReadBossStatuses);
+    }
+
+    /// <summary>Ardelia's battle skill (slot 4), then Laevatain's (slot 1).</summary>
+    private static readonly Rotation TwoSkills = new(Rotation.CurrentFormat, "r", "r", Squad,
+        [new RotationPhase("charge", "Charge", [new RotationStep("Ardelia", StepAction.BattleSkill), new RotationStep("Laevatain", StepAction.BattleSkill)])]);
+
+    private static Vision.PartyState At(double seconds, bool inBattle = true) => Reading(inBattle) with { ReadAt = TimeSpan.FromSeconds(seconds) };
+
+    /// <summary>Presses from a list, as the key reader gives them.</summary>
+    private sealed class Presses(params SkillPress[] presses) : ISkillPressSource
+    {
+        private readonly List<SkillPress> _left = [.. presses];
+        public int Left => _left.Count;
+
+        public IReadOnlyList<SkillPress> TakeUntil(TimeSpan readAt)
+        {
+            var taken = _left.Where(p => p.At <= readAt).OrderBy(p => p.At).ToList();
+            _left.RemoveAll(p => p.At <= readAt);
+            return taken;
+        }
+    }
+
+    private static SkillPress Press(int slot, double seconds) => new(slot, TimeSpan.FromSeconds(seconds));
+
+    /// <summary>The player hasn't turned on reading their keys: the strip is today's, with no step marked.</summary>
+    [Fact]
+    public void Without_a_press_source_there_are_no_step_marks()
+    {
+        var follower = new RotationFollower();
+
+        var follow = follower.Update(At(0.75), true, For(TwoSkills), presses: null);
+        follow = follower.Update(At(1.0), true, For(TwoSkills), presses: null);
+
+        Assert.NotNull(follow.Position);
+        Assert.Null(follow.Steps);
+    }
+
+    [Fact]
+    public void A_press_before_the_reading_moves_the_marker()
+    {
+        var follower = new RotationFollower();
+        var presses = new Presses(Press(4, 1.0));
+
+        Assert.Equal([StepMark.Current, StepMark.Upcoming], follower.Update(At(0.75), true, For(TwoSkills), presses).Steps!.Marks);
+        Assert.Equal([StepMark.Done, StepMark.Current], follower.Update(At(1.0), true, For(TwoSkills), presses).Steps!.Marks);
+    }
+
+    [Fact]
+    public void A_press_after_the_reading_waits_for_the_next_one()
+    {
+        var follower = new RotationFollower();
+        var presses = new Presses(Press(4, 1.1));
+        follower.Update(At(0.75), true, For(TwoSkills), presses);
+
+        Assert.Equal([StepMark.Current, StepMark.Upcoming], follower.Update(At(1.0), true, For(TwoSkills), presses).Steps!.Marks);
+        Assert.Equal([StepMark.Done, StepMark.Current], follower.Update(At(1.25), true, For(TwoSkills), presses).Steps!.Marks);
+    }
+
+    [Fact]
+    public void A_reading_without_a_time_takes_no_presses()
+    {
+        var follower = new RotationFollower();
+        var presses = new Presses(Press(4, 1.0));
+        follower.Update(Reading(inBattle: true), true, For(TwoSkills), presses);
+
+        var follow = follower.Update(Reading(inBattle: true), true, For(TwoSkills), presses);
+
+        Assert.Equal([StepMark.Current, StepMark.Upcoming], follow.Steps!.Marks);
+        Assert.Equal(1, presses.Left);
+    }
+
+    [Fact]
+    public void Leaving_battle_starts_the_steps_over()
+    {
+        var follower = new RotationFollower();
+        var presses = new Presses(Press(4, 1.0));
+        follower.Update(At(0.75), true, For(TwoSkills), presses);
+        Assert.Equal([StepMark.Done, StepMark.Current], follower.Update(At(1.0), true, For(TwoSkills), presses).Steps!.Marks);
+
+        RotationFollowing? outside = null;
+        for (int i = 0; i < 20; i++) outside = follower.Update(At(2 + i * 0.25, inBattle: false), true, For(TwoSkills), presses);
+        Assert.False(outside!.InBattle); // the short-gap allowance (StripVisibility) is long over
+
+        Assert.Equal([StepMark.Current, StepMark.Upcoming], follower.Update(At(10), true, For(TwoSkills), presses).Steps!.Marks);
+    }
+
+    [Fact]
+    public void Presses_are_tallied_by_slot_and_verdict()
+    {
+        var follower = new RotationFollower();
+        // Slot 2 typed out of battle; then slot 4 mashed twice in one reading in battle.
+        var presses = new Presses(Press(2, 0.5), Press(4, 1.4), Press(4, 1.45));
+        follower.Update(At(0.75, inBattle: false), true, For(TwoSkills), presses);
+        follower.Update(At(1.25), true, For(TwoSkills), presses);
+        follower.Update(At(1.5), true, For(TwoSkills), presses);
+
+        var tally = follower.PressTally;
+        Assert.Equal(1, tally[1, (int)PressVerdict.NotInBattle]);
+        Assert.Equal(1, tally[3, (int)PressVerdict.Counted]);
+        Assert.Equal(1, tally[3, (int)PressVerdict.Repeat]);
+        Assert.Equal(3, tally.Cast<int>().Sum());
     }
 
     [Fact]
@@ -299,6 +401,6 @@ public class RotationFollowerTests
         var rotation = new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
             [new RotationPhase("charge", "Charge", [new RotationStep("Ardelia", StepAction.BattleSkill, [new ComboCondition("Camille", true)])])]);
 
-        Assert.False(new RotationFollower().Update(Reading(inBattle: true), true, For(rotation)).ReadBossStatuses);
+        Assert.False(new RotationFollower().Update(Reading(inBattle: true), true, For(rotation), presses: null).ReadBossStatuses);
     }
 }
