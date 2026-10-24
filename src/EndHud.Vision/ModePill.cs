@@ -32,10 +32,10 @@ public enum ModePillReading
 /// end is on the right (x 390, <see cref="BuildingEnd"/>). Both areas lie beside the name, so the
 /// word never enters the comparison. The evacuate bar is white past the exploring end's left edge and
 /// on the capsule's dark band, and stops short of the building end.</para>
-/// <para>Measured (endhud-cli trace-mode-pill): the switch 0.98 on every fixture and on the controller
-/// recording's frames over a bright sky; the evacuate bar 0.75-0.77 (fixtures, battle_test1.mp4,
-/// battle_controller_test_fullbattle2.mp4); anything else (menus, cutscenes, photo mode) 0.27 or
-/// less. Hence <see cref="MatchAt"/> halfway. The red mark: 0.42-0.45 of the icon's pixels red; the
+/// <para>Measured (endhud-cli trace-mode-pill, every 0.5 s over 11 of the owner's recordings, 2,736
+/// frames, and every fixture): the switch 0.96-0.98 wherever shown, also over a bright sky; the
+/// evacuate bar at most 0.78; anything else (menus, cutscenes, photo mode) 0.27 or less. Hence
+/// <see cref="MatchAt"/> between. The red mark: 0.33-0.45 of the icon's pixels its crimson; the
 /// lightning bolt and the D-pad arrow 0.</para>
 /// <para>Overlays injected into the game (RivaTuner/MSI Afterburner, Steam, Discord, NVIDIA) are part of
 /// the captured picture, and RivaTuner's sits at the top left by default. Text and graphs over the

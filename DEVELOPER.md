@@ -2336,10 +2336,14 @@ and goes as they go).
   union): exploring the slider covers the compass and its free end is on the left (x 112 at 4K),
   building it covers the bolt and its free end is on the right (x 390). Only the capsule's own band
   (y 67-148) counts: the scenery above and below is left out (`'?'` cells), as a bright sky there
-  made the switch score 0.81. The switch scores 0.98 on every fixture and frame checked; the
-  evacuate bar 0.75-0.77; menus, cutscenes and photo mode 0.27 or less; matched at 0.88. Then the
-  left icon: 0.42-0.45 of it the mark's crimson (red 165-212, green at most 43) is a fight; the bolt
-  and the arrow have none; at least 0.25 counts.
+  made the switch score 0.81. Matched at 0.88. Measured with `endhud-cli trace-mode-pill` every
+  0.5 s over 11 of the owner's recordings (2,736 frames, keyboard and controller, instance battles,
+  open-world fights, exploring): the switch 0.96-0.98 on all 253 frames showing it, the evacuate bar
+  at most 0.78, menus, cutscenes and photo mode 0.27 or less; every fixture the same. Then the left
+  icon: the mark's crimson (red 165-212, green at most 43) fills 0.33-0.45 of it in a fight, none
+  with the bolt or the arrow; at least 0.25 counts. No frame in those recordings showed the squad
+  panel's battle signs under the switch with its plain icon: the existing rule already kept the
+  HUD down there, and the switch is the game's own word for it.
 - **On the reading** ([`PartyState`](src/EndHud.Vision/PartyReader.cs)): `ModePill` (`NotSeen`,
   `OutOfBattle`, `Fighting`) and `OutOfBattle`. `InCombat` is false while `OutOfBattle`, which is how
   every battle overlay goes down: `StripVisibility` (strip, gauges, alerts, the boss statuses they
