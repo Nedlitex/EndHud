@@ -20,6 +20,9 @@ public enum StepAction
     /// its availability is unknown; the phase's entry condition says when it shows. Format 4.
     /// </summary>
     BasicAttack,
+
+    /// <summary>Heavy attack: drawn only, as <see cref="BasicAttack"/>. Format 8.</summary>
+    HeavyAttack,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter))]

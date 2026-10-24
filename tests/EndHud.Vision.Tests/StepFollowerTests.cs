@@ -143,6 +143,27 @@ public sealed class StepFollowerTests
         Assert.Equal([D, D, D, D, D, C], fight.Read(combo, 0, Ardelia).Marks);
     }
 
+    /// <summary>The owner's ask (2026-10-24): a heavy attack is ignored when following, as a basic attack is.</summary>
+    [Fact]
+    public void A_heavy_attack_step_never_waits_and_is_passed_by_the_next_real_cast()
+    {
+        var rotation = new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
+            [new RotationPhase("p", "P",
+            [
+                new RotationStep("Ardelia", StepAction.BattleSkill),
+                new RotationStep("Arcane", StepAction.HeavyAttack),
+                new RotationStep("Laevatain", StepAction.BattleSkill),
+                new RotationStep("Ardelia", StepAction.BattleSkill),
+            ])]);
+        var fight = new Fight(rotation);
+        fight.Read(Plain);
+
+        var onHeavy = fight.Press(Ardelia);
+        Assert.Equal([D, C, U, U], onHeavy.Marks);
+        Assert.True(onHeavy.Ready); // a heavy attack never waits
+        Assert.Equal([D, D, D, C], fight.Press(Laevatain).Marks);
+    }
+
     [Fact]
     public void A_phase_ending_in_basic_attacks_starts_over_on_its_first_cast()
     {

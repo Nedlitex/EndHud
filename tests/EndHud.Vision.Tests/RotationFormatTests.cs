@@ -329,6 +329,25 @@ public sealed class RotationFormatTests : IDisposable
         Assert.Contains("\"action\": \"BasicAttack\"", RotationFormat.ToJson(Guide() with { Format = 4, Phases = basic }));
     }
 
+    /// <summary>
+    /// Format 8 adds heavy-attack steps: a build before it can't read the action, so a rotation using
+    /// one says it's from a newer EndHud there. One without a heavy attack keeps its lower format.
+    /// </summary>
+    [Fact]
+    public void A_heavy_attack_step_needs_format_8_and_round_trips()
+    {
+        var plain = Guide().Phases;
+        RotationPhase[] heavy = [plain[0] with { Steps = [.. plain[0].Steps, new RotationStep("Laevatain", StepAction.HeavyAttack)] }];
+        RotationPhase[] basic = [plain[0] with { Steps = [.. plain[0].Steps, new RotationStep("Laevatain", StepAction.BasicAttack)] }];
+
+        Assert.Equal(8, Rotation.FormatNeeded(heavy, lastMatchWins: false));
+        Assert.Equal(4, Rotation.FormatNeeded(basic, lastMatchWins: false));
+        Assert.True(Rotation.CurrentFormat >= 8);
+        string json = RotationFormat.ToJson(Guide() with { Format = 8, Phases = heavy });
+        Assert.Contains("\"action\": \"HeavyAttack\"", json);
+        Assert.Equal(StepAction.HeavyAttack, RotationFormat.FromJson(json).Phases[0].Steps[^1].Action);
+    }
+
     [Fact]
     public void Below_needs_format_4_and_round_trips()
     {

@@ -94,6 +94,21 @@ public sealed class PhasePlayedTests
         Assert.Equal(2, fight.Steps.TimesPlayed("p"));
     }
 
+    /// <summary>A trailing heavy attack (never seen, as a basic attack) doesn't hold up "phase played".</summary>
+    [Fact]
+    public void A_phase_ending_in_a_heavy_attack_counts_when_its_last_skill_is_used()
+    {
+        var rotation = new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
+            [new RotationPhase("p", "P", [new RotationStep("Ardelia", StepAction.BattleSkill), new RotationStep("Arcane", StepAction.HeavyAttack)])]);
+        var fight = new Fight(rotation);
+        fight.Read(Plain);
+
+        fight.Press(Ardelia);
+        Assert.Equal(1, fight.Steps.TimesPlayed("p"));
+        fight.Press(Ardelia);
+        Assert.Equal(2, fight.Steps.TimesPlayed("p"));
+    }
+
     [Fact]
     public void Leaving_a_phase_half_way_does_not_count_it()
     {

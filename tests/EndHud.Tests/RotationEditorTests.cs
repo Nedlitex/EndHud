@@ -337,6 +337,35 @@ public sealed class RotationEditorTests : IDisposable
         Assert.Equal((false, (object)"Editor.SkillTimeNoOperator"), offered);
     }
 
+    /// <summary>
+    /// The owner's ask (2026-10-24): a heavy attack action, ignored when following as a basic attack
+    /// is. The action picker offers it, the "not detected" hint shows under it, and it's saved in format 8.
+    /// </summary>
+    [Fact]
+    public void A_heavy_attack_step_is_picked_and_saved()
+    {
+        var library = new RotationLibrary(_folder);
+        library.Own.Save(Published() with { Id = "mine" });
+
+        string said = "";
+        bool hintShown = false;
+        OnEditor(library, _ => { }, editor =>
+        {
+            Click(editor, "AddStepButton");
+            Pick((ComboBox)editor.FindName("StepActionPicker"), StepAction.HeavyAttack);
+            hintShown = ((TextBlock)editor.FindName("BasicAttackHint")).Visibility == Visibility.Visible;
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        });
+
+        var saved = Assert.Single(library.Own.Load().Rotations);
+        Assert.True(saved.Phases[0].Steps.Count == 2, $"editor said: {said}");
+        Assert.True(hintShown);
+        Assert.Equal(StepAction.HeavyAttack, saved.Phases[0].Steps[1].Action);
+        Assert.Equal(8, saved.Format);
+        Assert.Contains("\"action\": \"HeavyAttack\"", File.ReadAllText(Directory.GetFiles(_folder, "*.json").Single()));
+    }
+
     /// <summary>"mine": Charge (id p), then Burst (id burst) with this entry condition.</summary>
     private RotationLibrary TwoPhases(params StateCondition[] burstGate)
     {

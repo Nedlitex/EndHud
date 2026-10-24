@@ -178,6 +178,40 @@ public class RotationStripViewTests
         OnSta(() => RotationStrip.Build(view)); // draws
     }
 
+    /// <summary>
+    /// The owner's ask (2026-10-24): a heavy attack step, drawn as a basic attack is (the operator's face
+    /// in the circle, labelled 重击), and never waited for.
+    /// </summary>
+    [Fact]
+    public void A_heavy_attack_step_shows_the_operators_face_and_never_waits()
+    {
+        var library = Operators(["Laevatain", "Camille", "Arcane", "Ardelia"]);
+        var face = OnSta(() =>
+        {
+            var bitmap = new System.Windows.Media.Imaging.WriteableBitmap(2, 2, 96, 96, PixelFormats.Bgra32, null);
+            bitmap.Freeze();
+            return (System.Windows.Media.Imaging.BitmapSource)bitmap;
+        });
+        var skill = OnSta(() =>
+        {
+            var bitmap = new System.Windows.Media.Imaging.WriteableBitmap(3, 3, 96, 96, PixelFormats.Bgra32, null);
+            bitmap.Freeze();
+            return (System.Windows.Media.Imaging.BitmapSource)bitmap;
+        });
+        var step = new RotationStep("Laevatain", StepAction.HeavyAttack);
+        var rotation = new Rotation(Rotation.CurrentFormat, "r", "r", ["Laevatain", "Camille", "Arcane", "Ardelia"],
+            [new RotationPhase("p", "P", [step, new RotationStep("Camille", StepAction.BattleSkill)])]);
+
+        var view = RotationStripView.ForPhase(rotation, 0, library, (_, _) => skill, _ => face);
+
+        var heavy = view.Steps[0];
+        Assert.Same(face, heavy.Icon);
+        Assert.Null(heavy.Avatar);
+        Assert.Equal(Loc.Get("Rotation.Action.HeavyAttack"), heavy.Action);
+        Assert.Null(RotationStripView.Reason(new ConditionCheck(CheckKind.OwnAbility, null, null), step, null, library));
+        OnSta(() => RotationStrip.Build(view)); // draws
+    }
+
     /// <summary>A library of these operators, without any art: enough to find them by id.</summary>
     internal static Vision.Operators.OperatorLibrary Operators(string[] ids)
     {
