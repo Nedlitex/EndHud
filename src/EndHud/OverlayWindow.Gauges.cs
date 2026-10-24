@@ -45,6 +45,14 @@ public partial class OverlayWindow
     private PartyState? WithRunningUltimates(PartyState? state) =>
         state is null ? null : state with { RunningUltimates = _lastingUltimates.Update(state, _clock.Elapsed) };
 
+    /// <summary>
+    /// A new reading, before anything reads it: the lasting battle skills running now (Si's, from her
+    /// button and the timer while it's hidden), put on the state, so the rotation's and alerts' "battle
+    /// skill running" and her gauge's purple countdown agree. Forgotten out of battle (<see cref="TrackGauges"/>).
+    /// </summary>
+    private PartyState? WithRunningSkills(PartyState? state) =>
+        state is null ? null : state with { RunningSkills = _skillTimers.Update(state, _clock.Elapsed) };
+
     /// <summary>A new reading (<paramref name="inBattle"/> from the strip's rule): remember the counters, then redraw.</summary>
     private void TrackGauges(PartyState? state, bool inBattle)
     {
@@ -57,7 +65,7 @@ public partial class OverlayWindow
             _lastingUltimates.Clear();
         }
         if (state is not null && inBattle) _buffsSeen.AddRange(state.Buffs.Select(b => b.Id).Except(_buffsSeen).ToList());
-        _timerViews = state is not null && inBattle ? _skillTimers.Update(state, _clock.Elapsed) : new Dictionary<string, SkillTimerView>();
+        _timerViews = state is not null && inBattle ? state.RunningSkills ?? _skillTimers.Update(state, _clock.Elapsed) : new Dictionary<string, SkillTimerView>();
         _ultimateViews = state is not null && inBattle ? state.RunningUltimates ?? new Dictionary<string, LastingUltimateView>() : new Dictionary<string, LastingUltimateView>();
         _gauges = state is not null && inBattle && _config.GaugesEnabled && _config.PartyOcrEnabled
             ? GaugesView.Build(state, _counterMemory.Update(state), _buffsSeen, _timerViews, _ultimateViews, SkillIcon, Avatar, StatusIcon)

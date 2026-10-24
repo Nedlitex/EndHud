@@ -107,6 +107,7 @@ internal static class RotationStripView
             ComboCondition c => Loc.Format(c.Ready ? "Rotation.Reason.NeedComboReady" : "Rotation.Reason.NeedComboCooling", Name(c.OperatorId)),
             UltimateCondition c => Loc.Format(c.Ready ? "Rotation.Reason.NeedUltimateReady" : "Rotation.Reason.NeedUltimateUsed", Name(c.OperatorId)),
             UltimateActiveCondition c => Loc.Format(c.Active ? "Rotation.Reason.NeedUltimateActive" : "Rotation.Reason.NeedUltimateOver", Name(c.OperatorId)),
+            BattleSkillActiveCondition c => Loc.Format(c.Active ? "Rotation.Reason.NeedBattleSkillActive" : "Rotation.Reason.NeedBattleSkillOver", Name(c.OperatorId)),
             CounterCondition c => Loc.Format("Rotation.Reason.Counter", Name(c.OperatorId),
                 OperatorCounters.Definitions.FirstOrDefault(d => d.Id == c.CounterId)?.NameZh ?? c.CounterId,
                 c.Is switch { Comparison.AtLeast => "≥", Comparison.AtMost => "≤", _ => "=" } + c.Value,

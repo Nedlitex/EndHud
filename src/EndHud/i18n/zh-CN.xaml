@@ -45,6 +45,8 @@
     <sys:String x:Key="Rotation.Reason.NeedUltimateUsed">需要：{0} 终结技已使用</sys:String>
     <sys:String x:Key="Rotation.Reason.NeedUltimateActive">需要：{0} 终结技持续中</sys:String>
     <sys:String x:Key="Rotation.Reason.NeedUltimateOver">需要：{0} 终结技已结束</sys:String>
+    <sys:String x:Key="Rotation.Reason.NeedBattleSkillActive">需要：{0} 战技持续中</sys:String>
+    <sys:String x:Key="Rotation.Reason.NeedBattleSkillOver">需要：{0} 战技已结束</sys:String>
     <sys:String x:Key="Rotation.Reason.Counter">需要：{0} {1} {2}（当前 {3}）</sys:String>
     <sys:String x:Key="Rotation.Reason.BossLacks">敌人缺少：{0}</sys:String>
     <sys:String x:Key="Rotation.Reason.BossHas">敌人已有：{0}</sys:String>
@@ -108,6 +110,9 @@
     <sys:String x:Key="Editor.Condition.Ultimate">终结技</sys:String>
     <sys:String x:Key="Editor.Condition.UltimateCharge">终结技充能</sys:String>
     <sys:String x:Key="Editor.Condition.UltimateActive">终结技持续中</sys:String>
+    <sys:String x:Key="Editor.Condition.BattleSkillActive">战技持续中</sys:String>
+    <sys:String x:Key="Editor.SkillTimeHint">按祀的战技按钮判断：图标变成漩涡（或第二次释放后的叉形蝴蝶）时为持续中，变回蝴蝶时结束，即她计数圈外紫色倒计时的那段时间。按钮被特效挡住时按倒计时估计；手柄布局下读不到，条件无法判断。</sys:String>
+    <sys:String x:Key="Editor.SkillTimeNoOperator">小队中没有能读取战技持续时间的干员（目前只有祀）。</sys:String>
     <sys:String x:Key="Editor.Condition.Counter">干员资源</sys:String>
     <sys:String x:Key="Editor.Condition.BossStatus">敌人状态</sys:String>
     <sys:String x:Key="Editor.Condition.Controlling">当前操控</sys:String>
@@ -169,6 +174,7 @@
     <sys:String x:Key="Rotation.Problem.PhaseShownOwnGate">轴段“{0}”的进入条件用了它自己的显示次数：它一出现，次数就变了，条件也跟着变。请改用其他轴段的次数。</sys:String>
     <sys:String x:Key="Rotation.Problem.PhaseShownMissingPhase">轴段“{0}”的条件引用了一个已删除的轴段，请重新选择轴段或删除这个条件。</sys:String>
     <sys:String x:Key="Rotation.Problem.PhasePlayedMissingPhase">轴段“{0}”的完成次数条件引用了一个已删除的轴段，请重新选择轴段或删除这个条件。</sys:String>
+    <sys:String x:Key="Rotation.Problem.SkillTimeNotRead">轴段“{0}”的条件中“战技持续中”选了祀以外的干员：目前只读取祀的战技持续时间，这个条件永远无法判断。请改选祀，或删除这个条件。</sys:String>
     <sys:String x:Key="Rotation.Problem.PhasePlayedOwnGate">轴段“{0}”的进入条件要求它自己先完成过：可它要先出现才能被完成，所以永远不会出现。请改用其他轴段的次数，或改用“至多”“小于”。</sys:String>
     <sys:String x:Key="Editor.CopyPhase">复制轴段</sys:String>
     <sys:String x:Key="Editor.CopyPhaseHint">复制选中的轴段（步骤和进入条件都会复制），放在它后面。</sys:String>
@@ -437,6 +443,8 @@
     <sys:String x:Key="Alert.Describe.UltimateCharge">{0} 终结技充能 {1} {2}%</sys:String>
     <sys:String x:Key="Alert.Describe.UltimateActive">{0} 终结技持续中</sys:String>
     <sys:String x:Key="Alert.Describe.UltimateOver">{0} 终结技未持续</sys:String>
+    <sys:String x:Key="Alert.Describe.BattleSkillActive">{0} 战技持续中</sys:String>
+    <sys:String x:Key="Alert.Describe.BattleSkillOver">{0} 战技未持续</sys:String>
     <sys:String x:Key="Alert.Describe.Counter">{0} {1} {2} {3}</sys:String>
     <sys:String x:Key="Alert.Describe.Status.Has">敌人有 {0}</sys:String>
     <sys:String x:Key="Alert.Describe.Status.HasNot">敌人没有 {0}</sys:String>

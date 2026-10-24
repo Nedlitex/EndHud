@@ -35,7 +35,7 @@ internal sealed class ConditionEditor(
     Func<string?>? defaultPhaseId = null)
 {
     /// <summary>Every kind, in the order the picker lists them.</summary>
-    public static readonly string[] AllKinds = ["SkillPoints", "Combo", "ComboCharge", "BattleSkill", "Ultimate", "UltimateCharge", "UltimateActive", "Counter", "BossStatus", "Controlling", "PhaseShown", "PhasePlayed", "Group"];
+    public static readonly string[] AllKinds = ["SkillPoints", "Combo", "ComboCharge", "BattleSkill", "Ultimate", "UltimateCharge", "UltimateActive", "BattleSkillActive", "Counter", "BossStatus", "Controlling", "PhaseShown", "PhasePlayed", "Group"];
 
     /// <summary>The values offered for a counter with no maximum (Si's damage stacks): 0 to this, picked; a file's larger value is kept.</summary>
     public const int UncappedCounterChoices = 200;
@@ -50,6 +50,8 @@ internal sealed class ConditionEditor(
             "Ultimate" => new UltimateCondition(first, true),
             "UltimateCharge" => new UltimateChargeCondition(first, Comparison.AtLeast, 80),
             "UltimateActive" => new UltimateActiveCondition(first, true),
+            // Only an operator whose skill time is read (Si) can be asked about.
+            "BattleSkillActive" => new BattleSkillActiveCondition(SkillTimed().FirstOrDefault()?.Id ?? SkillRing.Operators[0], true),
             "ComboCharge" => new ComboChargeCondition(first, Comparison.AtLeast, 80),
             "BattleSkill" => new BattleSkillCondition(first, true),
             "Counter" => counters().FirstOrDefault() is { } c ? new CounterCondition(c.OperatorId, c.Id, Comparison.AtLeast, c.Max ?? 1) : new SkillPointsCondition(Comparison.AtLeast, 2),
@@ -77,6 +79,7 @@ internal sealed class ConditionEditor(
         UltimateCondition => "Ultimate",
         UltimateChargeCondition => "UltimateCharge",
         UltimateActiveCondition => "UltimateActive",
+        BattleSkillActiveCondition => "BattleSkillActive",
         ComboChargeCondition => "ComboCharge",
         BattleSkillCondition => "BattleSkill",
         CounterCondition => "Counter",
@@ -218,6 +221,16 @@ internal sealed class ConditionEditor(
                 row.Children.Add(who);
                 row.Children.Add(state);
                 read = () => new UltimateActiveCondition((string)Picked(who), (bool)Picked(state));
+                break;
+            }
+            case BattleSkillActiveCondition c:
+            {
+                var who = OperatorPicker(c.OperatorId, SkillTimed());
+                var state = Picker([true, false], a => Loc.Get(a ? "Editor.Active" : "Editor.NotActive"), c.Active);
+                row.Children.Add(who);
+                row.Children.Add(state);
+                read = () => new BattleSkillActiveCondition((string)Picked(who), (bool)Picked(state));
+                hint = Loc.Get("Editor.SkillTimeHint");
                 break;
             }
             case UltimateChargeCondition c:
@@ -396,7 +409,17 @@ internal sealed class ConditionEditor(
     private ComboBoxItem KindItem(string kind, string rowKind)
     {
         var item = Item(Loc.Get($"Editor.Condition.{kind}"), kind);
-        if (kind != "PhasePlayed" || kind == rowKind) return item;
+        if (kind == rowKind) return item;
+        if (kind == "BattleSkillActive")
+        {
+            // Only Si's skill time is read: without her in the list, nobody to ask about.
+            if (SkillTimed().Any()) return item;
+            item.IsEnabled = false;
+            item.ToolTip = Loc.Get("Editor.SkillTimeNoOperator");
+            ToolTipService.SetShowOnDisabled(item, true);
+            return item;
+        }
+        if (kind != "PhasePlayed") return item;
         string? why = !keysRead() ? "Editor.PhasePlayedNeedsKeys" : phases().Count == 0 ? "Editor.PhasePlayedNoPhases" : null;
         if (why is null) return item;
         if (!keysRead()) item.Content = Loc.Get("Editor.Condition.PhasePlayed.NeedsKeys");
@@ -426,10 +449,13 @@ internal sealed class ConditionEditor(
     private static ComboBox ComparePicker(Comparison selected) =>
         Picker([Comparison.AtLeast, Comparison.AtMost, Comparison.Exactly, Comparison.Below, Comparison.Above], c => Loc.Get($"Editor.Compare.{c}"), selected);
 
-    private ComboBox OperatorPicker(string selected)
+    /// <summary>The offered operators whose battle-skill time is read (<see cref="SkillRing.Operators"/>: Si).</summary>
+    private IEnumerable<OperatorInfo> SkillTimed() => operators().Where(o => SkillRing.Operators.Contains(o.Id));
+
+    private ComboBox OperatorPicker(string selected, IEnumerable<OperatorInfo>? offered = null)
     {
         var picker = new ComboBox { MinWidth = 120 };
-        FillOperators(picker, operators(), avatar);
+        FillOperators(picker, offered ?? operators(), avatar);
         // An operator the list doesn't offer (not in the squad, or not in the library) stays as it is,
         // never swapped for the first one.
         if (selected.Length > 0 && !picker.Items.Cast<ComboBoxItem>().Any(i => Equals(i.Tag, selected)))
