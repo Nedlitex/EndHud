@@ -36,7 +36,62 @@ public static partial class InnScreen
             string heading = await text.ReadAsync(frame, layout.Centered(DispatchHeading), InnText.White, layout.Scale) ?? "";
             return heading.Contains("干员") || heading.Contains("加成") ? InnScreenKind.DispatchPanel : InnScreenKind.Session;
         }
-        return ReadTime(frame, layout, TimerBelowButton) is not null ? InnScreenKind.Session : null;
+        if (ReadTime(frame, layout, TimerBelowButton) is not null) return InnScreenKind.Session;
+        return (await DetectWithoutTitleAsync(text, frame, layout))?.Kind;
+    }
+
+    /// <summary>
+    /// The screen told by a sign other than the top-left title and timer, for when something covers them: MSI Afterburner's
+    /// on-screen display (drawn by RivaTuner into the game's frames) sits there by default and hid the inn from the helper
+    /// (2026-10-24 investigation). Pixels first, OCR only once they agree: the dispatch panel's tabs and first card, then
+    /// its heading; the Full Blaze meter's "N/100" (a session); the menu's single dark tab, then its tabs' names; the setup
+    /// screen's kitchen titles. A chef picker and the theme list have only their titles: unknown. Null when none shows.
+    /// </summary>
+    public static Task<(InnScreenKind Kind, string Sign)?> DetectWithoutTitleAsync(InnText text, Frame frame) =>
+        DetectWithoutTitleAsync(text, frame, new InnLayout(frame));
+
+    private static async Task<(InnScreenKind Kind, string Sign)?> DetectWithoutTitleAsync(InnText text, Frame frame, InnLayout layout)
+    {
+        if (DispatchPanelReader.Shows(frame))
+        {
+            string heading = await text.ReadAsync(frame, layout.Centered(DispatchHeading), InnText.White, layout.Scale) ?? "";
+            if (heading.Contains("干员") || heading.Contains("加成")) return (InnScreenKind.DispatchPanel, "the dispatch panel's heading");
+        }
+        if (await FireMeterReader.ReadAsync(text, frame) is not null) return (InnScreenKind.Session, "the Full Blaze meter");
+        if (MenuReader.DarkTabs(frame, layout).Count == 1)
+        {
+            string tabs = await text.ReadAsync(frame, layout.Centered(MenuReader.TabLabels), InnText.Dark, layout.Scale) ?? "";
+            if (MenuTabNames.Count(tabs.Contains) >= 2) return (InnScreenKind.Menu, "the menu's tabs");
+        }
+        if (DarkShare(frame, layout.Centered(KitchenTitles)) >= KitchenTitlesDark)
+        {
+            string titles = await text.ReadAsync(frame, layout.Centered(KitchenTitles), InnText.White, layout.Scale) ?? "";
+            if (titles.Contains("厨房")) return (InnScreenKind.Setup, "the kitchens' titles");
+        }
+        return null;
+    }
+
+    // The menu's tab names, two of which must read.
+    private static readonly string[] MenuTabNames = ["全部", "菜品", "主食", "菜肴", "甜品", "汤羹", "饮品"];
+
+    // At 4K, centred: the row of the setup screen's kitchen titles ("厨房一" …, white on dark labels), and the least share
+    // of near-black pixels in it before it is read (the labels; spares an OCR read on every frame that isn't the inn).
+    internal static readonly PixelRect KitchenTitles = new(1600, 570, 2020, 75);
+    private const double KitchenTitlesDark = 0.04;
+
+    private static double DarkShare(Frame frame, PixelRect region)
+    {
+        var r = region.ClampTo(frame.Width, frame.Height);
+        if (r.IsEmpty) return 0;
+        int dark = 0, all = 0;
+        for (int y = r.Y; y < r.Bottom; y += 2)
+        for (int x = r.X; x < r.Right; x += 2)
+        {
+            var (cr, cg, cb) = frame.GetPixel(x, y);
+            all++;
+            if (Math.Max(cr, Math.Max(cg, cb)) <= 40) dark++;
+        }
+        return dark / (double)all;
     }
 
     /// <summary>The kitchen (1–3) whose chef picker is showing, from its title; null when unread.</summary>

@@ -76,23 +76,13 @@ public sealed class DispatchPanelReader(InnText text, InnPictures pictures, InnD
     public static PixelRect CardOnScreen(int card, int width, int height) => new InnLayout(width, height).Centered(CardArea(card));
 
     /// <summary>The panel, or null when it isn't showing (no tab is dark).</summary>
-    public async Task<DispatchPanel?> ReadAsync(Frame frame)
-    {
-        var layout = new InnLayout(frame);
-        int kitchen = 0, kitchens = 0;
-        for (int k = 1; k <= 3; k++)
-        {
-            var (x, y) = Point(layout, FirstTabX + TabStep * (k - 1), TabSampleY);
-            var (r, g, b) = frame.GetPixel(x, y);
-            int max = Math.Max(r, Math.Max(g, b)), min = Math.Min(r, Math.Min(g, b));
-            if (max - min > 12) break;
-            if (max <= 60) kitchen = k;
-            else if (max is < 170 or > 210) break;
-            kitchens = k;
-        }
-        // The tabs' samples alone also read the dining room behind the session's dark bars as "kitchen 1 of 1" (owner, live
-        // 2026-10-21: the panel's marks over the room with the panel closed): the first dish card's light face must show too.
-        if (kitchen == 0 || !FirstCardShows(frame, layout)) return null;
+    public async Task<DispatchPanel?> ReadAsync(Frame frame)
+    {
+        var layout = new InnLayout(frame);
+        var (kitchen, kitchens) = Tabs(frame, layout);
+        // The tabs' samples alone also read the dining room behind the session's dark bars as "kitchen 1 of 1" (owner, live
+        // 2026-10-21: the panel's marks over the room with the panel closed): the first dish card's light face must show too.
+        if (kitchen == 0 || !FirstCardShows(frame, layout)) return null;
 
         var chefs = new string?[2];
         var names = new string?[2];
@@ -124,6 +114,30 @@ public sealed class DispatchPanelReader(InnText text, InnPictures pictures, InnD
 
     // Of them, at least this many light: measured 10 of 10 on every panel frame, at most 3 on a session frame without it.
     private const int FirstCardLightPoints = 7;
+
+    /// <summary>The panel is open: a kitchen tab is dark and the first dish card's face shows (pixels only, no OCR).</summary>
+    public static bool Shows(Frame frame)
+    {
+        var layout = new InnLayout(frame);
+        return Tabs(frame, layout).Kitchen > 0 && FirstCardShows(frame, layout);
+    }
+
+    /// <summary>The kitchen whose tab is dark (0: none) and how many tabs there are, from a pixel in each tab.</summary>
+    private static (int Kitchen, int Kitchens) Tabs(Frame frame, InnLayout layout)
+    {
+        int kitchen = 0, kitchens = 0;
+        for (int k = 1; k <= 3; k++)
+        {
+            var (x, y) = Point(layout, FirstTabX + TabStep * (k - 1), TabSampleY);
+            var (r, g, b) = frame.GetPixel(x, y);
+            int max = Math.Max(r, Math.Max(g, b)), min = Math.Min(r, Math.Min(g, b));
+            if (max - min > 12) break;
+            if (max <= 60) kitchen = k;
+            else if (max is < 170 or > 210) break;
+            kitchens = k;
+        }
+        return (kitchen, kitchens);
+    }
 
     /// <summary>The first dish card's light grey face is where the panel puts it.</summary>
     private static bool FirstCardShows(Frame frame, InnLayout layout)

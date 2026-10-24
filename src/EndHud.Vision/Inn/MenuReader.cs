@@ -60,6 +60,24 @@ public sealed partial class MenuReader(InnText text, InnData data)
     // From a card's name: its left edge, its stock label's row and the stock's place right of the label.
     private const int NameToLeft = 330, NameToFrameY = 170, NameToStockY = 170, StockWidth = 160;
 
+    /// <summary>The tabs drawn dark (the chosen one is a black pill), left to right; the menu screen shows exactly one.</summary>
+    internal static List<MenuTab> DarkTabs(Frame frame, InnLayout layout)
+    {
+        var dark = new List<MenuTab>();
+        for (int i = 0; i < Tabs.Length; i++)
+        {
+            var row = layout.Centered(new PixelRect(Tabs[i].Left, TabRow, Tabs[i].Right - Tabs[i].Left, 1)).ClampTo(frame.Width, frame.Height);
+            int black = 0;
+            for (int x = row.X; x < row.Right; x++)
+                if (frame.GetPixel(x, row.Y) is var (r, g, b) && Math.Max(r, Math.Max(g, b)) <= 20) black++;
+            if (row.Width > 0 && black >= row.Width * 0.4) dark.Add((MenuTab)i);
+        }
+        return dark;
+    }
+
+    /// <summary>The tab row's labels (全部菜品 主食 菜肴 甜品 汤羹 饮品), at 4K on the centred 16:9 area.</summary>
+    internal static readonly PixelRect TabLabels = new(1637, 262, 1963, 75);
+
     /// <summary>The menu screen, or null when no card or counter can be read.</summary>
     public async Task<InnMenu?> ReadAsync(Frame frame)
     {
@@ -67,15 +85,7 @@ public sealed partial class MenuReader(InnText text, InnData data)
         double s = layout.Scale;
         var origin = layout.Centered(new PixelRect(0, 0, 1, 1));
 
-        MenuTab? tab = null;
-        for (int i = 0; i < Tabs.Length; i++)
-        {
-            var row = layout.Centered(new PixelRect(Tabs[i].Left, TabRow, Tabs[i].Right - Tabs[i].Left, 1)).ClampTo(frame.Width, frame.Height);
-            int black = 0;
-            for (int x = row.X; x < row.Right; x++)
-                if (frame.GetPixel(x, row.Y) is var (r, g, b) && Math.Max(r, Math.Max(g, b)) <= 20) black++;
-            if (row.Width > 0 && black >= row.Width * 0.4) tab = (MenuTab)i;
-        }
+        MenuTab? tab = DarkTabs(frame, layout) is { Count: > 0 } dark ? dark[^1] : null;
 
         var names = data.Dishes.Select(d => (d.Id, d.Zh)).Concat(data.Drinks.Select(d => (d.Id, d.Zh))).ToList();
         IReadOnlyList<(string Text, PixelRect Place)> best = [];
