@@ -38,8 +38,9 @@ public static class Recordings
     public const string BattleCastsLabels = "battle-casts-30fps.casts.txt";
 
     /// <summary>
-    /// The tests that decode <see cref="BattleCasts"/> frame by frame run one after another, not side by side: each
-    /// decoder holds hundreds of megabytes, and beside the other recording tests a run ran out of memory.
+    /// The tests that decode <see cref="BattleCasts"/> frame by frame run on their own, after the others
+    /// (<see cref="ThirtyFpsCollection"/>): beside the other recording tests, with the game open on the same PC, the
+    /// video decoder ran out of memory (OutOfMemoryException from GetThumbnailAsync, in those tests and the others).
     /// </summary>
     public const string ThirtyFps = "30 fps recording";
 
