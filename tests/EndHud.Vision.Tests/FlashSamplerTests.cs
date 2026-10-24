@@ -7,6 +7,7 @@ namespace EndHud.Vision.Tests;
 /// The fast path as the app runs it: the corner of each frame of a 30 fps recording handed to the sampler, as the
 /// window capture hands it (<see cref="Capture.WindowCapture.SetCornerTap"/>), and the flashes taken by readings.
 /// </summary>
+[Collection(Recordings.ThirtyFps)]
 public sealed class FlashSamplerTests
 {
     /// <summary>Feed the corner of every <paramref name="every"/>-th frame from <paramref name="from"/> to <paramref name="to"/> seconds; take every 0.25 s.</summary>
@@ -19,9 +20,8 @@ public sealed class FlashSamplerTests
         for (int frame = (int)Math.Round(from * 30); frame <= to * 30; frame += every)
         {
             var at = TimeSpan.FromSeconds(frame / 30.0);
-            var picture = await video.GetFrameAsync(at);
-            var corner = picture.Crop(BattleSkillFlash.Region(picture.Width, picture.Height));
-            sampler.Sample(corner, new UiScaler(picture.Width, picture.Height).Scale, at);
+            var corner = await video.GetRegionAsync(at, BattleSkillFlash.Region(video.Width, video.Height));
+            sampler.Sample(corner, new UiScaler(video.Width, video.Height).Scale, at);
             if (at.TotalSeconds >= nextTake)
             {
                 taken.AddRange(sampler.Take());
@@ -53,6 +53,21 @@ public sealed class FlashSamplerTests
     public async Task Scene_light_behind_three_buttons_is_no_flash()
     {
         Assert.Empty(await SampleAsync(13.5, 15.5, every: 1));
+    }
+
+    /// <summary>The corner decoded on its own is the same pixels as that corner of the whole frame.</summary>
+    [Fact]
+    public async Task A_region_of_a_frame_is_that_corner_of_the_whole_frame()
+    {
+        var video = await VideoFile.OpenAsync(Recordings.PathOf(Recordings.BattleCasts));
+        var at = TimeSpan.FromSeconds(16.43);
+        var region = BattleSkillFlash.Region(video.Width, video.Height);
+
+        var corner = await video.GetRegionAsync(at, region);
+        var whole = (await video.GetFrameAsync(at)).Crop(region);
+
+        Assert.Equal((whole.Width, whole.Height), (corner.Width, corner.Height));
+        Assert.Equal(whole.Bgra, corner.Bgra);
     }
 
     [Fact]

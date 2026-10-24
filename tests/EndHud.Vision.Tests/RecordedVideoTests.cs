@@ -37,6 +37,12 @@ public static class Recordings
     /// <summary>The battle skills cast in <see cref="BattleCasts"/>: lines "seconds,slot".</summary>
     public const string BattleCastsLabels = "battle-casts-30fps.casts.txt";
 
+    /// <summary>
+    /// The tests that decode <see cref="BattleCasts"/> frame by frame run one after another, not side by side: each
+    /// decoder holds hundreds of megabytes, and beside the other recording tests a run ran out of memory.
+    /// </summary>
+    public const string ThirtyFps = "30 fps recording";
+
     public static string PathOf(string recording) => Path.Combine(AppContext.BaseDirectory, "Recordings", recording);
 }
 

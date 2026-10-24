@@ -30,17 +30,20 @@ public sealed class RecordingCasts(VideoFile video, PartyReader reader)
         PartyState? before = null;
         double end = Math.Min(to ?? double.MaxValue, video.Duration.TotalSeconds - sampleEvery);
         int sample = 0;
+        var corner = BattleSkillFlash.Region(video.Width, video.Height);
+        double scale = new UiScaler(video.Width, video.Height).Scale;
         for (double t = from; t <= end + 1e-9; t = from + ++sample * sampleEvery)
         {
             var at = TimeSpan.FromSeconds(t);
-            if (!sampleCorners && sample % samplesPerReading != 0) continue;
-            var frame = await video.GetFrameAsync(at);
-            if (sampleCorners)
+            bool reading = sample % samplesPerReading == 0;
+            if (!reading)
             {
-                var corner = frame.Crop(BattleSkillFlash.Region(frame.Width, frame.Height));
-                sampler.Sample(corner, new UiScaler(frame.Width, frame.Height).Scale, at);
+                // Between readings only the corner, decoded on its own (a whole 4K frame per sample runs out of memory).
+                if (sampleCorners) sampler.Sample(await video.GetRegionAsync(at, corner), scale, at);
+                continue;
             }
-            if (sample % samplesPerReading != 0) continue;
+            var frame = await video.GetFrameAsync(at);
+            if (sampleCorners) sampler.Sample(frame.Crop(corner), scale, at);
 
             var state = await reader.ReadAsync(frame) with { ReadAt = at, Flashes = sampler.Take() };
             if (prepare is not null) state = prepare(state);

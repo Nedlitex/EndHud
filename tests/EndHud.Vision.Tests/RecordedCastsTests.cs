@@ -12,6 +12,7 @@ namespace EndHud.Vision.Tests;
 /// --casts): readings about four a second, the battle-skill corner sampled at 15 Hz between them (the live minimum),
 /// every cast judged, against the casts labelled by eye (Recordings/battle-casts-30fps.casts.txt).
 /// </summary>
+[Collection(Recordings.ThirtyFps)]
 public sealed class RecordedCastsTests
 {
     private static readonly string[] Squad = ["Si", "Last_Rite", "Tangtang", "Arcane"];
@@ -22,8 +23,9 @@ public sealed class RecordedCastsTests
     {
         var video = await VideoFile.OpenAsync(Recordings.PathOf(Recordings.BattleCasts));
         var readings = new List<RecordedReading>();
-        // From before the fight (the loading screen ends at ~8.5 s); 15 Hz samples, a reading every fourth (0.27 s).
-        await foreach (var reading in new RecordingCasts(video, new PartyReader(new TextRecognizer())).ReadAsync(8.0, null, 2 / 30.0, 4, prepare: Named))
+        // From before the scene light (~14.4 s) to after the cast (~16.4 s) and Tangtang's combo; 15 Hz samples, a
+        // reading every fourth (0.27 s). (The whole fight, sampled, takes minutes, and the other recording tests memory.)
+        await foreach (var reading in new RecordingCasts(video, new PartyReader(new TextRecognizer())).ReadAsync(13.0, 21.0, 2 / 30.0, 4, prepare: Named))
             readings.Add(reading);
         return readings;
     }
