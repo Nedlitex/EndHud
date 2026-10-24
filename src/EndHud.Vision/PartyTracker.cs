@@ -31,7 +31,11 @@ namespace EndHud.Vision;
 /// The mode switch at the top left (<see cref="ModePill"/>): an effect over it, or the slider moving
 /// between modes, can misread it for a frame, which would take the battle HUD down (or let it up) for
 /// that frame. A new reading is taken once it has been read <see cref="ModePillReadings"/> times in a
-/// row; the first one ever at once.
+/// row; the first one ever at once. The switch not seen (gone, or covered: an on-screen display
+/// drawn into the game at the top left, a notification) keeps the switch last seen for up to
+/// <see cref="ModePillCoveredReadings"/> readings (2 s), and only that long: then the squad panel's
+/// battle signs decide alone, so something left over the corner can never keep the battle HUD down
+/// in a battle.
 /// One tracker follows one game window; use a new one for another window.
 /// </summary>
 public sealed class PartyTracker
@@ -74,11 +78,24 @@ public sealed class PartyTracker
         return _lastVisible;
     }
 
-    /// <summary>The mode switch's reading, a new one taken once read <see cref="ModePillReadings"/> times in a row.</summary>
+    /// <summary>The mode switch's reading, a new one taken once read <see cref="ModePillReadings"/> times in a
+    /// row; the switch last seen kept while it is not seen for under <see cref="ModePillCoveredReadings"/>.</summary>
     private ModePillReading TrackModePill(ModePillReading seen)
     {
         if (_modePill is not { } held || seen == held)
         {
+            _newModePill = null;
+            _modePill = seen;
+            return seen;
+        }
+        if (seen == ModePillReading.NotSeen)
+        {
+            int unseen = _newModePill is { Reading: ModePillReading.NotSeen } covered ? covered.Readings + 1 : 1;
+            if (unseen < ModePillCoveredReadings)
+            {
+                _newModePill = (seen, unseen);
+                return held;
+            }
             _newModePill = null;
             _modePill = seen;
             return seen;

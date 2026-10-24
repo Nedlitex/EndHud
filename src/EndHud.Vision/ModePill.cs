@@ -70,7 +70,7 @@ public static class ModePill
 
     /// <summary>Share of the left icon's pixels that are red when the game marks a fight: the mark fills
     /// 0.42-0.45 of them; thin red strokes over it (an on-screen display's text) far less.</summary>
-    public const double RedAt = 0.15;
+    public const double RedAt = 0.25;
 
     private const int WhiteMin = 200;
 
@@ -111,7 +111,7 @@ public static class ModePill
             var (r, g, b) = frame.GetPixel(x, y);
             // The mark's crimson: red 165-212, green 16-43, blue 70-88 (the controller recording).
             // Orange (an on-screen display's text) has far more green.
-            if (r >= 150 && r - Math.Max(g, b) >= 80) red++;
+            if (r >= 150 && g <= 70 && r - Math.Max(g, b) >= 80) red++;
         }
         return red / (double)(rect.Width * rect.Height);
     }
