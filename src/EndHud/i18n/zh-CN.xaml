@@ -36,6 +36,7 @@
     <sys:String x:Key="Rotation.Action.Ultimate">终结技</sys:String>
     <sys:String x:Key="Rotation.Action.BasicAttack">普攻</sys:String>
     <sys:String x:Key="Rotation.Action.HeavyAttack">重击</sys:String>
+    <sys:String x:Key="Rotation.Action.Condition">条件</sys:String>
     <sys:String x:Key="Rotation.Next">接下来</sys:String>
     <sys:String x:Key="Rotation.Reason.SkillPoints">技力 {0}/{1}</sys:String>
     <sys:String x:Key="Rotation.Reason.Cooling">{0} {1}冷却中</sys:String>
@@ -175,6 +176,11 @@
     <sys:String x:Key="Rotation.Problem.PhaseShownOwnGate">轴段“{0}”的进入条件用了它自己的显示次数：它一出现，次数就变了，条件也跟着变。请改用其他轴段的次数。</sys:String>
     <sys:String x:Key="Rotation.Problem.PhaseShownMissingPhase">轴段“{0}”的条件引用了一个已删除的轴段，请重新选择轴段或删除这个条件。</sys:String>
     <sys:String x:Key="Rotation.Problem.PhasePlayedMissingPhase">轴段“{0}”的完成次数条件引用了一个已删除的轴段，请重新选择轴段或删除这个条件。</sys:String>
+    <sys:String x:Key="Rotation.Problem.ConditionStepEmpty">轴段“{0}”第 {1} 步是条件步骤，但还没有条件。请添加条件或删除这一步。</sys:String>
+    <sys:String x:Key="Rotation.Problem.ConditionStepWithPrevious">轴段“{0}”第 {1} 步“与上一步连放”，但它或它的上一步是条件步骤：条件步骤要单独等待。请取消“与上一步连放”。</sys:String>
+    <sys:String x:Key="Editor.ConditionStepHint">这一步不需要释放技能，只等下面的条件：条件满足时，排轴条上这一步的圆圈亮起（青色），不满足时变暗。开启“读取战技按键”时，它是当前步骤，直到条件满足才算完成，进入下一步；条件暂时无法判断时（例如被特效挡住），打出后面的技能就算跳过它。</sys:String>
+    <sys:String x:Key="Editor.ConditionStepExpect">等到这些条件都满足</sys:String>
+    <sys:String x:Key="Editor.ConditionStepExpectHint">排轴条上显示第一个条件的图标（敌人状态的图标、干员头像或技力），下方写出条件；在“备注”中可以改成更短的文字。</sys:String>
     <sys:String x:Key="Rotation.Problem.UltimateTimeNotRead">轴段“{0}”的条件中“终结技剩余持续时间”选了莱万汀、庄方宜、伊冯以外的干员：目前只读取她们的终结技持续时间，这个条件永远无法判断。请改选她们之一，或删除这个条件。</sys:String>
     <sys:String x:Key="Rotation.Problem.SkillTimeNotRead">轴段“{0}”的条件中“战技持续中”选了祀以外的干员：目前只读取祀的战技持续时间，这个条件永远无法判断。请改选祀，或删除这个条件。</sys:String>
     <sys:String x:Key="Rotation.Problem.PhasePlayedOwnGate">轴段“{0}”的进入条件要求它自己先完成过：可它要先出现才能被完成，所以永远不会出现。请改用其他轴段的次数，或改用“至多”“小于”。</sys:String>

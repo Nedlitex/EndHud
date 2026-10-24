@@ -27,7 +27,9 @@ public sealed record StepPosition(int Phase, IReadOnlyList<StepMark> Marks, bool
 /// skill (<see cref="SkillPressJudge"/>), the combo bar emptying for a combo, the ultimate going
 /// from ready to spent. Screen-seen battle-skill cooldowns are NOT used: the press is the cast, and
 /// counting both would count one cast twice. A basic- or heavy-attack step (display-only) never holds the marker: the next
-/// real cast of a later step passes it. A phase played through starts again at its first step.
+/// real cast of a later step passes it. A condition step (<see cref="StepAction.Condition"/>) is done the reading its
+/// conditions hold; seen not holding, it holds the marker; when they can't be told, the next real cast of a later step
+/// passes it, as a basic attack is passed (owner, 2026-10-24). A phase played through starts again at its first step.
 /// <para>It counts, per phase, the rounds played through this fight (<see cref="TimesPlayed"/>, for
 /// "phase played" conditions): a round counts the moment its last step that can be seen used is
 /// done (trailing basic or heavy attacks are never seen), once. A phase left half way doesn't count; a phase
@@ -91,12 +93,18 @@ public sealed class StepFollower(Rotation rotation)
             _counted = false;
         }
         var slots = RotationTracker.SlotsByOperator(now);
+        // A condition step's conditions in this reading: true, false, or unknown (null). Null for any other step.
+        bool? Holds(RotationStep step) => step.Action == StepAction.Condition
+            ? RotationTracker.Holds(new AllCondition(step.Expect), now, slots, history)
+            : null;
+        PassConditions(steps, Holds);
         var uses = castSlots.Select(s => (Slot: s - 1, Action: StepAction.BattleSkill)).ToList();
         if (before is not null) uses.AddRange(VisionUses(before, now));
         foreach (var use in uses)
         {
-            Apply(use, steps, slots);
+            Apply(use, steps, slots, Holds);
             CountIfPlayedThrough(steps);
+            PassConditions(steps, Holds);
         }
         if (_done.Length > 0 && _done.All(d => d)) NewRound();
         return Position(phase, steps, now, slots, history);
@@ -117,7 +125,7 @@ public sealed class StepFollower(Rotation rotation)
     /// that matches nothing reachable (a skill off-script, a later step while an earlier skill is
     /// undone) moves nothing.
     /// </summary>
-    private void Apply((int Slot, StepAction Action) use, List<PlayedStep> steps, IReadOnlyDictionary<string, int> slots, bool wrapped = false)
+    private void Apply((int Slot, StepAction Action) use, List<PlayedStep> steps, IReadOnlyDictionary<string, int> slots, Func<RotationStep, bool?> holds, bool wrapped = false)
     {
         int at = Array.IndexOf(_done, false);
         if (at < 0) return;
@@ -128,19 +136,36 @@ public sealed class StepFollower(Rotation rotation)
             {
                 var step = steps[i].Step;
                 if (_done[i] || step.Action != use.Action || !slots.TryGetValue(step.OperatorId, out int s) || s != use.Slot) continue;
-                for (int j = at; j < start; j++) _done[j] = true; // basic or heavy attacks passed
+                for (int j = at; j < start; j++) _done[j] = true; // basic or heavy attacks, or conditions that can't be told, passed
                 _done[i] = true;
                 return;
             }
-            // A skill not yet seen used holds the marker here.
+            // A skill not yet seen used holds the marker here, and so does a condition step seen not holding.
             for (int i = start; i <= end; i++)
-                if (!_done[i] && !steps[i].Step.Action.IsDisplayOnly()) return;
+                if (!_done[i] && !Passable(steps[i].Step, holds)) return;
         }
-        // Only basic or heavy attacks were left: the phase is over, the use may be its first step again.
+        // Only steps a cast passes were left: the phase is over, the use may be its first step again.
         if (!wrapped)
         {
             NewRound();
-            Apply(use, steps, slots, wrapped: true);
+            Apply(use, steps, slots, holds, wrapped: true);
+        }
+    }
+
+    /// <summary>A step the next real cast of a later step passes: a basic or heavy attack, or a condition step whose conditions can't be told.</summary>
+    private static bool Passable(RotationStep step, Func<RotationStep, bool?> holds) =>
+        step.Action.IsDisplayOnly() || (step.Action == StepAction.Condition && holds(step) is null);
+
+    /// <summary>
+    /// The condition steps at the marker whose conditions hold now: done, one after another, each
+    /// counting toward the phase played through (a condition step at the end finishes it).
+    /// </summary>
+    private void PassConditions(List<PlayedStep> steps, Func<RotationStep, bool?> holds)
+    {
+        for (int at = Array.IndexOf(_done, false); at >= 0 && steps[at].Step.Action == StepAction.Condition && holds(steps[at].Step) == true; at = Array.IndexOf(_done, false))
+        {
+            _done[at] = true;
+            CountIfPlayedThrough(steps);
         }
     }
 
@@ -150,7 +175,11 @@ public sealed class StepFollower(Rotation rotation)
         _counted = false;
     }
 
-    /// <summary>Every step of this round that can be seen used is done: the phase was played through once more.</summary>
+    /// <summary>
+    /// Every step of this round that can be seen used is done, condition steps included: the phase was
+    /// played through once more. At least one cast must be among them: a phase of nothing but condition
+    /// steps (or attacks) never counts.
+    /// </summary>
     private void CountIfPlayedThrough(List<PlayedStep> steps)
     {
         if (_counted) return;
@@ -159,7 +188,7 @@ public sealed class StepFollower(Rotation rotation)
         {
             if (steps[i].Step.Action.IsDisplayOnly()) continue;
             if (!_done[i]) return;
-            seen = true;
+            if (steps[i].Step.Action != StepAction.Condition) seen = true;
         }
         if (!seen) return;
         _timesPlayed[_phase]++;
@@ -189,7 +218,8 @@ public sealed class StepFollower(Rotation rotation)
         if (at < 0) return new StepPosition(phase, marks, false, []);
 
         var step = steps[at].Step;
-        // A basic or heavy attack's availability can't be seen, and there's never anything to wait for.
+        // A basic or heavy attack's availability can't be seen, and there's never anything to wait for; a
+        // condition step has no ability of its own, only its conditions.
         bool? own = step.Action.IsDisplayOnly() ? true : RotationTracker.AbilityAvailable(step, now, slots);
         var checks = new List<ConditionCheck> { new(CheckKind.OwnAbility, null, own) };
         foreach (var condition in step.Expect)

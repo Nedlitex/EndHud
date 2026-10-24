@@ -136,7 +136,7 @@
                     </DockPanel>
                     <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
                         <StackPanel x:Name="StepDetails">
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <StackPanel x:Name="StepOperatorRow" Orientation="Horizontal" Margin="0,0,0,6">
                                 <TextBlock Text="{DynamicResource Editor.Operator}" Style="{StaticResource Label}" Width="70" />
                                 <ComboBox x:Name="StepOperator" MinWidth="140" SelectionChanged="StepField_Changed" />
                             </StackPanel>
@@ -145,6 +145,8 @@
                                 <ComboBox x:Name="StepActionPicker" MinWidth="140" SelectionChanged="StepField_Changed" />
                             </StackPanel>
                             <TextBlock x:Name="BasicAttackHint" Text="{DynamicResource Editor.BasicAttackHint}" Foreground="#888" TextWrapping="Wrap"
+                                       Margin="70,0,0,6" Visibility="Collapsed" />
+                            <TextBlock x:Name="ConditionStepHint" Text="{DynamicResource Editor.ConditionStepHint}" Foreground="#888" TextWrapping="Wrap"
                                        Margin="70,0,0,6" Visibility="Collapsed" />
                             <CheckBox x:Name="StepWithPrevious" Margin="70,0,0,6" Click="StepField_Changed"
                                       Content="{DynamicResource Editor.WithPrevious}" />
@@ -159,10 +161,11 @@
                                 <TextBlock Text="{DynamicResource Editor.NoteHint}" Foreground="#888" Margin="6,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
                             </DockPanel>
                             <!-- A step's expected state: kept in files, but hidden, since nothing uses it while the
-                                 strip marks no current step (the phase shown comes from the phases' conditions). -->
+                                 strip marks no current step (the phase shown comes from the phases' conditions).
+                                 Shown for a condition step: its conditions are the step. -->
                             <StackPanel x:Name="ExpectSection" Visibility="Collapsed">
-                                <TextBlock Text="{DynamicResource Editor.Expect}" FontWeight="SemiBold" Margin="0,0,0,2" />
-                                <TextBlock Text="{DynamicResource Editor.ExpectHint}" Foreground="#888" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                <TextBlock x:Name="ExpectTitle" Text="{DynamicResource Editor.Expect}" FontWeight="SemiBold" Margin="0,0,0,2" />
+                                <TextBlock x:Name="ExpectHintText" Text="{DynamicResource Editor.ExpectHint}" Foreground="#888" TextWrapping="Wrap" Margin="0,0,0,6" />
                                 <StackPanel x:Name="ConditionRows" />
                                 <Button Content="{DynamicResource Editor.AddCondition}" HorizontalAlignment="Left" Margin="0,4,0,0" Click="AddCondition_Click" />
                             </StackPanel>

@@ -85,11 +85,7 @@ public partial class OverlayWindow
             : _menuOpen && _config.RotationEnabled && _config.PartyOcrEnabled ? SampleView()
             : null;
 
-        static string Keys(IEnumerable<StripStep> steps) =>
-            string.Join(",", steps.Select(s => $"{s.Action}{s.State}{s.Icon is not null}{s.Avatar is not null}{s.Note}"));
-        string? key = view is null ? null
-            : $"{view.Phase}|{Keys(view.Steps)}|{view.Next?.Phase}|{Keys(view.Next?.Steps ?? [])}|{string.Join(",", view.Reasons)}";
-        if (!_stripKey.Changed(key)) return;
+        if (!_stripKey.Changed(RotationStripView.Key(view))) return;
         RotationContent.Content = view is null ? null : RotationStrip.Build(view);
         RotationFrame.Visibility = view is null ? Visibility.Collapsed : Visibility.Visible;
     }
@@ -101,7 +97,7 @@ public partial class OverlayWindow
     }
 
     private StripView View(Rotation rotation, RotationPosition position) =>
-        RotationStripView.Build(rotation, position, _lastState, _party.Identifier?.Library, SkillIcon, Avatar, _stepPosition, _phaseHistory);
+        RotationStripView.Build(rotation, position, _lastState, _party.Identifier?.Library, SkillIcon, Avatar, _stepPosition, _phaseHistory, StatusIcon);
 
     /// <summary>The operator's icon for this action, from the library; loaded once, in the background.</summary>
     private BitmapSource? SkillIcon(OperatorInfo op, StepAction action)

@@ -13,8 +13,17 @@ namespace EndHud;
 /// </summary>
 internal static class RotationStripView
 {
-    /// <summary>What decides whether the strip must be drawn again: the same key, the same picture.</summary>
-    internal static string? Key(StripView? view) => view is null ? null : $"{view.Phase}|{view.Steps.Count}|{view.Next?.Phase}|{string.Join(",", view.Reasons)}";
+    /// <summary>
+    /// What decides whether the strip must be drawn again: the same key, the same picture. A condition
+    /// step's "holds" is in it, or its glow would never follow the game.
+    /// </summary>
+    internal static string? Key(StripView? view)
+    {
+        if (view is null) return null;
+        static string Keys(IEnumerable<StripStep> steps) =>
+            string.Join(",", steps.Select(s => $"{s.Action}{s.State}{s.Icon is not null}{s.Avatar is not null}{s.Note}{s.Condition?.Holds}{s.Condition?.SkillPoints}"));
+        return $"{view.Phase}|{Keys(view.Steps)}|{view.Next?.Phase}|{Keys(view.Next?.Steps ?? [])}|{string.Join(",", view.Reasons)}";
+    }
 
     /// <summary>How many of the next phase's steps the strip shows after the current phase.</summary>
     public const int NextStepsShown = 2;
@@ -26,7 +35,9 @@ internal static class RotationStripView
         Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, StepPosition? steps = null, IPhaseHistory? history = null,
         Func<string, BitmapSource?>? statusIcon = null)
     {
-        var view = ForPhase(rotation, position.Step.PhaseIndex, library, skillIcon, avatar, steps);
+        // A condition step glows while its conditions hold, keys read or not (owner, 2026-10-24).
+        bool? Holds(RotationStep step) => state is null ? null : RotationTracker.Evaluate(new AllCondition(step.Expect), state, history ?? PhaseHistory.None);
+        var view = ForPhase(rotation, position.Step.PhaseIndex, library, skillIcon, avatar, steps, statusIcon, Holds);
         if (steps is not { Ready: false } || steps.Phase != position.Step.PhaseIndex) return view;
         int current = steps.Marks.ToList().IndexOf(StepMark.Current);
         if (current < 0) return view;
@@ -54,9 +65,13 @@ internal static class RotationStripView
     /// will.
     /// </summary>
     /// <param name="steps">Where the player is inside this phase; null (the editor's preview, or no keys read): every step alike.</param>
+    /// <param name="statusIcon">A boss status's icon, for a condition step about one.</param>
+    /// <param name="holds">Whether a condition step's conditions hold now (null: not known, e.g. the editor's preview: drawn dim).</param>
     public static StripView ForPhase(Rotation rotation, int phase, OperatorLibrary? library,
-        Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, StepPosition? steps = null)
+        Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, StepPosition? steps = null,
+        Func<string, BitmapSource?>? statusIcon = null, Func<RotationStep, bool?>? holds = null)
     {
+        var look = new Look(library, skillIcon, avatar, statusIcon ?? (_ => null), PhaseName(rotation));
         var played = rotation.Played();
         var current = played.Where(p => p.PhaseIndex == phase).ToList();
         // Marks for another phase (or a different count of steps) aren't this phase's: drawn alike.
@@ -66,11 +81,16 @@ internal static class RotationStripView
         {
             var upcoming = played.Where(p => p.PhaseIndex == n).Take(NextStepsShown).ToList();
             // The first of them starts a new phase: never drawn overlapping the step before.
-            next = new StripNext(upcoming[0].PhaseLabel, upcoming.Select((p, i) => Step(p, library, skillIcon, avatar, i > 0, StripStepState.Upcoming)).ToList());
+            // The next phase's preview: its conditions aren't asked (null: dim).
+            next = new StripNext(upcoming[0].PhaseLabel, upcoming.Select((p, i) => Step(p, look, i > 0, StripStepState.Upcoming, null)).ToList());
         }
         return new StripView(rotation.PhaseLabel(phase),
-            current.Select((p, i) => Step(p, library, skillIcon, avatar, i > 0, State(steps, i))).ToList(), next, []);
+            current.Select((p, i) => Step(p, look, i > 0, State(steps, i), holds?.Invoke(p.Step))).ToList(), next, []);
     }
+
+    /// <summary>Where a step's pictures and words come from.</summary>
+    private sealed record Look(OperatorLibrary? Library, Func<OperatorInfo, StepAction, BitmapSource?> SkillIcon, Func<OperatorInfo, BitmapSource?> Avatar,
+        Func<string, BitmapSource?> StatusIcon, Func<string, string?> PhaseName);
 
     /// <summary>How the <paramref name="index"/>th step of the phase is drawn.</summary>
     private static StripStepState State(StepPosition? steps, int index) => steps is null ? StripStepState.Upcoming : steps.Marks[index] switch
@@ -80,9 +100,18 @@ internal static class RotationStripView
         _ => StripStepState.Upcoming,
     };
 
-    private static StripStep Step(PlayedStep p, OperatorLibrary? library,
-        Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, bool mayOverlap, StripStepState state)
+    private static StripStep Step(PlayedStep p, Look look, bool mayOverlap, StripStepState state, bool? holds)
     {
+        var (library, skillIcon, avatar) = (look.Library, look.SkillIcon, look.Avatar);
+        if (p.Step.Action == StepAction.Condition)
+        {
+            // The first condition's icon, the alert pop-up's rule (ConditionIcon); the conditions in words under it.
+            var subject = ConditionIcon.Subject(p.Step.Expect);
+            return new StripStep(ConditionIcon.Picture(subject, library, look.StatusIcon, avatar), null,
+                p.Step.Label ?? Loc.Get("Rotation.Action.Condition"),
+                p.Step.Note ?? ConditionWords.Statements(p.Step.Expect, library, look.PhaseName),
+                state, false, new StripCondition(holds, subject.Kind == AlertSubjectKind.SkillPoints));
+        }
         var op = library?.Find(p.Step.OperatorId);
         // A basic or heavy attack has no skill icon: the operator's face fills the circle instead, and no small face in the corner.
         bool basic = p.Step.Action.IsDisplayOnly();

@@ -192,11 +192,13 @@ internal static class RotationStrip
     {
         bool current = step.State is StripStepState.Ready or StripStepState.Waiting;
         var accent = step.State == StripStepState.Ready ? Cyan : Text;
+        // A condition step glows cyan while its conditions hold, done or not; dim otherwise (owner, 2026-10-24).
+        bool? glows = step.Condition is { } condition ? condition.Holds == true : null;
         var panel = new StackPanel
         {
             Width = StepWidth,
             Margin = new Thickness(step.WithPrevious ? -Overlap : 0, 0, 0, 0),
-            Opacity = step.State == StripStepState.Done ? 0.45 : 1,
+            Opacity = glows switch { true => 1, false => 0.45, null => step.State == StripStepState.Done ? 0.45 : 1 },
         };
         panel.Children.Add(Chevrons(current ? accent : null));
         panel.Children.Add(new TextBlock
@@ -211,15 +213,27 @@ internal static class RotationStrip
         });
 
         var icon = new Grid { Width = IconSize, Height = IconSize, Margin = new Thickness(0, 2, 0, 2) };
+        bool cyan = glows ?? step.State == StripStepState.Ready;
         icon.Children.Add(new Ellipse
         {
             Fill = current ? CurrentFill : StepFill,
-            // Cyan: use it now. White: this is the step, but not yet. Grey: later.
-            Stroke = current ? accent : Ring,
-            StrokeThickness = current ? 3.5 : 2,
-            Effect = step.State == StripStepState.Ready ? new DropShadowEffect { Color = CyanColor, BlurRadius = 12, ShadowDepth = 0, Opacity = 0.9 } : null,
+            // Cyan: use it now (a condition step: it holds). White: this is the step, but not yet. Grey: later.
+            Stroke = cyan ? Cyan : current ? accent : Ring,
+            StrokeThickness = current || cyan ? 3.5 : 2,
+            Effect = cyan ? new DropShadowEffect { Color = CyanColor, BlurRadius = 12, ShadowDepth = 0, Opacity = 0.9 } : null,
         });
-        if (step.Icon is not null)
+        if (step.Condition is { } about)
+        {
+            // The alert pop-up's circle content: the subject's picture, the skill-points glyph, or "!".
+            var glyph = AlertPopUp.Icon(step.Icon, about.SkillPoints);
+            if (glyph is FrameworkElement element)
+            {
+                element.HorizontalAlignment = HorizontalAlignment.Center;
+                element.VerticalAlignment = VerticalAlignment.Center;
+            }
+            icon.Children.Add(glyph);
+        }
+        else if (step.Icon is not null)
         {
             icon.Children.Add(new Image
             {
@@ -244,7 +258,7 @@ internal static class RotationStrip
             });
         }
         panel.Children.Add(icon);
-        panel.Children.Add(new TextBlock
+        var note = new TextBlock
         {
             Text = step.Note ?? " ",
             Foreground = Text,
@@ -252,7 +266,18 @@ internal static class RotationStrip
             FontWeight = FontWeights.Bold,
             HorizontalAlignment = HorizontalAlignment.Center,
             Effect = Outline(),
-        });
+        };
+        if (step.Condition is not null)
+        {
+            // The conditions in words can be long: smaller, two lines at most under the circle, then "…".
+            note.FontSize = 15;
+            note.TextWrapping = TextWrapping.Wrap;
+            note.TextTrimming = TextTrimming.CharacterEllipsis;
+            note.TextAlignment = TextAlignment.Center;
+            note.MaxWidth = StepWidth;
+            note.MaxHeight = 42;
+        }
+        panel.Children.Add(note);
         return panel;
     }
 }

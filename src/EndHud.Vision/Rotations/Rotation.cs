@@ -42,6 +42,7 @@ public static class StepActions
     /// <summary>The lowest rotation format that holds this step (its conditions aside).</summary>
     public static int FormatNeeded(RotationStep step) => step.Action switch
     {
+        StepAction.Condition => 9,
         StepAction.HeavyAttack => 8,
         StepAction.BasicAttack => 4,
         _ => 2,
@@ -322,7 +323,8 @@ public sealed record Rotation(
 {
     /// <summary>
     /// 9: "time left of the ultimate" and "the current phase is" conditions
-    /// (<see cref="UltimateTimeLeftCondition"/>, <see cref="PhaseCurrentCondition"/>).
+    /// (<see cref="UltimateTimeLeftCondition"/>, <see cref="PhaseCurrentCondition"/>), condition steps
+    /// (<see cref="StepAction.Condition"/>).
     /// 8: heavy-attack steps (<see cref="StepAction.HeavyAttack"/>).
     /// 7: "battle skill running" conditions (<see cref="BattleSkillActiveCondition"/>).
     /// 6: phase priorities (<see cref="RotationPhase.Priority"/>, <see cref="RotationPhase.PriorityRules"/>).
@@ -427,9 +429,15 @@ public sealed record Rotation(
             for (int i = 0; i < phase.Steps.Count; i++)
             {
                 var step = phase.Steps[i];
-                if (!Squad.Contains(step.OperatorId))
+                bool condition = step.Action == StepAction.Condition;
+                // A condition step has no operator; it waits on its own, never in a group with another step.
+                if (!condition && !Squad.Contains(step.OperatorId))
                     problems.Add(new RotationProblem(RotationProblemKind.StepOperatorNotInSquad, phase.Name, i + 1));
-                CheckConditions(step.Expect, ConditionHostKind.StepExpect, phase, i + 1, null, problems);
+                if (condition && step.Expect.Count == 0)
+                    problems.Add(new RotationProblem(RotationProblemKind.ConditionStepEmpty, phase.Name, i + 1));
+                if (i > 0 && step.WithPrevious && (condition || phase.Steps[i - 1].Action == StepAction.Condition))
+                    problems.Add(new RotationProblem(RotationProblemKind.ConditionStepWithPrevious, phase.Name, i + 1));
+                CheckConditions(step.Expect, condition ? ConditionHostKind.ConditionStep : ConditionHostKind.StepExpect, phase, i + 1, null, problems);
             }
         }
         return problems;

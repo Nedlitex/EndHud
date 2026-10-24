@@ -1557,14 +1557,33 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
     "priorityRules": [ { "when": [ { "kind": "ultimate", "operatorId": "Laevatain", "ready": true } ], "priority": 10 } ],
     "steps": [ … ] }
   ```
-- `action`: `BattleSkill`, `Combo`, `Ultimate`, `BasicAttack` (format 4) or `HeavyAttack`
-  (format 8). The skill being
+- `action`: `BattleSkill`, `Combo`, `Ultimate`, `BasicAttack` (format 4), `HeavyAttack`
+  (format 8) or `Condition` (format 9, below). The skill being
   available (a skill point for a battle skill, the combo or ultimate ready) is implied; `expect`
   lists anything else. `BasicAttack` and `HeavyAttack` are drawn only (`StepActions.IsDisplayOnly`):
   the strip shows the operator's avatar as the icon (no skill icon, no small face in the corner)
   labelled with the action's name (`Rotation.Action.*`); it is never seen "used" and its
   availability is unknown, so the phase's `when` says when it shows (e.g. a 普攻 phase gated on
   `skillPoints` `Below` 2).
+- `Condition` (format 9): a **condition step** (owner, 2026-10-24: "check whether enemy has 3 ice
+  infliction, and show a highlight when satisfied"). No skill and no operator (`operatorId` is
+  `""`): its `expect` is the step, every condition must hold, the same kinds and checks as anywhere
+  (`ConditionHostKind.ConditionStep`). On the strip its circle holds the first condition's icon by the
+  alert pop-up's rule ([`ConditionIcon`](src/EndHud/ConditionIcon.cs): a status's icon, an
+  operator's avatar, the skill-points glyph, else "!"), labelled 条件 (or its `label`), with the
+  conditions in words under it (or its `note`; two lines at most). It **glows cyan while its
+  conditions hold and is dim otherwise**, keys read or not, done or not (`StripCondition.Holds`,
+  evaluated on every reading with the phase selector as history; part of the strip's redraw key,
+  `RotationStripView.Key`, or the glow would never change). The next phase's preview and the
+  editor's preview draw it dim. With the battle-skill keys read
+  ([`StepFollower`](src/EndHud.Vision/Rotations/StepFollower.cs)) it is the current step until its
+  conditions hold, then done on that reading (and stays done if they stop holding); seen not
+  holding, a cast of a later step doesn't pass it; when they can't be told (unknown), the next real
+  cast of a later step passes it, as a basic attack is passed. Waiting on it, the reasons under the
+  strip are its conditions' needs. A phase isn't played through until its condition steps are done,
+  but a phase of nothing but condition steps never counts. Refused: one with no condition
+  (`ConditionStepEmpty`) and one in a group (`ConditionStepWithPrevious`: it, or the step after it,
+  marked `withPrevious`).
 - `withPrevious`: used right after the previous step of the same phase, drawn overlapping it.
 - `label` (optional): replaces the action's name above the icon, for a variant the game names
   differently (e.g. "战技·意"). `note` (optional): a short hint under the icon.
@@ -1645,7 +1664,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   offer the kind, greyed out with a sentence saying it needs 读取战技按键, and a condition already
   there shows that sentence under it.
 
-- `format`: 9 when it uses `ultimateTimeLeft` or `phaseCurrent`; else 8 when it uses a `HeavyAttack` step; else 7 when it uses `battleSkillActive`; else 6 when a phase sets `priority` (other than 0) or `priorityRules`; else 5 when it uses `phasePlayed`; else 4 when it uses a `BasicAttack` step, `Below`/`Above` or `phaseShown`; else 3 when it
+- `format`: 9 when it uses `ultimateTimeLeft`, `phaseCurrent` or a `Condition` step; else 8 when it uses a `HeavyAttack` step; else 7 when it uses `battleSkillActive`; else 6 when a phase sets `priority` (other than 0) or `priorityRules`; else 5 when it uses `phasePlayed`; else 4 when it uses a `BasicAttack` step, `Below`/`Above` or `phaseShown`; else 3 when it
   uses `not`, `ultimateActive` or `lastMatchWins`; else 2. A rotation is saved in the lowest
   format that holds it (`Rotation.FormatNeeded`), so one using nothing new stays readable by older
   builds, and the published `rotations/*.json` stay at format 3 or lower (a test checks). A

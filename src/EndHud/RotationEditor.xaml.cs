@@ -31,7 +31,7 @@ public partial class RotationEditor : Window
     private bool _dirty;
     private bool _loading;
     /// <summary>The condition pickers of a phase's entry condition, its priority rules, a step's expected state: the same kinds, each host its own.</summary>
-    private readonly ConditionEditor _gateConditions, _ruleConditions, _stepConditions;
+    private readonly ConditionEditor _gateConditions, _ruleConditions, _stepConditions, _conditionStepConditions;
 
     /// <param name="currentSquad">The squad EndHud recognises now (for "use the current squad"), null slots unknown.</param>
     /// <param name="select">The rotation to open with, if any.</param>
@@ -52,6 +52,7 @@ public partial class RotationEditor : Window
         _gateConditions = Conditions(ConditionHostKind.PhaseGate);
         _ruleConditions = Conditions(ConditionHostKind.PriorityRule);
         _stepConditions = Conditions(ConditionHostKind.StepExpect);
+        _conditionStepConditions = Conditions(ConditionHostKind.ConditionStep);
         InitializeComponent();
         PriorityError.Text = Loc.Get("Editor.PriorityNotNumber");
         PriorityNeedsGate.Text = Loc.Get("Editor.PriorityNeedsGate");
@@ -230,6 +231,12 @@ public partial class RotationEditor : Window
 
     private string StepText(int index, StepDraft step)
     {
+        // A condition step has no operator: its conditions in words name it.
+        if (step.Action == StepAction.Condition)
+        {
+            string words = $"{index + 1}. {step.Label ?? Loc.Get("Rotation.Action.Condition")} · {ConditionWords.Statements(step.Expect, _library, id => PhaseChoices().FirstOrDefault(p => p.Id == id).Label)}";
+            return string.IsNullOrWhiteSpace(step.Note) ? words : $"{words}  · {step.Note}";
+        }
         string text = $"{index + 1}. {OperatorName(step.OperatorId)} {step.Label ?? Loc.Get($"Rotation.Action.{step.Action}")}";
         if (step.WithPrevious) text += $"  {Loc.Get("Editor.WithPreviousShort")}";
         if (step.Expect.Count > 0) text += $"  {Loc.Format("Editor.ConditionCount", step.Expect.Count)}";
@@ -253,9 +260,22 @@ public partial class RotationEditor : Window
         BuildConditionRows();
     }
 
-    /// <summary>A basic or heavy attack isn't detected: say so under the action, and how its phase's condition decides when it shows.</summary>
-    private void ShowBasicAttackHint() =>
+    /// <summary>
+    /// A basic or heavy attack isn't detected: say so under the action, and how its phase's condition
+    /// decides when it shows. A condition step has no operator and is never used with the previous
+    /// step: those are hidden, and its conditions are shown as the step itself.
+    /// </summary>
+    private void ShowBasicAttackHint()
+    {
         BasicAttackHint.Visibility = _step?.Action.IsDisplayOnly() == true ? Visibility.Visible : Visibility.Collapsed;
+        bool condition = _step?.Action == StepAction.Condition;
+        var hidden = condition ? Visibility.Collapsed : Visibility.Visible;
+        StepOperatorRow.Visibility = StepOperator.Visibility = StepWithPrevious.Visibility = hidden;
+        ConditionStepHint.Visibility = condition ? Visibility.Visible : Visibility.Collapsed;
+        ExpectSection.Visibility = condition ? Visibility.Visible : Visibility.Collapsed;
+        ExpectTitle.Text = Loc.Get(condition ? "Editor.ConditionStepExpect" : "Editor.Expect");
+        ExpectHintText.Text = Loc.Get(condition ? "Editor.ConditionStepExpectHint" : "Editor.ExpectHint");
+    }
 
     // ---- Name and squad ----
 
@@ -405,12 +425,29 @@ public partial class RotationEditor : Window
     private void StepField_Changed(object sender, RoutedEventArgs e)
     {
         if (_loading || _step is null) return;
+        var was = _step.Action;
         if (StepOperator.SelectedItem is ComboBoxItem { Tag: string id }) _step.OperatorId = id;
         if (StepActionPicker.SelectedItem is ComboBoxItem { Tag: StepAction action }) _step.Action = action;
         _step.WithPrevious = StepWithPrevious.IsChecked == true;
         _step.Label = StepLabel.Text;
         _step.Note = StepNote.Text;
+        if (_step.Action == StepAction.Condition && was != StepAction.Condition)
+        {
+            // A condition step: no operator, on its own, and one condition to start from (the owner's example: an enemy status).
+            _step.OperatorId = "";
+            _step.WithPrevious = false;
+            _step.Expect = [_conditionStepConditions.Default("BossStatus")];
+        }
+        else if (_step.Action != StepAction.Condition && was == StepAction.Condition)
+        {
+            _step.OperatorId = SquadOperators().FirstOrDefault()?.Id ?? "";
+            _step.Expect = [];
+            _loading = true;
+            Select(StepOperator, _step.OperatorId);
+            _loading = false;
+        }
         ShowBasicAttackHint();
+        if (_step.Action == StepAction.Condition || was == StepAction.Condition) BuildConditionRows();
         MarkDirty();
         int index = _phase!.Steps.IndexOf(_step);
         _loading = true;
@@ -424,7 +461,7 @@ public partial class RotationEditor : Window
     private void AddCondition_Click(object sender, RoutedEventArgs e)
     {
         if (_step is null) return;
-        _step.Expect.Add(_stepConditions.Default("SkillPoints"));
+        _step.Expect.Add((_step.Action == StepAction.Condition ? _conditionStepConditions : _stepConditions).Default(_step.Action == StepAction.Condition ? "BossStatus" : "SkillPoints"));
         StepConditionsChanged(rebuild: true);
     }
 
@@ -438,7 +475,7 @@ public partial class RotationEditor : Window
     private void BuildConditionRows()
     {
         ConditionRows.Children.Clear();
-        if (_step is not null) _stepConditions.AddRows(ConditionRows, _step.Expect, StepConditionsChanged);
+        if (_step is not null) (_step.Action == StepAction.Condition ? _conditionStepConditions : _stepConditions).AddRows(ConditionRows, _step.Expect, StepConditionsChanged);
     }
 
     private void BuildGateRows()
@@ -649,7 +686,7 @@ public partial class RotationEditor : Window
         }
         if (_draft is null) return;
         // Built as the game's strip is, so it shows the same: this phase, then where the flow goes next.
-        PreviewHost.Content = RotationStrip.Build(RotationStripView.ForPhase(_draft.ToRotation(), _draft.Phases.IndexOf(_phase), _library, SkillIcon, Avatar));
+        PreviewHost.Content = RotationStrip.Build(RotationStripView.ForPhase(_draft.ToRotation(), _draft.Phases.IndexOf(_phase), _library, SkillIcon, Avatar, statusIcon: StatusIcon));
     }
 
     private BitmapSource? Avatar(OperatorInfo op)
@@ -657,6 +694,13 @@ public partial class RotationEditor : Window
         string key = "avatar:" + op.Id;
         if (_icons.TryGetValue(key, out var cached)) return cached;
         return _icons[key] = _library.FindAvatar(op.Id) is { } frame ? ComboBanner.ToBitmap(frame) : null;
+    }
+
+    private BitmapSource? StatusIcon(string id)
+    {
+        string key = "status:" + id;
+        if (_icons.TryGetValue(key, out var cached)) return cached;
+        return _icons[key] = _library.StatusIcon(id) is { } frame ? ComboBanner.ToBitmap(frame) : null;
     }
 
     private BitmapSource? SkillIcon(OperatorInfo op, StepAction action)

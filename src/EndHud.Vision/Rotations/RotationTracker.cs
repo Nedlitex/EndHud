@@ -290,6 +290,8 @@ public sealed class RotationTracker(Rotation rotation)
 
     internal static bool? AbilityAvailable(RotationStep step, PartyState state, IReadOnlyDictionary<string, int> slots)
     {
+        // A condition step has no ability of its own: its conditions are all it waits for.
+        if (step.Action == StepAction.Condition) return true;
         if (!slots.TryGetValue(step.OperatorId, out int slot)) return null;
         var s = state.Slots[slot];
         return step.Action switch
