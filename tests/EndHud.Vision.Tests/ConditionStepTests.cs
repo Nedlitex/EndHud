@@ -47,7 +47,7 @@ public class ConditionStepTests
 
         public IReadOnlyList<StepMark> Read(PartyState now, params int[] presses)
         {
-            var position = Follower.Update(0, _before, now, presses, PhaseHistory.None);
+            var position = Follower.Update(0, _before, now, Casts.Seen(presses), PhaseHistory.None);
             _before = now;
             return position.Marks;
         }

@@ -29,6 +29,8 @@ internal enum StripStepState
     /// <summary>The current step, not ready yet: white chevrons and ring, with the reasons under the strip.</summary>
     Waiting,
     Upcoming,
+    /// <summary>Passed without being seen used (a later step was): faded like a done step, with a slash through it.</summary>
+    Skipped,
 }
 
 /// <summary>
@@ -151,6 +153,9 @@ internal static class RotationStrip
     // Chevrons (26) + label (24) + the icon's top margin (2) + half the icon.
     private const double LineY = 26 + 24 + 2 + IconSize / 2;
 
+    /// <summary>The slash drawn across a skipped step's circle (found by it in tests).</summary>
+    internal const string SkippedSlashTag = "skipped";
+
     /// <summary>The next phase's steps are a preview, not part of this phase: dimmed.</summary>
     internal const double NextOpacity = 0.5;
 
@@ -198,7 +203,7 @@ internal static class RotationStrip
         {
             Width = StepWidth,
             Margin = new Thickness(step.WithPrevious ? -Overlap : 0, 0, 0, 0),
-            Opacity = glows switch { true => 1, false => 0.45, null => step.State == StripStepState.Done ? 0.45 : 1 },
+            Opacity = glows switch { true => 1, false => 0.45, null => step.State is StripStepState.Done or StripStepState.Skipped ? 0.45 : 1 },
         };
         panel.Children.Add(Chevrons(current ? accent : null));
         panel.Children.Add(new TextBlock
@@ -255,6 +260,23 @@ internal static class RotationStrip
                 Fill = new ImageBrush(step.Avatar) { Stretch = Stretch.UniformToFill },
                 Stroke = Text,
                 StrokeThickness = 1,
+            });
+        }
+        if (step.State == StripStepState.Skipped)
+        {
+            // Missed: a slash across the circle, so it isn't taken for a step done.
+            icon.Children.Add(new Line
+            {
+                X1 = IconSize * 0.85,
+                Y1 = IconSize * 0.15,
+                X2 = IconSize * 0.15,
+                Y2 = IconSize * 0.85,
+                Stroke = Text,
+                StrokeThickness = 5,
+                StrokeStartLineCap = PenLineCap.Round,
+                StrokeEndLineCap = PenLineCap.Round,
+                Effect = Outline(),
+                Tag = SkippedSlashTag,
             });
         }
         panel.Children.Add(icon);

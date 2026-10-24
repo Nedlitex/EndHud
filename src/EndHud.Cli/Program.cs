@@ -206,7 +206,7 @@ static async Task<int> TraceVideoAsync(string path, double everySeconds, double 
             if (inBattle)
             {
                 var shown = selector.Update(state, steps);
-                var cast = judged.Where(j => j.Verdict == EndHud.Vision.Rotations.PressVerdict.Counted).Select(j => j.Press.Slot).ToList();
+                var cast = judged.Where(j => j.Verdict == EndHud.Vision.Rotations.PressVerdict.Counted).Select(j => new EndHud.Vision.Rotations.SkillCast(j.Press.Slot, j.Press.At, EndHud.Vision.Rotations.CastSource.Press, Paid: true)).ToList();
                 var position = steps.Update(shown.Step.PhaseIndex, previous, state, cast, selector);
                 phase = shown.Step.PhaseLabel;
                 int current = position.Marks.ToList().IndexOf(EndHud.Vision.Rotations.StepMark.Current);

@@ -11,6 +11,9 @@ public enum StepMark
 
     /// <summary>Later in the phase: drawn as always.</summary>
     Upcoming,
+
+    /// <summary>RED: not marked yet.</summary>
+    Skipped,
 }
 
 /// <summary>Where the player is inside the phase on the strip.</summary>
@@ -82,7 +85,7 @@ public sealed class StepFollower(Rotation rotation)
     /// <param name="before">The reading before this one; null for the first.</param>
     /// <param name="castSlots">The slots (1-4) whose battle-skill press counted since <paramref name="before"/>, oldest first.</param>
     /// <param name="history">For "phase shown" conditions in the steps' expected state.</param>
-    public StepPosition Update(int phase, PartyState? before, PartyState now, IReadOnlyList<int> castSlots, IPhaseHistory history)
+    public StepPosition Update(int phase, PartyState? before, PartyState now, IReadOnlyList<SkillCast> casts, IPhaseHistory history)
     {
         var steps = _played.Where(p => p.PhaseIndex == phase).ToList();
         if (phase != _phase || _done.Length != steps.Count)
@@ -98,7 +101,7 @@ public sealed class StepFollower(Rotation rotation)
             ? RotationTracker.Holds(new AllCondition(step.Expect), now, slots, history)
             : null;
         PassConditions(steps, Holds);
-        var uses = castSlots.Select(s => (Slot: s - 1, Action: StepAction.BattleSkill)).ToList();
+        var uses = casts.Where(c => c.Slot is not null).Select(c => (Slot: c.Slot!.Value - 1, Action: StepAction.BattleSkill)).ToList();
         if (before is not null) uses.AddRange(VisionUses(before, now));
         foreach (var use in uses)
         {

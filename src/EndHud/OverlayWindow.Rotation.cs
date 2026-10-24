@@ -394,7 +394,7 @@ internal sealed class RotationFollower
                 history = selector;
                 if (follower is not null)
                 {
-                    var cast = judged.Where(j => j.Verdict == PressVerdict.Counted).Select(j => j.Press.Slot).ToList();
+                    var cast = judged.Where(j => j.Verdict == PressVerdict.Counted).Select(j => new SkillCast(j.Press.Slot, j.Press.At, CastSource.Press, Paid: true)).ToList();
                     steps = follower.Update(shown.Step.PhaseIndex, _previous, state, cast, selector);
                 }
             }

@@ -38,7 +38,7 @@ public class PlungeAttackTests
         var first = follower.Update(0, null, Plain(), [], PhaseHistory.None);
         Assert.Equal([StepMark.Current, StepMark.Upcoming, StepMark.Upcoming], first.Marks);
         Assert.True(first.Ready); // nothing to wait for
-        Assert.Equal([StepMark.Done, StepMark.Done, StepMark.Current], follower.Update(0, Plain(), Plain(), [Ardelia], PhaseHistory.None).Marks);
+        Assert.Equal([StepMark.Done, StepMark.Done, StepMark.Current], follower.Update(0, Plain(), Plain(), Casts.Seen([Ardelia]), PhaseHistory.None).Marks);
     }
 
     [Fact]

@@ -48,7 +48,7 @@ public sealed class PhasePlayedTests
         public string Read(PartyState now, params int[] presses)
         {
             var shown = Selector.Update(now, keysRead ? Steps : null);
-            if (keysRead) Steps.Update(shown.Step.PhaseIndex, _before, now, presses, Selector);
+            if (keysRead) Steps.Update(shown.Step.PhaseIndex, _before, now, Casts.Seen(presses), Selector);
             _before = now;
             return shown.Step.PhaseLabel;
         }
@@ -118,9 +118,50 @@ public sealed class PhasePlayedTests
 
         Assert.Equal("Burst II", fight.Read(Reading(3)));
         Assert.Equal("Charge I", fight.Read(Plain));
-        fight.Press(Laevatain); // Charge starts over: this isn't its first step
+        Assert.Equal(0, fight.Steps.TimesPlayed("charge")); // the half round left isn't counted
 
-        Assert.Equal(0, fight.Steps.TimesPlayed("charge"));
+        // Charge starts over at Ardelia; Laevatain's cast jumps past her: one missed cast in a round of two still counts.
+        fight.Press(Laevatain);
+        Assert.Equal(1, fight.Steps.TimesPlayed("charge"));
+    }
+
+    /// <summary>Ardelia, Laevatain, Camille's battle skills.</summary>
+    private static readonly Rotation Three = new(Rotation.CurrentFormat, "r", "r", Squad,
+        [new RotationPhase("p", "P", [new RotationStep("Ardelia", StepAction.BattleSkill), new RotationStep("Laevatain", StepAction.BattleSkill), new RotationStep("Camille", StepAction.BattleSkill)])]);
+
+    private const int Camille = 2;
+
+    /// <summary>Owner, 2026-10-24: "played through" allows one missed cast step per round.</summary>
+    [Fact]
+    public void A_round_with_one_cast_missed_is_played_through_and_with_two_is_not()
+    {
+        var one = new Fight(Three);
+        one.Read(Plain);
+        one.Press(Ardelia);
+        one.Press(Camille); // Laevatain's cast not seen: skipped
+        Assert.Equal(1, one.Steps.TimesPlayed("p"));
+
+        var two = new Fight(Three);
+        two.Read(Plain);
+        two.Press(Camille); // Ardelia's and Laevatain's not seen
+        Assert.Equal(0, two.Steps.TimesPlayed("p"));
+    }
+
+    [Fact]
+    public void Starting_the_phase_over_counts_the_round_left_if_it_missed_at_most_one_cast()
+    {
+        var one = new Fight(Three);
+        one.Read(Plain);
+        one.Press(Ardelia);
+        one.Press(Laevatain);
+        one.Press(Ardelia); // Camille's last cast missed: the player started over
+        Assert.Equal(1, one.Steps.TimesPlayed("p"));
+
+        var two = new Fight(Three);
+        two.Read(Plain);
+        two.Press(Ardelia);
+        two.Press(Ardelia); // two of three missed
+        Assert.Equal(0, two.Steps.TimesPlayed("p"));
     }
 
     [Fact]

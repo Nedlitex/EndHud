@@ -122,7 +122,7 @@ public class NewConditionKindsTests
         public string Read(PartyState now, params int[] presses)
         {
             var shown = Selector.Update(now, keysRead ? Steps : null);
-            if (keysRead) Steps.Update(shown.Step.PhaseIndex, _before, now, presses, Selector);
+            if (keysRead) Steps.Update(shown.Step.PhaseIndex, _before, now, Casts.Seen(presses), Selector);
             _before = now;
             return shown.Step.PhaseLabel;
         }

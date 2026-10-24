@@ -59,15 +59,27 @@ public sealed class StepFollowerTests
 
         public StepPosition Read(PartyState now, int phase = 0, params int[] presses)
         {
-            var position = Follower.Update(phase, _before, now, presses, PhaseHistory.None);
+            var position = Follower.Update(phase, _before, now, Casts.Seen(presses), PhaseHistory.None);
             _before = now;
             return position;
         }
 
         public StepPosition Press(params int[] slots) => Read(Plain, 0, slots);
+
+        /// <summary>A reading with these casts as the judge decided them.</summary>
+        public StepPosition Cast(PartyState now, params SkillCast[] casts)
+        {
+            var position = Follower.Update(0, _before, now, casts, PhaseHistory.None);
+            _before = now;
+            return position;
+        }
     }
 
-    private const StepMark D = StepMark.Done, C = StepMark.Current, U = StepMark.Upcoming;
+    private const StepMark D = StepMark.Done, C = StepMark.Current, U = StepMark.Upcoming, S = StepMark.Skipped;
+
+    private static SkillCast Certain(int slot, double at = 0) => new(slot, TimeSpan.FromSeconds(at), CastSource.Flash, Paid: true);
+
+    private static PartyState At(double seconds, PartyState? state = null) => (state ?? Plain) with { ReadAt = TimeSpan.FromSeconds(seconds) };
 
     [Fact]
     public void At_the_start_the_first_step_is_current()
@@ -95,13 +107,84 @@ public sealed class StepFollowerTests
         Assert.Equal([C, U, U, U, U, U], fight.Press(Camille).Marks); // Camille has no battle-skill step here
     }
 
+    /// <summary>Owner, 2026-10-24: a cast seen for certain of a later step jumps there; the steps passed are skipped.</summary>
     [Fact]
-    public void A_later_step_does_not_skip_an_undone_skill()
+    public void A_certain_cast_of_a_later_step_jumps_there_and_skips_the_steps_passed()
     {
         var fight = new Fight(Charge);
         fight.Read(Plain);
 
-        Assert.Equal([C, U, U, U, U, U], fight.Press(Laevatain).Marks); // step 2 while step 1 (Ardelia) is undone
+        Assert.Equal([S, D, C, U, U, U], fight.Press(Laevatain).Marks); // step 2 while step 1 (Ardelia) is undone
+    }
+
+    [Fact]
+    public void A_cast_not_seen_for_certain_only_marks_the_current_group()
+    {
+        var fight = new Fight(Charge);
+        fight.Read(Plain);
+
+        // An empowered cast with no point spent, or a press while the points couldn't be read.
+        Assert.Equal([C, U, U, U, U, U], fight.Cast(Plain, new SkillCast(Laevatain, TimeSpan.Zero, CastSource.Empowered, Paid: false)).Marks);
+        Assert.Equal([D, C, U, U, U, U], fight.Cast(Plain, new SkillCast(Ardelia, TimeSpan.Zero, CastSource.Press, Paid: false)).Marks);
+    }
+
+    /// <summary>The owner's example: the battle skill wasn't tracked, the combo is seen: jump to the combo.</summary>
+    [Fact]
+    public void A_combo_seen_with_the_battle_skills_before_it_untracked_jumps_to_the_combo()
+    {
+        var fight = new Fight(Charge);
+        fight.Read(Plain);
+
+        var position = fight.Read(new Reading { ComboReady = [true, false, true, true] }.ToState());
+
+        Assert.Equal([S, S, D, C, U, U], position.Marks); // the basic attack after it is current
+    }
+
+    [Fact]
+    public void A_jump_passes_basic_attacks_as_done_and_goes_to_the_nearest_later_copy()
+    {
+        var fight = new Fight(Charge);
+        fight.Read(Plain);
+        fight.Press(Ardelia);
+
+        // Ardelia again: step 5 (the nearest copy after step 1); Laevatain and Camille's combo skipped, the basic attack done.
+        Assert.Equal([D, S, S, D, D, C], fight.Press(Ardelia).Marks);
+    }
+
+    [Fact]
+    public void A_cast_told_late_fills_in_the_step_a_later_use_jumped_past()
+    {
+        var fight = new Fight(Charge);
+        fight.Read(At(0));
+        fight.Press(Ardelia);
+        // The combo is seen at 1.0 s; Laevatain's cast (at 0.9 s) is only named at the reading after, by its flash.
+        Assert.Equal([D, S, D, C, U, U], fight.Read(At(1.0, new Reading { ComboReady = [true, false, true, true] }.ToState())).Marks);
+        Assert.Equal([D, D, D, C, U, U], fight.Cast(At(1.25, new Reading { ComboReady = [true, false, true, true] }.ToState()), Certain(Laevatain, at: 0.9)).Marks);
+    }
+
+    [Fact]
+    public void Points_spent_by_nobody_named_mark_the_current_battle_skill_if_its_operator_could_cast()
+    {
+        var fight = new Fight(Charge);
+        fight.Read(Plain);
+        var nobody = new SkillCast(null, TimeSpan.Zero, CastSource.Unattributed, Paid: true);
+
+        Assert.Equal([D, C, U, U, U, U], fight.Cast(Plain, nobody).Marks);
+        // Laevatain's button cooling in the reading before: it wasn't her.
+        var cooling = new Reading { Skill = [BattleSkillState.Cooling, BattleSkillState.Available, BattleSkillState.Available, BattleSkillState.Available] }.ToState();
+        fight.Cast(cooling);
+        Assert.Equal([D, C, U, U, U, U], fight.Cast(cooling, nobody).Marks);
+    }
+
+    [Fact]
+    public void Points_spent_by_nobody_named_never_mark_a_combo_step()
+    {
+        var fight = new Fight(Charge);
+        fight.Read(Plain);
+        fight.Press(Ardelia);
+        fight.Press(Laevatain);
+
+        Assert.Equal([D, D, C, U, U, U], fight.Cast(Plain, new SkillCast(null, TimeSpan.Zero, CastSource.Unattributed, Paid: true)).Marks);
     }
 
     [Fact]

@@ -84,7 +84,7 @@ public class NextReleaseRotationsTests
         {
             var now = reading.ToState();
             var shown = Selector.Update(now, KeysOff ? null : Steps);
-            Steps.Update(shown.Step.PhaseIndex, _before, now, presses, Selector);
+            Steps.Update(shown.Step.PhaseIndex, _before, now, Casts.Seen(presses), Selector);
             _before = now;
             return shown.Step.PhaseLabel;
         }
