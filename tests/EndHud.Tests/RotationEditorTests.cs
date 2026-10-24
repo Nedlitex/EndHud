@@ -367,6 +367,52 @@ public sealed class RotationEditorTests : IDisposable
     }
 
     /// <summary>
+    /// A condition step from the editor (owner, 2026-10-24): picking 条件 hides the operator and "with
+    /// the previous step", seeds one condition on the shared pickers, and saves in format 9; with its
+    /// condition removed, saving is refused with a sentence.
+    /// </summary>
+    [Fact]
+    public void A_condition_step_is_built_in_the_editor()
+    {
+        var library = new RotationLibrary(_folder);
+        library.Own.Save(Published() with { Id = "mine" });
+
+        string said = "", refused = "";
+        bool operatorHidden = false, withPreviousHidden = false, hintShown = false;
+        int rows = 0;
+        OnEditor(library, _ => { }, editor =>
+        {
+            Click(editor, "AddStepButton");
+            Pick((ComboBox)editor.FindName("StepActionPicker"), StepAction.Condition);
+            operatorHidden = ((FrameworkElement)editor.FindName("StepOperator")).Visibility != Visibility.Visible;
+            withPreviousHidden = ((FrameworkElement)editor.FindName("StepWithPrevious")).Visibility != Visibility.Visible;
+            hintShown = ((TextBlock)editor.FindName("ConditionStepHint")).Visibility == Visibility.Visible;
+            var conditions = (StackPanel)editor.FindName("ConditionRows");
+            rows = conditions.Children.Count;
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+            // Remove its one condition: nothing to wait for.
+            RowOf(conditions.Children[0]).Children.OfType<Button>().Last().RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            Click(editor, "SaveButton");
+            refused = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        });
+
+        Assert.True(operatorHidden);
+        Assert.True(withPreviousHidden);
+        Assert.True(hintShown);
+        Assert.Equal(1, rows);
+        Assert.Equal("", said);
+        Assert.Contains("Rotation.Problem.ConditionStepEmpty", refused);
+        Assert.True(Translated("Rotation.Problem.ConditionStepEmpty"));
+        var saved = Assert.Single(library.Own.Load().Rotations);
+        var step = saved.Phases[0].Steps[1];
+        Assert.Equal(StepAction.Condition, step.Action);
+        Assert.Equal("", step.OperatorId);
+        Assert.Single(step.Expect);
+        Assert.Equal(9, saved.Format);
+    }
+
+    /// <summary>
     /// The kinds added on 2026-10-24, from the pickers: "the current phase is Charge, not played
     /// through yet" and "Laevatain's ultimate has at most 30% of its time left" (only the operators
     /// whose lasting ultimate is read are offered). Saved in format 9.

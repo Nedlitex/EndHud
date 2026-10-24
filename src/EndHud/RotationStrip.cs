@@ -13,7 +13,13 @@ namespace EndHud;
 /// <param name="Action">Above the icon: 战技 / 连携技 / 终结技, or the step's own name.</param>
 /// <param name="Note">Below the icon, e.g. "飞天".</param>
 /// <param name="WithPrevious">Drawn overlapping the step before: used right after it.</param>
-internal sealed record StripStep(BitmapSource? Icon, BitmapSource? Avatar, string Action, string? Note, StripStepState State, bool WithPrevious);
+/// <param name="Condition">A condition step's own look; null for a skill or an attack.</param>
+internal sealed record StripStep(BitmapSource? Icon, BitmapSource? Avatar, string Action, string? Note, StripStepState State, bool WithPrevious, StripCondition? Condition = null);
+
+/// <summary>A condition step on the strip.</summary>
+/// <param name="Holds">Its conditions hold now (glows cyan); false or unknown (null: not read, or the editor's preview): dim.</param>
+/// <param name="SkillPoints">Its first condition is about the skill points: their glyph in the circle (when <see cref="StripStep.Icon"/> is null).</param>
+internal sealed record StripCondition(bool? Holds, bool SkillPoints);
 
 internal enum StripStepState
 {

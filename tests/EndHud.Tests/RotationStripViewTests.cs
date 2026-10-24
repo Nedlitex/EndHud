@@ -212,6 +212,76 @@ public class RotationStripViewTests
         OnSta(() => RotationStrip.Build(view)); // draws
     }
 
+    // ---- Condition steps (owner, 2026-10-24) ----
+
+    private static readonly StateCondition CryoThree = new BossStatusCondition("Cryo Infliction", true, 3);
+
+    private static Rotation WithConditionStep(params StateCondition[] until) => new(Rotation.CurrentFormat, "r", "r", ["Laevatain", "Camille", "Arcane", "Ardelia"],
+        [new RotationPhase("p", "P", [new RotationStep("", StepAction.Condition, until), new RotationStep("Ardelia", StepAction.BattleSkill)])]);
+
+    private static Vision.PartyState Cryo(int stacks) => new([]) { SkillPoints = 2, BossStatuses = [new Vision.BossStatusReading("Cryo Infliction", 0, 1, stacks)] };
+
+    /// <summary>
+    /// The circle holds the first condition's icon (the alert pop-up's rule: a status's icon here), the
+    /// caption under it is the conditions in words, and it glows while they hold, keys read or not.
+    /// </summary>
+    [Fact]
+    public void A_condition_step_shows_its_icon_and_words_and_glows_while_it_holds()
+    {
+        var status = OnSta(() =>
+        {
+            var bitmap = new System.Windows.Media.Imaging.WriteableBitmap(2, 2, 96, 96, PixelFormats.Bgra32, null);
+            bitmap.Freeze();
+            return (System.Windows.Media.Imaging.BitmapSource)bitmap;
+        });
+        var rotation = WithConditionStep(CryoThree);
+        var position = new RotationPosition(rotation.Played()[0], true, []);
+
+        var holding = RotationStripView.Build(rotation, position, Cryo(3), null, (_, _) => null, _ => null, steps: null, statusIcon: id => id == "Cryo Infliction" ? status : null);
+        var waiting = RotationStripView.Build(rotation, position, Cryo(1), null, (_, _) => null, _ => null, steps: null, statusIcon: id => id == "Cryo Infliction" ? status : null);
+
+        var step = holding.Steps[0];
+        Assert.Same(status, step.Icon);
+        Assert.Null(step.Avatar);
+        Assert.Equal(Loc.Get("Rotation.Action.Condition"), step.Action);
+        Assert.Equal(ConditionWords.Statements([CryoThree], null, _ => null), step.Note);
+        Assert.Equal(new StripCondition(true, false), step.Condition);
+        Assert.Equal(new StripCondition(false, false), waiting.Steps[0].Condition);
+        Assert.Null(holding.Steps[1].Condition); // a skill step isn't one
+        // The glow must reach the screen: the strip is redrawn only when its key changes.
+        Assert.NotEqual(RotationStripView.Key(holding), RotationStripView.Key(waiting));
+        OnSta(() => RotationStrip.Build(holding)); // draws
+        OnSta(() => RotationStrip.Build(waiting));
+    }
+
+    /// <summary>A note written on the step is its caption; skill points draw their glyph; nothing read (the editor's preview): dim.</summary>
+    [Fact]
+    public void A_condition_step_keeps_its_note_and_draws_the_skill_points_glyph()
+    {
+        var rotation = new Rotation(Rotation.CurrentFormat, "r", "r", ["Laevatain", "Camille", "Arcane", "Ardelia"],
+            [new RotationPhase("p", "P", [new RotationStep("", StepAction.Condition, [new SkillPointsCondition(Comparison.AtLeast, 2)], Note: "等技力")])]);
+
+        var preview = RotationStripView.ForPhase(rotation, 0, null, (_, _) => null, _ => null);
+
+        Assert.Equal("等技力", preview.Steps[0].Note);
+        Assert.Equal(new StripCondition(null, true), preview.Steps[0].Condition);
+        Assert.Null(preview.Steps[0].Icon);
+        OnSta(() => RotationStrip.Build(preview));
+    }
+
+    /// <summary>With the keys read, the condition step is done the reading it holds, and still glows (owner: the glow follows "holds").</summary>
+    [Fact]
+    public void Done_and_holding_it_still_glows()
+    {
+        var rotation = WithConditionStep(CryoThree);
+        var steps = new StepPosition(0, [StepMark.Done, StepMark.Current], true, [new ConditionCheck(CheckKind.OwnAbility, null, true)]);
+
+        var view = RotationStripView.Build(rotation, new RotationPosition(rotation.Played()[0], true, []), Cryo(3), null, (_, _) => null, _ => null, steps);
+
+        Assert.Equal(StripStepState.Done, view.Steps[0].State);
+        Assert.Equal(true, view.Steps[0].Condition?.Holds);
+    }
+
     /// <summary>A library of these operators, without any art: enough to find them by id.</summary>
     internal static Vision.Operators.OperatorLibrary Operators(string[] ids)
     {

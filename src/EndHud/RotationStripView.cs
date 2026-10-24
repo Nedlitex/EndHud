@@ -13,6 +13,9 @@ namespace EndHud;
 /// </summary>
 internal static class RotationStripView
 {
+    /// <summary>What decides whether the strip must be drawn again: the same key, the same picture.</summary>
+    internal static string? Key(StripView? view) => view is null ? null : $"{view.Phase}|{view.Steps.Count}|{view.Next?.Phase}|{string.Join(",", view.Reasons)}";
+
     /// <summary>How many of the next phase's steps the strip shows after the current phase.</summary>
     public const int NextStepsShown = 2;
 
@@ -20,7 +23,8 @@ internal static class RotationStripView
     /// <param name="steps">Where the player is inside the phase (<see cref="StepFollower"/>); null: every step alike.</param>
     /// <param name="history">The phases shown and played this fight (the phase selector), for the reasons' current counts.</param>
     public static StripView Build(Rotation rotation, RotationPosition position, PartyState? state, OperatorLibrary? library,
-        Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, StepPosition? steps = null, IPhaseHistory? history = null)
+        Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, StepPosition? steps = null, IPhaseHistory? history = null,
+        Func<string, BitmapSource?>? statusIcon = null)
     {
         var view = ForPhase(rotation, position.Step.PhaseIndex, library, skillIcon, avatar, steps);
         if (steps is not { Ready: false } || steps.Phase != position.Step.PhaseIndex) return view;

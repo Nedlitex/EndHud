@@ -23,6 +23,12 @@ public enum StepAction
 
     /// <summary>Heavy attack: drawn only, as <see cref="BasicAttack"/>. Format 8.</summary>
     HeavyAttack,
+
+    /// <summary>
+    /// A condition step: no skill, the step is its conditions (<see cref="RotationStep.Expect"/>, all
+    /// must hold), e.g. "the enemy has Cryo Infliction at 3 stacks". No operator. Format 9.
+    /// </summary>
+    Condition,
 }
 
 public static class StepActions
@@ -510,6 +516,12 @@ public enum RotationProblemKind
 
     /// <summary>A "the current phase is" condition names a phase that isn't in the rotation (deleted).</summary>
     PhaseCurrentMissingPhase,
+
+    /// <summary>A condition step without a condition: it would have nothing to wait for.</summary>
+    ConditionStepEmpty,
+
+    /// <summary>A condition step used together with another step ("with the previous"): it waits on its own.</summary>
+    ConditionStepWithPrevious,
 }
 
 /// <param name="Phase">The phase concerned (its name), if any.</param>
