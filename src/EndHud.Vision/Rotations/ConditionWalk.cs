@@ -14,9 +14,9 @@ public static class ConditionWalk
 
     public static IEnumerable<StateCondition> Flatten(IEnumerable<StateCondition> conditions) => conditions.SelectMany(Flatten);
 
-    /// <summary>Every condition of a rotation: phases' entry conditions and steps' expected states.</summary>
+    /// <summary>Every condition of a rotation: phases' entry conditions, their priority rules', and steps' expected states.</summary>
     public static IEnumerable<StateCondition> Of(IEnumerable<RotationPhase> phases) =>
-        Flatten(phases.SelectMany(p => p.When.Concat(p.Steps.SelectMany(s => s.Expect))));
+        Flatten(phases.SelectMany(p => p.When.Concat(p.PriorityRules.SelectMany(r => r.When)).Concat(p.Steps.SelectMany(s => s.Expect))));
 
     /// <summary>Does anything in this rotation ask about the boss's statuses (so they must be read)?</summary>
     public static bool NeedsBossStatuses(Rotation? rotation) => rotation is not null && Of(rotation.Phases).Any(c => c is BossStatusCondition);

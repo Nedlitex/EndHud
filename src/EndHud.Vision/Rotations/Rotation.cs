@@ -258,19 +258,21 @@ public sealed record Rotation(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool LastMatchWins = false)
 {
     /// <summary>
+    /// 6: phase priorities (<see cref="RotationPhase.Priority"/>, <see cref="RotationPhase.PriorityRules"/>).
     /// 5: "phase played" conditions (<see cref="PhasePlayedCondition"/>). 4: basic-attack steps, "phase shown" conditions, the "below"/"above" (<see cref="Comparison.Below"/>,
     /// <see cref="Comparison.Above"/>) comparisons. 3: "not" and "ultimate active" conditions, and <see cref="LastMatchWins"/>. 2: phases with entry conditions, all/any
     /// groups. 1 (read, converted): a fixed sequence. A rotation is saved in the lowest format that
     /// holds it (<see cref="FormatNeeded"/>), so one that uses nothing new stays readable by builds
     /// from before format 3.
     /// </summary>
-    public const int CurrentFormat = 5;
+    public const int CurrentFormat = 6;
 
     /// <summary>The lowest format that holds these phases and options.</summary>
     public static int FormatNeeded(IEnumerable<RotationPhase> phases, bool lastMatchWins)
     {
         var list = phases.ToList();
         var conditions = ConditionWalk.Of(list).ToList();
+        if (list.Any(p => p.Prioritised)) return 6;
         if (conditions.Any(c => c is PhasePlayedCondition)) return 5;
         if (list.Any(p => p.Steps.Any(s => s.Action == StepAction.BasicAttack))
             || conditions.Any(c => c is PhaseShownCondition || ConditionWalk.ComparisonOf(c) is Comparison.Below or Comparison.Above))
@@ -348,6 +350,16 @@ public sealed record Rotation(
             CheckConditions(phase.When, phase, null, problems);
             if (Required(phase.When).Any(c => c is PhasePlayedCondition own && own.PhaseId == phase.Id && !Holds(0, own.Is, own.Times)))
                 problems.Add(new RotationProblem(RotationProblemKind.PhasePlayedOwnGateNeverOpens, phase.Name));
+            // Priorities rank only the phases whose entry condition holds: on the otherwise phase they'd do nothing.
+            if (!phase.Gated && phase.Prioritised)
+                problems.Add(new RotationProblem(RotationProblemKind.PriorityWithoutEntryCondition, phase.Name));
+            for (int r = 0; r < phase.PriorityRules.Count; r++)
+            {
+                var rule = phase.PriorityRules[r];
+                if (rule.When.Count == 0)
+                    problems.Add(new RotationProblem(RotationProblemKind.PriorityRuleWithoutCondition, phase.Name, null, r + 1));
+                CheckConditions(rule.When, phase, null, problems, rule: r + 1);
+            }
             for (int i = 0; i < phase.Steps.Count; i++)
             {
                 var step = phase.Steps[i];
@@ -359,8 +371,9 @@ public sealed record Rotation(
         return problems;
     }
 
-    /// <param name="step">From 1; null for the phase's entry condition.</param>
-    private void CheckConditions(IEnumerable<StateCondition> conditions, RotationPhase owner, int? step, List<RotationProblem> problems)
+    /// <param name="step">From 1; null for the phase's entry condition or a priority rule.</param>
+    /// <param name="rule">From 1, for a priority rule's condition; null otherwise.</param>
+    private void CheckConditions(IEnumerable<StateCondition> conditions, RotationPhase owner, int? step, List<RotationProblem> problems, int? rule = null)
     {
         string phase = owner.Name;
         foreach (var condition in conditions)
@@ -368,26 +381,27 @@ public sealed record Rotation(
             switch (condition)
             {
                 case AllCondition { Of.Count: 0 } or AnyCondition { Of.Count: 0 }:
-                    problems.Add(new RotationProblem(RotationProblemKind.EmptyConditionGroup, phase, step));
+                    problems.Add(new RotationProblem(RotationProblemKind.EmptyConditionGroup, phase, step, rule));
                     break;
                 case AllCondition all:
-                    CheckConditions(all.Of, owner, step, problems);
+                    CheckConditions(all.Of, owner, step, problems, rule);
                     break;
                 case AnyCondition any:
-                    CheckConditions(any.Of, owner, step, problems);
+                    CheckConditions(any.Of, owner, step, problems, rule);
                     break;
                 case NotCondition not:
-                    CheckConditions([not.Of], owner, step, problems);
+                    CheckConditions([not.Of], owner, step, problems, rule);
                     break;
                 case PhasePlayedCondition played when Phase(played.PhaseId) is null:
-                    problems.Add(new RotationProblem(RotationProblemKind.PhasePlayedMissingPhase, phase, step));
+                    problems.Add(new RotationProblem(RotationProblemKind.PhasePlayedMissingPhase, phase, step, rule));
                     break;
                 case PhaseShownCondition shown when Phase(shown.PhaseId) is null:
-                    problems.Add(new RotationProblem(RotationProblemKind.PhaseShownMissingPhase, phase, step));
+                    problems.Add(new RotationProblem(RotationProblemKind.PhaseShownMissingPhase, phase, step, rule));
                     break;
                 // Counted when it comes onto the strip, a phase's own count changes the moment it shows:
                 // its entry condition would flip on the very reading that shows it.
-                case PhaseShownCondition shown when step is null && shown.PhaseId == owner.Id:
+                // A priority rule may count its own phase: it only ranks the phase once its entry condition holds.
+                case PhaseShownCondition shown when step is null && rule is null && shown.PhaseId == owner.Id:
                     problems.Add(new RotationProblem(RotationProblemKind.PhaseShownOwnGate, phase, step));
                     break;
                 default:
@@ -404,7 +418,7 @@ public sealed record Rotation(
                         _ => null,
                     };
                     if (who is not null && !Squad.Contains(who))
-                        problems.Add(new RotationProblem(RotationProblemKind.ConditionOperatorNotInSquad, phase, step));
+                        problems.Add(new RotationProblem(RotationProblemKind.ConditionOperatorNotInSquad, phase, step, rule));
                     break;
             }
         }

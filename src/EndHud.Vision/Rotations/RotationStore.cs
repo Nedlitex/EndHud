@@ -61,7 +61,7 @@ public static class RotationFormat
             throw new RotationReadException(RotationReadError.NotARotation, ex.Message);
         }
         if (rotation is null || rotation.Id is null || rotation.Phases is null || rotation.Squad is null
-            || rotation.Phases.Any(p => p is null || p.Steps is null || p.Name is null || p.Id is null))
+            || rotation.Phases.Any(p => p is null || p.Steps is null || p.Name is null || p.Id is null || p.PriorityRules.Any(r => r is null)))
             throw new RotationReadException(RotationReadError.NotARotation);
         return rotation;
     }
