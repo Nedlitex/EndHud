@@ -1720,6 +1720,14 @@ How a published rotation changes ([`RotationLibrary`](src/EndHud.Vision/Rotation
 `dotnet test` checks every file in `rotations/`: readable, id matching the file name, no
 problems, and every operator in the operator library.
 
+A recommended rotation needing a newer format than released builds read waits in
+`rotations/next-release/` (the sync lists only `rotations/`'s own files, never a subfolder, so no
+build downloads it): `NextReleaseRotationsTests` checks each is valid for the current build and
+plays the 祀 别礼 诀 汤汤 one through (charge I → 普攻 while Si's skill runs → charge II until
+played through → 普攻 → charge I; the burst when every ultimate is charged, held until played
+through). After a release that reads its format, raise the published-format limit and move the file
+up (see [`rotations/README.md`](rotations/README.md)).
+
 ### What's read for it
 
 From the same capture as the squad panel. Positions are measured on 4K and scaled
