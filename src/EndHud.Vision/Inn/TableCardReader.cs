@@ -58,7 +58,9 @@ public sealed class TableCardReader(InnText text, InnPictures pictures)
     {
         double left = FirstCardLeft + CardStep * (table - 1);
         var colour = CardColour(frame, layout, left);
-        if (colour is CardKind.None) return new TableCard(table, TableState.Empty, [], []);
+        // No card: an empty table, unless an overlay drawn into the frame covers the card's edge (unknown, then).
+        if (colour is CardKind.None)
+            return OverlayShare(frame, layout, left) >= MinOverlayShare ? null : new TableCard(table, TableState.Empty, [], []);
 
         string word = await ReadWordAsync(frame, layout, left, colour);
         bool Says(string[] words) => words.Any(word.Contains);
@@ -90,6 +92,36 @@ public sealed class TableCardReader(InnText text, InnPictures pictures)
     }
 
     private enum CardKind { None, Neutral, Yellow, Red }
+
+    // At 4K, from a card's left edge: the strip where its colour is read (the two patches and between them).
+    private static readonly PixelRect CardEdge = new(0, 110, 60, 140);
+
+    // The least overlay share that makes a place without a card colour unknown rather than empty. Measured on every inn
+    // fixture at 4K and 1080p: 0.00 % on all 270 places read empty; 1.14 % at the least on an occupied place that the
+    // synthetic RivaTuner display at the top centre made read empty (InnUnderOverlayTests).
+    private const double MinOverlayShare = 0.003;
+
+    /// <summary>
+    /// How much of the card's edge is in an overlay's ink: the lesser of its shares of pure black (a drawn text's shadow) and
+    /// of vivid, nearly pure colour (an on-screen display's lettering, such as Afterburner's). Lettering comes with both;
+    /// the dining room shows neither together.
+    /// </summary>
+    internal static double OverlayShare(Frame frame, InnLayout layout, double left)
+    {
+        var r = layout.TopLeft(CardEdge with { X = (int)left }).ClampTo(frame.Width, frame.Height);
+        if (r.IsEmpty) return 0;
+        int black = 0, vivid = 0, all = 0;
+        for (int y = r.Y; y < r.Bottom; y += 2)
+        for (int x = r.X; x < r.Right; x += 2)
+        {
+            var (cr, cg, cb) = frame.GetPixel(x, y);
+            int max = Math.Max(cr, Math.Max(cg, cb)), min = Math.Min(cr, Math.Min(cg, cb));
+            all++;
+            if (max <= 16) black++;
+            else if (max >= 230 && min <= 40) vivid++;
+        }
+        return Math.Min(black, vivid) / (double)all;
+    }
 
     /// <summary>
     /// The card's colour from two patches at its left edge, above and below the first disc (the
