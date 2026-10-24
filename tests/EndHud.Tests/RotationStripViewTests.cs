@@ -8,8 +8,8 @@ namespace EndHud.Tests;
 
 /// <summary>
 /// What the strip shows: the current phase's steps, then the first two of the phase played next,
-/// kept apart from them. Without step marks (the player hasn't turned on reading their
-/// battle-skill keys) every step looks the same; with them done steps fade, and the current one is
+/// kept apart from them. Without step marks (the editor's preview, the menu's sample) every step
+/// looks the same; with them done steps fade, skipped ones fade with a slash, and the current one is
 /// ready or waiting, with why.
 /// </summary>
 [Collection(WpfCollection.Name)]
@@ -244,7 +244,7 @@ public class RotationStripViewTests
 
     /// <summary>
     /// The circle holds the first condition's icon (the alert pop-up's rule: a status's icon here), the
-    /// caption under it is the conditions in words, and it glows while they hold, keys read or not.
+    /// caption under it is the conditions in words, and it glows while they hold, followed or not.
     /// </summary>
     [Fact]
     public void A_condition_step_shows_its_icon_and_words_and_glows_while_it_holds()
@@ -290,7 +290,7 @@ public class RotationStripViewTests
         OnSta(() => RotationStrip.Build(preview));
     }
 
-    /// <summary>With the keys read, the condition step is done the reading it holds, and still glows (owner: the glow follows "holds").</summary>
+    /// <summary>Followed, the condition step is done the reading it holds, and still glows (owner: the glow follows "holds").</summary>
     [Fact]
     public void Done_and_holding_it_still_glows()
     {

@@ -7,9 +7,10 @@ using Rotation = EndHud.Vision.Rotations.Rotation;
 namespace EndHud;
 
 /// <summary>
-/// What the rotation strip shows for a tracker position: the phase it's in. Every step looks the
-/// same unless the player has turned on reading their battle-skill keys; then done steps fade and
-/// the current one has chevrons (cyan: use it now; white: not yet, with why under the strip).
+/// What the rotation strip shows for a tracker position: the phase it's in, with where the player is
+/// (<see cref="StepFollower"/>, followed from the screen): done steps fade, skipped ones fade with a
+/// slash, and the current one has chevrons (cyan: use it now; white: not yet, with why under the
+/// strip). Without step marks (the editor's preview, the menu's sample) every step looks the same.
 /// </summary>
 internal static class RotationStripView
 {
@@ -35,7 +36,7 @@ internal static class RotationStripView
         Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, StepPosition? steps = null, IPhaseHistory? history = null,
         Func<string, BitmapSource?>? statusIcon = null)
     {
-        // A condition step glows while its conditions hold, keys read or not (owner, 2026-10-24).
+        // A condition step glows while its conditions hold, done or not (owner, 2026-10-24).
         bool? Holds(RotationStep step) => state is null ? null : RotationTracker.Evaluate(new AllCondition(step.Expect), state, history ?? PhaseHistory.None);
         // An attack by whoever is controlled shows them: the operator under the chevron in this reading.
         var controlled = state?.ActiveSlot is int active && active >= 1 && active <= state.Slots.Count && state.Slots[active - 1].Operator?.Operator.Id is { } id
@@ -67,7 +68,7 @@ internal static class RotationStripView
     /// can mark where this phase ends. The editor's preview uses this too, so it shows what the game
     /// will.
     /// </summary>
-    /// <param name="steps">Where the player is inside this phase; null (the editor's preview, or no keys read): every step alike.</param>
+    /// <param name="steps">Where the player is inside this phase; null (the editor's preview, the menu's sample): every step alike.</param>
     /// <param name="statusIcon">A boss status's icon, for a condition step about one.</param>
     /// <param name="holds">Whether a condition step's conditions hold now (null: not known, e.g. the editor's preview: drawn dim).</param>
     /// <param name="controlled">The operator controlled now, for an attack by whoever is controlled; null when not known (the editor's preview).</param>

@@ -7,7 +7,7 @@ namespace EndHud.Vision.Tests;
 /// <summary>
 /// A condition step (owner, 2026-10-24: "add a condition node in rotation, e.g. check whether enemy
 /// has 3 ice infliction, and show a highlight when satisfied"): a step that is its conditions, no
-/// skill. With the keys read it is the current step until its conditions hold, then done; when they
+/// skill. It is the current step until its conditions hold, then done; when they
 /// can't be told, a later real cast passes it (as a basic attack is passed). Squad slots: Laevatain
 /// (1), Camille (2), Arcane (3), Ardelia (4).
 /// </summary>

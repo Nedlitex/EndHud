@@ -160,9 +160,8 @@
                                 <TextBox DockPanel.Dock="Left" x:Name="StepNote" Width="140" VerticalAlignment="Center" TextChanged="StepField_Changed" />
                                 <TextBlock Text="{DynamicResource Editor.NoteHint}" Foreground="#888" Margin="6,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
                             </DockPanel>
-                            <!-- A step's expected state: kept in files, but hidden, since nothing uses it while the
-                                 strip marks no current step (the phase shown comes from the phases' conditions).
-                                 Shown for a condition step: its conditions are the step. -->
+                            <!-- A step's expected state: kept in files (the strip's reasons under the current step use
+                                 it), but not edited here. Shown for a condition step: its conditions are the step. -->
                             <StackPanel x:Name="ExpectSection" Visibility="Collapsed">
                                 <TextBlock x:Name="ExpectTitle" Text="{DynamicResource Editor.Expect}" FontWeight="SemiBold" Margin="0,0,0,2" />
                                 <TextBlock x:Name="ExpectHintText" Text="{DynamicResource Editor.ExpectHint}" Foreground="#888" TextWrapping="Wrap" Margin="0,0,0,6" />
