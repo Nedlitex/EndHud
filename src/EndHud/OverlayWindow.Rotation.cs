@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using EndHud.Vision;
+using EndHud.Vision.Input;
 using EndHud.Vision.Operators;
 using EndHud.Vision.Rotations;
 using Rotation = EndHud.Vision.Rotations.Rotation;
@@ -25,6 +26,9 @@ public partial class OverlayWindow
     private readonly Dictionary<string, BitmapSource?> _skillIcons = [];
 
     private (Rotation Rotation, RotationPosition Position)? _rotationPosition;
+
+    /// <summary>Where the player is inside the phase on the strip; null when their battle-skill keys aren't read.</summary>
+    private StepPosition? _stepPosition;
     private readonly DrawnKey _stripKey = new();
     private Point? _rotationDragOffset;
 
@@ -37,6 +41,7 @@ public partial class OverlayWindow
         _rotations = _rotationLibrary.Load().Rotations.Select(r => r.Rotation).ToList();
         _rotationFollower.Forget();
         _rotationPosition = null;
+        _stepPosition = null;
         RenderRotation();
     }
 
@@ -57,8 +62,10 @@ public partial class OverlayWindow
     /// <summary>A new reading: move the tracker on, then redraw.</summary>
     private void TrackRotation(PartyState? state)
     {
-        var follow = _rotationFollower.Update(state, _config.RotationEnabled && _config.PartyOcrEnabled, RotationFor);
+        // No press source yet: the step marks stay off until the key reader is joined to the strip.
+        var follow = _rotationFollower.Update(state, _config.RotationEnabled && _config.PartyOcrEnabled, RotationFor, presses: null);
         _rotationPosition = follow.Position;
+        _stepPosition = follow.Steps;
         // The boss's statuses are read when the rotation or an alert rule asks about them.
         bool alertsNeedStatuses = TrackAlerts(state, follow.InBattle);
         _party.ReadBossStatuses = follow.ReadBossStatuses || alertsNeedStatuses;
@@ -90,7 +97,7 @@ public partial class OverlayWindow
     }
 
     private StripView View(Rotation rotation, RotationPosition position) =>
-        RotationStripView.Build(rotation, position, steps: null, _lastState, _party.Identifier?.Library, SkillIcon, Avatar);
+        RotationStripView.Build(rotation, position, _stepPosition, _lastState, _party.Identifier?.Library, SkillIcon, Avatar);
 
     /// <summary>The operator's icon for this action, from the library; loaded once, in the background.</summary>
     private BitmapSource? SkillIcon(OperatorInfo op, StepAction action)
@@ -158,6 +165,7 @@ public partial class OverlayWindow
         _config.RotationEnabled = RotationCheckBox.IsChecked == true;
         ConfigStore.Save(_config);
         _rotationPosition = null;
+        _stepPosition = null;
         ApplyRotationSettings();
         RenderRotation();
     }
@@ -309,36 +317,63 @@ public partial class OverlayWindow
 /// <summary>What the overlay's rotation following decided for a reading.</summary>
 /// <param name="InBattle">In battle, riding over short gaps (<see cref="StripVisibility"/>).</param>
 /// <param name="Position">The rotation and where the strip is in it; null when nothing is shown.</param>
+/// <param name="Steps">Where the player is inside the phase (<see cref="StepFollower"/>); null when the
+/// player hasn't turned on reading their battle-skill keys, or nothing is shown.</param>
 /// <param name="ReadBossStatuses">The squad's rotation asks about the boss's statuses, so they must be read.</param>
-internal sealed record RotationFollowing(bool InBattle, (Rotation Rotation, RotationPosition Position)? Position, bool ReadBossStatuses);
+internal sealed record RotationFollowing(bool InBattle, (Rotation Rotation, RotationPosition Position)? Position, StepPosition? Steps, bool ReadBossStatuses);
 
 /// <summary>
 /// The overlay's rotation following, without the drawing (<see cref="OverlayWindow"/> draws what it
-/// says): in battle, the phase selector of the rotation for the recognised squad, one per rotation.
+/// says): in battle, the phase selector of the rotation for the recognised squad, one per rotation;
+/// with a press source, the step follower inside the phase it shows, fed the presses the screen
+/// confirms (<see cref="SkillPressJudge"/>).
 /// </summary>
 internal sealed class RotationFollower
 {
     private readonly StripVisibility _visibility = new();
     private readonly Dictionary<string, PhaseSelector> _selectors = [];
+    private readonly Dictionary<string, StepFollower> _steps = [];
+    private PartyState? _previous;
     private bool _wasInBattle;
 
     /// <summary>The phase selector of each rotation followed since the rotations were last loaded.</summary>
     internal IReadOnlyDictionary<string, PhaseSelector> Selectors => _selectors;
 
+    /// <summary>How each press was judged since start, by slot (0-3) and <see cref="PressVerdict"/>: counts only, for diagnostics.</summary>
+    internal int[,] PressTally { get; } = new int[4, Enum.GetValues<PressVerdict>().Length];
+
     /// <summary>The rotations changed (the editor saved one): start every rotation afresh.</summary>
-    public void Forget() => _selectors.Clear();
+    public void Forget()
+    {
+        _selectors.Clear();
+        _steps.Clear();
+    }
 
     /// <param name="enabled">The strip is on and the squad panel is read.</param>
     /// <param name="rotationFor">The rotation for a squad (operator ids by slot, null where unrecognised), if any.</param>
-    public RotationFollowing Update(PartyState? state, bool enabled, Func<IReadOnlyList<string?>, Rotation?> rotationFor)
+    /// <param name="presses">The player's battle-skill presses; null when the player hasn't turned reading them on
+    /// (then no step is marked: the strip is as it always was).</param>
+    public RotationFollowing Update(PartyState? state, bool enabled, Func<IReadOnlyList<string?>, Rotation?> rotationFor, ISkillPressSource? presses)
     {
+        // Every reading takes its presses, in battle or not, so none pile up for later; each is
+        // judged against the reading before it.
+        var taken = presses is not null && state?.ReadAt is { } readAt ? presses.TakeUntil(readAt) : [];
+        var judged = SkillPressJudge.Judge(_previous, taken);
+        foreach (var j in judged)
+            if (j.Press.Slot is >= 1 and <= 4) PressTally[j.Press.Slot - 1, (int)j.Verdict]++;
+
         Rotation? rotation = null;
         (Rotation, RotationPosition)? position = null;
+        StepPosition? steps = null;
         // In battle only (through short gaps: see StripVisibility), for a rotation made for the recognised squad.
         bool inBattle = state is not null && _visibility.Update(state);
-        // The fight ended (StripVisibility already rides over short gaps): every phase-shown count back to 0.
+        // The fight ended (StripVisibility already rides over short gaps): every phase-shown count back
+        // to 0, every step follower back to the first step.
         if (_wasInBattle && !inBattle)
+        {
             foreach (var each in _selectors.Values) each.EndFight();
+            foreach (var each in _steps.Values) each.EndFight();
+        }
         _wasInBattle = inBattle;
         if (state is not null && inBattle && enabled)
         {
@@ -346,11 +381,19 @@ internal sealed class RotationFollower
             if (rotation is not null)
             {
                 if (!_selectors.TryGetValue(rotation.Id, out var selector)) _selectors[rotation.Id] = selector = new PhaseSelector(rotation);
-                position = (rotation, selector.Update(state));
+                var shown = selector.Update(state);
+                position = (rotation, shown);
+                if (presses is not null)
+                {
+                    if (!_steps.TryGetValue(rotation.Id, out var follower)) _steps[rotation.Id] = follower = new StepFollower(rotation);
+                    var cast = judged.Where(j => j.Verdict == PressVerdict.Counted).Select(j => j.Press.Slot).ToList();
+                    steps = follower.Update(shown.Step.PhaseIndex, _previous, state, cast, selector);
+                }
             }
         }
+        _previous = state;
         // The boss's statuses take a while to read: only when this rotation asks about them, anywhere: a
         // phase's entry condition (what the strip follows) or a step, at any depth of and/or/not.
-        return new RotationFollowing(inBattle, position, ConditionWalk.NeedsBossStatuses(rotation));
+        return new RotationFollowing(inBattle, position, steps, ConditionWalk.NeedsBossStatuses(rotation));
     }
 }
