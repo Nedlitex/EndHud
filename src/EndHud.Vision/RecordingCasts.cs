@@ -35,7 +35,7 @@ public sealed class RecordingCasts(VideoFile video, PartyReader reader)
             var at = TimeSpan.FromSeconds(t);
             if (!sampleCorners && sample % samplesPerReading != 0) continue;
             var frame = await video.GetFrameAsync(at);
-            if (sampleCorners && sample < 0) // RED: the corner isn't sampled yet
+            if (sampleCorners)
             {
                 var corner = frame.Crop(BattleSkillFlash.Region(frame.Width, frame.Height));
                 sampler.Sample(corner, new UiScaler(frame.Width, frame.Height).Scale, at);
