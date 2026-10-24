@@ -41,6 +41,45 @@ public class InnUnderOverlayTests
         Assert.True(failures.Count == 0, $"{fixture} ({kind}) with the display at the top left: " + string.Join("; ", failures));
     }
 
+    internal static readonly Lazy<Task<TableCardReader>> Tables = new(async () =>
+    {
+        string folder = await OperatorCache.FolderAsync();
+        var data = InnData.Load(folder) ?? throw new InvalidOperationException("The operator package has no inn data.");
+        return new TableCardReader(Text, await InnPictures.LoadAsync(folder, data));
+    });
+
+    /// <summary>A card as compared: its state, items (id and served) and pips; "unknown" for null.</summary>
+    internal static string Describe(TableCard? card) => card is null ? "unknown"
+        : $"{card.State}[{string.Join(" + ", card.Items.Select(i => $"{i.Id}:{(i.Served ? "s" : "w")}"))}]({string.Join("", card.Served.Select(s => s ? "1" : "0"))})";
+
+    /// <summary>
+    /// The display at the top centre covers table cards: a covered card is unknown, never "Empty" (the advisor would drop
+    /// that table's order) nor anything else it doesn't show (2026-10-24 investigation: occupied cards read Empty 84 times).
+    /// </summary>
+    [Theory]
+    [InlineData("feast-cards-pips")]
+    [InlineData("session-four-orders")]
+    [InlineData("session-paying-and-waiting")]
+    public async Task A_covered_table_card_is_unknown_never_another_state(string fixture)
+    {
+        var reader = await Tables.Value;
+        var source = await InnScreenTests.Load(fixture);
+        var failures = new List<string>();
+        foreach (var screen in new[] { SimulatedScreen.Uhd, SimulatedScreen.FullHd })
+        {
+            var clean = screen.Render(source);
+            var expected = (await reader.ReadAsync(clean)).Select(Describe).ToList();
+            foreach (bool background in new[] { true, false })
+            {
+                var read = (await reader.ReadAsync(SyntheticOsd.Draw(clean, OsdPosition.TopCentre, background))).Select(Describe).ToList();
+                for (int i = 0; i < read.Count; i++)
+                    if (read[i] != "unknown" && read[i] != expected[i])
+                        failures.Add($"{screen.Width}x{screen.Height}{(background ? " on its background" : "")} table {i + 1}: {expected[i]} read {read[i]}");
+            }
+        }
+        Assert.True(failures.Count == 0, $"{fixture} with the display at the top centre: " + string.Join("; ", failures));
+    }
+
     /// <summary>Told by the title or timer, no sign is named; told by another sign, it is (the app logs that the top left is covered).</summary>
     [Fact]
     public async Task The_sign_is_named_only_when_the_title_was_covered()
