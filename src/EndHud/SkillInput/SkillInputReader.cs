@@ -8,19 +8,21 @@ namespace EndHud.SkillInput;
 /// Reads the player's battle-skill presses while they have turned it on (<see cref="HudConfig.ReadSkillPresses"/>),
 /// and only then: "slot N, at time T" (<see cref="SkillPress"/>), nothing else.
 /// <list type="bullet">
-/// <item>Raw Input with RIDEV_INPUTSINK on a message-only window, on a thread of its own. Raw Input only
-/// listens: no key is taken from the game or any other program. A hotkey (RegisterHotKey) on a bare 1-4
-/// would grab those digits system-wide; a low-level keyboard hook (WH_KEYBOARD_LL) sits in every
-/// keystroke's path and is never used.</item>
-/// <item>Keyboards and PlayStation pads through Raw Input (the pad's HID report, parsed by Windows);
-/// Xbox pads through XInput (polled every 10 ms), whose button bits are fixed and documented. An Xbox
-/// pad's own Raw Input reports are ignored. Other pads are counted, never read.</item>
-/// <item>Every key or button goes straight into <see cref="SkillInputDecoder"/>, which drops anything
-/// that isn't one of the four battle-skill keys or chords; the buffers Windows filled are cleared after
-/// each event.</item>
-/// <item>Off: every registration removed (RIDEV_REMOVE), the window destroyed, the thread ended, the
-/// queue and the decoder dropped.</item>
-/// <item>Logged: "listening", "stopped", and Windows refusing. Never a key, a button, a device's name
+/// <item>The keyboard: the four bound keys as hotkeys (<see cref="SkillHotkeys"/>: bare, MOD_NOREPEAT, so a
+/// held key casts once) on a message-only window, on a thread of its own. The game runs as administrator
+/// and EndHud doesn't: Windows (UIPI) keeps the game's keystrokes from EndHud's Raw Input, but delivers a
+/// hotkey. Windows tells EndHud only of these four keys, never of any other. They are held only while
+/// reading, which is only while the game is in front, so the digits work as usual in every other program.
+/// A low-level keyboard hook (WH_KEYBOARD_LL) sits in every keystroke's path and is never used.</item>
+/// <item>PlayStation pads through Raw Input (the pad's HID report, parsed by Windows); Xbox pads through
+/// XInput (polled every 10 ms), whose button bits are fixed and documented. An Xbox pad's own Raw Input
+/// reports are ignored. Other pads are counted, never read.</item>
+/// <item>Every button goes straight into <see cref="SkillInputDecoder"/>, which drops anything that isn't
+/// one of the four chords; the buffers Windows filled are cleared after each event.</item>
+/// <item>Off: every hotkey and registration removed (UnregisterHotKey, RIDEV_REMOVE), the window destroyed,
+/// the thread ended, the queue and the decoder dropped.</item>
+/// <item>Logged: "listening", "stopped", and Windows refusing (a slot whose key another program holds, by
+/// its slot number). Never a key, a button, a device's name
 /// or a press's time.</item>
 /// </list>
 /// </summary>
@@ -42,7 +44,9 @@ internal sealed class SkillInputReader : ISkillPressSource, IDisposable
     private readonly ManualResetEventSlim _started = new();
 
     private volatile SkillInputDecoder? _decoder;
-    private int[]? _keys;
+    private volatile int[]? _keys;
+    private volatile IReadOnlyList<HeldHotkey> _held = [];
+    private volatile IReadOnlyList<UnreadKey> _unread = [];
     private Thread? _thread;
     private volatile bool _stopRequested;
     private IntPtr _window;
@@ -64,6 +68,9 @@ internal sealed class SkillInputReader : ISkillPressSource, IDisposable
 
     private sealed record Device(PadKind Kind, IntPtr Preparsed);
 
+    /// <summary>A hotkey as it was registered with Windows: the id, the modifiers passed and the virtual key.</summary>
+    internal readonly record struct HeldHotkey(int Id, uint Modifiers, uint VirtualKey);
+
     /// <summary>The reader for the app: reads Windows' input while listening.</summary>
     public SkillInputReader() : this(readWindows: true) { }
 
@@ -72,6 +79,12 @@ internal sealed class SkillInputReader : ISkillPressSource, IDisposable
 
     /// <summary>Windows refused to deliver input (Raw Input registration failed); see <see cref="Describe"/>.</summary>
     public bool Failed => _error != 0;
+
+    /// <summary>The bound keys the last start could not hold (another program has them): kept until the next start, so the menu can say so.</summary>
+    public IReadOnlyList<UnreadKey> UnreadKeys => _unread;
+
+    /// <summary>The hotkeys held now, as registered (tests).</summary>
+    internal IReadOnlyList<HeldHotkey> HeldHotkeys => _held;
 
     /// <summary>The message-only window input is delivered to, while listening (tests).</summary>
     internal IntPtr Window => _window;
@@ -115,13 +128,13 @@ internal sealed class SkillInputReader : ISkillPressSource, IDisposable
     public string Describe() =>
         _keys is null ? "off"
         : Failed ? $"failed (Windows refused, error {_error})"
-        : $"listening: keyboard, PlayStation pads {_sonyPads}, XInput pads {_xinputPads}, other pads {_otherPads}; " +
+        : $"listening: keyboard ({_held.Select(h => SkillHotkeys.SlotOf(h.Id)).Distinct().Count()} of 4 keys held), PlayStation pads {_sonyPads}, XInput pads {_xinputPads}, other pads {_otherPads}; " +
           $"PlayStation reports without buttons {_sonyReportsWithoutButtons}";
 
-    /// <summary>A keyboard event, as WM_INPUT delivers it: into the decoder, and a press if it was a battle-skill key.</summary>
-    internal void Feed(RawKeyboard key)
+    /// <summary>A WM_HOTKEY, by its id: a press of the slot it stands for; nothing for any other id or while not listening.</summary>
+    internal void Hotkey(int id)
     {
-        if (_decoder?.Key(key.MakeCode, key.Flags) is int slot) Enqueue(slot);
+        if (_keys is not null && SkillHotkeys.SlotOf(id) is int slot) Enqueue(slot);
     }
 
     public void Dispose() => SetListening(false, []);
@@ -129,8 +142,9 @@ internal sealed class SkillInputReader : ISkillPressSource, IDisposable
     private void Start(IReadOnlyList<int> keys)
     {
         _keys = [.. keys];
-        _decoder = new SkillInputDecoder(_keys);
+        _decoder = new SkillInputDecoder();
         _error = 0;
+        _unread = [];
         _stopRequested = false;
         _started.Reset();
         DiagnosticLog.Info("skill input: listening");
@@ -171,7 +185,6 @@ internal sealed class SkillInputReader : ISkillPressSource, IDisposable
 
     private static RAWINPUTDEVICE[] Devices(uint flags, IntPtr target) =>
     [
-        new() { usUsagePage = UsagePageGeneric, usUsage = UsageKeyboard, dwFlags = flags, hwndTarget = target },
         new() { usUsagePage = UsagePageGeneric, usUsage = UsageGamepad, dwFlags = flags, hwndTarget = target },
         new() { usUsagePage = UsagePageGeneric, usUsage = UsageJoystick, dwFlags = flags, hwndTarget = target },
     ];
@@ -208,6 +221,7 @@ internal sealed class SkillInputReader : ISkillPressSource, IDisposable
                 return;
             }
             registered = true;
+            HoldKeys(window);
             SetTimer(window, 1, XInputPollMs, IntPtr.Zero);
             _window = window;
             _started.Set();
@@ -226,8 +240,10 @@ internal sealed class SkillInputReader : ISkillPressSource, IDisposable
         }
         finally
         {
-            // The registrations also go with the window when this thread ends (measured: the desktop test
-            // stays green without this call); removing them by name is the documented way, kept explicit.
+            // The hotkeys and registrations also go with the window when this thread ends (measured: without
+            // these calls another program can still take the keys at once after a stop); removing them by
+            // name is the documented way, kept explicit.
+            LetKeysGo(window);
             if (registered)
             {
                 var remove = Devices(RIDEV_REMOVE, IntPtr.Zero);
@@ -242,6 +258,49 @@ internal sealed class SkillInputReader : ISkillPressSource, IDisposable
             ForgetDevices();
             _started.Set();
         }
+    }
+
+    /// <summary>
+    /// Registers the bound keys' hotkeys on the reader's window (only the window's own thread may). A key
+    /// Windows refuses (another program holds it) is logged by its slot, never by the key, and left out:
+    /// the other slots are still read.
+    /// </summary>
+    private void HoldKeys(IntPtr window)
+    {
+        var held = new List<HeldHotkey>(8);
+        var unread = new List<UnreadKey>();
+        var hotkeys = SkillHotkeys.For(_keys!, VirtualKey);
+        for (int slot = 1; slot <= 4; slot++)
+        {
+            int error = -1; // no virtual key on this layout, unless Windows says otherwise
+            bool any = false;
+            foreach (var hotkey in hotkeys.Where(h => h.Slot == slot))
+            {
+                if (RegisterHotKey(window, hotkey.Id, SkillHotkeys.Modifiers, hotkey.VirtualKey))
+                {
+                    held.Add(new HeldHotkey(hotkey.Id, SkillHotkeys.Modifiers, hotkey.VirtualKey));
+                    any = true;
+                }
+                else
+                {
+                    error = Marshal.GetLastPInvokeError();
+                }
+            }
+            if (any) continue;
+            var key = new UnreadKey(slot, error == 0 ? -1 : error);
+            unread.Add(key);
+            DiagnosticLog.Warn(key.TakenByAnotherProgram
+                ? $"skill input: another program holds slot {slot}'s key, so slot {slot} is not read"
+                : $"skill input: Windows refused slot {slot}'s key (error {key.Error}), so slot {slot} is not read");
+        }
+        _held = held;
+        _unread = unread;
+    }
+
+    private void LetKeysGo(IntPtr window)
+    {
+        foreach (var hotkey in _held) UnregisterHotKey(window, hotkey.Id);
+        _held = [];
     }
 
     private void Refused(int error)
@@ -272,6 +331,9 @@ internal sealed class SkillInputReader : ISkillPressSource, IDisposable
     {
         switch (msg.message)
         {
+            case WM_HOTKEY:
+                Hotkey((int)msg.wParam);
+                break;
             case WM_INPUT:
                 ReadInput(msg.lParam);
                 break;
@@ -295,11 +357,7 @@ internal sealed class SkillInputReader : ISkillPressSource, IDisposable
         {
             if (GetRawInputData(rawInput, RID_INPUT, _buffer, ref size, headerSize) == uint.MaxValue) return;
             uint type = BitConverter.ToUInt32(_buffer, 0);
-            if (type == RIM_TYPEKEYBOARD)
-            {
-                Feed(new RawKeyboard(BitConverter.ToUInt16(_buffer, (int)headerSize), BitConverter.ToUInt16(_buffer, (int)headerSize + 2)));
-            }
-            else if (type == RIM_TYPEHID)
+            if (type == RIM_TYPEHID)
             {
                 IntPtr device = IntPtr.Size == 8 ? (IntPtr)BitConverter.ToInt64(_buffer, 8) : BitConverter.ToInt32(_buffer, 8);
                 ReadHid(device, (int)headerSize, (int)size);

@@ -39,10 +39,16 @@ public partial class OverlayWindow
     /// <summary>Called on every refresh: listen or not, and show whether Windows refused.</summary>
     private void UpdateSkillInput(bool gameInFront)
     {
-        _skillInput.SetListening(
-            _config.ReadSkillPresses && _config.RotationEnabled && _config.PartyOcrEnabled && gameInFront, _config.SkillKeys);
+        _skillInput.SetListening(SkillInputListens(_config, gameInFront), _config.SkillKeys);
         ApplySkillInputSettings();
     }
+
+    /// <summary>
+    /// Whether the reader listens (and so holds the four keys as hotkeys): only with the player's switch, the strip and
+    /// the squad reading on, and the game itself in front. Anywhere else the keys are let go at once and type as usual.
+    /// </summary>
+    internal static bool SkillInputListens(HudConfig config, bool gameInFront) =>
+        config.ReadSkillPresses && config.RotationEnabled && config.PartyOcrEnabled && gameInFront;
 
     /// <summary>The card's rows: usable only with the strip and the squad reading on; the keys only with reading on.</summary>
     private void ApplySkillInputSettings()

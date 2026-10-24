@@ -5,30 +5,15 @@ namespace EndHud.SkillInput;
 internal enum PadButtons { None = 0, Shoulder = 1, West = 2, North = 4, East = 8, South = 16 }
 
 /// <summary>
-/// Turns raw key and pad data into "slot N was cast", and nothing else. An unbound key is dropped
-/// inside <see cref="Key"/> before anything is stored; the only state kept is which of the FOUR
-/// bound keys are held (for auto-repeat) and each pad's five buttons above. Keys 1-4 cast slots 1-4
-/// unless the player picked others; on a controller, hold L1/LB and press the face button in the
-/// slot's place on the diamond: left 1, top 2, right 3, bottom 4 (owner, 2026-10-23).
+/// Turns a pad's buttons into "slot N was cast", and nothing else: hold L1/LB and press the face button
+/// in the slot's place on the diamond: left 1, top 2, right 3, bottom 4 (owner, 2026-10-23). The only
+/// state kept is each pad's five buttons above. (The keyboard needs no decoding: Windows tells the
+/// reader only of the four bound keys, as hotkeys; see <see cref="SkillHotkeys"/>.)
 /// Not thread-safe: the reader's own thread is its only caller.
 /// </summary>
-internal sealed class SkillInputDecoder(IReadOnlyList<int> keys)
+internal sealed class SkillInputDecoder
 {
-    private const ushort KeyBreak = 0x01, KeyE0 = 0x02; // RAWKEYBOARD.Flags RI_KEY_BREAK, RI_KEY_E0
-    private readonly int[] _keys = [.. keys];
-    private readonly bool[] _held = new bool[4];
     private readonly Dictionary<nint, PadButtons> _pads = [];
-
-    /// <summary>A keyboard event: the slot cast, on the press (not the repeat, not the release); else null.</summary>
-    public int? Key(ushort makeCode, ushort flags)
-    {
-        int index = Array.IndexOf(_keys, makeCode | ((flags & KeyE0) != 0 ? SkillKeyCodes.Extended : 0));
-        if (index < 0) return null;                       // not a battle-skill key: gone
-        bool down = (flags & KeyBreak) == 0;
-        bool pressed = down && !_held[index];
-        _held[index] = down;
-        return pressed ? index + 1 : null;
-    }
 
     /// <summary>A pad's buttons now: the slots whose face button went down while the shoulder is held.</summary>
     public IReadOnlyList<int> Pad(nint device, PadButtons now)

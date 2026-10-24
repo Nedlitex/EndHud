@@ -13,6 +13,7 @@ internal static class SkillInputNative
     public const int WM_CLOSE = 0x0010;
     public const int WM_TIMER = 0x0113;
     public const int WM_INPUT = 0x00FF;
+    public const int WM_HOTKEY = 0x0312;
     public const int WM_INPUT_DEVICE_CHANGE = 0x00FE;
     public const int WM_KEYDOWN = 0x0100;
     public const int WM_SYSKEYDOWN = 0x0104;
@@ -90,12 +91,6 @@ internal static class SkillInputNative
         public IntPtr wParam;
     }
 
-    /// <summary>
-    /// The two fields of RAWKEYBOARD the decoder looks at: the physical key and whether it went up or
-    /// is extended. The rest of the struct (virtual key, message) is never copied out of Windows' buffer.
-    /// </summary>
-    public readonly record struct RawKeyboard(ushort MakeCode, ushort Flags);
-
     [StructLayout(LayoutKind.Sequential)]
     public struct XINPUT_STATE
     {
@@ -161,6 +156,24 @@ internal static class SkillInputNative
 
     [DllImport("xinput1_4.dll")]
     public static extern uint XInputGetState(uint userIndex, out XINPUT_STATE state);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool RegisterHotKey(IntPtr hWnd, int id, uint modifiers, uint vk);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+
+    [DllImport("user32.dll")]
+    private static extern uint MapVirtualKeyW(uint code, uint mapType);
+
+    private const uint MAPVK_VSC_TO_VK_EX = 3;
+
+    /// <summary>
+    /// The virtual key of a stored key (<see cref="SkillKeyCodes"/>) on the player's keyboard layout, which a
+    /// hotkey is registered with; 0 when it has none.
+    /// </summary>
+    public static uint VirtualKey(int code) =>
+        MapVirtualKeyW((uint)(code & 0xFF) | ((code & SkillKeyCodes.Extended) != 0 ? 0xE000u : 0), MAPVK_VSC_TO_VK_EX);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetKeyNameTextW(int lParam, StringBuilder name, int size);

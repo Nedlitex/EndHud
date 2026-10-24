@@ -4,63 +4,13 @@ using Xunit;
 namespace EndHud.Tests;
 
 /// <summary>
-/// <see cref="SkillInputDecoder"/>: raw key and pad data in, "slot N was cast" out. Keys 1-4 are slots 1-4
-/// (rebindable); on a controller, hold L1/LB and press the face button in the slot's place on the
-/// diamond: left 1, top 2, right 3, bottom 4 (owner, 2026-10-23).
+/// <see cref="SkillInputDecoder"/>: pad data in, "slot N was cast" out. On a controller, hold L1/LB and
+/// press the face button in the slot's place on the diamond: left 1, top 2, right 3, bottom 4 (owner,
+/// 2026-10-23). (The keyboard is hotkeys: <see cref="SkillHotkeysTests"/>.)
 /// </summary>
 public class SkillInputDecoderTests
 {
-    private const ushort Make = 0, Break = 0x01, E0 = 0x02;
-
-    private static SkillInputDecoder Defaults() => new(SkillKeyCodes.Defaults);
-
-    [Fact]
-    public void Keys_1_to_4_cast_slots_1_to_4()
-    {
-        var decoder = Defaults();
-
-        Assert.Equal([1, 2, 3, 4], new ushort[] { 0x02, 0x03, 0x04, 0x05 }.Select(code => decoder.Key(code, Make)));
-    }
-
-    [Fact]
-    public void Holding_a_key_casts_once()
-    {
-        var decoder = Defaults();
-
-        Assert.Equal(2, decoder.Key(0x03, Make));
-        Assert.Null(decoder.Key(0x03, Make));   // auto-repeat
-        Assert.Null(decoder.Key(0x03, Make));
-        Assert.Null(decoder.Key(0x03, Break));  // released
-        Assert.Equal(2, decoder.Key(0x03, Make));
-    }
-
-    [Fact]
-    public void A_rebound_key_casts_its_slot_and_the_old_key_nothing()
-    {
-        var decoder = new SkillInputDecoder([0x10, 0x03, 0x04, 0x05]); // slot 1 on Q
-
-        Assert.Equal(1, decoder.Key(0x10, Make));
-        Assert.Null(decoder.Key(0x02, Make));
-    }
-
-    [Fact]
-    public void The_numpad_and_the_top_row_are_different_keys()
-    {
-        var decoder = Defaults();
-
-        Assert.Null(decoder.Key(0x4F, Make));      // numpad 1
-        Assert.Null(decoder.Key(0x02, E0));        // an extended key with the same scan code
-        Assert.Equal(1, decoder.Key(0x02, Make));
-    }
-
-    [Fact]
-    public void An_extended_key_can_be_bound()
-    {
-        var decoder = new SkillInputDecoder([0x02, 0x03, 0x04, 0x48 | SkillKeyCodes.Extended]); // slot 4 on the up arrow
-
-        Assert.Null(decoder.Key(0x48, Make));      // numpad 8, the same scan code without E0
-        Assert.Equal(4, decoder.Key(0x48, E0));
-    }
+    private static SkillInputDecoder Defaults() => new();
 
     [Theory]
     [InlineData("West", 1)]
