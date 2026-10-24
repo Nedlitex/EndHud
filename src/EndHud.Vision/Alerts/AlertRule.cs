@@ -57,16 +57,22 @@ public enum AlertProblem
 public sealed record AlertFile(int Format, IReadOnlyList<AlertRule> Rules)
 {
     /// <summary>
+    /// 3: "battle skill running" conditions (<see cref="BattleSkillActiveCondition"/>).
     /// 2: "phase played" conditions (<see cref="PhasePlayedCondition"/>). 1: everything else. Rules are
     /// written in the lowest format that holds them (<see cref="FormatNeeded"/>), so a build from
     /// before format 2 still reads rules that use nothing new, and refuses the rest as "newer"
     /// (never renaming the file as unreadable).
     /// </summary>
-    public const int CurrentFormat = 2;
+    public const int CurrentFormat = 3;
 
     /// <summary>The lowest format that holds these rules.</summary>
-    public static int FormatNeeded(IEnumerable<AlertRule> rules) =>
-        ConditionWalk.Flatten(rules.SelectMany(r => r.When)).Any(c => c is PhasePlayedCondition) ? 2 : 1;
+    public static int FormatNeeded(IEnumerable<AlertRule> rules)
+    {
+        var conditions = ConditionWalk.Flatten(rules.SelectMany(r => r.When)).ToList();
+        return conditions.Any(c => c is BattleSkillActiveCondition) ? 3
+            : conditions.Any(c => c is PhasePlayedCondition) ? 2
+            : 1;
+    }
 
     /// <summary>The most rules kept: "new" and imports stop here.</summary>
     public const int MaxRules = 100;

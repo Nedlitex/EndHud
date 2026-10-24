@@ -200,7 +200,7 @@ public sealed class RotationFormatTests : IDisposable
     [Theory]
     [InlineData("""{ "name": "x" }""", RotationReadError.NotARotation)]
     [InlineData("not json", RotationReadError.NotARotation)]
-    [InlineData("""{ "format": 7, "id": "x" }""", RotationReadError.NewerFormat)]
+    [InlineData("""{ "format": 8, "id": "x" }""", RotationReadError.NewerFormat)]
     public void A_file_that_isnt_a_rotation_this_build_can_read_is_refused(string json, RotationReadError expected) =>
         Assert.Equal(expected, Assert.Throws<RotationReadException>(() => RotationFormat.FromJson(json)).Error);
 
@@ -351,7 +351,7 @@ public sealed class RotationFormatTests : IDisposable
 
         Assert.Equal(2, Rotation.FormatNeeded(plain, lastMatchWins: false));
         Assert.Equal(3, Rotation.FormatNeeded(plain, lastMatchWins: true));
-        Assert.Equal(6, Rotation.CurrentFormat);
+        Assert.Equal(7, Rotation.CurrentFormat);
     }
 
     [Fact]
@@ -498,7 +498,7 @@ public sealed class RotationFormatTests : IDisposable
         };
         var rotation = Prioritised(3, rules);
 
-        Assert.Equal(6, Rotation.CurrentFormat);
+        Assert.True(Rotation.CurrentFormat >= 6);
         Assert.Equal(6, Rotation.FormatNeeded(rotation.Phases, lastMatchWins: false));
         Assert.Equal(6, Rotation.FormatNeeded(Prioritised(-2).Phases, lastMatchWins: false));          // a base number alone
         Assert.Equal(6, Rotation.FormatNeeded(Prioritised(0, rules[1]).Phases, lastMatchWins: false)); // a rule alone

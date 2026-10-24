@@ -267,6 +267,7 @@ public sealed record Rotation(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool LastMatchWins = false)
 {
     /// <summary>
+    /// 7: "battle skill running" conditions (<see cref="BattleSkillActiveCondition"/>).
     /// 6: phase priorities (<see cref="RotationPhase.Priority"/>, <see cref="RotationPhase.PriorityRules"/>).
     /// 5: "phase played" conditions (<see cref="PhasePlayedCondition"/>). 4: basic-attack steps, "phase shown" conditions, the "below"/"above" (<see cref="Comparison.Below"/>,
     /// <see cref="Comparison.Above"/>) comparisons. 3: "not" and "ultimate active" conditions, and <see cref="LastMatchWins"/>. 2: phases with entry conditions, all/any
@@ -274,13 +275,14 @@ public sealed record Rotation(
     /// holds it (<see cref="FormatNeeded"/>), so one that uses nothing new stays readable by builds
     /// from before format 3.
     /// </summary>
-    public const int CurrentFormat = 6;
+    public const int CurrentFormat = 7;
 
     /// <summary>The lowest format that holds these phases and options.</summary>
     public static int FormatNeeded(IEnumerable<RotationPhase> phases, bool lastMatchWins)
     {
         var list = phases.ToList();
         var conditions = ConditionWalk.Of(list).ToList();
+        if (conditions.Any(c => c is BattleSkillActiveCondition)) return 7;
         if (list.Any(p => p.Prioritised)) return 6;
         if (conditions.Any(c => c is PhasePlayedCondition)) return 5;
         if (list.Any(p => p.Steps.Any(s => s.Action == StepAction.BasicAttack))
@@ -413,6 +415,9 @@ public sealed record Rotation(
                 case PhaseShownCondition shown when step is null && rule is null && shown.PhaseId == owner.Id:
                     problems.Add(new RotationProblem(RotationProblemKind.PhaseShownOwnGate, phase, step));
                     break;
+                case BattleSkillActiveCondition running when !SkillRing.Operators.Contains(running.OperatorId):
+                    problems.Add(new RotationProblem(RotationProblemKind.SkillTimeNotRead, phase, step, rule));
+                    break;
                 default:
                     string? who = condition switch
                     {
@@ -420,6 +425,7 @@ public sealed record Rotation(
                         UltimateCondition u => u.OperatorId,
                         UltimateChargeCondition u => u.OperatorId,
                         UltimateActiveCondition u => u.OperatorId,
+                        BattleSkillActiveCondition b => b.OperatorId,
                         ComboChargeCondition c => c.OperatorId,
                         BattleSkillCondition b => b.OperatorId,
                         CounterCondition c => c.OperatorId,

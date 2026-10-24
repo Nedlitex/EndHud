@@ -378,6 +378,8 @@ public sealed class RotationTracker(Rotation rotation)
                     : null;
             case UltimateActiveCondition c:
                 return UltimateRunning(c.OperatorId, state) is { } running ? running == c.Active : null;
+            case BattleSkillActiveCondition c:
+                return SkillRunning(c.OperatorId, state) is { } skillRunning ? skillRunning == c.Active : null;
             case ComboChargeCondition c:
                 return slots.TryGetValue(c.OperatorId, out int ccs) && state.Slots[ccs].Combo is { } bar
                     ? Compare(bar.Ready ? 100 : bar.Progress * 100, c.Is, c.Percent)
@@ -420,6 +422,24 @@ public sealed class RotationTracker(Rotation rotation)
         if (running.ContainsKey(operatorId)) return true;
         if (LastingUltimates.Operators.Contains(operatorId) || state.UltimateTimeLeft is null) return false;
         return null;
+    }
+
+    /// <summary>
+    /// Is this operator's lasting battle skill (Si's) running? Her button in this reading: the swirl or
+    /// the crossed-out butterfly is running, the butterfly is over. A reading that can't tell the button
+    /// (hidden, a countdown look, the controller layout) goes by the overlay's timer
+    /// (<see cref="PartyState.RunningSkills"/>, the estimate while it lasts): running while it shows
+    /// one, else unknown. Unknown for an operator whose skill time isn't read.
+    /// </summary>
+    private static bool? SkillRunning(string operatorId, PartyState state)
+    {
+        if (!SkillRing.Operators.Contains(operatorId)) return null;
+        switch (state.SkillRings.FirstOrDefault(r => r.OperatorId == operatorId)?.Icon)
+        {
+            case SkillButtonIcon.Changed or SkillButtonIcon.SecondCast: return true;
+            case SkillButtonIcon.Original: return false;
+        }
+        return state.RunningSkills?.ContainsKey(operatorId) == true ? true : null;
     }
 
     private static bool Compare(double value, Comparison comparison, double target) => comparison switch
