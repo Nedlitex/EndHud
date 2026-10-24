@@ -257,6 +257,92 @@ public sealed class RotationEditorTests : IDisposable
         Assert.Equal(4, saved.Format);
     }
 
+    /// <summary>
+    /// The owner's ask (2026-10-23): "phase played" built with the pickers while the battle-skill keys
+    /// are read: the phases by their strip names, a hint saying what is counted, saved at format 5.
+    /// </summary>
+    [Fact]
+    public void A_phase_played_gate_built_with_the_pickers_is_saved()
+    {
+        var library = TwoPhases();
+
+        string said = "";
+        List<string> offered = [];
+        bool hint = false, pickable = false;
+        OnEditor(library, _ => { }, editor =>
+        {
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;               // Burst
+            Click(editor, "AddGateButton");
+            var gate = (StackPanel)editor.FindName("GateRows");
+            var kind = ((Panel)gate.Children[0]).Children.OfType<ComboBox>().First();
+            pickable = kind.Items.Cast<ComboBoxItem>().Single(i => Equals(i.Tag, "PhasePlayed")).IsEnabled;
+            Pick(kind, "PhasePlayed");
+            var pickers = RowOf(gate.Children[0]).Children.OfType<ComboBox>().ToList(); // kind, phase, compare, times
+            offered = pickers[1].Items.Cast<ComboBoxItem>().Select(i => (string)i.Content).ToList();
+            Pick(pickers[3], 2);
+            hint = gate.Children[0] is StackPanel { Children: [_, TextBlock { Text: "Editor.PhasePlayedHint" }] };
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        });
+
+        Assert.True(pickable);
+        Assert.Equal(["Charge I", "Burst II"], offered);
+        Assert.True(hint);
+        var saved = Assert.Single(library.Own.Load().Rotations);
+        Assert.True(saved.Phases[1].When.Count == 1, $"editor said: {said}");
+        Assert.Equal(new PhasePlayedCondition("p", Comparison.AtLeast, 2), saved.Phases[1].When[0]);
+        Assert.Equal(5, saved.Format);
+        Assert.True(Translated("Editor.Condition.PhasePlayed") && Translated("Editor.PhasePlayedHint"));
+    }
+
+    /// <summary>
+    /// While the battle-skill keys aren't read, "phase played" is listed but greyed out, saying it needs
+    /// them; one already in the rotation stays, with that same sentence under it.
+    /// </summary>
+    [Fact]
+    public void Without_the_keys_phase_played_is_greyed_out_and_says_why()
+    {
+        var library = TwoPhases(new PhasePlayedCondition("p", Comparison.AtLeast, 1));
+
+        ComboBoxItem? offered = null;
+        object? kept = null;
+        bool hint = false;
+        OnEditor(library, _ => { }, editor =>
+        {
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;
+            var gate = (StackPanel)editor.FindName("GateRows");
+            kept = ((ComboBoxItem)RowOf(gate.Children[0]).Children.OfType<ComboBox>().First().SelectedItem).Tag;
+            hint = gate.Children[0] is StackPanel { Children: [_, TextBlock { Text: "Editor.PhasePlayedNeedsKeys" }] };
+            Click(editor, "AddGateButton");
+            offered = RowOf(gate.Children[1]).Children.OfType<ComboBox>().First().Items.Cast<ComboBoxItem>().Single(i => Equals(i.Tag, "PhasePlayed"));
+        }, keysRead: false);
+
+        Assert.Equal("PhasePlayed", kept);
+        Assert.True(hint);
+        Assert.False(offered!.IsEnabled);
+        Assert.Equal("Editor.Condition.PhasePlayed.NeedsKeys", offered.Content);
+        Assert.Equal("Editor.PhasePlayedNeedsKeys", offered.ToolTip);
+        Assert.True(Translated("Editor.PhasePlayedNeedsKeys") && Translated("Editor.Condition.PhasePlayed.NeedsKeys"));
+    }
+
+    /// <summary>A gate needing its own phase played before it can show is refused in words.</summary>
+    [Fact]
+    public void A_played_gate_that_can_never_open_is_refused_in_words()
+    {
+        var library = TwoPhases(new PhasePlayedCondition("burst", Comparison.AtLeast, 1));
+
+        string said = "";
+        OnEditor(library, _ => { }, editor =>
+        {
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        });
+
+        Assert.Contains("Rotation.Problem.PhasePlayedOwnGate", said);
+        Assert.True(Translated("Rotation.Problem.PhasePlayedOwnGate") && Translated("Rotation.Problem.PhasePlayedMissingPhase"));
+    }
+
     /// <summary>A gate on its own phase's count is refused in words (it would flip the moment the phase shows).</summary>
     [Fact]
     public void A_gate_on_its_own_count_is_refused_in_words()
@@ -544,7 +630,7 @@ public sealed class RotationEditorTests : IDisposable
     private static void Click(Window window, string name) =>
         ((Button)window.FindName(name)).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
 
-    private void OnEditor(RotationLibrary library, Action<Rotation?> changed, Action<RotationEditor> act)
+    private void OnEditor(RotationLibrary library, Action<Rotation?> changed, Action<RotationEditor> act, bool keysRead = true)
     {
         // The squad's operators, without any art: enough for the pickers.
         string reference = Path.Combine(_folder, "reference");
@@ -568,7 +654,7 @@ public sealed class RotationEditorTests : IDisposable
             try
             {
                 if (Application.Current is null) _ = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-                var editor = new RotationEditor(library, operators, [null, null, null, null], null, () => Task.FromResult<RotationSyncResult?>(null), changed);
+                var editor = new RotationEditor(library, operators, [null, null, null, null], null, () => Task.FromResult<RotationSyncResult?>(null), changed, () => keysRead);
                 act(editor);
             }
             catch (Exception ex)

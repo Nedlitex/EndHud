@@ -225,7 +225,7 @@ public partial class OverlayWindow
                 ConfigStore.Save(_config);
             }
             ReloadRotations();
-        });
+        }, () => _config.ReadSkillPresses);
         _editor.Closed += (_, _) => _editor = null;
         if (_menuOpen) SetMenuOpen(false); // hand the screen to the editor
         _editor.Show();

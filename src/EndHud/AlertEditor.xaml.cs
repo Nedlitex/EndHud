@@ -6,6 +6,7 @@ using EndHud.Vision.Alerts;
 using EndHud.Vision.Operators;
 using EndHud.Vision.Rotations;
 using Microsoft.Win32;
+using Rotation = EndHud.Vision.Rotations.Rotation;
 
 namespace EndHud;
 
@@ -44,8 +45,10 @@ public partial class AlertEditor : Window
     }
 
     /// <param name="store">The rules' file.</param>
+    /// <param name="rotations">The player's rotations: "phase played" names one of their phases.</param>
+    /// <param name="keysRead">The player reads their battle-skill keys (else "phase played" is greyed out).</param>
     /// <param name="saved">Called after the rules were saved (the overlay reloads them).</param>
-    internal AlertEditor(AlertStore store, OperatorLibrary library, Action saved)
+    internal AlertEditor(AlertStore store, OperatorLibrary library, Func<IReadOnlyList<Rotation>> rotations, Func<bool> keysRead, Action saved)
     {
         _store = store;
         _library = library;
@@ -81,7 +84,7 @@ public partial class AlertEditor : Window
     private string RuleName(RuleDraft rule) =>
         rule.Message.Trim().Length > 0 ? rule.Message.Trim()
         : rule.When.Count == 0 ? Loc.Format("Alerts.Numbered", _rules.IndexOf(rule) + 1)
-        : Loc.Format("Alerts.NoText", AlertText.Describe(rule.When, _library));
+        : Loc.Format("Alerts.NoText", AlertText.Describe(rule.When, _library, _ => null));
 
     /// <summary>A rule's line in the list: one line, cut with "…" when long (the whole text is its tooltip).</summary>
     private TextBlock ListText(RuleDraft rule) => new() { Text = RuleName(rule), TextTrimming = TextTrimming.CharacterEllipsis };

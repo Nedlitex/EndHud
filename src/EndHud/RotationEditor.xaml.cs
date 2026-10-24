@@ -35,8 +35,9 @@ public partial class RotationEditor : Window
     /// <param name="select">The rotation to open with, if any.</param>
     /// <param name="restorePublished">Bring back deleted recommended rotations and download them again.</param>
     /// <param name="changed">Called after a rotation is saved (with it) or deleted (with null).</param>
+    /// <param name="keysRead">The player reads their battle-skill keys (else "phase played" is greyed out).</param>
     internal RotationEditor(RotationLibrary store, OperatorLibrary library, IReadOnlyList<string?> currentSquad, string? select,
-        Func<Task<RotationSyncResult?>> restorePublished, Action<Rotation?> changed)
+        Func<Task<RotationSyncResult?>> restorePublished, Action<Rotation?> changed, Func<bool> keysRead)
     {
         _store = store;
         _restorePublished = restorePublished;

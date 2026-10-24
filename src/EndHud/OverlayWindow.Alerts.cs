@@ -80,7 +80,7 @@ public partial class OverlayWindow
     private void ShowAlert(AlertRule rule)
     {
         TakeDownAlert(rule.Id);
-        string text = rule.Message.Trim().Length > 0 ? rule.Message.Trim() : AlertText.Describe(rule.When, _party.Identifier?.Library);
+        string text = rule.Message.Trim().Length > 0 ? rule.Message.Trim() : AlertText.Describe(rule.When, _party.Identifier?.Library, _ => null);
         var popUp = AlertPopUp.Create(AlertIcon(rule), text);
         var holder = AlertPopUp.Holder(popUp, rule.Id);
         AlertStack.Children.Add(holder); // the newest at the bottom
@@ -164,7 +164,7 @@ public partial class OverlayWindow
             MessageBox.Show(Loc.Get("Alerts.NoLibrary"), Loc.Get("Alerts.Title"), MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
-        _alertEditor = new AlertEditor(_alertStore, library, ReloadAlerts);
+        _alertEditor = new AlertEditor(_alertStore, library, () => _rotations, () => _config.ReadSkillPresses, ReloadAlerts);
         _alertEditor.Closed += (_, _) => _alertEditor = null;
         if (_menuOpen) SetMenuOpen(false); // hand the screen to the editor
         _alertEditor.Show();

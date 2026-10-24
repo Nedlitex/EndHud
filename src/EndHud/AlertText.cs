@@ -31,8 +31,9 @@ internal sealed record AlertSubject(AlertSubjectKind Kind, string? Id = null);
 internal static class AlertText
 {
     /// <summary>The conditions in words, joined; groups as "A or B" and "(A and B)" in the strings' words.</summary>
+    /// <param name="phaseName">A phase's name as the alert editor lists it (rotation and phase), by id; null for one no rotation has.</param>
     /// <param name="text">The strings (default: the app's, <see cref="Loc.Get"/>).</param>
-    public static string Describe(IReadOnlyList<StateCondition> when, OperatorLibrary? library, Func<string, string>? text = null)
+    public static string Describe(IReadOnlyList<StateCondition> when, OperatorLibrary? library, Func<string, string?> phaseName, Func<string, string>? text = null)
     {
         text ??= Loc.Get;
         return string.Join(text("Alert.Describe.Separator"), when.Select(c => One(c, library, text, nested: false)));

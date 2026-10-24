@@ -28,7 +28,16 @@ public class AlertTextTests
 
     private static string F(string key, params object[] args) => string.Format(S(key), args);
 
-    private static string Describe(params StateCondition[] when) => AlertText.Describe(when, null, S);
+    private static string Describe(params StateCondition[] when) =>
+        AlertText.Describe(when, null, id => id == "charge" ? "Mine · Charge I" : null, S);
+
+    /// <summary>"Phase played" reads with the phase's name as the editor lists it; a phase no rotation has any more says so.</summary>
+    [Fact]
+    public void Phase_played_reads_with_the_phase_name()
+    {
+        Assert.Equal(F("Alert.Describe.PhasePlayed", "Mine · Charge I", "≥", 2), Describe(new PhasePlayedCondition("charge", Comparison.AtLeast, 2)));
+        Assert.Equal(F("Alert.Describe.PhasePlayed", S("Editor.PhaseMissing"), "=", 0), Describe(new PhasePlayedCondition("gone", Comparison.Exactly, 0)));
+    }
 
     [Fact]
     public void Skill_points_read_as_a_comparison()
