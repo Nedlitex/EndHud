@@ -44,7 +44,7 @@ public class OnScreenDisplayCombatGateTests(ITestOutputHelper output)
         return data;
     }
 
-    internal static IEnumerable<string> Frames()
+    public static IEnumerable<string> Frames()
     {
         string root = Path.Combine(AppContext.BaseDirectory, "Fixtures");
         static bool Picture(string f) => f.EndsWith(".jpg", StringComparison.Ordinal) || f.EndsWith(".png", StringComparison.Ordinal);
@@ -67,12 +67,15 @@ public class OnScreenDisplayCombatGateTests(ITestOutputHelper output)
         foreach (var (size, frame) in new[] { ("4K", source), ("1080p", SimulatedScreen.FullHd.Render(source)) })
         {
             var clean = await ReadAsync(fixture, frame);
-            foreach (var position in SyntheticOsd.Positions)
-            foreach (bool background in new[] { true, false })
+            // The ten variants read side by side, each with its own reader (one text recognizer reads one thing at a time).
+            var variants = SyntheticOsd.Positions.SelectMany(p => new[] { (Position: p, Background: true), (Position: p, Background: false) }).ToList();
+            var read = await Task.WhenAll(variants.Select(v => Task.Run(() =>
+                ReadAsync(fixture, SyntheticOsd.Draw(frame, v.Position, v.Background), new PartyReader(new TextRecognizer())))));
+            for (int n = 0; n < variants.Count; n++)
             {
+                var (position, background) = variants[n];
                 string variant = $"{size} {position}{(background ? " bg" : "")}";
-                var covered = await ReadAsync(fixture, SyntheticOsd.Draw(frame, position, background));
-                var (unknown, found) = Compare(clean, covered);
+                var (unknown, found) = Compare(clean, read[n]);
                 wrong.AddRange(found.Select(w => $"{variant} {w}"));
                 output.WriteLine($"GATE\t{fixture}\t{size}\t{position}\t{(background ? "bg" : "nobg")}\tunknown={unknown}\twrong={found.Count}\t{string.Join("; ", found)}");
             }
@@ -84,7 +87,7 @@ public class OnScreenDisplayCombatGateTests(ITestOutputHelper output)
     private static readonly HashSet<string> Signs = ["panel", "combat"];
 
     /// <summary>How many values became unknown, and the wrong ones ("field: clean read covered").</summary>
-    internal static (int Unknown, List<string> Wrong) Compare(Dictionary<string, string?> clean, Dictionary<string, string?> covered)
+    public static (int Unknown, List<string> Wrong) Compare(Dictionary<string, string?> clean, Dictionary<string, string?> covered)
     {
         int unknown = 0;
         var wrong = new List<string>();
@@ -122,11 +125,11 @@ public class OnScreenDisplayCombatGateTests(ITestOutputHelper output)
     private static string F(double v) => v.ToString("F2", CultureInfo.InvariantCulture);
 
     /// <summary>Every combat value read, by field; a field absent or null is unknown.</summary>
-    internal static async Task<Dictionary<string, string?>> ReadAsync(string fixture, Frame frame)
+    public static async Task<Dictionary<string, string?>> ReadAsync(string fixture, Frame frame, PartyReader? reader = null)
     {
         var (party, buffs, boss) = await Readers.Value;
         var r = new Dictionary<string, string?>();
-        var state = await party.ReadAsync(frame);
+        var state = await (reader ?? party).ReadAsync(frame);
         r["panel"] = state.PanelVisible.ToString();
         r["combat"] = state.InCombat.ToString();
         r["mode switch"] = state.ModePill == ModePillReading.NotSeen ? null : state.ModePill.ToString();
