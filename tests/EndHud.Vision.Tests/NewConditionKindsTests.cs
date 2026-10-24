@@ -145,14 +145,18 @@ public class NewConditionKindsTests
         Assert.Equal("charge", ((IPhaseHistory)fight.Selector).CurrentPhase);
     }
 
-    /// <summary>Without the keys the played-through part is ignored: only "the phase is Charge" is asked.</summary>
+    /// <summary>
+    /// Without the keys "the phase is Charge and played through" is ignored as a whole, like "phase played": Basic's gate
+    /// is left with "the phase is Basic", which never opens from Charge. (Ignoring only the played-through part made it
+    /// "the phase is Charge", which opened at once and held a phase gated on its own showing for the rest of the fight.)
+    /// </summary>
     [Fact]
-    public void Without_the_keys_only_the_phase_is_asked()
+    public void Without_the_keys_the_played_through_condition_is_ignored_as_a_whole()
     {
         var fight = new Fight(ChargeThenBasic(), keysRead: false);
 
         Assert.Equal("Charge I", fight.Read(Plain()));
-        Assert.Equal("Basic II", fight.Read(Plain()));
+        Assert.Equal("Charge I", fight.Read(Plain()));
     }
 
     private sealed class FakeHistory(string? current, bool? played, bool ignored = false) : IPhaseHistory
