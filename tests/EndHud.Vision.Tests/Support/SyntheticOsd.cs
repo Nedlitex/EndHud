@@ -117,15 +117,17 @@ internal static class SyntheticOsd
     }
 
     /// <summary>A copy of <paramref name="frame"/> with the display at <paramref name="position"/>, sized for the frame's height.</summary>
-    public static Frame Draw(Frame frame, OsdPosition position, bool background, bool minimal = false)
+    /// <param name="refresh">Which update of the display's values: RTSS redraws its numbers about once a second, so a
+    /// display over the HUD isn't still. 0 is the values as listed; each step turns every digit on by that much.</param>
+    public static Frame Draw(Frame frame, OsdPosition position, bool background, bool minimal = false, int refresh = 0)
     {
         int px = PixelFor(frame.Height);
         var (x, y) = Place(position, frame.Width, frame.Height, px, minimal);
-        return Draw(frame, x, y, px, background, minimal);
+        return Draw(frame, x, y, px, background, minimal, refresh);
     }
 
     /// <summary>A copy of <paramref name="frame"/> with the display's top-left at (<paramref name="x"/>, <paramref name="y"/>).</summary>
-    public static Frame Draw(Frame frame, int x, int y, int px, bool background, bool minimal = false)
+    public static Frame Draw(Frame frame, int x, int y, int px, bool background, bool minimal = false, int refresh = 0)
     {
         var copy = new Frame(frame.Width, frame.Height, (byte[])frame.Bgra.Clone());
         var (w, h) = Size(px, minimal);
@@ -138,7 +140,7 @@ internal static class SyntheticOsd
             foreach (var (text, colour) in line)
                 foreach (char c in text)
                 {
-                    DrawGlyph(copy, cx, cy, px, c, colour);
+                    DrawGlyph(copy, cx, cy, px, char.IsAsciiDigit(c) ? (char)('0' + (c - '0' + refresh) % 10) : c, colour);
                     cx += cellW;
                 }
             cy += lineH;
@@ -147,7 +149,7 @@ internal static class SyntheticOsd
         // The frametime graph: a dimmer box and a jagged green line.
         int gx = x + px, gy = cy, gw = Chars * cellW - px, gh = 6 * lineH / 4;
         Blend(copy, gx, gy, gw, gh, (20, 20, 20), background ? 0.5 : 0.0);
-        var rng = new Random(7);
+        var rng = new Random(7 + refresh);
         int prev = gy + gh / 2;
         for (int i = 0; i < gw; i++)
         {
