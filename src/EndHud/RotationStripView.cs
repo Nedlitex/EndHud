@@ -18,8 +18,8 @@ internal static class RotationStripView
 
     /// <summary>What to draw for a tracker position: its phase (see <see cref="ForPhase"/>), with the steps marked when <paramref name="steps"/> says where the player is.</summary>
     /// <param name="steps">Where the player is inside the phase (<see cref="StepFollower"/>); null: every step alike.</param>
-    public static StripView Build(Rotation rotation, RotationPosition position, StepPosition? steps, PartyState? state, OperatorLibrary? library,
-        Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar)
+    public static StripView Build(Rotation rotation, RotationPosition position, PartyState? state, OperatorLibrary? library,
+        Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, StepPosition? steps = null)
     {
         var view = ForPhase(rotation, position.Step.PhaseIndex, library, skillIcon, avatar, steps);
         if (steps is not { Ready: false } || steps.Phase != position.Step.PhaseIndex) return view;

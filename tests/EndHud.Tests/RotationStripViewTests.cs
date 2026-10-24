@@ -30,7 +30,7 @@ public class RotationStripViewTests
         var position = new RotationPosition(played[1], ready,
             [new ConditionCheck(CheckKind.OwnAbility, null, ready)]);
 
-        var view = RotationStripView.Build(Rotation, position, steps: null, null, null, (_, _) => null, _ => null);
+        var view = RotationStripView.Build(Rotation, position, null, null, (_, _) => null, _ => null, steps: null);
 
         Assert.Equal("充能轴 I", view.Phase);
         Assert.Equal(3, view.Steps.Count);
@@ -47,7 +47,7 @@ public class RotationStripViewTests
         var played = Rotation.Played();
         var steps = new StepPosition(0, [StepMark.Done, StepMark.Current, StepMark.Upcoming], true, [new ConditionCheck(CheckKind.OwnAbility, null, true)]);
 
-        var view = RotationStripView.Build(Rotation, new RotationPosition(played[0], true, []), steps, null, null, (_, _) => null, _ => null);
+        var view = RotationStripView.Build(Rotation, new RotationPosition(played[0], true, []), null, null, (_, _) => null, _ => null, steps);
 
         Assert.Equal([StripStepState.Done, StripStepState.Ready, StripStepState.Upcoming], view.Steps.Select(s => s.State));
         Assert.All(view.Next!.Steps, s => Assert.Equal(StripStepState.Upcoming, s.State)); // the next phase's preview is never marked
@@ -62,7 +62,7 @@ public class RotationStripViewTests
         var state = new Vision.PartyState([]) { SkillPoints = 0.4 };
         var steps = new StepPosition(0, [StepMark.Current, StepMark.Upcoming, StepMark.Upcoming], false, [new ConditionCheck(CheckKind.OwnAbility, null, false)]);
 
-        var view = RotationStripView.Build(Rotation, new RotationPosition(played[0], true, []), steps, state, null, (_, _) => null, _ => null);
+        var view = RotationStripView.Build(Rotation, new RotationPosition(played[0], true, []), state, null, (_, _) => null, _ => null, steps);
 
         Assert.Equal([StripStepState.Waiting, StripStepState.Upcoming, StripStepState.Upcoming], view.Steps.Select(s => s.State));
         // Ardelia's battle skill, the current step: 0.4 of the 1 skill point it needs.
@@ -73,7 +73,7 @@ public class RotationStripViewTests
     public void A_phase_entered_by_its_condition_is_the_one_shown()
     {
         var played = Rotation.Played();
-        var view = RotationStripView.Build(Rotation, new RotationPosition(played[3], true, []), steps: null, null, null, (_, _) => null, _ => null);
+        var view = RotationStripView.Build(Rotation, new RotationPosition(played[3], true, []), null, null, (_, _) => null, _ => null, steps: null);
 
         Assert.Equal("爆发轴 II", view.Phase);
         Assert.All(view.Steps, s => Assert.Equal(StripStepState.Upcoming, s.State));
