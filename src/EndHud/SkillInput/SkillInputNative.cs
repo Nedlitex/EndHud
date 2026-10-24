@@ -150,14 +150,14 @@ internal static class SkillInputNative
     public static extern uint GetRegisteredRawInputDevices([Out] RAWINPUTDEVICE[]? devices, ref uint count, uint size);
 
     [DllImport("user32.dll", SetLastError = true)]
-    public static extern uint GetRawInputData(IntPtr rawInput, uint command, IntPtr data, ref uint size, uint headerSize);
+    public static extern uint GetRawInputData(IntPtr rawInput, uint command, [Out] byte[]? data, ref uint size, uint headerSize);
 
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     public static extern uint GetRawInputDeviceInfoW(IntPtr device, uint command, IntPtr data, ref uint size);
 
     [DllImport("hid.dll")]
     public static extern int HidP_GetUsages(int reportType, ushort usagePage, ushort linkCollection, [Out] ushort[] usages,
-        ref uint usageLength, IntPtr preparsedData, IntPtr report, uint reportLength);
+        ref uint usageLength, IntPtr preparsedData, [In] byte[] report, uint reportLength);
 
     [DllImport("xinput1_4.dll")]
     public static extern uint XInputGetState(uint userIndex, out XINPUT_STATE state);
