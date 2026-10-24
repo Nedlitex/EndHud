@@ -224,17 +224,26 @@ internal static class DiagnosticExport
         var bgra = (byte[])picture.Bgra.Clone();
         // Inside the game's 16:9 picture: on a 16:10 screen with black bars, the UID is 80 px above
         // where the whole frame would put it (a 0.6.4 export showed a player's UID that way).
-        var content = Letterbox.Content(picture);
+        var letterbox = Letterbox.Read(picture);
+        Blacken(bgra, picture.Width, letterbox.Content);
+        // A frame that isn't 16:9 whose bars were rejected (an overlay drawn over them, say): the UID may still sit where
+        // the bars would put it, so that place is blacked out too.
+        if (letterbox.BarsRejected) Blacken(bgra, picture.Width, letterbox.Expected!.Value);
+        return new Frame(picture.Width, picture.Height, bgra);
+    }
+
+    /// <summary>Black out the UID area of the 16:9 picture at <paramref name="content"/> in a frame <paramref name="width"/> wide.</summary>
+    private static void Blacken(byte[] bgra, int width, PixelRect content)
+    {
         var inPicture = UidArea(content.Width, content.Height);
         var uid = new PixelRect(content.X + inPicture.X, content.Y + inPicture.Y, inPicture.Width, inPicture.Height);
         for (int y = uid.Y; y < uid.Bottom; y++)
         for (int x = uid.X; x < uid.Right; x++)
         {
-            int i = (y * picture.Width + x) * 4;
+            int i = (y * width + x) * 4;
             bgra[i] = bgra[i + 1] = bgra[i + 2] = 0;
             bgra[i + 3] = 255;
         }
-        return new Frame(picture.Width, picture.Height, bgra);
     }
 
     /// <summary>The PC, as far as a diagnosis needs it.</summary>
