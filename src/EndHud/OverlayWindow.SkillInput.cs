@@ -23,7 +23,7 @@ public partial class OverlayWindow
     internal ISkillPressSource? ActiveSkillPresses => PressesFor(_config, _skillInput);
 
     /// <summary>The presses the strip follows under these settings: the reader's when the player turned reading on, else none.</summary>
-    internal static ISkillPressSource? PressesFor(HudConfig config, ISkillPressSource reader) => null;
+    internal static ISkillPressSource? PressesFor(HudConfig config, ISkillPressSource reader) => config.ReadSkillPresses ? reader : null;
 
     private void InitSkillInput()
     {
