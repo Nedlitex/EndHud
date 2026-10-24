@@ -52,6 +52,13 @@ public readonly struct UiScaler
         Math.Max(1, (int)Math.Round(reference.Width * _scale)),
         Math.Max(1, (int)Math.Round(reference.Height * _scale)));
 
+    /// <summary>A rectangle anchored to the top-left corner of the window (the mode switch).</summary>
+    public PixelRect TopLeft(PixelRect reference) => new(
+        (int)Math.Round(reference.X * _scale),
+        (int)Math.Round(reference.Y * _scale),
+        Math.Max(1, (int)Math.Round(reference.Width * _scale)),
+        Math.Max(1, (int)Math.Round(reference.Height * _scale)));
+
     /// <summary>A rectangle anchored to the bottom-left corner of the window.</summary>
     public PixelRect BottomLeft(PixelRect reference) => new(
         (int)Math.Round(reference.X * _scale),

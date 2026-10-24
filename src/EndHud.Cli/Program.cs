@@ -20,6 +20,9 @@ using EndHud.Vision.Operators;
 //       Text only (never an image): per sampled frame the inn screen, the timer and each table card
 //       (state and item ids); then every order once and how often each dish and drink was ordered,
 //       the menu and the theme as the screens state them. --end-margin leaves out the recording's last seconds.
+//   endhud-cli trace-mode-pill <recording.mp4|frame.png|jpg>... [--every <seconds>] [--from <seconds>] [--to <seconds>] [--end-margin <seconds>]
+//       Text only: per frame (or image) the top-left mode switch (ModePill): its shape score, the red share
+//       of its icon, the reading, and whether the squad panel reads as combat. For tuning the battle-only rule.
 //   endhud-cli identify <screenshot.png> --library <library-dir> [--debug-dir <dir>]
 //       Match each squad portrait against the library and print the top candidates.
 //   endhud-cli build-portrait-references <squads.json> <out.json>
@@ -47,6 +50,10 @@ return args.FirstOrDefault() switch
     "trace-inn" when args.Length >= 2 =>await EndHud.Cli.InnTrace.RunAsync(args[1], double.Parse(Option("--every") ?? "0.5", System.Globalization.CultureInfo.InvariantCulture),
         double.Parse(Option("--from") ?? "0", System.Globalization.CultureInfo.InvariantCulture), Option("--to") is { } innTo ? double.Parse(innTo, System.Globalization.CultureInfo.InvariantCulture) : null,
         double.Parse(Option("--end-margin") ?? "0", System.Globalization.CultureInfo.InvariantCulture), Option("--reference")),
+    "trace-mode-pill" when args.Length >= 2 => await TraceModePillAsync(args[1..].TakeWhile(a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray(),
+        double.Parse(Option("--every") ?? "1", System.Globalization.CultureInfo.InvariantCulture), double.Parse(Option("--from") ?? "0", System.Globalization.CultureInfo.InvariantCulture),
+        Option("--to") is { } pillTo ? double.Parse(pillTo, System.Globalization.CultureInfo.InvariantCulture) : null,
+        double.Parse(Option("--end-margin") ?? "5", System.Globalization.CultureInfo.InvariantCulture)),
     "read-bubbles" when args.Length >= 2 => await EndHud.Cli.InnTrace.ReadBubblesAsync(args[1..], Option("--reference")),
     "capture" when args.Length >= 3 => await CaptureAsync(args[1], args[2]),
     "build-portrait-references" when args.Length >= 3 => await BuildReferencesAsync(args[1], args[2]),
@@ -71,6 +78,7 @@ static int Usage()
           endhud-cli analyze-video <recording.mp4> [--every <seconds>] [--from <seconds>] [--to <seconds>]
           endhud-cli trace-video <recording.mp4> [--every <seconds>] [--from <seconds>] [--to <seconds>] [--presses <file>] [--rotation <rotation.json> --squad <id1>,<id2>,<id3>,<id4>]
           endhud-cli trace-inn <recording.mp4> [--every <seconds>] [--from <seconds>] [--to <seconds>] [--end-margin <seconds>] [--reference <folder>]
+          endhud-cli trace-mode-pill <recording.mp4|frame.png|jpg>... [--every <seconds>] [--from <seconds>] [--to <seconds>] [--end-margin <seconds>]
           endhud-cli read-bubbles <frame.png|jpg>... [--reference <folder>]
           endhud-cli learn <screenshot.png> --library <library-dir> --slots <id1>,<id2>,<id3>,<id4>
           endhud-cli capture <window-title-part> <out.png>
@@ -78,6 +86,35 @@ static int Usage()
           endhud-cli build-operator-package <out.zip> --inn <inn folder> [--keep-roster]
         """);
     return 2;
+}
+
+// The top-left mode switch per frame: a video sampled every few seconds (never its last seconds), or images.
+static async Task<int> TraceModePillAsync(string[] paths, double everySeconds, double from, double? to, double endMargin)
+{
+    var reader = new PartyReader(new TextRecognizer());
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+    Console.WriteLine("source,t,shape,red,reading,panel,combat");
+    foreach (string path in paths)
+    {
+        if (path.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
+        {
+            var video = await VideoFile.OpenAsync(path);
+            double end = Math.Min(to ?? double.MaxValue, video.Duration.TotalSeconds - endMargin);
+            for (double t = from; t < end; t += everySeconds) await Row(Path.GetFileName(path), t, await video.GetFrameAsync(TimeSpan.FromSeconds(t)));
+        }
+        else await Row(Path.GetFileName(path), 0, await ImageFile.LoadAsync(path));
+    }
+    return 0;
+
+    async Task Row(string source, double t, Frame frame)
+    {
+        var content = Letterbox.Content(frame);
+        if (content != new PixelRect(0, 0, frame.Width, frame.Height)) frame = frame.Crop(content);
+        var ui = new UiScaler(frame.Width, frame.Height);
+        var (shape, red) = ModePill.Measure(frame, ui);
+        var state = await reader.ReadAsync(frame);
+        Console.WriteLine(string.Create(inv, $"{source},{t:F1},{shape:F2},{red:F2},{ModePill.Read(frame, ui)},{state.PanelVisible},{state.InCombat}"));
+    }
 }
 
 // Grab one frame of a window through the same capture path the HUD uses (e.g. the game, for tuning).
