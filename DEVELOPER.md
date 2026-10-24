@@ -1527,12 +1527,26 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
 ```
 
 - `squad`: operator ids from the operator library, in any slot order.
-- `phases`, in order. `when` says when a phase applies: each reading, the first phase whose `when`
-  holds is shown (the last, with `lastMatchWins`). When none holds, the first phase without `when`
-  is shown: it's the "otherwise" phase. While something can't be read, or when every phase has a
-  `when`, the phase already shown stays. See [Choosing the phase](#choosing-the-phase).
+- `phases`, in order. `when` says when a phase applies: each reading, of the phases whose `when`
+  holds the one with the biggest priority is shown, and among equal priorities the first (the last,
+  with `lastMatchWins`). When none holds, the first phase without `when` is shown: it's the
+  "otherwise" phase. While something can't be read, or when every phase has a `when`, the phase
+  already shown stays. See [Choosing the phase](#choosing-the-phase).
 - `lastMatchWins` (optional, format 3): `true` shows the last phase whose `when` holds instead of
-  the first.
+  the first, among those of equal priority.
+- `priority` (optional, format 6): a phase's priority, a whole number (negative allowed), 0 when
+  absent. `priorityRules` (optional, format 6): "if this holds, the priority is that", in order,
+  each `{ "when": [ … ], "priority": n }` (`when` as a phase's: a list that must all hold, any kind of
+  condition). The first rule whose `when` holds sets the phase's priority; when none does, `priority`
+  applies. Only for a phase with a `when`: the otherwise phase isn't ranked. Example, a burst phase
+  that outranks the others once Laevatain's ultimate is ready:
+
+  ```json
+  { "id": "burst", "name": "爆发轴", "when": [ { "kind": "skillPoints", "is": "AtLeast", "value": 2 } ],
+    "priority": 1,
+    "priorityRules": [ { "when": [ { "kind": "ultimate", "operatorId": "Laevatain", "ready": true } ], "priority": 10 } ],
+    "steps": [ … ] }
+  ```
 - `action`: `BattleSkill`, `Combo`, `Ultimate` or `BasicAttack` (format 4). The skill being
   available (a skill point for a battle skill, the combo or ultimate ready) is implied; `expect`
   lists anything else. `BasicAttack` is drawn only: the strip shows the operator's avatar as its
@@ -1579,6 +1593,14 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   it must be shown to be played, so it would never open). A gate on its own plays that holds at 0
   (`AtMost` 2: "play it twice, then leave it") is fine.
 
+  A priority rule's `when` is checked like an entry condition's (an operator not in the squad, an
+  empty group, a `phaseShown`/`phasePlayed` naming a deleted phase), and the problem names the rule
+  (`RotationProblem.Rule`, from 1). A rule may count its own phase's showings or plays: it only ranks
+  the phase once its `when` holds, so it can't flip the phase on by itself. Two problems of their
+  own: a rule with no condition (`PriorityRuleWithoutCondition`: it would always hold; set the
+  phase's `priority` instead), and a priority or rule on a phase without `when`
+  (`PriorityWithoutEntryCondition`: the otherwise phase isn't ranked, so it would do nothing).
+
   **`phasePlayed` while the battle-skill keys aren't read** (owner, 2026-10-23): nothing is played
   through, so the condition is ignored, as if it weren't there. A part made of nothing but
   `phasePlayed` (a `not` of one, a group of only such parts, at any depth:
@@ -1591,7 +1613,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   offer the kind, greyed out with a sentence saying it needs 读取战技按键, and a condition already
   there shows that sentence under it.
 
-- `format`: 5 when it uses `phasePlayed`; else 4 when it uses a `BasicAttack` step, `Below`/`Above` or `phaseShown`; else 3 when it
+- `format`: 6 when a phase sets `priority` (other than 0) or `priorityRules`; else 5 when it uses `phasePlayed`; else 4 when it uses a `BasicAttack` step, `Below`/`Above` or `phaseShown`; else 3 when it
   uses `not`, `ultimateActive` or `lastMatchWins`; else 2. A rotation is saved in the lowest
   format that holds it (`Rotation.FormatNeeded`), so one using nothing new stays readable by older
   builds, and the published `rotations/*.json` stay at format 3 or lower (a test checks). A
@@ -1695,14 +1717,41 @@ With a controller the battle skill buttons aren't read, so there is no timer the
 
 ### Choosing the phase
 
-[`PhaseSelector`](src/EndHud.Vision/Rotations/PhaseSelector.cs), once per reading: the first phase in
-the list whose `when` holds becomes the one shown (the last, with `lastMatchWins`; unknown counts
-as not holding). When none holds and every `when` could be read, the first phase without `when` is
+[`PhaseSelector`](src/EndHud.Vision/Rotations/PhaseSelector.cs), once per reading: of the phases
+whose `when` holds, the one with the **biggest priority** becomes the one shown; among equal
+priorities, the first in the list (the last, with `lastMatchWins`; unknown counts as not holding). When none holds and every `when` could be read, the first phase without `when` is
 shown (the "otherwise" phase); while one can't be read, or when every phase has a `when`, the
 phase shown stays; before any has held, the first phase without `when` (or the first phase).
 Until 0.5.1 the phase shown always stayed when none held, so a phase without `when` never came
 back once another had held (a player's 充能轴 I "Laevatain's ultimate at most 50%" never gave way
 to 充能轴 II).
+
+**Priorities** (owner, 2026-10-24: "if condition, priority is x"). A phase's priority this reading
+is the first of its `priorityRules` whose `when` holds, else its `priority` (0 when not set).
+Bigger wins; equal ones go by list order, so a rotation that sets no priority (every rotation from
+before format 6) picks exactly as before (`PhaseSelectorTests.All_priorities_0_is_list_order_as_before`
+and the older tests pin it). Decided with the owner's three rules:
+
+- Priorities only rank the phases whose `when` holds. The otherwise phase (no `when`) keeps its
+  role, shown only when none holds, and a priority on it is refused (above).
+- A rule that can't be read (unknown) doesn't hold: the next rule, or the base number, applies. A
+  rule made only of ignored parts (`phasePlayed` without the keys, `RotationTracker.Ignored`)
+  doesn't hold either: it would hold on every reading.
+- What a `when` that can't be read does is unchanged: it only matters when no phase holds, and then
+  the phase shown stays.
+
+Rules see the counts as the entry conditions do, before the reading's switch. The strip's reasons
+under the icons and the editor's preview don't show priorities.
+
+In the editor, under a phase's entry condition: **优先级**, a box taking a whole number (full-width
+digits and signs from a Chinese input method count; anything else is refused under the box, and
+saving is refused naming the phase), with a line saying bigger wins and equal ones go by list
+order; then **条件优先级**, the rules in order, each "第 n 条：下面的条件都满足时，优先级为 [n]" with ↑ ↓
+and 删除这条, its conditions as the same pickers as an entry condition's (`ConditionEditor`), and
+添加条件. No rules: only the number. A new rule starts one above the phase's number, with one
+condition to change. On a phase without an entry condition both are greyed out, saying why, unless
+one is already set there (so it can be put back to 0).
+
 Conditions are evaluated by `RotationTracker.Evaluate`, which takes an `IPhaseHistory`: the
 selector passes itself, anything else (`RotationTracker`'s step following, the strip's reasons)
 passes `PhaseHistory.None`, where `phaseShown` and `phasePlayed` are unknown. The selector's
