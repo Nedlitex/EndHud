@@ -69,7 +69,7 @@ public static class ModePill
     public const double MatchAt = 0.88;
 
     /// <summary>Share of the left icon's pixels that are red when the game marks a fight: the mark fills
-    /// 0.42-0.45 of them; thin red strokes over it (an on-screen display's text) far less.</summary>
+    /// 0.33-0.45 of them; thin red strokes over it (an on-screen display's text) far less.</summary>
     public const double RedAt = 0.25;
 
     private const int WhiteMin = 200;
