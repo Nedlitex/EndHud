@@ -55,7 +55,17 @@ public partial class OverlayWindow
     /// list of press times would be a keystroke timeline), so nothing about presses goes into the
     /// recent readings either.
     /// </summary>
-    internal static IEnumerable<string> PressLines(string status, int[,] tally) => [];
+    internal static IEnumerable<string> PressLines(string status, int[,] tally)
+    {
+        yield return $"battle-skill key reading: {status}";
+        for (int slot = 0; slot < 4; slot++)
+        {
+            int Count(PressVerdict verdict) => tally[slot, (int)verdict];
+            yield return $"  slot {slot + 1} battle skill: counted {Count(PressVerdict.Counted)}, cooling {Count(PressVerdict.Cooling)}, " +
+                $"no skill points {Count(PressVerdict.NoSkillPoints)}, repeat {Count(PressVerdict.Repeat)}, " +
+                $"not in battle {Count(PressVerdict.NotInBattle)}, empty slot {Count(PressVerdict.EmptySlot)}";
+        }
+    }
 
     private void ExportDiagnosticsButton_Click(object sender, RoutedEventArgs e) => ExportFromMenu(DiagnosticSize.Mini);
 
