@@ -89,7 +89,6 @@ public sealed class CastFlashTracker
     /// <summary>A new sample of the four buttons, taken at <paramref name="at"/>; the flashes told by it, oldest first.</summary>
     public IReadOnlyList<FlashEvent> Add(TimeSpan at, IReadOnlyList<FlashSample> buttons)
     {
-        if (at >= TimeSpan.Zero) return []; // RED: nothing told yet
         if (_last is { } last && (at <= last || at - last > Gap)) Forget();
         var interval = _last is { } previous ? at - previous : TimeSpan.Zero;
         _last = at;
