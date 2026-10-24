@@ -74,6 +74,12 @@ rotation charts.
   through the loading screen after it (Fixtures/panel-or-not/squad-select-screen.jpg). A boss's status covering
   every HP bar in a real battle still counts: the controlled operator and charging ultimates show
   (Fixtures/panel-or-not/battle-hp-bars-covered.jpg).
+- **Never in 探索 or 工业 mode** (owner, 2026-10-24: "the battle HUD should not show in 探索 or 工业
+  mode (see top left), should only show in the actual battle"). The game draws a mode switch at the
+  top left in the open world only; while it shows with its plain icon, every battle overlay is down
+  at once: strip, gauges, alerts, combo hints, and a battle-skill key is "not in battle". A fight in
+  the open world turns the switch's icon red, and that is a battle. See
+  [Out of battle: the mode switch](#out-of-battle-the-mode-switch).
 - **Looks like the guides' charts:** a see-through grey band that fades out at both ends, no
   backdrop box, the phase name large on the left, a line through the icons. Centred at the top by
   default, and it stays centred as its width changes.
@@ -2246,6 +2252,7 @@ package, add it to `requirements.txt` with an exact version.
 | `build-portrait-references <squads.json> <out.json>` | Rebuild EndHud's built-in in-game portrait references from labelled 4K squad screenshots. |
 | `trace-video <video>` `[--every <s>] [--from <s>] [--to <s>] [--presses <file>] [--rotation <rotation.json> --squad <id1>,<id2>,<id3>,<id4>]` | One CSV row per sampled frame: skill points and, per slot, combo, ultimate and battle-skill button, for studying when abilities are used. `--presses`: a file of the battle skills cast in the recording, lines `seconds,slot` (`#` starts a comment; a bad line is refused with its line number); a `presses` column says how each press was judged against the row before (e.g. `2:Counted 2:Repeat`). `--rotation` with `--squad` (the operator ids by slot, so no naming is needed): `phase,step` columns, the phase the strip shows and the step it marks current (1-based; `-` out of battle or with no step marked). |
 | `trace-inn <video>` `[--every <s>] [--from <s>] [--to <s>] [--end-margin <s>] [--reference <dir>]` | Text only, never an image: per sampled frame (0.5 s) the inn screen, the timer, each table card's state and item ids and the dispatch panel's dishes and queue; then every order once (counted only after its table was seen choosing, items by a vote over the frames that showed them), the counts per dish and drink, gourmand orders apart, the menu and the theme as the screens state them. For measuring what guests order. `--end-margin` leaves out a recording's last seconds. |
+| `trace-mode-pill <video\|image>...` `[--every <s>] [--from <s>] [--to <s>] [--end-margin <s>]` | Text only: per frame (a recording sampled every `--every` s, never its last `--end-margin` s, 5 by default; or each image) the top-left mode switch's shape score, the red share of its icon, the reading, and whether the squad panel reads as on screen and in combat. For tuning [the mode switch](#out-of-battle-the-mode-switch). |
 | `fetch-operators <dir>` | Download or update the roster, avatars and skill icons from the wiki into `<dir>/reference`, as the app does (`identify` and `learn` use the same layout). |
 
 
@@ -2311,6 +2318,56 @@ moves every ultimate circle to the wrong operator, which reads as an ultimate ju
 readings in a row (3 s) for a larger squad, 4 (1 s) for a smaller one, holding the last reading
 as not seen meanwhile. In the smaller-squad recording scenery made a squad of two look larger for
 up to 10 readings in a row; hidden marks made a full squad look smaller for under 4.
+
+### Out of battle: the mode switch
+
+What the owner asked for: the battle HUD only in an actual battle, never in 探索 (exploring) or 工业
+(building) mode. The game shows which: in the open world it draws a mode switch at the top left, a
+dark capsule with a round icon at each end (left: a lightning bolt with keyboard and mouse, a D-pad
+arrow with a controller; right: a compass) and a white slider over the chosen side with the mode's
+name. A battle in an instance draws the evacuate bar (撤离) there instead (every `combat-*` and
+`battle-*` fixture). While a fight is on in the open world, the switch's left icon turns red
+(battle_controller_test4.mp4: the red mark appears 0.5 s before the combo bars and skill points,
+and goes as they go).
+
+- **Reading** ([`ModePill`](src/EndHud.Vision/ModePill.cs), every reading, anchored top-left via
+  `UiScaler.TopLeft` on the letterbox-free picture): by shape, never by OCR of the word. The
+  slider's free round end is compared pixel by pixel with its shape (`WhiteShape`, intersection over
+  union): exploring the slider covers the compass and its free end is on the left (x 112 at 4K),
+  building it covers the bolt and its free end is on the right (x 390). Only the capsule's own band
+  (y 67-148) counts: the scenery above and below is left out (`'?'` cells), as a bright sky there
+  made the switch score 0.81. The switch scores 0.98 on every fixture and frame checked; the
+  evacuate bar 0.75-0.77; menus, cutscenes and photo mode 0.27 or less; matched at 0.88. Then the
+  left icon: 0.42-0.45 of it the mark's crimson (red 165-212, green at most 43) is a fight; the bolt
+  and the arrow have none; at least 0.25 counts.
+- **On the reading** ([`PartyState`](src/EndHud.Vision/PartyReader.cs)): `ModePill` (`NotSeen`,
+  `OutOfBattle`, `Fighting`) and `OutOfBattle`. `InCombat` is false while `OutOfBattle`, which is how
+  every battle overlay goes down: `StripVisibility` (strip, gauges, alerts, the boss statuses they
+  ask for) takes it down at once instead of after the 2 s wait for missing battle signs,
+  `ComboHints` shows nothing and starts over as out of combat, and `SkillPressJudge` judges a press
+  `NotInBattle`. The menu's placement samples still show (they don't depend on battle). The inn
+  helper doesn't read it.
+- **Held** ([`PartyTracker`](src/EndHud.Vision/PartyTracker.cs)): a new reading is taken after 2 in
+  a row, so one misread frame neither takes the HUD down nor lets it up. `NotSeen` (absent, or
+  covered) keeps the switch last seen for up to 8 readings (2 s), then the squad panel's battle
+  signs decide alone, as before the switch was read.
+- **Overlays drawn into the game.** On-screen displays (RivaTuner / MSI Afterburner temperatures
+  and frame rates, Steam, Discord, NVIDIA) are injected into the game's own rendering, so they are
+  in the captured picture, and RivaTuner's default place is the top left, over the switch. Text and
+  graphs don't make the switch's shape, so a display there reads `NotSeen`, never the switch, and
+  never a fight (orange text isn't the crimson; thin red strokes are far below a quarter of the
+  icon). A covered switch can therefore only let the battle HUD up, never take it down: with a
+  display left over it, EndHud behaves as before the switch was read (`OnScreenDisplayTests` draws
+  one in four colours and two sizes, with and without its backdrop, over battle, exploring and
+  building frames).
+- **No second cue.** The "TAB ⇌" label above the switch is drawn with keyboard and mouse only, and
+  the factory toolbar only in 工业: neither is there in every out-of-battle screen, so neither is
+  used.
+- **Logged**: "mode switch (top left): …" with its scores whenever the held reading changes, and the
+  diagnostics' last reading names it. `endhud-cli trace-mode-pill` prints it per frame.
+- **Fixtures**: `Fixtures/mode-switch/` (controller exploring, also over a bright sky; a fight over
+  a bright sky; the evacuate bar's highest-scoring frame; keyboard building), the exploration and
+  `controller/` fixtures. No fixture has the controller layout in 工业 mode.
 
 ### Controller layout
 
