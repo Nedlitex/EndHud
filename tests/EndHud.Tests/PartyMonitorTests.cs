@@ -46,13 +46,15 @@ public class PartyMonitorTests
     public void The_battle_skill_buttons_are_sampled_in_battle_with_keyboard_and_mouse_through_the_window_only()
     {
         var now = TimeSpan.Zero;
-        Assert.True(PartyMonitor.SamplesFlashes(HudLayout.KeyboardMouse, fromWindow: true, now));
+        Assert.True(PartyMonitor.SamplesFlashes(HudLayout.KeyboardMouse, fromWindow: true, now, outOfBattle: false));
         // Through an ultimate's cutscene (the panel hidden), and not after.
-        Assert.True(PartyMonitor.SamplesFlashes(HudLayout.KeyboardMouse, fromWindow: true, PartyMonitor.FlashSamplingHold));
-        Assert.False(PartyMonitor.SamplesFlashes(HudLayout.KeyboardMouse, fromWindow: true, PartyMonitor.FlashSamplingHold + TimeSpan.FromSeconds(0.1)));
+        Assert.True(PartyMonitor.SamplesFlashes(HudLayout.KeyboardMouse, fromWindow: true, PartyMonitor.FlashSamplingHold, outOfBattle: false));
+        Assert.False(PartyMonitor.SamplesFlashes(HudLayout.KeyboardMouse, fromWindow: true, PartyMonitor.FlashSamplingHold + TimeSpan.FromSeconds(0.1), outOfBattle: false));
         // The controller layout's buttons are elsewhere; the screen fallback has no window frames to tap.
-        Assert.False(PartyMonitor.SamplesFlashes(HudLayout.Controller, fromWindow: true, now));
-        Assert.False(PartyMonitor.SamplesFlashes(null, fromWindow: true, now));
-        Assert.False(PartyMonitor.SamplesFlashes(HudLayout.KeyboardMouse, fromWindow: false, now));
+        Assert.False(PartyMonitor.SamplesFlashes(HudLayout.Controller, fromWindow: true, now, outOfBattle: false));
+        Assert.False(PartyMonitor.SamplesFlashes(null, fromWindow: true, now, outOfBattle: false));
+        Assert.False(PartyMonitor.SamplesFlashes(HudLayout.KeyboardMouse, fromWindow: false, now, outOfBattle: false));
+        // The mode switch says out of battle (exploring, building): at once, not after the hold.
+        Assert.False(PartyMonitor.SamplesFlashes(HudLayout.KeyboardMouse, fromWindow: true, now, outOfBattle: true));
     }
 }

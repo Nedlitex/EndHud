@@ -18,6 +18,7 @@ public sealed class ScreenCastJudgeTests
         public bool[] UltimateReady { get; init; } = [false, false, false, false];
         public FlashEvent[] Flashes { get; init; } = [];
         public int Squad { get; init; } = 4;
+        public ModePillReading ModePill { get; init; } = ModePillReading.NotSeen;
 
         public PartyState ToState()
         {
@@ -25,7 +26,7 @@ public sealed class ScreenCastJudgeTests
                 ? new PartySlot(i + 1, null, 1.0, "", new Frame(1, 1, new byte[4]),
                     Combo: new ComboReading(0.5, false), Ultimate: new UltimateReading(UltimateReady[i], UltimateReady[i] ? 1 : 0.2)) { BattleSkill = Skill[i] }
                 : new PartySlot(i + 1, null, null, "", new Frame(1, 1, new byte[4])) { Empty = true }).ToList();
-            return new PartyState(slots, PanelMarks: 8) { SkillPoints = SkillPoints, ActiveSlot = 1, ReadAt = TimeSpan.FromSeconds(Seconds), Flashes = Flashes };
+            return new PartyState(slots, PanelMarks: 8) { SkillPoints = SkillPoints, ActiveSlot = 1, ReadAt = TimeSpan.FromSeconds(Seconds), Flashes = Flashes, ModePill = ModePill };
         }
     }
 
@@ -182,6 +183,17 @@ public sealed class ScreenCastJudgeTests
         var readings = Fight(dropAt: 1.0).Select(r => r with { Squad = 3 });
         var cast = Assert.Single(Judge(With(readings, 1.0, r => r with { Flashes = [new FlashEvent(1, TimeSpan.FromSeconds(0.9), FlashKind.Fill)] })));
         Assert.Equal(1, cast.Slot);
+    }
+
+    /// <summary>The top-left mode switch says out of battle (exploring, building): nothing there is a battle skill cast.</summary>
+    [Fact]
+    public void Out_of_battle_by_the_mode_switch_nothing_is_a_cast()
+    {
+        var outside = Fight(dropAt: 1.0).Select(r => r with { ModePill = ModePillReading.OutOfBattle });
+        var flashes = With(With(outside, 1.0, r => r with { Flashes = [Flash(2, 0.8, FlashKind.EmpoweredFill), Flash(3, 0.9)] }),
+            1.5, r => r with { Flashes = [Flash(2, 0.8, FlashKind.EmpoweredCast)] });
+
+        Assert.Empty(Judge(flashes, Press(1, 0.9)));
     }
 
     [Fact]

@@ -320,9 +320,10 @@ internal sealed class PartyMonitor : IDisposable
     /// <summary>
     /// Sample the battle-skill buttons between readings? In the keyboard-and-mouse layout (the controller's
     /// buttons sit elsewhere and aren't measured), through the game's own window (a corner of its frames), and in
-    /// battle: the last reading in combat at most <see cref="FlashSamplingHold"/> ago.
+    /// battle: the last reading in combat at most <see cref="FlashSamplingHold"/> ago, and the top-left mode switch
+    /// not saying out of battle (exploring, building: then at once, not after the hold).
     /// </summary>
-    internal static bool SamplesFlashes(HudLayout? layout, bool fromWindow, TimeSpan sinceCombat) =>
+    internal static bool SamplesFlashes(HudLayout? layout, bool fromWindow, TimeSpan sinceCombat, bool outOfBattle) =>
         layout == HudLayout.KeyboardMouse && fromWindow && sinceCombat <= FlashSamplingHold;
     private readonly Queue<RecentFrame> _recent = new();
     private DateTime _recentAt = DateTime.MinValue;
@@ -953,7 +954,7 @@ internal sealed class PartyMonitor : IDisposable
                     // Between readings, the battle-skill buttons many times a second for the cast flash (FlashSampler).
                     if (state.InCombat) combatAt = frameAt;
                     bool sample = capture is not null && combatAt is { } fought
-                        && SamplesFlashes(layoutSeen, flashCorner is not null, frameAt - fought);
+                        && SamplesFlashes(layoutSeen, flashCorner is not null, frameAt - fought, state.OutOfBattle);
                     if (sample != samplingFlashes)
                     {
                         samplingFlashes = sample;
