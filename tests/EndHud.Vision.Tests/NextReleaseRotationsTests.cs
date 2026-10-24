@@ -77,10 +77,13 @@ public class NextReleaseRotationsTests
         public StepFollower Steps { get; } = new(rotation);
         private PartyState? _before;
 
+        /// <summary>The player hasn't turned on reading their battle-skill keys: no step follower.</summary>
+        public bool KeysOff { get; init; }
+
         public string Read(Reading reading, params int[] presses)
         {
             var now = reading.ToState();
-            var shown = Selector.Update(now, Steps);
+            var shown = Selector.Update(now, KeysOff ? null : Steps);
             Steps.Update(shown.Step.PhaseIndex, _before, now, presses, Selector);
             _before = now;
             return shown.Step.PhaseLabel;
@@ -180,5 +183,24 @@ public class NextReleaseRotationsTests
         Assert.Equal("爆发轴 IV", fight.Read(spent with { ComboUsed = LastRite }));                                // 别礼 连携技
         Assert.Equal("爆发轴 IV", fight.Read(spent with { ComboUsed = Si }));                                      // 祀 连携技: played through
         Assert.Equal("充能轴 I", fight.Read(spent));
+    }
+
+    /// <summary>
+    /// Without the keys read, "the phase now is X and this showing is (not) played through" is ignored as a whole, like
+    /// "phase played": the rotation is 充能轴 I with the burst while every ultimate is charged. (Ignoring only the
+    /// played-through part left "the phase now is 爆发轴", which held the burst for the rest of the fight, and showed
+    /// 普攻 straight after 祀's first battle skill.)
+    /// </summary>
+    [Fact]
+    public void Without_the_keys_it_is_charge_one_and_the_burst_while_the_ultimates_are_charged()
+    {
+        var fight = new Fight(Si_rotation()) { KeysOff = true };
+        var charged = new Reading(false) { UltimateReady = [Si, LastRite, Arcane], TangtangCharge = 0.85 };
+
+        Assert.Equal("充能轴 I", fight.Read(new Reading(false)));
+        Assert.Equal("充能轴 I", fight.Read(new Reading(true)));   // 祀's skill running: no 普攻 without the keys
+        Assert.Equal("充能轴 I", fight.Read(new Reading(false)));
+        Assert.Equal("爆发轴 IV", fight.Read(charged));
+        Assert.Equal("充能轴 I", fight.Read(new Reading(true) { UltimateReady = [LastRite, Arcane] }));   // 祀 终结技 cast
     }
 }
