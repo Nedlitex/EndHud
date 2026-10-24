@@ -59,6 +59,13 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
     /// </summary>
     public IReadOnlyDictionary<string, LastingUltimateView>? RunningUltimates { get; init; }
 
+    /// <summary>
+    /// Every lasting battle skill running now (Si's), by operator id, across readings
+    /// (<see cref="SkillTimers"/>: the ring, or the estimate while the button is hidden); null when not
+    /// worked out for this reading (then a condition asking about one goes by this reading's button alone).
+    /// </summary>
+    public IReadOnlyDictionary<string, SkillTimerView>? RunningSkills { get; init; }
+
     /// <summary>When the frame was read, on the app's reading clock (InnClock); a recording's time in
     /// endhud-cli. Null when not stamped. Presses (<see cref="Input.SkillPress"/>) made up to it are
     /// judged with this reading.</summary>

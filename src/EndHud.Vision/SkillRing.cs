@@ -43,6 +43,9 @@ public static class SkillRing
     /// </summary>
     public static readonly TimeSpan SiDuration = TimeSpan.FromSeconds(22);
 
+    /// <summary>The operators whose lasting battle skill's time is read (the "battle skill running" condition).</summary>
+    public static readonly IReadOnlyList<string> Operators = ["Si"];
+
     /// <summary>Every such operator in the squad, keyboard layout only (the controller layout's buttons aren't read).</summary>
     public static IReadOnlyList<SkillRingReading> Read(Frame frame, PartyState state)
     {

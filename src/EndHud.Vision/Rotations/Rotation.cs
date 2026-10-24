@@ -56,6 +56,7 @@ public enum Comparison
 [JsonDerivedType(typeof(UltimateActiveCondition), "ultimateActive")]
 [JsonDerivedType(typeof(PhaseShownCondition), "phaseShown")]
 [JsonDerivedType(typeof(PhasePlayedCondition), "phasePlayed")]
+[JsonDerivedType(typeof(BattleSkillActiveCondition), "battleSkillActive")]
 public abstract record StateCondition;
 
 /// <summary>The team's skill points (技力), 0–3; a part-filled segment counts as a fraction.</summary>
@@ -105,6 +106,14 @@ public sealed record AnyCondition(IReadOnlyList<StateCondition> Of) : StateCondi
 /// points), or not, when <paramref name="Active"/> is false. Format 3.
 /// </summary>
 public sealed record UltimateActiveCondition(string OperatorId, bool Active) : StateCondition;
+
+/// <summary>
+/// An operator's lasting battle skill is running (Si's: from the swirl on her battle-skill button
+/// until the butterfly is back, the purple countdown round her stacks' circle), or not, when
+/// <paramref name="Active"/> is false. Only operators whose skill time is read
+/// (<see cref="SkillRing.Operators"/>) can be told. Format 7.
+/// </summary>
+public sealed record BattleSkillActiveCondition(string OperatorId, bool Active) : StateCondition;
 
 /// <summary>This doesn't hold (not), e.g. "not: Laevatain's ultimate charged to at most 50%". Unknown stays unknown. Format 3.</summary>
 public sealed record NotCondition(StateCondition Of) : StateCondition;
@@ -483,6 +492,12 @@ public enum RotationProblemKind
     /// when no other holds, and priorities only rank the phases whose entry condition holds.
     /// </summary>
     PriorityWithoutEntryCondition,
+
+    /// <summary>
+    /// A "battle skill running" condition names an operator whose battle-skill time EndHud doesn't read
+    /// (only Si's, <see cref="SkillRing.Operators"/>): it could never be told.
+    /// </summary>
+    SkillTimeNotRead,
 }
 
 /// <param name="Phase">The phase concerned (its name), if any.</param>
