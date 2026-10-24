@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using EndHud.SkillInput;
 using EndHud.Vision;
 
 namespace EndHud;
@@ -72,6 +73,17 @@ internal sealed class HudConfig
 
     /// <summary>Show the rotation strip (排轴) when the recognised squad has a rotation.</summary>
     public bool RotationEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Read the player's battle-skill keys and controller chords, so the rotation strip can mark the
+    /// current step. The player's consent: off until they turn it on (owner, 2026-10-23), and with it
+    /// off no input is read at all. Not a rollout flag.
+    /// </summary>
+    public bool ReadSkillPresses { get; set; }
+
+    /// <summary>The key that casts each slot's battle skill (slot 1 first): the physical key, as its
+    /// scan code, plus 0x100 for an extended (E0) key. Default: the top-row 1, 2, 3, 4.</summary>
+    public int[] SkillKeys { get; set; } = [.. SkillKeyCodes.Defaults];
 
     /// <summary>
     /// Where the rotation strip sits, as a fraction of the game window: the middle of its width
@@ -284,6 +296,8 @@ internal static class ConfigStore
         // A place off the window would leave the banners where nobody can drag them back.
         config.InnCallX = double.IsFinite(config.InnCallX) ? Math.Clamp(config.InnCallX, 0, 1) : HudConfig.DefaultInnCallX;
         config.InnCallY = double.IsFinite(config.InnCallY) ? Math.Clamp(config.InnCallY, 0, 1) : HudConfig.DefaultInnCallY;
+        // A hand-edited list that isn't 4 distinct real keys would bind nothing, or two slots to one key.
+        if (!SkillKeyCodes.AreValid(config.SkillKeys)) config.SkillKeys = [.. SkillKeyCodes.Defaults];
         return config;
     }
 
