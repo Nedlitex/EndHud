@@ -23,6 +23,28 @@ public class DiagnosticsTests : IDisposable
         try { Directory.Delete(_folder, recursive: true); } catch (IOException) { }
     }
 
+    /// <summary>Battle-skill key reading in the summary: whether it reads, and per slot how many presses were judged how; nothing else.</summary>
+    [Fact]
+    public void The_summary_says_only_slot_counts_about_presses()
+    {
+        var tally = new int[4, Enum.GetValues<EndHud.Vision.Rotations.PressVerdict>().Length];
+        for (int slot = 0; slot < 4; slot++)
+            for (int verdict = 0; verdict < tally.GetLength(1); verdict++)
+                tally[slot, verdict] = slot * 10 + verdict + 1;
+
+        var lines = OverlayWindow.PressLines("listening: keyboard, PlayStation pads 0, XInput pads 1, other pads 0; PlayStation reports without buttons 0", tally).ToList();
+
+        Assert.Equal(5, lines.Count);
+        var allowed = new System.Text.RegularExpressions.Regex(
+            @"^(battle-skill key reading: .*|  slot [1-4] battle skill: counted \d+, cooling \d+, no skill points \d+, repeat \d+, not in battle \d+, empty slot \d+)$");
+        Assert.All(lines, line => Assert.Matches(allowed, line));
+        Assert.Equal("battle-skill key reading: listening: keyboard, PlayStation pads 0, XInput pads 1, other pads 0; PlayStation reports without buttons 0", lines[0]);
+        var counted = (int)EndHud.Vision.Rotations.PressVerdict.Counted;
+        var repeat = (int)EndHud.Vision.Rotations.PressVerdict.Repeat;
+        Assert.Contains($"counted {tally[1, counted]},", lines[2]);
+        Assert.Contains($"repeat {tally[3, repeat]},", lines[4]);
+    }
+
     [Fact]
     public void The_log_rolls_over_and_keeps_at_most_three_files()
     {

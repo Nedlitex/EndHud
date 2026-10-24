@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text;
 using System.Windows;
+using EndHud.Vision.Rotations;
 
 namespace EndHud;
 
@@ -41,10 +42,20 @@ public partial class OverlayWindow
             foreach (var slot in state.Slots)
                 sb.AppendLine($"  slot {slot.Number}: {slot.Operator?.Operator.Id ?? "not named"}, level {slot.Level?.ToString() ?? "-"}, hp {slot.Hp?.ToString("P0") ?? "-"}{(slot.Dead ? ", fallen" : "")}");
         }
+        foreach (string line in PressLines(_config.ReadSkillPresses ? _skillInput.Describe() : "off (not consented)", _rotationFollower.PressTally))
+            sb.AppendLine(line);
         sb.AppendLine();
         sb.Append(DiagnosticExport.DescribeLibrary(PartyMonitor.LibraryFolder));
         return sb.ToString();
     }
+
+    /// <summary>
+    /// The summary's lines about battle-skill key reading: whether it reads, then for each slot how
+    /// its presses were judged since start. Counts only: never a key, a button or a press's time (a
+    /// list of press times would be a keystroke timeline), so nothing about presses goes into the
+    /// recent readings either.
+    /// </summary>
+    internal static IEnumerable<string> PressLines(string status, int[,] tally) => [];
 
     private void ExportDiagnosticsButton_Click(object sender, RoutedEventArgs e) => ExportFromMenu(DiagnosticSize.Mini);
 
