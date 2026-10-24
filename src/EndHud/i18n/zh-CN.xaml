@@ -115,7 +115,7 @@
     <sys:String x:Key="Editor.PhaseCurrent.Played">本次已打完</sys:String>
     <sys:String x:Key="Editor.PhaseCurrent.NotPlayed">本次未打完</sys:String>
     <sys:String x:Key="Editor.PhaseCurrentHint">排轴条上现在显示的轴段。“本次已打完”指这个轴段这次出现在排轴条上以后，每一步都打到了（按你的战技按键判断）；轴段离开后再出现时重新算。</sys:String>
-    <sys:String x:Key="Editor.PhaseCurrentNeedsKeys">排轴条上现在显示的轴段。“本次已打完 / 本次未打完”需要先在菜单的排轴设置中开启“读取战技按键”；未开启时只判断是不是这个轴段。</sys:String>
+    <sys:String x:Key="Editor.PhaseCurrentNeedsKeys">排轴条上现在显示的轴段。“本次已打完 / 本次未打完”需要先在菜单的排轴设置中开启“读取战技按键”；未开启时，带“本次已打完 / 本次未打完”的这个条件会被忽略，当作没有这个条件（和“轴段已完成次数”一样）。</sys:String>
     <sys:String x:Key="Editor.SkillTimeHint">按祀的战技按钮判断：图标变成漩涡（或第二次释放后的叉形蝴蝶）时为持续中，变回蝴蝶时结束，即她计数圈外紫色倒计时的那段时间。按钮被特效挡住时按倒计时估计；手柄布局下读不到，条件无法判断。</sys:String>
     <sys:String x:Key="Editor.SkillTimeNoOperator">小队中没有能读取战技持续时间的干员（目前只有祀）。</sys:String>
     <sys:String x:Key="Editor.Condition.Counter">干员资源</sys:String>

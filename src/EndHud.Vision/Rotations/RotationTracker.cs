@@ -385,7 +385,7 @@ public sealed class RotationTracker(Rotation rotation)
             case PhaseCurrentCondition c:
                 if (history.CurrentPhase is not { } current) return null;
                 if (current != c.PhaseId) return false;
-                // The played-through part needs the keys read: without them it is ignored.
+                // With a played-through part it needs the keys read: without them the whole condition is ignored (ConditionWalk.OnlyPlayed).
                 if (c.PlayedThrough is not { } wanted || history.PlayedIgnored) return true;
                 return history.PlayedThroughThisShowing(c.PhaseId) is { } playedThrough ? playedThrough == wanted : null;
             case BattleSkillActiveCondition c:

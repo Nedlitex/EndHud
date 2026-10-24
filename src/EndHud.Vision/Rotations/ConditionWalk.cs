@@ -36,6 +36,7 @@ public static class ConditionWalk
     public static bool OnlyPlayed(StateCondition condition) => condition switch
     {
         PhasePlayedCondition => true,
+        PhaseCurrentCondition { PlayedThrough: not null } => true, // "now X, this showing (not) played through" needs the keys as a whole
         NotCondition not => OnlyPlayed(not.Of),
         AllCondition all => all.Of.Count > 0 && all.Of.All(OnlyPlayed),
         AnyCondition any => any.Of.Count > 0 && any.Of.All(OnlyPlayed),
