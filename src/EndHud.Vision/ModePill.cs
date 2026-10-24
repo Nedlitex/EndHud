@@ -46,7 +46,7 @@ public static class ModePill
     private const double Top = 74, Bottom = 141, ExploringLeft = 112, BuildingRight = 390;
 
     /// <summary>Overlap (intersection over union) either end needs; see <see cref="Measure"/>.</summary>
-    public const double MatchAt = 0.8;
+    public const double MatchAt = 0.88;
 
     /// <summary>Share of the left icon's pixels that are red when the game marks a fight.</summary>
     public const double RedAt = 0.15;

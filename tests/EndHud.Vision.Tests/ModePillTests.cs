@@ -22,6 +22,7 @@ public class ModePillTests
         Path.Combine("controller", "switch-keyboard-exploration.jpg"),
         Path.Combine("mode-switch", "controller-exploring.jpg"), // controller, 探索, D-pad arrow
         Path.Combine("mode-switch", "keyboard-building.jpg"),    // keyboard and mouse, 工业
+        Path.Combine("mode-switch", "controller-exploring-bright-sky.jpg"),
     };
 
     public static TheoryData<string> Fighting => new()
@@ -29,6 +30,7 @@ public class ModePillTests
         Path.Combine("controller", "ultimates-charging.jpg"),
         Path.Combine("controller", "ultimates-charging-one-ready.jpg"),
         Path.Combine("controller", "ultimates-two-ready.jpg"),
+        Path.Combine("mode-switch", "controller-fight-bright-sky.jpg"),
     };
 
     public static TheoryData<string> NotShown => new()
@@ -41,6 +43,7 @@ public class ModePillTests
         Path.Combine("controller", "combat.jpg"),
         Path.Combine("controller", "fullbattle-lb-held.jpg"),
         Path.Combine("controller", "keyboard-mouse-same-fight.jpg"),
+        Path.Combine("mode-switch", "controller-evacuate-bar.jpg"),
         // The evacuate bar over a white sky; no switch drawn (cutscene, photo mode, a menu).
         Path.Combine("panel-or-not", "white-sky-after-a-failed-fight.jpg"),
         Path.Combine("panel-or-not", "squad-select-screen.jpg"),
@@ -75,8 +78,8 @@ public class ModePillTests
         double Score(Frame f) => ModePill.Measure(f, new UiScaler(f.Width, f.Height)).Shape;
 
         Assert.InRange(Score(bar), 0, ModePill.MatchAt - 0.08);
-        Assert.InRange(Score(exploring), ModePill.MatchAt + 0.1, 1);
-        Assert.InRange(Score(building), ModePill.MatchAt + 0.1, 1);
+        Assert.InRange(Score(exploring), ModePill.MatchAt + 0.06, 1);
+        Assert.InRange(Score(building), ModePill.MatchAt + 0.06, 1);
     }
 
     public static TheoryData<string, string> Screens()
