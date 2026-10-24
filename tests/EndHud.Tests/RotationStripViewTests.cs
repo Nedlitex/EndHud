@@ -6,10 +6,10 @@ using Xunit;
 namespace EndHud.Tests;
 
 /// <summary>
-/// What the strip shows: the current phase's steps, all alike, then the first two of the phase
-/// played next, kept apart from them. EndHud can't see which button the player pressed, so it
-/// doesn't claim to know the current step: no marker, nothing greyed out as done, no reasons why
-/// "this" step isn't ready.
+/// What the strip shows: the current phase's steps, then the first two of the phase played next,
+/// kept apart from them. Without step marks (the player hasn't turned on reading their
+/// battle-skill keys) every step looks the same; with them done steps fade, and the current one is
+/// ready or waiting, with why.
 /// </summary>
 [Collection(WpfCollection.Name)]
 public class RotationStripViewTests
@@ -23,13 +23,13 @@ public class RotationStripViewTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void Every_step_looks_the_same_and_no_reasons_are_given(bool ready)
+    public void Without_step_marks_every_step_is_drawn_alike(bool ready)
     {
         var played = Rotation.Played();
         var position = new RotationPosition(played[1], ready,
             [new ConditionCheck(CheckKind.OwnAbility, null, ready)]);
 
-        var view = RotationStripView.Build(Rotation, position, null, null, (_, _) => null, _ => null);
+        var view = RotationStripView.Build(Rotation, position, steps: null, null, null, (_, _) => null, _ => null);
 
         Assert.Equal("充能轴 I", view.Phase);
         Assert.Equal(3, view.Steps.Count);
@@ -41,10 +41,38 @@ public class RotationStripViewTests
     }
 
     [Fact]
+    public void With_step_marks_done_steps_fade_and_the_current_has_chevrons()
+    {
+        var played = Rotation.Played();
+        var steps = new StepPosition(0, [StepMark.Done, StepMark.Current, StepMark.Upcoming], true, [new ConditionCheck(CheckKind.OwnAbility, null, true)]);
+
+        var view = RotationStripView.Build(Rotation, new RotationPosition(played[0], true, []), steps, null, null, (_, _) => null, _ => null);
+
+        Assert.Equal([StripStepState.Done, StripStepState.Ready, StripStepState.Upcoming], view.Steps.Select(s => s.State));
+        Assert.All(view.Next!.Steps, s => Assert.Equal(StripStepState.Upcoming, s.State)); // the next phase's preview is never marked
+        Assert.Empty(view.Reasons);
+        OnSta(() => RotationStrip.Build(view)); // draws
+    }
+
+    [Fact]
+    public void A_waiting_step_shows_why()
+    {
+        var played = Rotation.Played();
+        var state = new Vision.PartyState([]) { SkillPoints = 0.4 };
+        var steps = new StepPosition(0, [StepMark.Current, StepMark.Upcoming, StepMark.Upcoming], false, [new ConditionCheck(CheckKind.OwnAbility, null, false)]);
+
+        var view = RotationStripView.Build(Rotation, new RotationPosition(played[0], true, []), steps, state, null, (_, _) => null, _ => null);
+
+        Assert.Equal([StripStepState.Waiting, StripStepState.Upcoming, StripStepState.Upcoming], view.Steps.Select(s => s.State));
+        // Ardelia's battle skill, the current step: 0.4 of the 1 skill point it needs.
+        Assert.Equal([Loc.Format("Rotation.Reason.SkillPoints", "0.4", 1)], view.Reasons);
+    }
+
+    [Fact]
     public void A_phase_entered_by_its_condition_is_the_one_shown()
     {
         var played = Rotation.Played();
-        var view = RotationStripView.Build(Rotation, new RotationPosition(played[3], true, []), null, null, (_, _) => null, _ => null);
+        var view = RotationStripView.Build(Rotation, new RotationPosition(played[3], true, []), steps: null, null, null, (_, _) => null, _ => null);
 
         Assert.Equal("爆发轴 II", view.Phase);
         Assert.All(view.Steps, s => Assert.Equal(StripStepState.Upcoming, s.State));
