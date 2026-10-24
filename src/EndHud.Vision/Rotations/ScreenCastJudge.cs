@@ -95,7 +95,6 @@ public sealed class ScreenCastJudge
     /// <param name="presses">Presses made up to <paramref name="now"/>'s time; empty without 读取战技按键.</param>
     public CastJudging Update(PartyState? before, PartyState now, IReadOnlyList<SkillPress> presses)
     {
-        if (now.ReadAt is not null) return new CastJudging([], SkillPressJudge.Judge(before, presses)); // RED: nothing decided
         var at = now.ReadAt ?? TimeSpan.Zero;
         var casts = new List<SkillCast>();
 
