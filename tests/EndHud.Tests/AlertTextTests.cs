@@ -78,6 +78,7 @@ public class AlertTextTests
             new ComboCondition("Camille", false), new ComboChargeCondition("Camille", Comparison.AtLeast, 80),
             new BattleSkillCondition("Arcane", false), new UltimateChargeCondition("Laevatain", Comparison.AtMost, 50),
             new UltimateActiveCondition("Laevatain", false), new CounterCondition("Laevatain", "melting-flame", Comparison.Exactly, 4),
+            new BattleSkillActiveCondition("Si", true), new BattleSkillActiveCondition("Si", false),
             new AllCondition([new ComboCondition("Arcane", true), new UltimateCondition("Ardelia", false)]));
 
         Assert.DoesNotContain("Alert.", text);
@@ -95,6 +96,7 @@ public class AlertTextTests
         Assert.Equal(new AlertSubject(AlertSubjectKind.Operator, "Si"), AlertText.Subject([new CounterCondition("Si", "damage-stacks", Comparison.AtLeast, 40)]));
         Assert.Equal(new AlertSubject(AlertSubjectKind.Operator, "Laevatain"), AlertText.Subject([new NotCondition(new UltimateChargeCondition("Laevatain", Comparison.AtMost, 50))]));
         Assert.Equal(new AlertSubject(AlertSubjectKind.Status, "Corrosion"), AlertText.Subject([new AnyCondition([new BossStatusCondition("Corrosion", true, 2), new SkillPointsCondition(Comparison.AtLeast, 3)])]));
+        Assert.Equal(new AlertSubject(AlertSubjectKind.Operator, "Si"), AlertText.Subject([new BattleSkillActiveCondition("Si", true)]));
         Assert.Equal(new AlertSubject(AlertSubjectKind.None), AlertText.Subject([]));
         Assert.Equal(new AlertSubject(AlertSubjectKind.None), AlertText.Subject([new AnyCondition([])]));
     }

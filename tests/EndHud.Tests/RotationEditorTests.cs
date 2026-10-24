@@ -211,6 +211,66 @@ public sealed class RotationEditorTests : IDisposable
         Assert.Contains("\"is\": \"Below\"", file);
     }
 
+    private static readonly string[] SiSquad = ["Si", "Last_Rite", "Arcane", "Tangtang"];
+
+    /// <summary>
+    /// The owner's "keep basic attacking while Si's battle skill hasn't finished", built with the pickers:
+    /// "battle skill running" offers only Si (the one operator whose skill time is read), says so under
+    /// the row, and saves in format 7.
+    /// </summary>
+    [Fact]
+    public void A_phase_gated_on_Sis_battle_skill_running_is_built_with_the_pickers()
+    {
+        var library = new RotationLibrary(_folder);
+        library.Own.Save(new Rotation(Rotation.CurrentFormat, "mine", "Si", SiSquad,
+        [
+            new RotationPhase("charge", "Charge", [new RotationStep("Si", StepAction.BattleSkill)]),
+            new RotationPhase("basic", "Basic", [new RotationStep("Si", StepAction.BasicAttack)], [new SkillPointsCondition(Comparison.Below, 1)]),
+        ]));
+
+        string said = "";
+        List<object> offered = [];
+        bool hint = false;
+        OnEditor(library, _ => { }, editor =>
+        {
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;
+            var gate = (StackPanel)editor.FindName("GateRows");
+            Pick(RowOf(gate.Children[0]).Children.OfType<ComboBox>().First(), "BattleSkillActive");
+            var pickers = RowOf(gate.Children[0]).Children.OfType<ComboBox>().ToList(); // kind, who, running or not
+            offered = pickers[1].Items.Cast<ComboBoxItem>().Select(i => i.Tag).ToList();
+            Pick(pickers[2], true);
+            hint = gate.Children[0] is StackPanel { Children: [_, TextBlock { Text: "Editor.SkillTimeHint" }] };
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        }, squad: SiSquad);
+
+        Assert.Equal(["Si"], offered);
+        Assert.True(hint);
+        var saved = Assert.Single(library.Own.Load().Rotations);
+        Assert.True(saved.Phases[1].When.Count == 1 && saved.Phases[1].When[0] is BattleSkillActiveCondition, $"editor said: {said}");
+        Assert.Equal(new BattleSkillActiveCondition("Si", true), saved.Phases[1].When[0]);
+        Assert.Equal(7, saved.Format);
+        Assert.Contains("\"kind\": \"battleSkillActive\"", File.ReadAllText(Directory.GetFiles(_folder, "*.json").Single()));
+    }
+
+    /// <summary>A squad without Si: "battle skill running" is listed but greyed out, saying whose skill time is read.</summary>
+    [Fact]
+    public void Without_Si_battle_skill_running_is_greyed_out_and_says_why()
+    {
+        var library = TwoPhases(new SkillPointsCondition(Comparison.AtLeast, 2));
+
+        (bool Enabled, object ToolTip)? offered = null;
+        OnEditor(library, _ => { }, editor =>
+        {
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;
+            var gate = (StackPanel)editor.FindName("GateRows");
+            var item = RowOf(gate.Children[0]).Children.OfType<ComboBox>().First().Items.Cast<ComboBoxItem>().Single(i => Equals(i.Tag, "BattleSkillActive"));
+            offered = (item.IsEnabled, item.ToolTip);
+        });
+
+        Assert.Equal((false, (object)"Editor.SkillTimeNoOperator"), offered);
+    }
+
     /// <summary>"mine": Charge (id p), then Burst (id burst) with this entry condition.</summary>
     private RotationLibrary TwoPhases(params StateCondition[] burstGate)
     {
@@ -851,12 +911,12 @@ public sealed class RotationEditorTests : IDisposable
     private static void Click(Window window, string name) =>
         ((Button)window.FindName(name)).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
 
-    private void OnEditor(RotationLibrary library, Action<Rotation?> changed, Action<RotationEditor> act, bool keysRead = true)
+    private void OnEditor(RotationLibrary library, Action<Rotation?> changed, Action<RotationEditor> act, bool keysRead = true, string[]? squad = null)
     {
         // The squad's operators, without any art: enough for the pickers.
         string reference = Path.Combine(_folder, "reference");
         Directory.CreateDirectory(reference);
-        string[] squad = ["Laevatain", "Camille", "Arcane", "Ardelia"];
+        squad ??= ["Laevatain", "Camille", "Arcane", "Ardelia"];
         File.WriteAllText(Path.Combine(reference, "operators.json"), System.Text.Json.JsonSerializer.Serialize(
             squad.Select(id => new OperatorInfo(id, id, id, id + ".png"))));
         Directory.CreateDirectory(Path.Combine(reference, "icons"));
