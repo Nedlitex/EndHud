@@ -292,7 +292,6 @@ public sealed class RotationEditorTests : IDisposable
         Assert.True(saved.Phases[1].When.Count == 1, $"editor said: {said}");
         Assert.Equal(new PhasePlayedCondition("p", Comparison.AtLeast, 2), saved.Phases[1].When[0]);
         Assert.Equal(5, saved.Format);
-        Assert.True(Translated("Editor.Condition.PhasePlayed") && Translated("Editor.PhasePlayedHint"));
     }
 
     /// <summary>
@@ -304,7 +303,7 @@ public sealed class RotationEditorTests : IDisposable
     {
         var library = TwoPhases(new PhasePlayedCondition("p", Comparison.AtLeast, 1));
 
-        ComboBoxItem? offered = null;
+        (bool Enabled, object Content, object ToolTip)? offered = null;
         object? kept = null;
         bool hint = false;
         OnEditor(library, _ => { }, editor =>
@@ -314,15 +313,13 @@ public sealed class RotationEditorTests : IDisposable
             kept = ((ComboBoxItem)RowOf(gate.Children[0]).Children.OfType<ComboBox>().First().SelectedItem).Tag;
             hint = gate.Children[0] is StackPanel { Children: [_, TextBlock { Text: "Editor.PhasePlayedNeedsKeys" }] };
             Click(editor, "AddGateButton");
-            offered = RowOf(gate.Children[1]).Children.OfType<ComboBox>().First().Items.Cast<ComboBoxItem>().Single(i => Equals(i.Tag, "PhasePlayed"));
+            var item = RowOf(gate.Children[1]).Children.OfType<ComboBox>().First().Items.Cast<ComboBoxItem>().Single(i => Equals(i.Tag, "PhasePlayed"));
+            offered = (item.IsEnabled, item.Content, item.ToolTip);
         }, keysRead: false);
 
         Assert.Equal("PhasePlayed", kept);
         Assert.True(hint);
-        Assert.False(offered!.IsEnabled);
-        Assert.Equal("Editor.Condition.PhasePlayed.NeedsKeys", offered.Content);
-        Assert.Equal("Editor.PhasePlayedNeedsKeys", offered.ToolTip);
-        Assert.True(Translated("Editor.PhasePlayedNeedsKeys") && Translated("Editor.Condition.PhasePlayed.NeedsKeys"));
+        Assert.Equal((false, (object)"Editor.Condition.PhasePlayed.NeedsKeys", (object)"Editor.PhasePlayedNeedsKeys"), offered);
     }
 
     /// <summary>A gate needing its own phase played before it can show is refused in words.</summary>

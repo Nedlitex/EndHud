@@ -36,10 +36,10 @@ internal static class AlertText
     public static string Describe(IReadOnlyList<StateCondition> when, OperatorLibrary? library, Func<string, string?> phaseName, Func<string, string>? text = null)
     {
         text ??= Loc.Get;
-        return string.Join(text("Alert.Describe.Separator"), when.Select(c => One(c, library, text, nested: false)));
+        return string.Join(text("Alert.Describe.Separator"), when.Select(c => One(c, library, phaseName, text, nested: false)));
     }
 
-    private static string One(StateCondition condition, OperatorLibrary? library, Func<string, string> text, bool nested)
+    private static string One(StateCondition condition, OperatorLibrary? library, Func<string, string?> phaseName, Func<string, string> text, bool nested)
     {
         string F(string key, params object[] args) => string.Format(CultureInfo.InvariantCulture, text(key), args);
         string Who(string id) => library?.Find(id)?.NameZh ?? id;
@@ -58,18 +58,19 @@ internal static class AlertText
                 Symbol(c.Is), c.Value),
             BossStatusCondition c => Status(c, F),
             ControllingCondition c => F("Alert.Describe.Controlling", Who(c.OperatorId)),
-            NotCondition c => F("Alert.Describe.Not", One(c.Of, library, text, nested: false)),
+            NotCondition c => F("Alert.Describe.Not", One(c.Of, library, phaseName, text, nested: false)),
             AnyCondition c => Group(c.Of, "Alert.Describe.Or"),
             AllCondition c => Group(c.Of, "Alert.Describe.And"),
             // Not offered for alerts; a shared file could hold one.
             PhaseShownCondition => text("Alert.Describe.PhaseShown"),
+            PhasePlayedCondition c => F("Alert.Describe.PhasePlayed", phaseName(c.PhaseId) ?? text("Editor.PhaseMissing"), Symbol(c.Is), c.Times),
             _ => "?",
         };
 
         string Group(IReadOnlyList<StateCondition> parts, string joiner)
         {
             // "{0} or {1}" (Alert.Describe.Or), folded: the words around the joiner live in the string, not in code.
-            string joined = parts.Count == 0 ? "" : parts.Select(p => One(p, library, text, nested: true)).Aggregate((a, b) => F(joiner, a, b));
+            string joined = parts.Count == 0 ? "" : parts.Select(p => One(p, library, phaseName, text, nested: true)).Aggregate((a, b) => F(joiner, a, b));
             return parts.Count > 1 && (nested || joiner == "Alert.Describe.And") ? F("Alert.Describe.Group", joined) : joined;
         }
     }

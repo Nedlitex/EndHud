@@ -18,11 +18,15 @@ namespace EndHud;
 /// </summary>
 public partial class AlertEditor : Window
 {
-    /// <summary>Every kind a rotation offers, except "phase shown": an alert has no rotation.</summary>
+    /// <summary>
+    /// Every kind a rotation offers, except "phase shown": an alert has no rotation of its own. "Phase
+    /// played" names a phase of any of the player's rotations (<see cref="PhaseChoices"/>).
+    /// </summary>
     internal static readonly string[] AlertKinds = [.. ConditionEditor.AllKinds.Where(k => k != "PhaseShown")];
 
     private readonly AlertStore _store;
     private readonly OperatorLibrary _library;
+    private readonly Func<IReadOnlyList<Rotation>> _rotations;
     private readonly Action _saved;
     private readonly ConditionEditor _conditions;
     private readonly Dictionary<string, BitmapSource?> _avatars = [];
@@ -52,12 +56,34 @@ public partial class AlertEditor : Window
     {
         _store = store;
         _library = library;
+        _rotations = rotations;
         _saved = saved;
-        // Alerts are global: every operator in the library, every operator resource, no phases.
-        _conditions = new ConditionEditor(library, () => _library.Operators, () => OperatorCounters.Definitions, () => [], AlertKinds, Avatar);
+        // Alerts are global: every operator in the library, every operator resource, every rotation's phases.
+        _conditions = new ConditionEditor(library, () => _library.Operators, () => OperatorCounters.Definitions, () => PhaseChoices(_rotations()), AlertKinds, Avatar, keysRead);
         InitializeComponent();
         Load();
         Closing += (_, e) => e.Cancel = !ConfirmDiscard();
+    }
+
+    /// <summary>
+    /// The phases an alert's "phase played" can name: every rotation's, in the library's order, as
+    /// "rotation · phase" with the strip's phase name ("标准轴 · 充能轴 I"). A phase id two rotations
+    /// share (a copied rotation keeps its phases' ids) is listed once, under the first.
+    /// </summary>
+    internal static IReadOnlyList<(string Id, string Label)> PhaseChoices(IEnumerable<Rotation> rotations)
+    {
+        var choices = new List<(string Id, string Label)>();
+        foreach (var rotation in rotations)
+            for (int i = 0; i < rotation.Phases.Count; i++)
+                if (!choices.Any(c => c.Id == rotation.Phases[i].Id)) choices.Add((rotation.Phases[i].Id, $"{rotation.Name} · {rotation.PhaseLabel(i)}"));
+        return choices;
+    }
+
+    /// <summary>A phase's name as <see cref="PhaseChoices"/> lists it, by id; null for one no rotation has.</summary>
+    internal static Func<string, string?> PhaseName(IEnumerable<Rotation> rotations)
+    {
+        var choices = PhaseChoices(rotations);
+        return id => choices.FirstOrDefault(c => c.Id == id).Label;
     }
 
     // ---- The list ----
@@ -84,7 +110,7 @@ public partial class AlertEditor : Window
     private string RuleName(RuleDraft rule) =>
         rule.Message.Trim().Length > 0 ? rule.Message.Trim()
         : rule.When.Count == 0 ? Loc.Format("Alerts.Numbered", _rules.IndexOf(rule) + 1)
-        : Loc.Format("Alerts.NoText", AlertText.Describe(rule.When, _library, _ => null));
+        : Loc.Format("Alerts.NoText", AlertText.Describe(rule.When, _library, PhaseName(_rotations())));
 
     /// <summary>A rule's line in the list: one line, cut with "…" when long (the whole text is its tooltip).</summary>
     private TextBlock ListText(RuleDraft rule) => new() { Text = RuleName(rule), TextTrimming = TextTrimming.CharacterEllipsis };

@@ -45,7 +45,7 @@ public partial class RotationEditor : Window
         _currentSquad = currentSquad;
         _changed = changed;
         // Conditions offer the rotation's squad, its counters and its phases (by the strip's names).
-        _conditions = new ConditionEditor(library, SquadOperators, Counters, PhaseChoices, ConditionEditor.AllKinds, Avatar,
+        _conditions = new ConditionEditor(library, SquadOperators, Counters, PhaseChoices, ConditionEditor.AllKinds, Avatar, keysRead,
             () => (_draft?.Phases.FirstOrDefault(p => p != _phase) ?? _phase)?.Id);
         InitializeComponent();
 

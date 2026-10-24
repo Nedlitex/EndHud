@@ -17,10 +17,13 @@ namespace EndHud;
 /// </summary>
 /// <param name="operators">Who the operator pickers offer: a rotation's squad, or every operator for alerts.</param>
 /// <param name="counters">The operator resources offered: a rotation squad's, or all of them for alerts.</param>
-/// <param name="phases">The phases a "phase shown" condition can name, by the strip's own names (none for alerts).</param>
+/// <param name="phases">The phases a "phase shown" or "phase played" condition can name, by the strip's own names
+/// (for alerts, every rotation's phases, by rotation and phase).</param>
 /// <param name="kinds">The kinds offered (a stored condition of another kind is still shown, as itself).</param>
 /// <param name="avatar">An operator's avatar for the pickers, if there is one.</param>
-/// <param name="defaultPhaseId">The phase a new "phase shown" condition names.</param>
+/// <param name="keysRead">The player reads their battle-skill keys. While not, "phase played" is listed but
+/// greyed out, saying why, and one already there says it is ignored.</param>
+/// <param name="defaultPhaseId">The phase a new "phase shown" or "phase played" condition names.</param>
 internal sealed class ConditionEditor(
     OperatorLibrary library,
     Func<IEnumerable<OperatorInfo>> operators,
@@ -28,10 +31,11 @@ internal sealed class ConditionEditor(
     Func<IReadOnlyList<(string Id, string Label)>> phases,
     IReadOnlyList<string> kinds,
     Func<OperatorInfo, BitmapSource?> avatar,
+    Func<bool> keysRead,
     Func<string?>? defaultPhaseId = null)
 {
     /// <summary>Every kind, in the order the picker lists them.</summary>
-    public static readonly string[] AllKinds = ["SkillPoints", "Combo", "ComboCharge", "BattleSkill", "Ultimate", "UltimateCharge", "UltimateActive", "Counter", "BossStatus", "Controlling", "PhaseShown", "Group"];
+    public static readonly string[] AllKinds = ["SkillPoints", "Combo", "ComboCharge", "BattleSkill", "Ultimate", "UltimateCharge", "UltimateActive", "Counter", "BossStatus", "Controlling", "PhaseShown", "PhasePlayed", "Group"];
 
     /// <summary>The values offered for a counter with no maximum (Si's damage stacks): 0 to this, picked; a file's larger value is kept.</summary>
     public const int UncappedCounterChoices = 200;
@@ -53,6 +57,7 @@ internal sealed class ConditionEditor(
             "Controlling" => new ControllingCondition(first),
             // Another phase's count by default: a phase's entry condition can't use its own (Rotation.Problems).
             "PhaseShown" => new PhaseShownCondition(defaultPhaseId?.Invoke() ?? phases().FirstOrDefault().Id ?? "", Comparison.AtLeast, 1),
+            "PhasePlayed" => new PhasePlayedCondition(defaultPhaseId?.Invoke() ?? phases().FirstOrDefault().Id ?? "", Comparison.AtLeast, 1),
             // A group is made to say "or": it starts as "any of" with one condition in it.
             "Group" => new AnyCondition([new UltimateCondition(first, true)]),
             _ => new SkillPointsCondition(Comparison.AtLeast, 2),
@@ -78,6 +83,7 @@ internal sealed class ConditionEditor(
         BossStatusCondition => "BossStatus",
         ControllingCondition => "Controlling",
         PhaseShownCondition => "PhaseShown",
+        PhasePlayedCondition => "PhasePlayed",
         AllCondition or AnyCondition => "Group",
         _ => "SkillPoints",
     };
@@ -117,7 +123,7 @@ internal sealed class ConditionEditor(
         StateCondition Wrap(StateCondition c) => negate.IsChecked == true ? new NotCondition(c) : c;
         row.Children.Add(negate);
         var kind = new ComboBox();
-        foreach (string k in AllKinds.Where(k => kinds.Contains(k) || k == KindOf(condition))) kind.Items.Add(Item(Loc.Get($"Editor.Condition.{k}"), k));
+        foreach (string k in AllKinds.Where(k => kinds.Contains(k) || k == KindOf(condition))) kind.Items.Add(KindItem(k, KindOf(condition)));
         kind.SelectedItem = kind.Items.Cast<ComboBoxItem>().First(i => (string)i.Tag == KindOf(condition));
         row.Children.Add(kind);
 
@@ -321,17 +327,18 @@ internal sealed class ConditionEditor(
             }
             case PhaseShownCondition c:
             {
-                // The rotation's phases by the strip's own names (name and Roman numeral), never ids; a deleted one stays listed as missing.
-                var choices = phases().ToList();
-                if (!choices.Any(p => p.Id == c.PhaseId)) choices.Insert(0, (c.PhaseId, Loc.Get("Editor.PhaseMissing")));
-                var which = Picker(choices, p => p.Label, choices.First(p => p.Id == c.PhaseId));
-                var compare = ComparePicker(c.Is);
-                var times = Picker(Enumerable.Range(0, 10).ToList(), n => Loc.Format("Editor.Times", n), c.Times);
-                row.Children.Add(which);
-                row.Children.Add(compare);
-                row.Children.Add(times);
+                var (which, compare, times) = PhaseCountPickers(row, c.PhaseId, c.Is, c.Times);
                 read = () => new PhaseShownCondition((((string Id, string Label))Picked(which)).Id, (Comparison)Picked(compare), (int)Picked(times));
                 hint = Loc.Get("Editor.PhaseShownHint");
+                kind.ToolTip = hint;
+                break;
+            }
+            case PhasePlayedCondition c:
+            {
+                var (which, compare, times) = PhaseCountPickers(row, c.PhaseId, c.Is, c.Times);
+                read = () => new PhasePlayedCondition((((string Id, string Label))Picked(which)).Id, (Comparison)Picked(compare), (int)Picked(times));
+                // Kept and editable while the keys aren't read, saying it is ignored until they are.
+                hint = Loc.Get(keysRead() ? "Editor.PhasePlayedHint" : "Editor.PhasePlayedNeedsKeys");
                 kind.ToolTip = hint;
                 break;
             }
@@ -379,6 +386,41 @@ internal sealed class ConditionEditor(
             };
         }
         return result;
+    }
+
+    /// <summary>
+    /// A kind in the kind picker. "Phase played" can't be picked while the battle-skill keys aren't read
+    /// (or there is no phase to name): it stays listed, greyed out, saying why. The row's own kind is
+    /// always pickable (it is what the row shows).
+    /// </summary>
+    private ComboBoxItem KindItem(string kind, string rowKind)
+    {
+        var item = Item(Loc.Get($"Editor.Condition.{kind}"), kind);
+        if (kind != "PhasePlayed" || kind == rowKind) return item;
+        string? why = !keysRead() ? "Editor.PhasePlayedNeedsKeys" : phases().Count == 0 ? "Editor.PhasePlayedNoPhases" : null;
+        if (why is null) return item;
+        if (!keysRead()) item.Content = Loc.Get("Editor.Condition.PhasePlayed.NeedsKeys");
+        item.IsEnabled = false;
+        item.ToolTip = Loc.Get(why);
+        ToolTipService.SetShowOnDisabled(item, true);
+        return item;
+    }
+
+    /// <summary>
+    /// Which phase, a comparison and a count (0 to 9; a file's larger count is kept). The phases by the
+    /// strip's own names (name and Roman numeral), never ids; a deleted one stays listed as missing.
+    /// </summary>
+    private (ComboBox Which, ComboBox Compare, ComboBox Times) PhaseCountPickers(Panel row, string phaseId, Comparison comparison, int count)
+    {
+        var choices = phases().ToList();
+        if (!choices.Any(p => p.Id == phaseId)) choices.Insert(0, (phaseId, Loc.Get("Editor.PhaseMissing")));
+        var which = Picker(choices, p => p.Label, choices.First(p => p.Id == phaseId));
+        var compare = ComparePicker(comparison);
+        var times = Picker(Enumerable.Range(0, 10).ToList(), n => Loc.Format("Editor.Times", n), count);
+        row.Children.Add(which);
+        row.Children.Add(compare);
+        row.Children.Add(times);
+        return (which, compare, times);
     }
 
     private static ComboBox ComparePicker(Comparison selected) =>

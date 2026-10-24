@@ -80,7 +80,7 @@ public partial class OverlayWindow
     private void ShowAlert(AlertRule rule)
     {
         TakeDownAlert(rule.Id);
-        string text = rule.Message.Trim().Length > 0 ? rule.Message.Trim() : AlertText.Describe(rule.When, _party.Identifier?.Library, _ => null);
+        string text = rule.Message.Trim().Length > 0 ? rule.Message.Trim() : AlertText.Describe(rule.When, _party.Identifier?.Library, AlertEditor.PhaseName(_rotations));
         var popUp = AlertPopUp.Create(AlertIcon(rule), text);
         var holder = AlertPopUp.Holder(popUp, rule.Id);
         AlertStack.Children.Add(holder); // the newest at the bottom

@@ -251,18 +251,18 @@ public sealed class AlertEditorTests : IDisposable
     {
         Store().Save([AlertRule.New([new PhasePlayedCondition("a-charge", Comparison.AtLeast, 1)], "x")]);
 
-        ComboBoxItem? offered = null;
+        (bool Enabled, object ToolTip)? offered = null;
         bool hint = false;
         OnEditor(Store(), () => { }, editor =>
         {
             hint = ((StackPanel)editor.FindName("ConditionRows")).Children[0] is StackPanel { Children: [_, TextBlock { Text: "Editor.PhasePlayedNeedsKeys" }] };
             Click(editor, "NewButton");
-            offered = Pickers(editor)[0].Items.Cast<ComboBoxItem>().Single(i => Equals(i.Tag, "PhasePlayed"));
+            var item = Pickers(editor)[0].Items.Cast<ComboBoxItem>().Single(i => Equals(i.Tag, "PhasePlayed"));
+            offered = (item.IsEnabled, item.ToolTip);
         }, keysRead: false, rotations: [Charging("a", "Mine")]);
 
         Assert.True(hint);
-        Assert.False(offered!.IsEnabled);
-        Assert.Equal("Editor.PhasePlayedNeedsKeys", offered.ToolTip);
+        Assert.Equal((false, (object)"Editor.PhasePlayedNeedsKeys"), offered);
     }
 
     /// <summary>

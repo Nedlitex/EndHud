@@ -78,6 +78,8 @@ internal sealed class RotationDraft
                 RotationProblemKind.EmptyConditionGroup => Loc.Format("Rotation.Problem.EmptyGroup", problem.Phase ?? "", problem.Step ?? 0),
                 RotationProblemKind.PhaseShownOwnGate => Loc.Format("Rotation.Problem.PhaseShownOwnGate", problem.Phase ?? ""),
                 RotationProblemKind.PhaseShownMissingPhase => Loc.Format("Rotation.Problem.PhaseShownMissingPhase", problem.Phase ?? ""),
+                RotationProblemKind.PhasePlayedMissingPhase => Loc.Format("Rotation.Problem.PhasePlayedMissingPhase", problem.Phase ?? ""),
+                RotationProblemKind.PhasePlayedOwnGateNeverOpens => Loc.Format("Rotation.Problem.PhasePlayedOwnGate", problem.Phase ?? ""),
                 _ => null,
             };
             if (message is not null && !messages.Contains(message)) messages.Add(message);

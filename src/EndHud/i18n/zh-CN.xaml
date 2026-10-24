@@ -156,6 +156,11 @@
     <sys:String x:Key="Editor.ChargeHint">终结技和连携技的百分比按画面估算，误差约 ±4%。</sys:String>
     <sys:String x:Key="Editor.Condition.PhaseShown">轴段已显示次数</sys:String>
     <sys:String x:Key="Editor.PhaseShownHint">本场战斗中这个轴段出现在排轴条上的次数（出现一次算一次），离开战斗后清零。</sys:String>
+    <sys:String x:Key="Editor.Condition.PhasePlayed">轴段已完成次数</sys:String>
+    <sys:String x:Key="Editor.Condition.PhasePlayed.NeedsKeys">轴段已完成次数（需开启“读取战技按键”）</sys:String>
+    <sys:String x:Key="Editor.PhasePlayedHint">本场战斗中这个轴段被完整打完的次数（每一步都打到算一次，按你的战技按键判断），离开战斗后清零。</sys:String>
+    <sys:String x:Key="Editor.PhasePlayedNeedsKeys">需要先在菜单的排轴设置中开启“读取战技按键”才能统计完成次数。未开启时这个条件会被忽略，当作没有这个条件；只有这类条件的轴段不会进入，只有这类条件的提示不会弹出。</sys:String>
+    <sys:String x:Key="Editor.PhasePlayedNoPhases">还没有排轴，没有轴段可选。请先在排轴编辑器中建一个排轴。</sys:String>
     <sys:String x:Key="Editor.Times">{0} 次</sys:String>
     <sys:String x:Key="Editor.PhaseMissing">（已删除的轴段）</sys:String>
     <sys:String x:Key="Editor.StacksAtLeast">至少 {0} 层</sys:String>
@@ -163,6 +168,8 @@
     <sys:String x:Key="Editor.StacksNotRead">这个状态的层数暂时无法识别，只判断有没有。</sys:String>
     <sys:String x:Key="Rotation.Problem.PhaseShownOwnGate">轴段“{0}”的进入条件用了它自己的显示次数：它一出现，次数就变了，条件也跟着变。请改用其他轴段的次数。</sys:String>
     <sys:String x:Key="Rotation.Problem.PhaseShownMissingPhase">轴段“{0}”的条件引用了一个已删除的轴段，请重新选择轴段或删除这个条件。</sys:String>
+    <sys:String x:Key="Rotation.Problem.PhasePlayedMissingPhase">轴段“{0}”的完成次数条件引用了一个已删除的轴段，请重新选择轴段或删除这个条件。</sys:String>
+    <sys:String x:Key="Rotation.Problem.PhasePlayedOwnGate">轴段“{0}”的进入条件要求它自己先完成过：可它要先出现才能被完成，所以永远不会出现。请改用其他轴段的次数，或改用“至多”“小于”。</sys:String>
     <sys:String x:Key="Editor.CopyPhase">复制轴段</sys:String>
     <sys:String x:Key="Editor.CopyPhaseHint">复制选中的轴段（步骤和进入条件都会复制），放在它后面。</sys:String>
     <sys:String x:Key="Editor.Group.All">全部满足</sys:String>
@@ -421,6 +428,7 @@
     <sys:String x:Key="Alert.Describe.Status.Level">{0} {1} {2} 级</sys:String>
     <sys:String x:Key="Alert.Describe.Controlling">正在操控 {0}</sys:String>
     <sys:String x:Key="Alert.Describe.PhaseShown">轴段已显示次数（提示中不可用）</sys:String>
+    <sys:String x:Key="Alert.Describe.PhasePlayed">{0} 已完成 {1} {2} 次</sys:String>
     <sys:String x:Key="Alert.Sample">战斗提示会在这里弹出</sys:String>
     <sys:String x:Key="Alerts.Title">战斗提示</sys:String>
     <sys:String x:Key="Alerts.Intro">战斗中条件满足时，在屏幕右侧（和连携提示左右对称的位置）弹出提示：圆圈里是提示的对象（技力、敌人状态或干员头像），旁边滑出提示文字。最多显示 3 秒，条件不再满足时提前收起；条件要先不满足、再次满足，才会再次提示。对所有小队和排轴都有效。</sys:String>
