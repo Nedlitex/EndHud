@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using EndHud.SkillInput;
 using EndHud.Vision.Input;
 using Xunit;
@@ -92,48 +93,67 @@ public class SkillInputReaderQueueTests
 }
 
 /// <summary>
-/// The real reader on the desktop: turning reading on registers Raw Input for the keyboard, gamepads and
-/// joysticks on its own message-only window; turning it off removes every registration and ends its
-/// thread. No input is injected: nothing is typed into any program.
+/// The real reader on the desktop. The game runs as administrator and EndHud doesn't, so Windows keeps
+/// the game's keystrokes from EndHud's Raw Input (UIPI); a hotkey still arrives. So the four bound keys
+/// are hotkeys, held only while reading. The test proves who holds a key by trying to register it
+/// itself: that fails while EndHud holds it and succeeds once EndHud has let it go. No input is
+/// injected: nothing is typed into any program.
 /// </summary>
 [Trait("Category", "Desktop")] // registers with Windows' input: runs locally, not on CI runners
 [Collection(WpfCollection.Name)]
 public class SkillInputReaderTests
 {
-    [Fact]
-    public void Turning_reading_on_registers_and_off_unregisters_everything()
+    /// <summary>The default keys' virtual keys: the top-row 1 to 4.</summary>
+    private static readonly uint[] DigitKeys = [0x31, 0x32, 0x33, 0x34];
+
+    private static readonly bool[] AllFree = [true, true, true, true], AllHeld = [false, false, false, false];
+
+    private const int TestId = 0x7A00;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint modifiers, uint vk);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+
+    /// <summary>For each key, whether this test could take it as a bare hotkey (given straight back).</summary>
+    internal static bool[] Free(IReadOnlyList<uint> keys) => [.. keys.Select((vk, i) =>
     {
-        Assert.Empty(SkillInputReader.Registered()); // nothing in this process before
+        bool free = RegisterHotKey(IntPtr.Zero, TestId + i, 0, vk);
+        if (free) UnregisterHotKey(IntPtr.Zero, TestId + i);
+        return free;
+    })];
+
+    [Fact]
+    public void Turning_reading_on_holds_the_four_keys_and_off_lets_them_go()
+    {
+        Assert.Equal(AllFree, Free(DigitKeys)); // nobody holds them before
         using var reader = new SkillInputReader();
 
         reader.SetListening(true, SkillKeyCodes.Defaults);
         Assert.True(reader.WaitStarted(TimeSpan.FromSeconds(5)), "the reader's thread never said it started");
         Assert.False(reader.Failed, reader.Describe());
-        var registered = SkillInputReader.Registered();
-        Assert.Equal(
-            [(UsagePageGeneric, UsageJoystick), (UsagePageGeneric, UsageGamepad), (UsagePageGeneric, UsageKeyboard)],
-            registered.Select(d => (d.usUsagePage, d.usUsage)).Order());
-        Assert.All(registered, d => Assert.Equal(reader.Window, d.hwndTarget));
-        Assert.All(registered, d => Assert.NotEqual(0u, d.dwFlags & RIDEV_INPUTSINK));
+        Assert.Equal(AllHeld, Free(DigitKeys));
         Assert.StartsWith("listening: keyboard", reader.Describe());
 
         reader.SetListening(false, SkillKeyCodes.Defaults);
 
-        Assert.Empty(SkillInputReader.Registered());
+        Assert.Equal(AllFree, Free(DigitKeys));
         Assert.True(reader.Ended);
         Assert.Equal("off", reader.Describe());
     }
 
     [Fact]
-    public void Disposing_the_reader_unregisters_everything()
+    public void Disposing_the_reader_lets_the_keys_go()
     {
         var reader = new SkillInputReader();
         reader.SetListening(true, SkillKeyCodes.Defaults);
         Assert.True(reader.WaitStarted(TimeSpan.FromSeconds(5)));
+        Assert.Equal(AllHeld, Free(DigitKeys));
 
         reader.Dispose();
 
-        Assert.Empty(SkillInputReader.Registered());
+        Assert.Equal(AllFree, Free(DigitKeys));
         Assert.True(reader.Ended);
     }
 }
