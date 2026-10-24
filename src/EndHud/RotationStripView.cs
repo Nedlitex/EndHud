@@ -37,7 +37,10 @@ internal static class RotationStripView
     {
         // A condition step glows while its conditions hold, keys read or not (owner, 2026-10-24).
         bool? Holds(RotationStep step) => state is null ? null : RotationTracker.Evaluate(new AllCondition(step.Expect), state, history ?? PhaseHistory.None);
-        var view = ForPhase(rotation, position.Step.PhaseIndex, library, skillIcon, avatar, steps, statusIcon, Holds);
+        // An attack by whoever is controlled shows them: the operator under the chevron in this reading.
+        var controlled = state?.ActiveSlot is int active && active >= 1 && active <= state.Slots.Count && state.Slots[active - 1].Operator?.Operator.Id is { } id
+            ? library?.Find(id) : null;
+        var view = ForPhase(rotation, position.Step.PhaseIndex, library, skillIcon, avatar, steps, statusIcon, Holds, controlled);
         if (steps is not { Ready: false } || steps.Phase != position.Step.PhaseIndex) return view;
         int current = steps.Marks.ToList().IndexOf(StepMark.Current);
         if (current < 0) return view;
@@ -67,11 +70,12 @@ internal static class RotationStripView
     /// <param name="steps">Where the player is inside this phase; null (the editor's preview, or no keys read): every step alike.</param>
     /// <param name="statusIcon">A boss status's icon, for a condition step about one.</param>
     /// <param name="holds">Whether a condition step's conditions hold now (null: not known, e.g. the editor's preview: drawn dim).</param>
+    /// <param name="controlled">The operator controlled now, for an attack by whoever is controlled; null when not known (the editor's preview).</param>
     public static StripView ForPhase(Rotation rotation, int phase, OperatorLibrary? library,
         Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, StepPosition? steps = null,
-        Func<string, BitmapSource?>? statusIcon = null, Func<RotationStep, bool?>? holds = null)
+        Func<string, BitmapSource?>? statusIcon = null, Func<RotationStep, bool?>? holds = null, OperatorInfo? controlled = null)
     {
-        var look = new Look(library, skillIcon, avatar, statusIcon ?? (_ => null), PhaseName(rotation));
+        var look = new Look(library, skillIcon, avatar, statusIcon ?? (_ => null), PhaseName(rotation), controlled);
         var played = rotation.Played();
         var current = played.Where(p => p.PhaseIndex == phase).ToList();
         // Marks for another phase (or a different count of steps) aren't this phase's: drawn alike.
@@ -90,7 +94,7 @@ internal static class RotationStripView
 
     /// <summary>Where a step's pictures and words come from.</summary>
     private sealed record Look(OperatorLibrary? Library, Func<OperatorInfo, StepAction, BitmapSource?> SkillIcon, Func<OperatorInfo, BitmapSource?> Avatar,
-        Func<string, BitmapSource?> StatusIcon, Func<string, string?> PhaseName);
+        Func<string, BitmapSource?> StatusIcon, Func<string, string?> PhaseName, OperatorInfo? Controlled);
 
     /// <summary>How the <paramref name="index"/>th step of the phase is drawn.</summary>
     private static StripStepState State(StepPosition? steps, int index) => steps is null ? StripStepState.Upcoming : steps.Marks[index] switch
@@ -112,8 +116,9 @@ internal static class RotationStripView
                 p.Step.Note ?? ConditionWords.Statements(p.Step.Expect, library, look.PhaseName),
                 state, false, new StripCondition(holds, subject.Kind == AlertSubjectKind.SkillPoints));
         }
-        var op = library?.Find(p.Step.OperatorId);
-        // A basic or heavy attack has no skill icon: the operator's face fills the circle instead, and no small face in the corner.
+        // "Whoever is controlled": the one controlled now; nobody known, no face (the label says what it is).
+        var op = p.Step.OperatorId == RotationStep.Controlled ? look.Controlled : library?.Find(p.Step.OperatorId);
+        // A basic, heavy or plunge attack has no skill icon: the operator's face fills the circle instead, and no small face in the corner.
         bool basic = p.Step.Action.IsDisplayOnly();
         var icon = op is null ? null : basic ? avatar(op) : skillIcon(op, p.Step.Action);
         return new StripStep(icon, op is null || basic ? null : avatar(op),

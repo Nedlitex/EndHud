@@ -399,8 +399,8 @@ public sealed class RotationEditorTests : IDisposable
         Assert.Equal("", said);
         var step = Assert.Single(library.Own.Load().Rotations).Phases[0].Steps[1];
         Assert.Equal(new RotationStep(RotationStep.Controlled, StepAction.PlungeAttack), step with { Expect = [] });
-        Assert.True(Translated("Rotation.Action.PlungeAttack"));
-        Assert.True(Translated("Editor.ControlledOperator"));
+        // Its words (Rotation.Action.PlungeAttack, Editor.ControlledOperator) are checked by I18nTests; the refusal here.
+        Assert.True(Translated("Rotation.Problem.ControlledOperatorOnlyForAttacks"));
     }
 
     /// <summary>

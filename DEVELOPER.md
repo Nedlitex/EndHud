@@ -1558,9 +1558,9 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
     "steps": [ … ] }
   ```
 - `action`: `BattleSkill`, `Combo`, `Ultimate`, `BasicAttack` (format 4), `HeavyAttack`
-  (format 8) or `Condition` (format 9, below). The skill being
+  (format 8), `PlungeAttack` (下落攻击, format 9) or `Condition` (format 9, below). The skill being
   available (a skill point for a battle skill, the combo or ultimate ready) is implied; `expect`
-  lists anything else. `BasicAttack` and `HeavyAttack` are drawn only (`StepActions.IsDisplayOnly`):
+  lists anything else. `BasicAttack`, `HeavyAttack` and `PlungeAttack` are drawn only (`StepActions.IsDisplayOnly`):
   the strip shows the operator's avatar as the icon (no skill icon, no small face in the corner)
   labelled with the action's name (`Rotation.Action.*`); it is never seen "used" and its
   availability is unknown, so the phase's `when` says when it shows (e.g. a 普攻 phase gated on
@@ -1584,6 +1584,12 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   but a phase of nothing but condition steps never counts. Refused: one with no condition
   (`ConditionStepEmpty`) and one in a group (`ConditionStepWithPrevious`: it, or the step after it,
   marked `withPrevious`).
+- `operatorId` `"controlled"` (`RotationStep.Controlled`, format 9): an attack step done by whoever
+  is controlled at the time (当前操控), e.g. a plunge attack after a combo. The strip shows the
+  operator under the chevron in this reading (`PartyState.ActiveSlot`); nobody known (the editor's
+  preview, the chevron not read): no face, the label alone. Only for `BasicAttack`, `HeavyAttack`
+  and `PlungeAttack`; a skill step on it is refused (`ControlledOperatorOnlyForAttacks`: a skill is
+  followed by whose it is). The editor's operator picker offers 当前操控 for an attack only.
 - `withPrevious`: used right after the previous step of the same phase, drawn overlapping it.
 - `label` (optional): replaces the action's name above the icon, for a variant the game names
   differently (e.g. "战技·意"). `note` (optional): a short hint under the icon.
@@ -1664,7 +1670,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   offer the kind, greyed out with a sentence saying it needs 读取战技按键, and a condition already
   there shows that sentence under it.
 
-- `format`: 9 when it uses `ultimateTimeLeft`, `phaseCurrent` or a `Condition` step; else 8 when it uses a `HeavyAttack` step; else 7 when it uses `battleSkillActive`; else 6 when a phase sets `priority` (other than 0) or `priorityRules`; else 5 when it uses `phasePlayed`; else 4 when it uses a `BasicAttack` step, `Below`/`Above` or `phaseShown`; else 3 when it
+- `format`: 9 when it uses `ultimateTimeLeft`, `phaseCurrent`, a `Condition` or `PlungeAttack` step, or the `"controlled"` operator; else 8 when it uses a `HeavyAttack` step; else 7 when it uses `battleSkillActive`; else 6 when a phase sets `priority` (other than 0) or `priorityRules`; else 5 when it uses `phasePlayed`; else 4 when it uses a `BasicAttack` step, `Below`/`Above` or `phaseShown`; else 3 when it
   uses `not`, `ultimateActive` or `lastMatchWins`; else 2. A rotation is saved in the lowest
   format that holds it (`Rotation.FormatNeeded`), so one using nothing new stays readable by older
   builds, and the published `rotations/*.json` stay at format 3 or lower (a test checks). A

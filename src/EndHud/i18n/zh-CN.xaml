@@ -37,6 +37,9 @@
     <sys:String x:Key="Rotation.Action.BasicAttack">普攻</sys:String>
     <sys:String x:Key="Rotation.Action.HeavyAttack">重击</sys:String>
     <sys:String x:Key="Rotation.Action.Condition">条件</sys:String>
+    <sys:String x:Key="Rotation.Action.PlungeAttack">下落攻击</sys:String>
+    <sys:String x:Key="Editor.ControlledOperator">当前操控</sys:String>
+    <sys:String x:Key="Rotation.Problem.ControlledOperatorOnlyForAttacks">轴段“{0}”第 {1} 步选了“当前操控”：只有普攻、重击和下落攻击可以由当前操控的干员来打，技能请选具体的干员。</sys:String>
     <sys:String x:Key="Rotation.Next">接下来</sys:String>
     <sys:String x:Key="Rotation.Reason.SkillPoints">技力 {0}/{1}</sys:String>
     <sys:String x:Key="Rotation.Reason.Cooling">{0} {1}冷却中</sys:String>
@@ -159,7 +162,7 @@
     <sys:String x:Key="Editor.Condition.Group">条件组</sys:String>
     <sys:String x:Key="Editor.Compare.Below">小于</sys:String>
     <sys:String x:Key="Editor.Compare.Above">大于</sys:String>
-    <sys:String x:Key="Editor.BasicAttackHint">普攻和重击只用来显示，EndHud 不会识别它们。用轴段的进入条件决定什么时候显示，例如“技力 小于 2.0”。</sys:String>
+    <sys:String x:Key="Editor.BasicAttackHint">普攻、重击和下落攻击只用来显示，EndHud 不会识别它们。用轴段的进入条件决定什么时候显示，例如“技力 小于 2.0”。干员可以选“当前操控”：排轴条上显示当时操控的干员。</sys:String>
     <sys:String x:Key="Editor.ChargeHint">终结技和连携技的百分比按画面估算，误差约 ±4%。</sys:String>
     <sys:String x:Key="Editor.Condition.PhaseShown">轴段已显示次数</sys:String>
     <sys:String x:Key="Editor.PhaseShownHint">本场战斗中这个轴段出现在排轴条上的次数（出现一次算一次），离开战斗后清零。</sys:String>

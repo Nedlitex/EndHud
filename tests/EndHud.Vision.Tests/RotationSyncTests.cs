@@ -199,7 +199,8 @@ public sealed class RotationSyncTests : IDisposable
             Assert.Equal(Path.GetFileNameWithoutExtension(file), rotation.Id);
             Assert.Matches("^[a-z0-9][a-z0-9-]*$", rotation.Id);
             Assert.Empty(rotation.Problems());
-            var named = rotation.Squad.Concat(rotation.Phases.SelectMany(p => p.Steps.Select(s => s.OperatorId)));
+            // A condition step names nobody; an attack may be by whoever is controlled.
+            var named = rotation.Squad.Concat(rotation.Phases.SelectMany(p => p.Steps.Where(s => s.Action != StepAction.Condition && s.OperatorId != RotationStep.Controlled).Select(s => s.OperatorId)));
             Assert.All(named, id => Assert.NotNull(operators.Find(id)));
             // A counter EndHud doesn't read would stay unknown for good, so a phase gated on it never opens.
             var conditions = rotation.Phases.SelectMany(p => p.When.Concat(p.Steps.SelectMany(s => s.Expect)));

@@ -248,7 +248,7 @@ public partial class RotationEditor : Window
     {
         StepDetails.IsEnabled = _step is not null;
         _loading = true;
-        FillOperators(StepOperator, SquadOperators());
+        FillStepOperators();
         Select(StepOperator, _step?.OperatorId);
         StepActionPicker.SelectedItem = StepActionPicker.Items.Cast<ComboBoxItem>().FirstOrDefault(i => _step is not null && (StepAction)i.Tag == _step.Action);
         StepWithPrevious.IsChecked = _step?.WithPrevious ?? false;
@@ -258,6 +258,13 @@ public partial class RotationEditor : Window
         _loading = false;
         ShowBasicAttackHint();
         BuildConditionRows();
+    }
+
+    /// <summary>The step's operator picker: the squad, and for an attack also 当前操控 (whoever is controlled at the time).</summary>
+    private void FillStepOperators()
+    {
+        FillOperators(StepOperator, SquadOperators());
+        if (_step?.Action.IsDisplayOnly() == true) StepOperator.Items.Add(Item(Loc.Get("Editor.ControlledOperator"), RotationStep.Controlled));
     }
 
     /// <summary>
@@ -428,6 +435,15 @@ public partial class RotationEditor : Window
         var was = _step.Action;
         if (StepOperator.SelectedItem is ComboBoxItem { Tag: string id }) _step.OperatorId = id;
         if (StepActionPicker.SelectedItem is ComboBoxItem { Tag: StepAction action }) _step.Action = action;
+        if (_step.Action.IsDisplayOnly() != was.IsDisplayOnly())
+        {
+            // 当前操控 is offered for an attack only: a skill left on it moves to the first squad operator.
+            if (!_step.Action.IsDisplayOnly() && _step.OperatorId == RotationStep.Controlled) _step.OperatorId = SquadOperators().FirstOrDefault()?.Id ?? "";
+            _loading = true;
+            FillStepOperators();
+            Select(StepOperator, _step.OperatorId);
+            _loading = false;
+        }
         _step.WithPrevious = StepWithPrevious.IsChecked == true;
         _step.Label = StepLabel.Text;
         _step.Note = StepNote.Text;
@@ -906,7 +922,7 @@ public partial class RotationEditor : Window
     private IEnumerable<OperatorInfo> SquadOperators() =>
         (_draft?.Squad ?? []).Where(id => id is not null).Select(id => _library.Find(id!)).Where(o => o is not null).Select(o => o!);
 
-    private string OperatorName(string id) => _library.Find(id)?.NameZh ?? id;
+    private string OperatorName(string id) => id == RotationStep.Controlled ? Loc.Get("Editor.ControlledOperator") : _library.Find(id)?.NameZh ?? id;
 
     private void FillOperators(ComboBox picker, IEnumerable<OperatorInfo> operators) => ConditionEditor.FillOperators(picker, operators, Avatar);
 

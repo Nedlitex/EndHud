@@ -103,6 +103,7 @@ internal sealed class RotationDraft
                 RotationProblemKind.PhasePlayedOwnGateNeverOpens => Loc.Format("Rotation.Problem.PhasePlayedOwnGate", problem.Phase ?? ""),
                 RotationProblemKind.SkillTimeNotRead => Loc.Format("Rotation.Problem.SkillTimeNotRead", problem.Phase ?? ""),
                 RotationProblemKind.UltimateTimeNotRead => Loc.Format("Rotation.Problem.UltimateTimeNotRead", problem.Phase ?? ""),
+                RotationProblemKind.ControlledOperatorOnlyForAttacks => Loc.Format("Rotation.Problem.ControlledOperatorOnlyForAttacks", problem.Phase ?? "", problem.Step ?? 0),
                 RotationProblemKind.ConditionStepEmpty => Loc.Format("Rotation.Problem.ConditionStepEmpty", problem.Phase ?? "", problem.Step ?? 0),
                 RotationProblemKind.ConditionStepWithPrevious => Loc.Format("Rotation.Problem.ConditionStepWithPrevious", problem.Phase ?? "", problem.Step ?? 0),
                 _ => null,

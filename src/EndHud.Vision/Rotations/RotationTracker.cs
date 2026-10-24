@@ -214,8 +214,8 @@ public sealed class RotationTracker(Rotation rotation)
                 StepAction.Combo => ComboUsed(was, @is),
                 StepAction.Ultimate => was.Ultimate?.Ready == true && @is.Ultimate is { Ready: false },
                 StepAction.BattleSkill => was.BattleSkill != BattleSkillState.Cooling && @is.BattleSkill == BattleSkillState.Cooling,
-                // Display-only: EndHud can't see a basic or heavy attack, so it's never seen "used".
-                StepAction.BasicAttack or StepAction.HeavyAttack => false,
+                // Display-only: EndHud can't see a basic, heavy or plunge attack, so it's never seen "used".
+                StepAction.BasicAttack or StepAction.HeavyAttack or StepAction.PlungeAttack => false,
                 _ => false,
             };
             if (used) yield return i;
@@ -301,7 +301,7 @@ public sealed class RotationTracker(Rotation rotation)
             StepAction.BattleSkill => s.BattleSkill == BattleSkillState.Cooling ? false
                 : state.SkillPoints is { } sp ? sp >= 1 : null,
             // Display-only: whether a basic or heavy attack is "available" can't be seen.
-            StepAction.BasicAttack or StepAction.HeavyAttack => null,
+            StepAction.BasicAttack or StepAction.HeavyAttack or StepAction.PlungeAttack => null,
             _ => null,
         };
     }

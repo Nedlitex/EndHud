@@ -37,15 +37,15 @@ public enum StepAction
 public static class StepActions
 {
     /// <summary>
-    /// A basic or heavy attack: drawn only. EndHud never sees one used and can't tell if it's
+    /// A basic, heavy or plunge attack: drawn only. EndHud never sees one used and can't tell if it's
     /// available, so following never waits on it and the next real cast passes it.
     /// </summary>
-    public static bool IsDisplayOnly(this StepAction action) => action is StepAction.BasicAttack or StepAction.HeavyAttack;
+    public static bool IsDisplayOnly(this StepAction action) => action is StepAction.BasicAttack or StepAction.HeavyAttack or StepAction.PlungeAttack;
 
     /// <summary>The lowest rotation format that holds this step (its conditions aside).</summary>
-    public static int FormatNeeded(RotationStep step) => step.Action switch
+    public static int FormatNeeded(RotationStep step) => step.OperatorId == RotationStep.Controlled ? 9 : step.Action switch
     {
-        StepAction.Condition => 9,
+        StepAction.Condition or StepAction.PlungeAttack => 9,
         StepAction.HeavyAttack => 8,
         StepAction.BasicAttack => 4,
         _ => 2,
@@ -333,7 +333,8 @@ public sealed record Rotation(
     /// <summary>
     /// 9: "time left of the ultimate" and "the current phase is" conditions
     /// (<see cref="UltimateTimeLeftCondition"/>, <see cref="PhaseCurrentCondition"/>), condition steps
-    /// (<see cref="StepAction.Condition"/>).
+    /// (<see cref="StepAction.Condition"/>), plunge-attack steps (<see cref="StepAction.PlungeAttack"/>), and
+    /// attack steps by whoever is controlled (<see cref="RotationStep.Controlled"/>).
     /// 8: heavy-attack steps (<see cref="StepAction.HeavyAttack"/>).
     /// 7: "battle skill running" conditions (<see cref="BattleSkillActiveCondition"/>).
     /// 6: phase priorities (<see cref="RotationPhase.Priority"/>, <see cref="RotationPhase.PriorityRules"/>).
@@ -440,7 +441,10 @@ public sealed record Rotation(
                 var step = phase.Steps[i];
                 bool condition = step.Action == StepAction.Condition;
                 // A condition step has no operator; it waits on its own, never in a group with another step.
-                if (!condition && !Squad.Contains(step.OperatorId))
+                // An attack may be by whoever is controlled; a skill is followed by whose it is.
+                if (step.OperatorId == RotationStep.Controlled && !step.Action.IsDisplayOnly())
+                    problems.Add(new RotationProblem(RotationProblemKind.ControlledOperatorOnlyForAttacks, phase.Name, i + 1));
+                else if (!condition && step.OperatorId != RotationStep.Controlled && !Squad.Contains(step.OperatorId))
                     problems.Add(new RotationProblem(RotationProblemKind.StepOperatorNotInSquad, phase.Name, i + 1));
                 if (condition && step.Expect.Count == 0)
                     problems.Add(new RotationProblem(RotationProblemKind.ConditionStepEmpty, phase.Name, i + 1));
