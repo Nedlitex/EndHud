@@ -1557,6 +1557,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   | `bossStatus` | `statusId` (the wiki's English name), `present`, `minStacks` | the enemy shows (or doesn't show) that status; with `minStacks` above 1, with at least that many stacks (inflictions) or that level (Corrosion, Electrification: I–IV as 1–4). An absent status counts as 0; a present one whose count isn't read (covered, a dark scene, or a status whose count EndHud doesn't read: `BossStatusReader.CountsRead`) is unknown |
   | `controlling` | `operatorId` | that operator is the one being controlled |
   | `phaseShown` | `phaseId`, `is`, `times` (format 4) | that phase has come onto the strip so many times this fight (see [Choosing the phase](#choosing-the-phase)); unknown outside a phase selector (step `expect`, alerts) |
+  | `phasePlayed` | `phaseId`, `is`, `times` (format 5) | that phase has been **played through** so many times this fight: every step of it seen done by the step follower (see [Battle-skill key reading](#battle-skill-key-reading)). Only while the player reads their battle-skill keys (`ReadSkillPresses`); while they don't, it is **ignored**, as if it weren't there (below). Unknown when the rotation naming it isn't the one followed |
   | `all` | `of`: a list of conditions | every one holds (and) |
   | `any` | `of`: a list of conditions | at least one holds (or) |
   | `not` | `of`: one condition (format 3) | it doesn't hold; unknown stays unknown |
@@ -1570,11 +1571,27 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   at any depth; everything that asks "is there a condition of kind X anywhere" (the format needed,
   whether boss statuses must be read, an alert's problems) goes through it.
 
-  Two problems are refused in the editor with a sentence: a phase whose own `when` counts its own
+  Four problems are refused in the editor with a sentence: a phase whose own `when` counts its own
   showings (`PhaseShownOwnGate`: counted on arrival, it would flip on the very reading that shows
-  it), and a `phaseShown` naming a phase that was deleted (`PhaseShownMissingPhase`).
+  it), a `phaseShown` or `phasePlayed` naming a phase that was deleted (`PhaseShownMissingPhase`,
+  `PhasePlayedMissingPhase`), and a phase whose own `when` requires the phase itself played a
+  number of times that 0 doesn't satisfy, outside any `any`/`not` (`PhasePlayedOwnGateNeverOpens`:
+  it must be shown to be played, so it would never open). A gate on its own plays that holds at 0
+  (`AtMost` 2: "play it twice, then leave it") is fine.
 
-- `format`: 4 when it uses a `BasicAttack` step, `Below`/`Above` or `phaseShown`; else 3 when it
+  **`phasePlayed` while the battle-skill keys aren't read** (owner, 2026-10-23): nothing is played
+  through, so the condition is ignored, as if it weren't there. A part made of nothing but
+  `phasePlayed` (a `not` of one, a group of only such parts, at any depth:
+  `ConditionWalk.OnlyPlayed`) is dropped from its `all`/`any`, and a group left empty is dropped
+  from its own parent the same way (`RotationTracker.Ignored`, told by
+  `IPhaseHistory.PlayedIgnored`). A step's `expect` made of nothing else holds (nothing to wait
+  for). Two exceptions, so an ignored condition can't turn into "always": a phase's `when` made of
+  nothing else **never opens** (holding on every reading would pin the strip to it), and an alert
+  made of nothing else **never fires** (it would fire at every fight's start). The editors still
+  offer the kind, greyed out with a sentence saying it needs 读取战技按键, and a condition already
+  there shows that sentence under it.
+
+- `format`: 5 when it uses `phasePlayed`; else 4 when it uses a `BasicAttack` step, `Below`/`Above` or `phaseShown`; else 3 when it
   uses `not`, `ultimateActive` or `lastMatchWins`; else 2. A rotation is saved in the lowest
   format that holds it (`Rotation.FormatNeeded`), so one using nothing new stays readable by older
   builds, and the published `rotations/*.json` stay at format 3 or lower (a test checks). A
@@ -1687,8 +1704,13 @@ Until 0.5.1 the phase shown always stayed when none held, so a phase without `wh
 back once another had held (a player's 充能轴 I "Laevatain's ultimate at most 50%" never gave way
 to 充能轴 II).
 Conditions are evaluated by `RotationTracker.Evaluate`, which takes an `IPhaseHistory`: the
-selector passes itself, anything else (`RotationTracker`'s step following, the strip's reasons,
-alerts) passes `PhaseHistory.None`, where `phaseShown` is unknown.
+selector passes itself, anything else (`RotationTracker`'s step following, the strip's reasons)
+passes `PhaseHistory.None`, where `phaseShown` and `phasePlayed` are unknown. The selector's
+`phasePlayed` counts are the step follower's: `PhaseSelector.Update(state, plays)` takes the
+rotation's `StepFollower`, or null when the battle-skill keys aren't read (then `phasePlayed` is
+ignored, see [The file](#the-file)). Alerts get the history from `RotationFollowing.History`: the
+selector of the rotation followed now, `PhaseHistory.KeysNotRead` without the keys, or
+`PhaseHistory.None` when no rotation is followed.
 
 The selector also counts, per phase, how many times it has **come onto the strip** this fight
 (owner, 2026-10-22: counted on arrival, so the one on the strip now is included; leaving and coming
@@ -1773,7 +1795,12 @@ spent. Battle-skill cooldowns seen on the screen are not used (the press is the 
 count it twice). Steps drawn together may be used in either order. A use that matches no reachable
 step (off-script, or a later step while an earlier skill is undone) moves nothing. Basic-attack
 steps never hold the marker: the next real cast of a later step passes them. A phase played
-through starts again at its first step. [`RotationFollower`](src/EndHud/OverlayWindow.Rotation.cs)
+through starts again at its first step.
+It also counts, per phase, the rounds **played through** this fight (`StepFollower.TimesPlayed`, for
+`phasePlayed`; owner, 2026-10-23): a round counts once, the moment its last step that can be seen
+used is done (trailing basic-attack steps are never seen, so they don't hold it up). A phase left
+half way doesn't count; a phase of nothing but basic attacks never does; `EndFight` sets every
+count back to 0. [`RotationFollower`](src/EndHud/OverlayWindow.Rotation.cs)
 runs it once per reading when it is handed the presses (`OverlayWindow.PressesFor`: the reader with
 the switch on, none with it off); with none it returns no step marks and the strip is drawn as
 without the switch.
@@ -1830,6 +1857,13 @@ One file for every rule, global (every fight, every squad): `%APPDATA%\EndHud\al
 
 - `id`: kept for the rule's whole life. `when`: every condition must hold; the same condition
   kinds as rotations (groups and `not` included) except `phaseShown`, which belongs to a rotation.
+  `phasePlayed` is offered: an alert has no rotation of its own, so it names a phase of any of the
+  player's rotations (listed as "rotation · phase", `AlertEditor.PhaseChoices`), and is known while
+  that rotation is the one the strip follows (else unknown: the rule neither fires nor re-arms).
+- `format`: 2 when a rule uses `phasePlayed`, else 1, the lowest that holds the rules
+  (`AlertFile.FormatNeeded`): rules using nothing new stay readable by builds from before format 2,
+  which refuse the rest as newer (left as it is, never renamed as unreadable). The share code keeps
+  its `EHA1:` prefix (the code's own version).
   `message`: the pop-up's text; empty shows the conditions in words.
 - `AlertRule.Problems()`: no conditions, an empty group, or a `phaseShown` (from a hand-edited or
   shared file). The editor refuses to save such a rule, with a sentence.
@@ -1845,13 +1879,14 @@ One file for every rule, global (every fight, every squad): `%APPDATA%\EndHud\al
 | **Read** | `AlertStore.Load` at start and after every save; checked on every reading in battle. A missing file is no rules. |
 | **Correct** | Select the rule, change its conditions or text, 保存: `AlertStore.Corrected` rewrites it in its place under its own id. A wrong rule is fixed in place, never by adding a second one. |
 | **Remove** | 删除, after confirming ("删除提示“{0}”？此操作无法撤销。"): `AlertStore.Removed`. Nothing is removed automatically: no eviction, no age limit. |
-| **Protect** | Every rule stays until the player deletes it. At most 100 (`AlertFile.MaxRules`): 新建 is refused with "最多 100 条提示，请先删除不用的。", `Save` refuses more. Imports never replace (`AlertStore.Import`): every imported rule gets a new id, one with the same conditions and words as a rule already there is skipped, and past 100 the rest is left out; the editor says how many of each. An **unreadable** file is renamed to `alerts.unreadable-<yyyyMMdd-HHmmss>.json` beside it, never overwritten or lost, and the editor says so (`RenamedEarlier` keeps the name for an editor opened later in the run). A file from a **newer** EndHud (format above 1) is left as it is and saving is refused; so is a file that couldn't be opened (locked, no access). |
+| **Protect** | Every rule stays until the player deletes it. At most 100 (`AlertFile.MaxRules`): 新建 is refused with "最多 100 条提示，请先删除不用的。", `Save` refuses more. Imports never replace (`AlertStore.Import`): every imported rule gets a new id, one with the same conditions and words as a rule already there is skipped, and past 100 the rest is left out; the editor says how many of each. An **unreadable** file is renamed to `alerts.unreadable-<yyyyMMdd-HHmmss>.json` beside it, never overwritten or lost, and the editor says so (`RenamedEarlier` keeps the name for an editor opened later in the run). A file from a **newer** EndHud (format above 2) is left as it is and saving is refused; so is a file that couldn't be opened (locked, no access). |
 | **Carry** | `%APPDATA%` survives updates (the installer and updater don't touch it). Between computers and players: share codes (all rules, or the selected one) and files. There are no published alerts and nothing syncs from GitHub. |
 
 ### When a pop-up shows
 
 [`AlertMonitor`](src/EndHud.Vision/Alerts/AlertMonitor.cs), on every reading in battle, evaluates
-each rule's conditions as one `all` (`RotationTracker.Evaluate` with `PhaseHistory.None`):
+each rule's conditions as one `all` (`RotationTracker.Evaluate` with the history of the rotation
+followed now, for `phasePlayed`; see [Choosing the phase](#choosing-the-phase)):
 
 - A rule **fires** when it is seen holding after it was last seen not holding, or on its first
   sighting this fight. While it keeps holding it stays quiet.
@@ -1864,6 +1899,8 @@ each rule's conditions as one `all` (`RotationTracker.Evaluate` with `PhaseHisto
   three are up (`MostShown`): the oldest goes.
 - Leaving battle (`StripVisibility`, the strip's rule) takes every pop-up down and re-arms every
   rule (`AlertMonitor.EndFight`); so does turning alerts off.
+- While the battle-skill keys aren't read, `phasePlayed` parts are ignored; a rule made of nothing
+  else never fires.
 - The boss's statuses are read when any rule asks about them (`AlertMonitor.NeedsBossStatuses`),
   even when the rotation doesn't.
 
@@ -1874,7 +1911,8 @@ fires again; 寒冷附着 2 → 3 stacks fires, an unread count doesn't.
 
 [`AlertEditor`](src/EndHud/AlertEditor.xaml.cs) (menu → 战斗提示 → 编辑战斗提示…, or the tray):
 the rule list (新建, 复制, 删除), the selected rule's 提示文字 and conditions on the shared
-[`ConditionEditor`](src/EndHud/ConditionEditor.cs) pickers (no 轴段已显示次数), and 粘贴分享码,
+[`ConditionEditor`](src/EndHud/ConditionEditor.cs) pickers (no 轴段已显示次数; 轴段已完成次数 lists every
+rotation's phases), and 粘贴分享码,
 复制选中的分享码, 复制全部分享码, 导入文件…, 导出文件…, 保存, 关闭. Saving reloads the overlay's rules at
 once. The status condition offers 至少 1–4 层 for the four inflictions and 至少 I–IV 级 for Corrosion
 and Electrification; for any other status a grey line says its count isn't read, and only
@@ -1992,12 +2030,15 @@ exception: hosted runners can't capture windows, so they only run on a developer
   until restored); the editor saving a recommended rotation as the player's copy and hiding a
   deleted one; and every file in `rotations/` being valid.
 - **Rotations:** the file format and share codes (round trip, damaged codes, newer formats,
-  imports never overwriting, format 4 only when needed, published rotations at format 3 or lower);
+  imports never overwriting, format 4 and 5 only when needed, an older format still loading,
+  published rotations at format 3 or lower); `phasePlayed` (counted per round, reset at the end of
+  a fight, ignored without the keys, a gate or an alert of nothing else never opening or firing:
+  `PhasePlayedTests`, `RotationFollowerTests`), alerts at format 2 only when needed;
   the tracker (picking a step with no reset, moving only on seen use, steps used together, going
   off-script, looping, nothing on screen, stacks and levels in status conditions); the phase
   selector's counts and their reset at the end of a fight; the editor's working copy and the
   editor itself (普攻 steps, 0.1 skill points, 1 % charge, a value off the list kept, 复制轴段,
-  轴段已显示次数); the strip's layout; every UI string translated, including keys built at run time.
+  轴段已显示次数, 轴段已完成次数 greyed out with its reason without the keys); the strip's layout; every UI string translated, including keys built at run time.
 
 - **Other screen sizes**, simulated from the 4K fixtures and recordings (see
   [`SimulatedScreen`](tests/EndHud.Vision.Tests/SimulatedScreen.cs)): desktop monitors (5K,
