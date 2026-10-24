@@ -62,8 +62,7 @@ internal static class AlertText
             NotCondition c => F("Alert.Describe.Not", One(c.Of, library, phaseName, text, nested: false)),
             AnyCondition c => Group(c.Of, "Alert.Describe.Or"),
             AllCondition c => Group(c.Of, "Alert.Describe.And"),
-            // Not offered for alerts; a shared file could hold one.
-            PhaseShownCondition => text("Alert.Describe.PhaseShown"),
+            PhaseShownCondition c => F("Alert.Describe.PhaseShown", phaseName(c.PhaseId) ?? text("Editor.PhaseMissing"), Symbol(c.Is), c.Times),
             PhasePlayedCondition c => F("Alert.Describe.PhasePlayed", phaseName(c.PhaseId) ?? text("Editor.PhaseMissing"), Symbol(c.Is), c.Times),
             _ => "?",
         };
@@ -118,18 +117,6 @@ internal static class AlertText
         };
     }
 
-    /// <summary>The operator a condition is about, if any.</summary>
-    public static string? OperatorOf(StateCondition c) => c switch
-    {
-        ComboCondition x => x.OperatorId,
-        ComboChargeCondition x => x.OperatorId,
-        BattleSkillCondition x => x.OperatorId,
-        UltimateCondition x => x.OperatorId,
-        UltimateChargeCondition x => x.OperatorId,
-        UltimateActiveCondition x => x.OperatorId,
-        BattleSkillActiveCondition x => x.OperatorId,
-        CounterCondition x => x.OperatorId,
-        ControllingCondition x => x.OperatorId,
-        _ => null,
-    };
+    /// <summary>The operator a condition is about, if any (<see cref="ConditionCatalogue"/>).</summary>
+    public static string? OperatorOf(StateCondition c) => ConditionCatalogue.OperatorOf(c);
 }

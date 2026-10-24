@@ -18,12 +18,6 @@ namespace EndHud;
 /// </summary>
 public partial class AlertEditor : Window
 {
-    /// <summary>
-    /// Every kind a rotation offers, except "phase shown": an alert has no rotation of its own. "Phase
-    /// played" names a phase of any of the player's rotations (<see cref="PhaseChoices"/>).
-    /// </summary>
-    internal static readonly string[] AlertKinds = [.. ConditionEditor.AllKinds.Where(k => k != "PhaseShown")];
-
     private readonly AlertStore _store;
     private readonly OperatorLibrary _library;
     private readonly Func<IReadOnlyList<Rotation>> _rotations;
@@ -58,15 +52,16 @@ public partial class AlertEditor : Window
         _library = library;
         _rotations = rotations;
         _saved = saved;
-        // Alerts are global: every operator in the library, every operator resource, every rotation's phases.
-        _conditions = new ConditionEditor(library, () => _library.Operators, () => OperatorCounters.Definitions, () => PhaseChoices(_rotations()), AlertKinds, Avatar, keysRead);
+        // Alerts are global: every operator in the library, every operator resource, every rotation's phases
+        // ("phase shown" and "phase played" name one: known while that rotation is followed). The same full set of kinds as a rotation.
+        _conditions = new ConditionEditor(library, () => _library.Operators, () => OperatorCounters.Definitions, () => PhaseChoices(_rotations()), ConditionHostKind.Alert, Avatar, keysRead);
         InitializeComponent();
         Load();
         Closing += (_, e) => e.Cancel = !ConfirmDiscard();
     }
 
     /// <summary>
-    /// The phases an alert's "phase played" can name: every rotation's, in the library's order, as
+    /// The phases an alert's "phase shown" or "phase played" can name: every rotation's, in the library's order, as
     /// "rotation · phase" with the strip's phase name ("标准轴 · 充能轴 I"). A phase id two rotations
     /// share (a copied rotation keeps its phases' ids) is listed once, under the first.
     /// </summary>

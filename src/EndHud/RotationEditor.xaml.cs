@@ -30,7 +30,8 @@ public partial class RotationEditor : Window
     private StepDraft? _step;
     private bool _dirty;
     private bool _loading;
-    private readonly ConditionEditor _conditions;
+    /// <summary>The condition pickers of a phase's entry condition, its priority rules, a step's expected state: the same kinds, each host its own.</summary>
+    private readonly ConditionEditor _gateConditions, _ruleConditions, _stepConditions;
 
     /// <param name="currentSquad">The squad EndHud recognises now (for "use the current squad"), null slots unknown.</param>
     /// <param name="select">The rotation to open with, if any.</param>
@@ -46,8 +47,11 @@ public partial class RotationEditor : Window
         _currentSquad = currentSquad;
         _changed = changed;
         // Conditions offer the rotation's squad, its counters and its phases (by the strip's names).
-        _conditions = new ConditionEditor(library, SquadOperators, Counters, PhaseChoices, ConditionEditor.AllKinds, Avatar, keysRead,
+        ConditionEditor Conditions(ConditionHostKind host) => new(library, SquadOperators, Counters, PhaseChoices, host, Avatar, keysRead,
             () => (_draft?.Phases.FirstOrDefault(p => p != _phase) ?? _phase)?.Id);
+        _gateConditions = Conditions(ConditionHostKind.PhaseGate);
+        _ruleConditions = Conditions(ConditionHostKind.PriorityRule);
+        _stepConditions = Conditions(ConditionHostKind.StepExpect);
         InitializeComponent();
         PriorityError.Text = Loc.Get("Editor.PriorityNotNumber");
         PriorityNeedsGate.Text = Loc.Get("Editor.PriorityNeedsGate");
@@ -420,27 +424,27 @@ public partial class RotationEditor : Window
     private void AddCondition_Click(object sender, RoutedEventArgs e)
     {
         if (_step is null) return;
-        _step.Expect.Add(_conditions.Default("SkillPoints"));
+        _step.Expect.Add(_stepConditions.Default("SkillPoints"));
         StepConditionsChanged(rebuild: true);
     }
 
     private void AddGateCondition_Click(object sender, RoutedEventArgs e)
     {
         if (_phase is null) return;
-        _phase.When.Add(_conditions.Default("Ultimate"));
+        _phase.When.Add(_gateConditions.Default("Ultimate"));
         GateConditionsChanged(rebuild: true);
     }
 
     private void BuildConditionRows()
     {
         ConditionRows.Children.Clear();
-        if (_step is not null) _conditions.AddRows(ConditionRows, _step.Expect, StepConditionsChanged);
+        if (_step is not null) _stepConditions.AddRows(ConditionRows, _step.Expect, StepConditionsChanged);
     }
 
     private void BuildGateRows()
     {
         GateRows.Children.Clear();
-        if (_phase is not null) _conditions.AddRows(GateRows, _phase.When, GateConditionsChanged);
+        if (_phase is not null) _gateConditions.AddRows(GateRows, _phase.When, GateConditionsChanged);
     }
 
     /// <param name="rebuild">The list changed shape (added, removed, another kind): draw the rows again.</param>
@@ -494,7 +498,7 @@ public partial class RotationEditor : Window
     {
         if (_phase is null) return;
         int above = _phase.Priority == int.MaxValue ? int.MaxValue : _phase.Priority + 1;
-        _phase.PriorityRules.Add(new PriorityRuleDraft { When = [_conditions.Default("Ultimate")], Priority = above });
+        _phase.PriorityRules.Add(new PriorityRuleDraft { When = [_ruleConditions.Default("Ultimate")], Priority = above });
         RulesChanged(rebuild: true);
     }
 
@@ -552,10 +556,10 @@ public partial class RotationEditor : Window
         }));
 
         var conditions = new StackPanel { Tag = "Conditions" };
-        _conditions.AddRows(conditions, rule.When, RulesChanged);
+        _ruleConditions.AddRows(conditions, rule.When, RulesChanged);
         var add = RuleButton(Loc.Get("Editor.AddCondition"), "AddCondition", null, () =>
         {
-            rule.When.Add(_conditions.Default("Ultimate"));
+            rule.When.Add(_ruleConditions.Default("Ultimate"));
             RulesChanged(rebuild: true);
         });
         add.HorizontalAlignment = HorizontalAlignment.Left;

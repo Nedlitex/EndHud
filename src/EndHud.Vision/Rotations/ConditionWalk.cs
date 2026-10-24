@@ -19,19 +19,14 @@ public static class ConditionWalk
         Flatten(phases.SelectMany(p => p.When.Concat(p.PriorityRules.SelectMany(r => r.When)).Concat(p.Steps.SelectMany(s => s.Expect))));
 
     /// <summary>Does anything in this rotation ask about the boss's statuses (so they must be read)?</summary>
-    public static bool NeedsBossStatuses(Rotation? rotation) => rotation is not null && Of(rotation.Phases).Any(c => c is BossStatusCondition);
+    public static bool NeedsBossStatuses(Rotation? rotation) => rotation is not null && AnyNeedsBossStatuses(Of(rotation.Phases));
+
+    /// <summary>Does any of these (already flattened) conditions ask about the boss's statuses (<see cref="ConditionNeeds.BossStatuses"/>)?</summary>
+    public static bool AnyNeedsBossStatuses(IEnumerable<StateCondition> flattened) =>
+        flattened.Any(c => ConditionCatalogue.Of(c).Needs.HasFlag(ConditionNeeds.BossStatuses));
 
     /// <summary>The comparison a condition uses, if it has one.</summary>
-    public static Comparison? ComparisonOf(StateCondition c) => c switch
-    {
-        SkillPointsCondition s => s.Is,
-        UltimateChargeCondition u => u.Is,
-        ComboChargeCondition k => k.Is,
-        CounterCondition n => n.Is,
-        PhaseShownCondition p => p.Is,
-        PhasePlayedCondition p => p.Is,
-        _ => null,
-    };
+    public static Comparison? ComparisonOf(StateCondition c) => ConditionCatalogue.ComparisonOf(c);
 
     /// <summary>
     /// Is this condition made of nothing but "phase played" parts (a "not" of one, a group whose every

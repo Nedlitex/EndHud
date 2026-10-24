@@ -390,9 +390,10 @@ internal sealed class RotationFollower
                 if (presses is not null && !_steps.TryGetValue(rotation.Id, out follower)) _steps[rotation.Id] = follower = new StepFollower(rotation);
                 var shown = selector.Update(state, follower);
                 position = (rotation, shown);
+                // The selector knows what it showed, keys read or not ("phase played" is ignored without a follower).
+                history = selector;
                 if (follower is not null)
                 {
-                    history = selector;
                     var cast = judged.Where(j => j.Verdict == PressVerdict.Counted).Select(j => j.Press.Slot).ToList();
                     steps = follower.Update(shown.Step.PhaseIndex, _previous, state, cast, selector);
                 }

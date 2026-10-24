@@ -38,7 +38,7 @@ public partial class I18nTests
         // The alert editor's problems and import errors, named by their enums.
         foreach (var problem in Enum.GetValues<Vision.Alerts.AlertProblem>()) used.Add($"Alerts.Problem.{problem}");
         foreach (var error in Enum.GetValues<Vision.Alerts.AlertReadError>()) used.Add($"Alerts.ImportError.{error}");
-        foreach (string kind in AlertEditor.AlertKinds) used.Add($"Editor.Condition.{kind}");
+        foreach (string kind in Vision.Rotations.ConditionCatalogue.EditorKinds) used.Add($"Editor.Condition.{kind}");
 
         Assert.NotEmpty(used);
         Assert.Equal([], used.Where(k => !defined.Contains(k)).ToArray());

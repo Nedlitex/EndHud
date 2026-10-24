@@ -1591,6 +1591,23 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   at any depth; everything that asks "is there a condition of kind X anywhere" (the format needed,
   whether boss statuses must be read, an alert's problems) goes through it.
 
+  **One condition language** (owner, 2026-10-24: "everything that supports condition use the same
+  language and cover the same"). Every kind is one entry of
+  [`ConditionCatalogue`](src/EndHud.Vision/Rotations/ConditionCatalogue.cs): its `kind` in files,
+  its name in the editor's kind picker, the rotation and alert formats that hold it, the operator it
+  is about, its comparison, the phase it names, what it needs (a phase, the keys read, boss
+  statuses, an operator whose time is read) and where it may be used (every host). Wherever
+  conditions are written (a phase's `when`, a priority rule, a step's `expect`, an alert's `when`)
+  the same full set is offered and the same checks run
+  ([`ConditionRules.Check`](src/EndHud.Vision/Rotations/ConditionCatalogue.cs), given a
+  `ConditionHost`: which host, the squad if there is one, the phase the conditions belong to, the
+  rotation's phases). What differs is only that context: an operator outside the squad is refused
+  where there is a squad (rotations; an alert has none, so such a condition is unknown in a fight
+  without that operator), and a deleted phase is refused where the rotation is known. The format
+  needed (`Rotation.FormatNeeded`, `AlertFile.FormatNeeded`), whether boss statuses must be read,
+  and the operator a condition is about all read the catalogue. A test checks that every
+  `JsonDerivedType` of `StateCondition` is in it under the same name.
+
   Four problems are refused in the editor with a sentence: a phase whose own `when` counts its own
   showings (`PhaseShownOwnGate`: counted on arrival, it would flip on the very reading that shows
   it), a `phaseShown` or `phasePlayed` naming a phase that was deleted (`PhaseShownMissingPhase`,
@@ -1916,17 +1933,20 @@ One file for every rule, global (every fight, every squad): `%APPDATA%\EndHud\al
 ```
 
 - `id`: kept for the rule's whole life. `when`: every condition must hold; the same condition
-  kinds as rotations (groups and `not` included) except `phaseShown`, which belongs to a rotation.
-  `phasePlayed` is offered: an alert has no rotation of its own, so it names a phase of any of the
-  player's rotations (listed as "rotation · phase", `AlertEditor.PhaseChoices`), and is known while
-  that rotation is the one the strip follows (else unknown: the rule neither fires nor re-arms).
-- `format`: 3 when a rule uses `battleSkillActive`, else 2 when one uses `phasePlayed`, else 1, the lowest that holds the rules
+  kinds as rotations, groups and `not` included, with the same checks (see
+  [One condition language](#the-file)). `phaseShown` and `phasePlayed` are offered: an alert has
+  no rotation of its own, so they name a phase of any of the player's rotations (listed as
+  "rotation · phase", `AlertEditor.PhaseChoices`), and are known while that rotation is the one the
+  strip follows (else unknown: the rule neither fires nor re-arms). `phaseShown` is known with the
+  battle-skill keys read or not (the follower hands the alerts its phase selector either way).
+- `format`: 4 when a rule uses `phaseShown` (before, the editor refused it), else 3 when one uses `battleSkillActive`, else 2 when one uses `phasePlayed`, else 1, the lowest that holds the rules
   (`AlertFile.FormatNeeded`): rules using nothing new stay readable by builds from before format 2,
   which refuse the rest as newer (left as it is, never renamed as unreadable). The share code keeps
   its `EHA1:` prefix (the code's own version).
   `message`: the pop-up's text; empty shows the conditions in words.
-- `AlertRule.Problems()`: no conditions, an empty group, or a `phaseShown` (from a hand-edited or
-  shared file). The editor refuses to save such a rule, with a sentence.
+- `AlertRule.Problems()`: no conditions, an empty group, or `battleSkillActive` for an operator
+  whose battle-skill time isn't read (`SkillTimeNotRead`, as in rotations; before, alerts let it
+  through and it could never fire). The editor refuses to save such a rule, with a sentence.
 - Share codes: `EHA1:` + the JSON, deflated, in URL-safe base64 (the rotations' `EHR1:` scheme). A
   damaged code is refused; an `EHA2:` code says it's from a newer EndHud; anything else (a
   rotation's code) isn't alert rules. Files export as `战斗提示.endhud-alerts.json`.
@@ -1939,7 +1959,7 @@ One file for every rule, global (every fight, every squad): `%APPDATA%\EndHud\al
 | **Read** | `AlertStore.Load` at start and after every save; checked on every reading in battle. A missing file is no rules. |
 | **Correct** | Select the rule, change its conditions or text, 保存: `AlertStore.Corrected` rewrites it in its place under its own id. A wrong rule is fixed in place, never by adding a second one. |
 | **Remove** | 删除, after confirming ("删除提示“{0}”？此操作无法撤销。"): `AlertStore.Removed`. Nothing is removed automatically: no eviction, no age limit. |
-| **Protect** | Every rule stays until the player deletes it. At most 100 (`AlertFile.MaxRules`): 新建 is refused with "最多 100 条提示，请先删除不用的。", `Save` refuses more. Imports never replace (`AlertStore.Import`): every imported rule gets a new id, one with the same conditions and words as a rule already there is skipped, and past 100 the rest is left out; the editor says how many of each. An **unreadable** file is renamed to `alerts.unreadable-<yyyyMMdd-HHmmss>.json` beside it, never overwritten or lost, and the editor says so (`RenamedEarlier` keeps the name for an editor opened later in the run). A file from a **newer** EndHud (format above 2) is left as it is and saving is refused; so is a file that couldn't be opened (locked, no access). |
+| **Protect** | Every rule stays until the player deletes it. At most 100 (`AlertFile.MaxRules`): 新建 is refused with "最多 100 条提示，请先删除不用的。", `Save` refuses more. Imports never replace (`AlertStore.Import`): every imported rule gets a new id, one with the same conditions and words as a rule already there is skipped, and past 100 the rest is left out; the editor says how many of each. An **unreadable** file is renamed to `alerts.unreadable-<yyyyMMdd-HHmmss>.json` beside it, never overwritten or lost, and the editor says so (`RenamedEarlier` keeps the name for an editor opened later in the run). A file from a **newer** EndHud (format above `AlertFile.CurrentFormat`) is left as it is and saving is refused; so is a file that couldn't be opened (locked, no access). |
 | **Carry** | `%APPDATA%` survives updates (the installer and updater don't touch it). Between computers and players: share codes (all rules, or the selected one) and files. There are no published alerts and nothing syncs from GitHub. |
 
 ### When a pop-up shows
@@ -1971,8 +1991,8 @@ fires again; 寒冷附着 2 → 3 stacks fires, an unread count doesn't.
 
 [`AlertEditor`](src/EndHud/AlertEditor.xaml.cs) (menu → 战斗提示 → 编辑战斗提示…, or the tray):
 the rule list (新建, 复制, 删除), the selected rule's 提示文字 and conditions on the shared
-[`ConditionEditor`](src/EndHud/ConditionEditor.cs) pickers (no 轴段已显示次数; 轴段已完成次数 lists every
-rotation's phases), and 粘贴分享码,
+[`ConditionEditor`](src/EndHud/ConditionEditor.cs) pickers (the same full set as a rotation's;
+轴段已显示次数 and 轴段已完成次数 list every rotation's phases), and 粘贴分享码,
 复制选中的分享码, 复制全部分享码, 导入文件…, 导出文件…, 保存, 关闭. Saving reloads the overlay's rules at
 once. The status condition offers 至少 1–4 层 for the four inflictions and 至少 I–IV 级 for Corrosion
 and Electrification; for any other status a grey line says its count isn't read, and only

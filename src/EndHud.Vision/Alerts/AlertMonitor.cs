@@ -43,5 +43,5 @@ public sealed class AlertMonitor
 
     /// <summary>Does any rule ask about the boss's statuses, at any depth (so they must be read)?</summary>
     public static bool NeedsBossStatuses(IEnumerable<AlertRule> rules) =>
-        ConditionWalk.Flatten(rules.SelectMany(r => r.When)).Any(c => c is BossStatusCondition);
+        ConditionWalk.AnyNeedsBossStatuses(ConditionWalk.Flatten(rules.SelectMany(r => r.When)));
 }

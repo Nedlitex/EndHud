@@ -12,14 +12,16 @@ namespace EndHud;
 /// <summary>
 /// Conditions as rows of pickers: the "not" box, the kind, then what it needs, then ✕; groups ("all of" / "any
 /// of") shown indented under their row with their own "add". Everything is picked from lists, never
-/// typed. Used by the rotation editor (a step's expected state, a phase's entry condition) and the
-/// alert editor (a rule's conditions).
+/// typed. Used wherever conditions are written: the rotation editor (a phase's entry condition, its
+/// priority rules, a step's expected state, a condition step) and the alert editor (a rule's
+/// conditions). Every host offers the same full set of kinds (<see cref="ConditionCatalogue"/>);
+/// a kind that can't be told in this setting stays listed, greyed out, saying why.
 /// </summary>
 /// <param name="operators">Who the operator pickers offer: a rotation's squad, or every operator for alerts.</param>
 /// <param name="counters">The operator resources offered: a rotation squad's, or all of them for alerts.</param>
 /// <param name="phases">The phases a "phase shown" or "phase played" condition can name, by the strip's own names
 /// (for alerts, every rotation's phases, by rotation and phase).</param>
-/// <param name="kinds">The kinds offered (a stored condition of another kind is still shown, as itself).</param>
+/// <param name="host">Where the conditions are used: the kinds offered are the catalogue's for it (a stored condition of another kind is still shown, as itself).</param>
 /// <param name="avatar">An operator's avatar for the pickers, if there is one.</param>
 /// <param name="keysRead">The player reads their battle-skill keys. While not, "phase played" is listed but
 /// greyed out, saying why, and one already there says it is ignored.</param>
@@ -29,13 +31,13 @@ internal sealed class ConditionEditor(
     Func<IEnumerable<OperatorInfo>> operators,
     Func<IEnumerable<CounterDefinition>> counters,
     Func<IReadOnlyList<(string Id, string Label)>> phases,
-    IReadOnlyList<string> kinds,
+    ConditionHostKind host,
     Func<OperatorInfo, BitmapSource?> avatar,
     Func<bool> keysRead,
     Func<string?>? defaultPhaseId = null)
 {
-    /// <summary>Every kind, in the order the picker lists them.</summary>
-    public static readonly string[] AllKinds = ["SkillPoints", "Combo", "ComboCharge", "BattleSkill", "Ultimate", "UltimateCharge", "UltimateActive", "BattleSkillActive", "Counter", "BossStatus", "Controlling", "PhaseShown", "PhasePlayed", "Group"];
+    /// <summary>Where these conditions are used.</summary>
+    public ConditionHostKind Host => host;
 
     /// <summary>The values offered for a counter with no maximum (Si's damage stacks): 0 to this, picked; a file's larger value is kept.</summary>
     public const int UncappedCounterChoices = 200;
@@ -73,23 +75,8 @@ internal sealed class ConditionEditor(
         for (int i = 0; i < list.Count; i++) into.Children.Add(Row(list, i, changed));
     }
 
-    private static string KindOf(StateCondition c) => c switch
-    {
-        ComboCondition => "Combo",
-        UltimateCondition => "Ultimate",
-        UltimateChargeCondition => "UltimateCharge",
-        UltimateActiveCondition => "UltimateActive",
-        BattleSkillActiveCondition => "BattleSkillActive",
-        ComboChargeCondition => "ComboCharge",
-        BattleSkillCondition => "BattleSkill",
-        CounterCondition => "Counter",
-        BossStatusCondition => "BossStatus",
-        ControllingCondition => "Controlling",
-        PhaseShownCondition => "PhaseShown",
-        PhasePlayedCondition => "PhasePlayed",
-        AllCondition or AnyCondition => "Group",
-        _ => "SkillPoints",
-    };
+    /// <summary>The kind picker's name for a condition (a "not" is its condition with the box ticked).</summary>
+    private static string KindOf(StateCondition c) => ConditionCatalogue.Of(c is NotCondition not ? not.Of : c).EditorKind ?? "SkillPoints";
 
     /// <summary>Who, a comparison, and a percentage (0% to 100% by 1%; a value from a file is kept as it is). At most 0%: just used.</summary>
     private (ComboBox Who, ComboBox Compare, ComboBox Value) ChargePickers(Panel row, string operatorId, Comparison comparison, int percent)
@@ -126,7 +113,8 @@ internal sealed class ConditionEditor(
         StateCondition Wrap(StateCondition c) => negate.IsChecked == true ? new NotCondition(c) : c;
         row.Children.Add(negate);
         var kind = new ComboBox();
-        foreach (string k in AllKinds.Where(k => kinds.Contains(k) || k == KindOf(condition))) kind.Items.Add(KindItem(k, KindOf(condition)));
+        var offeredKinds = ConditionCatalogue.OfferedIn(host);
+        foreach (string k in ConditionCatalogue.EditorKinds.Where(k => offeredKinds.Contains(k) || k == KindOf(condition))) kind.Items.Add(KindItem(k, KindOf(condition)));
         kind.SelectedItem = kind.Items.Cast<ComboBoxItem>().First(i => (string)i.Tag == KindOf(condition));
         row.Children.Add(kind);
 
@@ -402,27 +390,24 @@ internal sealed class ConditionEditor(
     }
 
     /// <summary>
-    /// A kind in the kind picker. "Phase played" can't be picked while the battle-skill keys aren't read
-    /// (or there is no phase to name): it stays listed, greyed out, saying why. The row's own kind is
-    /// always pickable (it is what the row shows).
+    /// A kind in the kind picker. One that can't be told in this setting stays listed, greyed out,
+    /// saying why, by what its kind needs (<see cref="ConditionKind.Needs"/>): the battle-skill keys
+    /// read ("phase played"), a phase to name, an operator whose time is read (Si's battle skill). The
+    /// row's own kind is always pickable (it is what the row shows).
     /// </summary>
     private ComboBoxItem KindItem(string kind, string rowKind)
     {
         var item = Item(Loc.Get($"Editor.Condition.{kind}"), kind);
         if (kind == rowKind) return item;
-        if (kind == "BattleSkillActive")
-        {
+        var needs = ConditionCatalogue.Kinds.First(k => k.EditorKind == kind);
+        string? why =
+            needs.Needs.HasFlag(ConditionNeeds.KeysRead) && !keysRead() ? "Editor.PhasePlayedNeedsKeys"
+            : needs.Needs.HasFlag(ConditionNeeds.Phase) && phases().Count == 0 ? "Editor.PhasePlayedNoPhases"
             // Only Si's skill time is read: without her in the list, nobody to ask about.
-            if (SkillTimed().Any()) return item;
-            item.IsEnabled = false;
-            item.ToolTip = Loc.Get("Editor.SkillTimeNoOperator");
-            ToolTipService.SetShowOnDisabled(item, true);
-            return item;
-        }
-        if (kind != "PhasePlayed") return item;
-        string? why = !keysRead() ? "Editor.PhasePlayedNeedsKeys" : phases().Count == 0 ? "Editor.PhasePlayedNoPhases" : null;
+            : needs.OnlyFor is { } only && !operators().Any(o => only.Contains(o.Id)) ? "Editor.SkillTimeNoOperator"
+            : null;
         if (why is null) return item;
-        if (!keysRead()) item.Content = Loc.Get("Editor.Condition.PhasePlayed.NeedsKeys");
+        if (why == "Editor.PhasePlayedNeedsKeys") item.Content = Loc.Get($"Editor.Condition.{kind}.NeedsKeys");
         item.IsEnabled = false;
         item.ToolTip = Loc.Get(why);
         ToolTipService.SetShowOnDisabled(item, true);

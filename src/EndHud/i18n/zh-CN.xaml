@@ -452,7 +452,7 @@
     <sys:String x:Key="Alert.Describe.Status.Stacks">{0} {1} {2} 层</sys:String>
     <sys:String x:Key="Alert.Describe.Status.Level">{0} {1} {2} 级</sys:String>
     <sys:String x:Key="Alert.Describe.Controlling">正在操控 {0}</sys:String>
-    <sys:String x:Key="Alert.Describe.PhaseShown">轴段已显示次数（提示中不可用）</sys:String>
+    <sys:String x:Key="Alert.Describe.PhaseShown">{0} 已显示 {1} {2} 次</sys:String>
     <sys:String x:Key="Alert.Describe.PhasePlayed">{0} 已完成 {1} {2} 次</sys:String>
     <sys:String x:Key="Alert.Sample">战斗提示会在这里弹出</sys:String>
     <sys:String x:Key="Alerts.Title">战斗提示</sys:String>
@@ -472,7 +472,7 @@
     <sys:String x:Key="Alerts.FileFilter">EndHud 战斗提示|*.json</sys:String>
     <sys:String x:Key="Alerts.Problem.NoConditions">提示“{0}”还没有条件，请添加条件或删除这条提示。</sys:String>
     <sys:String x:Key="Alerts.Problem.EmptyConditionGroup">提示“{0}”中有空的条件组，请添加条件或删除它。</sys:String>
-    <sys:String x:Key="Alerts.Problem.PhaseShownNotAllowed">提示“{0}”用了“轴段已显示次数”，它只能用在排轴里，请删除这个条件。</sys:String>
+    <sys:String x:Key="Alerts.Problem.SkillTimeNotRead">提示“{0}”的条件中“战技持续中”选了祀以外的干员：目前只读取祀的战技持续时间，这个条件永远无法判断。请改选祀，或删除这个条件。</sys:String>
     <sys:String x:Key="Alerts.Full">最多 100 条提示，请先删除不用的。</sys:String>
     <sys:String x:Key="Alerts.ConfirmDelete">删除提示“{0}”？此操作无法撤销。</sys:String>
     <sys:String x:Key="Alerts.Deleted">已删除。</sys:String>

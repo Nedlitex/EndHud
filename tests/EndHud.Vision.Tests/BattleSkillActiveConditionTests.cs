@@ -99,7 +99,7 @@ public class BattleSkillActiveConditionTests
     [Fact]
     public void An_alert_using_it_needs_alert_format_3()
     {
-        Assert.Equal(3, AlertFile.CurrentFormat);
+        Assert.True(AlertFile.CurrentFormat >= 3);
         Assert.Equal(3, AlertFile.FormatNeeded([new AlertRule("a", [new AnyCondition([SiOver])], "")]));
         Assert.Equal(1, AlertFile.FormatNeeded([new AlertRule("a", [new SkillPointsCondition(Comparison.AtLeast, 2)], "")]));
     }

@@ -8,8 +8,9 @@ namespace EndHud.Vision.Alerts;
 /// rotations), a pop-up with <see cref="Message"/> shows. Global: for every fight and every squad.
 /// </summary>
 /// <param name="Id">Kept for the rule's whole life: correcting a rule rewrites it under the same id.</param>
-/// <param name="When">All must hold. Every rotation condition kind except "phase shown" (there is no rotation).
-/// "Phase played" names a phase of one of the player's rotations: known while that rotation is the one followed.</param>
+/// <param name="When">All must hold. Every condition kind a rotation has (<see cref="ConditionCatalogue"/>, the same
+/// checks: <see cref="ConditionRules"/>). "Phase shown" and "phase played" name a phase of one of the player's
+/// rotations: known while that rotation is the one followed.</param>
 /// <param name="Message">What the pop-up says; empty: the condition itself in words.</param>
 public sealed record AlertRule(string Id, IReadOnlyList<StateCondition> When, string Message)
 {
@@ -34,9 +35,17 @@ public sealed record AlertRule(string Id, IReadOnlyList<StateCondition> When, st
     {
         var problems = new List<AlertProblem>();
         if (When.Count == 0) problems.Add(AlertProblem.NoConditions);
-        var all = ConditionWalk.Flatten(When).ToList();
-        if (all.Any(c => c is AllCondition { Of.Count: 0 } or AnyCondition { Of.Count: 0 })) problems.Add(AlertProblem.EmptyConditionGroup);
-        if (all.Any(c => c is PhaseShownCondition)) problems.Add(AlertProblem.PhaseShownNotAllowed);
+        // The shared check, with no squad (an operator not in the fight is unknown) and any rotation's phase.
+        foreach (var problem in ConditionRules.Check(When, ConditionHost.Alert))
+        {
+            var kind = problem.Kind switch
+            {
+                ConditionProblemKind.EmptyGroup => AlertProblem.EmptyConditionGroup,
+                ConditionProblemKind.SkillTimeNotRead => AlertProblem.SkillTimeNotRead,
+                _ => (AlertProblem?)null,
+            };
+            if (kind is { } k && !problems.Contains(k)) problems.Add(k);
+        }
         return problems;
     }
 }
@@ -49,9 +58,6 @@ public enum AlertProblem
     /// <summary>An and/or group with nothing in it.</summary>
     EmptyConditionGroup,
 
-    /// <summary>"Phase shown N times" belongs to a rotation; an alert has none (from a hand-edited or shared file).</summary>
-    PhaseShownNotAllowed,
-
     /// <summary>"Battle skill running" for an operator whose battle-skill time isn't read (only Si's): it could never be told.</summary>
     SkillTimeNotRead,
 }
@@ -60,22 +66,18 @@ public enum AlertProblem
 public sealed record AlertFile(int Format, IReadOnlyList<AlertRule> Rules)
 {
     /// <summary>
+    /// 4: "phase shown" conditions (<see cref="PhaseShownCondition"/>; before, the editor refused them).
     /// 3: "battle skill running" conditions (<see cref="BattleSkillActiveCondition"/>).
     /// 2: "phase played" conditions (<see cref="PhasePlayedCondition"/>). 1: everything else. Rules are
     /// written in the lowest format that holds them (<see cref="FormatNeeded"/>), so a build from
     /// before format 2 still reads rules that use nothing new, and refuses the rest as "newer"
     /// (never renaming the file as unreadable).
     /// </summary>
-    public const int CurrentFormat = 3;
+    public const int CurrentFormat = 4;
 
-    /// <summary>The lowest format that holds these rules.</summary>
-    public static int FormatNeeded(IEnumerable<AlertRule> rules)
-    {
-        var conditions = ConditionWalk.Flatten(rules.SelectMany(r => r.When)).ToList();
-        return conditions.Any(c => c is BattleSkillActiveCondition) ? 3
-            : conditions.Any(c => c is PhasePlayedCondition) ? 2
-            : 1;
-    }
+    /// <summary>The lowest format that holds these rules: each condition's kind says (<see cref="ConditionCatalogue"/>).</summary>
+    public static int FormatNeeded(IEnumerable<AlertRule> rules) =>
+        ConditionWalk.Flatten(rules.SelectMany(r => r.When)).Select(ConditionCatalogue.AlertFormat).DefaultIfEmpty(1).Max();
 
     /// <summary>The most rules kept: "new" and imports stop here.</summary>
     public const int MaxRules = 100;

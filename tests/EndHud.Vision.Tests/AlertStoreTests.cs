@@ -109,7 +109,7 @@ public sealed class AlertStoreTests : IDisposable
     public void A_newer_file_is_left_alone_and_save_is_refused()
     {
         Directory.CreateDirectory(_folder);
-        const string newer = "{ \"format\": 4, \"rules\": [] }";
+        string newer = $"{{ \"format\": {AlertFile.CurrentFormat + 1}, \"rules\": [] }}";
         File.WriteAllText(FilePath, newer);
         var store = new AlertStore(FilePath);
 
@@ -193,7 +193,7 @@ public sealed class AlertStoreTests : IDisposable
         Assert.Contains("\"format\": 1", AlertFormat.ToJson([CryoThree()]));
         Assert.Equal([played], AlertFormat.FromJson(AlertFormat.ToJson([played])));
         Assert.Empty(played.Problems());
-        Assert.Equal(AlertReadError.NewerFormat, Assert.Throws<AlertReadException>(() => AlertFormat.FromJson("{ \"format\": 4, \"rules\": [] }")).Error);
+        Assert.Equal(AlertReadError.NewerFormat, Assert.Throws<AlertReadException>(() => AlertFormat.FromJson($"{{ \"format\": {AlertFile.CurrentFormat + 1}, \"rules\": [] }}")).Error);
     }
 
     /// <summary>An alerts file written before "phase played" (format 1) loads as it was.</summary>
