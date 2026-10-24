@@ -272,7 +272,7 @@ public sealed class RotationTracker(Rotation rotation)
     /// The combo bar went from full to nearly empty. A bar just under full can dip below "ready" and
     /// back (read 0.91–0.99 after, in the recordings), while every use read 0–6% after it.
     /// </summary>
-    private static bool ComboUsed(PartySlot was, PartySlot now) =>
+    internal static bool ComboUsed(PartySlot was, PartySlot now) =>
         was.Combo?.Ready == true && now.Combo is { Ready: false, Progress: < ComboUsedBelow };
 
     internal const double ComboUsedBelow = 0.3;
@@ -288,7 +288,7 @@ public sealed class RotationTracker(Rotation rotation)
         }
     }
 
-    private static bool? AbilityAvailable(RotationStep step, PartyState state, IReadOnlyDictionary<string, int> slots)
+    internal static bool? AbilityAvailable(RotationStep step, PartyState state, IReadOnlyDictionary<string, int> slots)
     {
         if (!slots.TryGetValue(step.OperatorId, out int slot)) return null;
         var s = state.Slots[slot];
@@ -419,7 +419,7 @@ public sealed class RotationTracker(Rotation rotation)
     };
 
     /// <summary>Operator id → slot index (0-based), from the identified squad.</summary>
-    private static IReadOnlyDictionary<string, int> SlotsByOperator(PartyState state)
+    internal static IReadOnlyDictionary<string, int> SlotsByOperator(PartyState state)
     {
         var map = new Dictionary<string, int>(StringComparer.Ordinal);
         for (int i = 0; i < state.Slots.Count; i++)

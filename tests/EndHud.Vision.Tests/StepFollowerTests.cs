@@ -196,7 +196,7 @@ public sealed class StepFollowerTests
     {
         var fight = new Fight(Charge);
         fight.Read(Plain);
-        fight.Press(Ardelia);
+        Assert.Equal([D, C, U, U, U, U], fight.Press(Ardelia).Marks);
 
         Assert.Equal([C, U], fight.Read(Plain, phase: 1).Marks);
         Assert.Equal(1, fight.Read(Plain, phase: 1).Phase);
@@ -230,7 +230,7 @@ public sealed class StepFollowerTests
     {
         var fight = new Fight(Charge);
         fight.Read(Plain);
-        fight.Press(Ardelia);
+        Assert.Equal([D, C, U, U, U, U], fight.Press(Ardelia).Marks);
 
         fight.Follower.EndFight();
 
