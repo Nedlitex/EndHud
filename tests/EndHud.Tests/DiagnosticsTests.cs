@@ -157,6 +157,25 @@ public class DiagnosticsTests : IDisposable
         Assert.Equal((byte)255, masked.GetPixel(1280, 800).R);
     }
 
+    /// <summary>
+    /// MSI Afterburner's on-screen display is drawn by RivaTuner Statistics Server (RTSS) into the game's frames, and a
+    /// player reported EndHud working only with it off: the summary says whether RTSS runs and whether its hooks are loaded
+    /// into EndHud itself (a process name and EndHud's own modules; nothing of another process is read).
+    /// </summary>
+    [Fact]
+    public void The_summary_says_whether_rivatuner_runs_and_is_hooked_into_endhud()
+    {
+        string summary = DiagnosticExport.DescribeComputer();
+
+        Assert.Matches(@"(?m)^RTSS \(RivaTuner, Afterburner's on-screen display\): (running|not running); RivaTuner hooks loaded in EndHud: (yes|no)\r?$", summary);
+        Assert.Equal("RTSS (RivaTuner, Afterburner's on-screen display): running; RivaTuner hooks loaded in EndHud: yes (RTSSHooks64.dll)",
+            DiagnosticExport.DescribeRivaTuner(running: true, ["ntdll.dll", "RTSSHooks64.dll", "EndHud.dll"]));
+        Assert.Equal("RTSS (RivaTuner, Afterburner's on-screen display): not running; RivaTuner hooks loaded in EndHud: no",
+            DiagnosticExport.DescribeRivaTuner(running: false, ["ntdll.dll"]));
+        Assert.Equal("RTSS (RivaTuner, Afterburner's on-screen display): unknown; RivaTuner hooks loaded in EndHud: unknown",
+            DiagnosticExport.DescribeRivaTuner(running: null, null));
+    }
+
     private static Frame White(int width, int height)
     {
         var bgra = new byte[width * height * 4];

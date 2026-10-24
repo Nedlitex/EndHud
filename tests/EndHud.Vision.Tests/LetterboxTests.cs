@@ -90,6 +90,38 @@ public sealed class LetterboxTests
         Assert.True((await new PartyReader(new TextRecognizer()).ReadAsync(covered.Crop(Letterbox.Content(covered)))).PanelVisible);
     }
 
+    /// <summary>
+    /// Bars expected (the frame isn't 16:9) but rejected: the log line says so, with each bar's blackness, so a diagnostics
+    /// zip shows an overlay drawn over a bar rather than leaving it to be guessed.
+    /// </summary>
+    [Fact]
+    public async Task Bars_expected_but_rejected_are_described_with_each_bars_blackness()
+    {
+        var (padded, picture) = await PaddedAsync(2560, 1600);
+        for (int x = 0; x < padded.Width; x++) padded.Bgra[(10 * padded.Width + x) * 4 + 1] = 200;
+
+        var reading = Letterbox.Read(padded);
+
+        Assert.True(reading.BarsRejected);
+        Assert.Equal(picture, reading.Expected);
+        // Every other row sampled, row 10 among them: 1 of 40 rows lit (97.5 %), and no column all black. The same line
+        // whatever the PC's culture (a French one writes percentages "97 %").
+        var culture = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("fr-FR");
+            Assert.Equal("bars expected (picture 2560x1440 at 0,80) but not black: top 97% of pixels, 0% of lines black, " +
+                         "bottom 100% of pixels, 100% of lines black (an overlay drawn in the bar, or not a letterbox)",
+                reading.Describe());
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = culture;
+        }
+        Assert.False(Letterbox.Read(SyntheticOsd.Draw(padded, OsdPosition.BottomLeft, background: false)).Expected is null);
+        Assert.False(Letterbox.Read(await ImageFile.LoadAsync(CombatFrameTests.Fixture("combat-all-ready.jpg"))).BarsRejected);
+    }
+
     /// <summary>A 16:10 picture that fills the screen (no bars): its top and bottom rows are the picture, not bars.</summary>
     [Fact]
     public async Task A_picture_filling_a_16_10_frame_is_left_whole()
