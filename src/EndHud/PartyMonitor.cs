@@ -807,7 +807,7 @@ internal sealed class PartyMonitor : IDisposable
                     // The overlay's advice runs on the same clock (InnClock), so its estimates line up with the readings.
                     if (await TryInnAsync(gameFrame, frameAt, panelSeenLast))
                     {
-                        if (ReadSquad) Report(tracker.Track(NothingSeen), null);
+                        if (ReadSquad) Report(tracker.Track(NothingSeen) with { ReadAt = frameAt }, null);
                         continue;
                     }
                     if (!ReadSquad) continue;
@@ -918,7 +918,7 @@ internal sealed class PartyMonitor : IDisposable
                         firstReading = false;
                         DiagnosticLog.Info($"first reading in {clock.ElapsedMilliseconds} ms (panel {(state.PanelVisible ? "seen" : "not seen")}, library {(_identifier is null ? "not loaded yet" : "loaded")})");
                     }
-                    Report(state, null);
+                    Report(state with { ReadAt = frameAt }, null);
                 }
                 catch (TimeoutException)
                 {

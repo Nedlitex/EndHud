@@ -59,6 +59,11 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
     /// </summary>
     public IReadOnlyDictionary<string, LastingUltimateView>? RunningUltimates { get; init; }
 
+    /// <summary>When the frame was read, on the app's reading clock (InnClock); a recording's time in
+    /// endhud-cli. Null when not stamped. Presses (<see cref="Input.SkillPress"/>) made up to it are
+    /// judged with this reading.</summary>
+    public TimeSpan? ReadAt { get; init; }
+
     /// <summary>How many operators the squad has (1-4): the slots that aren't <see cref="PartySlot.Empty"/>.</summary>
     public int SquadSize => Slots.Count(s => !s.Empty);
 
