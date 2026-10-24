@@ -24,6 +24,9 @@ public enum StepAction
     /// <summary>Heavy attack: drawn only, as <see cref="BasicAttack"/>. Format 8.</summary>
     HeavyAttack,
 
+    /// <summary>Plunge attack (下落攻击): drawn only, as <see cref="BasicAttack"/>. Format 9.</summary>
+    PlungeAttack,
+
     /// <summary>
     /// A condition step: no skill, the step is its conditions (<see cref="RotationStep.Expect"/>, all
     /// must hold), e.g. "the enemy has Cryo Infliction at 3 stacks". No operator. Format 9.
@@ -240,6 +243,12 @@ public sealed record RotationStep(
     bool WithPrevious = false)
 {
     public IReadOnlyList<StateCondition> Expect { get; init; } = Expect ?? [];
+
+    /// <summary>
+    /// The <see cref="OperatorId"/> of a display-only step (a basic, heavy or plunge attack) done by
+    /// whoever is controlled at the time ("当前操控"), not a named operator. Format 9.
+    /// </summary>
+    public const string Controlled = "controlled";
 }
 
 /// <summary>A part of a rotation, e.g. "充能轴".</summary>
@@ -530,6 +539,12 @@ public enum RotationProblemKind
 
     /// <summary>A condition step used together with another step ("with the previous"): it waits on its own.</summary>
     ConditionStepWithPrevious,
+
+    /// <summary>
+    /// A skill step (battle skill, combo, ultimate) names "whoever is controlled" (<see cref="RotationStep.Controlled"/>):
+    /// only a basic, heavy or plunge attack can; a skill is followed by whose it is.
+    /// </summary>
+    ControlledOperatorOnlyForAttacks,
 }
 
 /// <param name="Phase">The phase concerned (its name), if any.</param>

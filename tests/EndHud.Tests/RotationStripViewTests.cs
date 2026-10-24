@@ -282,6 +282,39 @@ public class RotationStripViewTests
         Assert.Equal(true, view.Steps[0].Condition?.Holds);
     }
 
+    /// <summary>
+    /// A plunge attack by whoever is controlled: the controlled operator's face, labelled 下落攻击; with
+    /// nobody known (the editor's preview, the chevron not read) no face, the label alone.
+    /// </summary>
+    [Fact]
+    public void A_plunge_by_whoever_is_controlled_shows_their_face()
+    {
+        string[] squad = ["Laevatain", "Camille", "Arcane", "Ardelia"];
+        var library = Operators(squad);
+        var faces = OnSta(() => squad.ToDictionary(id => id, _ =>
+        {
+            var bitmap = new System.Windows.Media.Imaging.WriteableBitmap(2, 2, 96, 96, PixelFormats.Bgra32, null);
+            bitmap.Freeze();
+            return (System.Windows.Media.Imaging.BitmapSource)bitmap;
+        }));
+        var rotation = new Rotation(Rotation.CurrentFormat, "r", "r", squad,
+            [new RotationPhase("p", "P", [new RotationStep(RotationStep.Controlled, StepAction.PlungeAttack, Note: "+1冰")])]);
+        var slots = squad.Select((id, i) => new Vision.PartySlot(i + 1, null, 1.0, "", new Vision.Frame(1, 1, new byte[4]),
+            Operator: new Vision.Operators.OperatorMatch(new Vision.Operators.OperatorInfo(id, id, id, id + ".png"), 1, true))).ToList();
+        var camilleControlled = new Vision.PartyState(slots, PanelMarks: 8) { SkillPoints = 2, ActiveSlot = 2 };
+
+        var shown = RotationStripView.Build(rotation, new RotationPosition(rotation.Played()[0], true, []), camilleControlled, library, (_, _) => null, op => faces[op.Id]).Steps[0];
+        var preview = RotationStripView.ForPhase(rotation, 0, library, (_, _) => null, op => faces[op.Id]).Steps[0];
+
+        Assert.Same(faces["Camille"], shown.Icon);
+        Assert.Null(shown.Avatar);
+        Assert.Equal(Loc.Get("Rotation.Action.PlungeAttack"), shown.Action);
+        Assert.Equal("+1冰", shown.Note);
+        Assert.Null(preview.Icon);
+        Assert.Equal(Loc.Get("Rotation.Action.PlungeAttack"), preview.Action);
+        OnSta(() => RotationStrip.Build(RotationStripView.ForPhase(rotation, 0, library, (_, _) => null, op => faces[op.Id])));
+    }
+
     /// <summary>A library of these operators, without any art: enough to find them by id.</summary>
     internal static Vision.Operators.OperatorLibrary Operators(string[] ids)
     {

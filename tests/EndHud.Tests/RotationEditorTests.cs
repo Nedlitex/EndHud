@@ -367,6 +367,43 @@ public sealed class RotationEditorTests : IDisposable
     }
 
     /// <summary>
+    /// A plunge attack by whoever is controlled, from the editor: for an attack the operator picker
+    /// also offers 当前操控; for a skill it doesn't (and a step left on it moves to a squad operator).
+    /// </summary>
+    [Fact]
+    public void A_plunge_by_whoever_is_controlled_is_built_in_the_editor()
+    {
+        var library = new RotationLibrary(_folder);
+        library.Own.Save(Published() with { Id = "mine" });
+
+        string said = "";
+        List<object> forAttack = [], forSkill = [];
+        bool hintShown = false;
+        OnEditor(library, _ => { }, editor =>
+        {
+            Click(editor, "AddStepButton");
+            var who = (ComboBox)editor.FindName("StepOperator");
+            var action = (ComboBox)editor.FindName("StepActionPicker");
+            forSkill = who.Items.Cast<ComboBoxItem>().Select(i => i.Tag).ToList();
+            Pick(action, StepAction.PlungeAttack);
+            hintShown = ((TextBlock)editor.FindName("BasicAttackHint")).Visibility == Visibility.Visible;
+            forAttack = who.Items.Cast<ComboBoxItem>().Select(i => i.Tag).ToList();
+            Pick(who, RotationStep.Controlled);
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        });
+
+        Assert.DoesNotContain(RotationStep.Controlled, forSkill);
+        Assert.Contains(RotationStep.Controlled, forAttack);
+        Assert.True(hintShown);
+        Assert.Equal("", said);
+        var step = Assert.Single(library.Own.Load().Rotations).Phases[0].Steps[1];
+        Assert.Equal(new RotationStep(RotationStep.Controlled, StepAction.PlungeAttack), step with { Expect = [] });
+        Assert.True(Translated("Rotation.Action.PlungeAttack"));
+        Assert.True(Translated("Editor.ControlledOperator"));
+    }
+
+    /// <summary>
     /// A condition step from the editor (owner, 2026-10-24): picking 条件 hides the operator and "with
     /// the previous step", seeds one condition on the shared pickers, and saves in format 9; with its
     /// condition removed, saving is refused with a sentence.
