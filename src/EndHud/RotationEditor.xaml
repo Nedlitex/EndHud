@@ -96,6 +96,21 @@
                         <StackPanel x:Name="GateRows" />
                         <Button x:Name="AddGateButton" Content="{DynamicResource Editor.AddCondition}" HorizontalAlignment="Left"
                                 Margin="0,4,0,0" Click="AddGateCondition_Click" />
+
+                        <!-- The phase's priority: a whole number, then rules "if this holds, the priority is that".
+                             The hints and the refusal are set in code (Loc), so they show outside the app too. -->
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <TextBlock Text="{DynamicResource Editor.Priority}" FontWeight="SemiBold" Style="{StaticResource Label}" />
+                            <TextBox x:Name="PriorityBox" Width="70" VerticalAlignment="Center" TextChanged="PriorityBox_TextChanged" />
+                        </StackPanel>
+                        <TextBlock x:Name="PriorityError" Foreground="#B04030" TextWrapping="Wrap" Margin="0,2,0,0" Visibility="Collapsed" />
+                        <TextBlock x:Name="PriorityNeedsGate" Foreground="#888" TextWrapping="Wrap" Margin="0,2,0,0" Visibility="Collapsed" />
+                        <TextBlock x:Name="PriorityHint" Foreground="#888" TextWrapping="Wrap" Margin="0,2,0,6" />
+                        <TextBlock Text="{DynamicResource Editor.PriorityRules}" FontWeight="SemiBold" Margin="0,6,0,2" />
+                        <TextBlock x:Name="PriorityRulesHint" Foreground="#888" TextWrapping="Wrap" Margin="0,0,0,6" />
+                        <StackPanel x:Name="PriorityRuleRows" />
+                        <Button x:Name="AddPriorityRuleButton" Content="{DynamicResource Editor.AddPriorityRule}" HorizontalAlignment="Left"
+                                Margin="0,4,0,0" Click="AddPriorityRule_Click" />
                     </StackPanel>
                 </ScrollViewer>
             </GroupBox>

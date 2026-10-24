@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -48,6 +49,10 @@ public partial class RotationEditor : Window
         _conditions = new ConditionEditor(library, SquadOperators, Counters, PhaseChoices, ConditionEditor.AllKinds, Avatar, keysRead,
             () => (_draft?.Phases.FirstOrDefault(p => p != _phase) ?? _phase)?.Id);
         InitializeComponent();
+        PriorityError.Text = Loc.Get("Editor.PriorityNotNumber");
+        PriorityNeedsGate.Text = Loc.Get("Editor.PriorityNeedsGate");
+        PriorityHint.Text = Loc.Get("Editor.PriorityHint");
+        PriorityRulesHint.Text = Loc.Get("Editor.PriorityRulesHint");
 
         foreach (var action in Enum.GetValues<StepAction>()) StepActionPicker.Items.Add(Item(Loc.Get($"Rotation.Action.{action}"), action));
         foreach (var picker in SquadPickers) FillOperators(picker, _library.Operators);
@@ -187,6 +192,7 @@ public partial class RotationEditor : Window
         PhaseNameBox.IsEnabled = AddGateButton.IsEnabled = CopyPhaseButton.IsEnabled = _phase is not null;
         _loading = false;
         BuildGateRows();
+        ShowPriority();
         StepsGroup.Header = _phase is null ? Loc.Get("Editor.Steps") : Loc.Format("Editor.StepsOf", _phase.Name);
         _step = _phase?.Steps.FirstOrDefault();
         RefreshSteps();
@@ -450,7 +456,161 @@ public partial class RotationEditor : Window
         MarkDirty();
         if (rebuild) BuildGateRows();
         RefreshPhaseList();
+        ShowPriority(); // an entry condition added or removed: the priority starts or stops ranking
         Preview();
+    }
+
+    // ---- Priority: a whole number, and rules "if this holds, the priority is that" ----
+
+    /// <summary>
+    /// The phase's number and rules. Offered where they rank: a phase with an entry condition. The
+    /// otherwise phase isn't ranked, so there they're greyed out, saying why, unless one is already set
+    /// (so it can be put back; saving refuses it meanwhile).
+    /// </summary>
+    private void ShowPriority()
+    {
+        _loading = true;
+        PriorityBox.Text = _phase is null ? "" : _phase.PriorityTyped ?? _phase.Priority.ToString(CultureInfo.InvariantCulture);
+        _loading = false;
+        bool gated = _phase?.When.Count > 0;
+        bool set = _phase is not null && (_phase.Priority != 0 || _phase.PriorityTyped is not null || _phase.PriorityRules.Count > 0);
+        PriorityBox.IsEnabled = AddPriorityRuleButton.IsEnabled = gated || set;
+        PriorityNeedsGate.Visibility = _phase is not null && !gated ? Visibility.Visible : Visibility.Collapsed;
+        PriorityError.Visibility = _phase?.PriorityTyped is not null ? Visibility.Visible : Visibility.Collapsed;
+        BuildRuleRows();
+    }
+
+    private void PriorityBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_loading || _phase is null) return;
+        if (WholeNumber(PriorityBox.Text) is { } priority) (_phase.Priority, _phase.PriorityTyped) = (priority, null);
+        else _phase.PriorityTyped = PriorityBox.Text;
+        PriorityError.Visibility = _phase.PriorityTyped is not null ? Visibility.Visible : Visibility.Collapsed;
+        MarkDirty();
+    }
+
+    /// <summary>A new rule: one above the phase's number (a rule usually raises it), with a condition to change.</summary>
+    private void AddPriorityRule_Click(object sender, RoutedEventArgs e)
+    {
+        if (_phase is null) return;
+        int above = _phase.Priority == int.MaxValue ? int.MaxValue : _phase.Priority + 1;
+        _phase.PriorityRules.Add(new PriorityRuleDraft { When = [_conditions.Default("Ultimate")], Priority = above });
+        RulesChanged(rebuild: true);
+    }
+
+    private void BuildRuleRows()
+    {
+        PriorityRuleRows.Children.Clear();
+        if (_phase is null) return;
+        for (int i = 0; i < _phase.PriorityRules.Count; i++) PriorityRuleRows.Children.Add(RuleRow(_phase.PriorityRules, i));
+    }
+
+    /// <summary>
+    /// One rule: "rule 2: when all of these hold, the priority is [n]", its ↑ ↓ and remove, then its
+    /// conditions as rows of pickers (the same as an entry condition's) and their "add", under a line.
+    /// </summary>
+    private FrameworkElement RuleRow(List<PriorityRuleDraft> rules, int index)
+    {
+        var rule = rules[index];
+        var number = new TextBox
+        {
+            Width = 60,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 6, 0),
+            Text = rule.PriorityTyped ?? rule.Priority.ToString(CultureInfo.InvariantCulture),
+        };
+        var error = new TextBlock
+        {
+            Text = Loc.Get("Editor.PriorityNotNumber"),
+            Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xB0, 0x40, 0x30)),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 4),
+            Visibility = rule.PriorityTyped is not null ? Visibility.Visible : Visibility.Collapsed,
+        };
+        number.TextChanged += (_, _) =>
+        {
+            if (WholeNumber(number.Text) is { } priority) (rule.Priority, rule.PriorityTyped) = (priority, null);
+            else rule.PriorityTyped = number.Text;
+            error.Visibility = rule.PriorityTyped is not null ? Visibility.Visible : Visibility.Collapsed;
+            MarkDirty();
+        };
+
+        var header = new WrapPanel { Margin = new Thickness(0, 0, 0, 4) };
+        header.Children.Add(new TextBlock
+        {
+            Text = Loc.Format("Editor.PriorityRuleThen", index + 1),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 6, 0),
+        });
+        header.Children.Add(number);
+        header.Children.Add(RuleButton("↑", "Up", Loc.Get("Editor.MoveUp"), () => MoveRule(rules, index, -1)));
+        header.Children.Add(RuleButton("↓", "Down", Loc.Get("Editor.MoveDown"), () => MoveRule(rules, index, 1)));
+        header.Children.Add(RuleButton(Loc.Get("Editor.RemovePriorityRule"), "Remove", null, () =>
+        {
+            rules.RemoveAt(index);
+            RulesChanged(rebuild: true);
+        }));
+
+        var conditions = new StackPanel { Tag = "Conditions" };
+        _conditions.AddRows(conditions, rule.When, RulesChanged);
+        var add = RuleButton(Loc.Get("Editor.AddCondition"), "AddCondition", null, () =>
+        {
+            rule.When.Add(_conditions.Default("Ultimate"));
+            RulesChanged(rebuild: true);
+        });
+        add.HorizontalAlignment = HorizontalAlignment.Left;
+        add.Margin = new Thickness(0, 0, 0, 2);
+
+        return new Border
+        {
+            BorderBrush = System.Windows.Media.Brushes.LightGray,
+            BorderThickness = new Thickness(2, 0, 0, 0),
+            Padding = new Thickness(6, 0, 0, 0),
+            Margin = new Thickness(0, 0, 0, 8),
+            Child = new StackPanel { Children = { header, error, conditions, add } },
+        };
+    }
+
+    private static Button RuleButton(string content, string tag, string? toolTip, Action click)
+    {
+        var button = new Button { Content = content, Tag = tag, ToolTip = toolTip, Margin = new Thickness(0, 0, 6, 0) };
+        button.Click += (_, _) => click();
+        return button;
+    }
+
+    private void MoveRule(List<PriorityRuleDraft> rules, int index, int by)
+    {
+        int to = index + by;
+        if (to < 0 || to >= rules.Count) return;
+        (rules[index], rules[to]) = (rules[to], rules[index]);
+        RulesChanged(rebuild: true);
+    }
+
+    /// <param name="rebuild">The rules changed shape (added, removed, moved, a condition of another kind): draw them again.</param>
+    private void RulesChanged(bool rebuild)
+    {
+        MarkDirty();
+        if (rebuild) BuildRuleRows();
+    }
+
+    /// <summary>
+    /// A whole number as typed, or null when it isn't one (a word, a fraction, too big). Full-width
+    /// digits and signs, which a Chinese input method types, count as the plain ones.
+    /// </summary>
+    internal static int? WholeNumber(string text)
+    {
+        var plain = new System.Text.StringBuilder(text.Length);
+        foreach (char c in text)
+        {
+            plain.Append(c switch
+            {
+                >= '０' and <= '９' => (char)('0' + (c - '０')),
+                '－' or '−' => '-',
+                '＋' => '+',
+                _ => c,
+            });
+        }
+        return int.TryParse(plain.ToString().Trim(), NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out int value) ? value : null;
     }
 
     private void RefreshStepText()
