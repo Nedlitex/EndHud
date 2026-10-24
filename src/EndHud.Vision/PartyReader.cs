@@ -154,6 +154,18 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
     /// </summary>
     public bool InCombat => PanelVisible && SkillPoints is not null && Slots.Any(s => s.Combo is not null);
 
+    /// <summary>The top-left mode switch (<see cref="Vision.ModePill"/>): this frame's reading from
+    /// <see cref="PartyReader"/>, held through a short misread by <see cref="PartyTracker"/>.</summary>
+    public ModePillReading ModePill { get; init; }
+
+    /// <summary>
+    /// The game shows the mode switch (探索 exploring / 工业 building) with its plain icon: the player is
+    /// in the open world and not fighting, whatever the squad panel shows (owner, 2026-10-24: "the battle
+    /// HUD should not show in 探索 or 工业 mode"). A fight in the open world turns the switch's icon red
+    /// and counts as battle; an instance's battle has no switch.
+    /// </summary>
+    public bool OutOfBattle => ModePill == ModePillReading.OutOfBattle;
+
     private const int MinPanelMarks = 6;
 }
 
@@ -211,6 +223,7 @@ public sealed partial class PartyReader(TextRecognizer ocr)
             SkillPoints = inCombat ? SkillPointBar.Measure(frame, ui) : null,
             UltimateTimeLeft = timeBar?.Left,
             UltimateTimeColour = timeBar?.Colour,
+            ModePill = Vision.ModePill.Read(frame, ui),
         };
     }
 

@@ -680,6 +680,7 @@ internal sealed class PartyMonitor : IDisposable
         var bossClock = Stopwatch.StartNew();
         var ct = _cts.Token;
         bool panelSeen = false, firstReading = true;
+        var modePillSeen = ModePillReading.NotShown; // the top-left mode switch, as last logged
         string names = "";
         Task? avatars = null;
         Task<PartyState>? naming = null;
@@ -833,6 +834,13 @@ internal sealed class PartyMonitor : IDisposable
                     {
                         panelSeen = state.PanelVisible;
                         DiagnosticLog.Info(panelSeen ? $"squad panel seen ({DescribeLayout(state)}) at {gameFrame.Width}x{gameFrame.Height}" : "squad panel gone");
+                    }
+                    // Out of battle by the mode switch hides the battle HUD: say when it changes, with its scores.
+                    if (state.ModePill != modePillSeen)
+                    {
+                        modePillSeen = state.ModePill;
+                        var (pillShape, pillRed) = ModePill.Measure(gameFrame, new UiScaler(gameFrame.Width, gameFrame.Height));
+                        DiagnosticLog.Info($"mode switch (top left): {modePillSeen} (shape {pillShape:F2}, red {pillRed:F2})");
                     }
                     // Back after long enough for the team menu: the last names may be another squad's.
                     // Shown while a slow naming runs, they put the old squad on the HUD for seconds.
