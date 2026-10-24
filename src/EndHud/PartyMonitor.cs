@@ -680,7 +680,7 @@ internal sealed class PartyMonitor : IDisposable
         var bossClock = Stopwatch.StartNew();
         var ct = _cts.Token;
         bool panelSeen = false, firstReading = true;
-        var modePillSeen = ModePillReading.NotShown; // the top-left mode switch, as last logged
+        var modePillSeen = ModePillReading.NotSeen; // the top-left mode switch, as last logged
         string names = "";
         Task? avatars = null;
         Task<PartyState>? naming = null;

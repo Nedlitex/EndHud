@@ -25,7 +25,7 @@ public class ModeSwitchBattleTests
     [Fact]
     public void The_battle_panel_under_the_exploring_switch_is_not_combat()
     {
-        Assert.True(BattlePanel(ModePillReading.NotShown).InCombat);
+        Assert.True(BattlePanel(ModePillReading.NotSeen).InCombat);
         Assert.True(BattlePanel(ModePillReading.Fighting).InCombat);
         Assert.False(BattlePanel(ModePillReading.OutOfBattle).InCombat);
     }
@@ -34,7 +34,7 @@ public class ModeSwitchBattleTests
     public void The_strip_gauges_and_alerts_go_down_at_once_when_the_switch_shows()
     {
         var visibility = new StripVisibility();
-        Assert.True(visibility.Update(BattlePanel(ModePillReading.NotShown)));
+        Assert.True(visibility.Update(BattlePanel(ModePillReading.NotSeen)));
         // Not after the two seconds a battle's missing signs are waited out: the switch says it is over.
         Assert.False(visibility.Update(BattlePanel(ModePillReading.OutOfBattle)));
         Assert.False(visibility.Update(BattlePanel(ModePillReading.OutOfBattle)));
@@ -81,12 +81,12 @@ public class ModeSwitchBattleTests
     public void One_misread_of_the_switch_changes_nothing_two_in_a_row_do()
     {
         var tracker = new PartyTracker();
-        Assert.Equal(ModePillReading.NotShown, tracker.Track(BattlePanel(ModePillReading.NotShown)).ModePill);
+        Assert.Equal(ModePillReading.NotSeen, tracker.Track(BattlePanel(ModePillReading.NotSeen)).ModePill);
         // An effect over the corner reads as the switch once: still a battle.
         var once = tracker.Track(BattlePanel(ModePillReading.OutOfBattle));
-        Assert.Equal(ModePillReading.NotShown, once.ModePill);
+        Assert.Equal(ModePillReading.NotSeen, once.ModePill);
         Assert.True(once.InCombat);
-        Assert.Equal(ModePillReading.NotShown, tracker.Track(BattlePanel(ModePillReading.NotShown)).ModePill);
+        Assert.Equal(ModePillReading.NotSeen, tracker.Track(BattlePanel(ModePillReading.NotSeen)).ModePill);
         // Two in a row: out of battle.
         tracker.Track(BattlePanel(ModePillReading.OutOfBattle));
         var twice = tracker.Track(BattlePanel(ModePillReading.OutOfBattle));
@@ -101,7 +101,7 @@ public class ModeSwitchBattleTests
     public void The_switch_is_followed_while_the_panel_is_out_of_sight()
     {
         var tracker = new PartyTracker();
-        tracker.Track(BattlePanel(ModePillReading.NotShown));
+        tracker.Track(BattlePanel(ModePillReading.NotSeen));
         // The panel hidden (a menu over it), the switch read twice: the kept reading carries it.
         var hidden = new PartyState([], PanelMarks: 0) { ModePill = ModePillReading.OutOfBattle };
         tracker.Track(hidden);

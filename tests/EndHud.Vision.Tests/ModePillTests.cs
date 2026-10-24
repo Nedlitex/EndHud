@@ -66,7 +66,7 @@ public class ModePillTests
     [Theory]
     [MemberData(nameof(NotShown))]
     public async Task No_switch_in_an_instance_battle_or_without_the_hud(string file) =>
-        Assert.Equal(ModePillReading.NotShown, Read(await Load(file)));
+        Assert.Equal(ModePillReading.NotSeen, Read(await Load(file)));
 
     /// <summary>The evacuate bar is a white rounded bar in the same place: a clear margin below the switch's match.</summary>
     [Fact]

@@ -3,9 +3,12 @@ namespace EndHud.Vision;
 /// <summary>What the mode switch at the top left of the screen says about the battle.</summary>
 public enum ModePillReading
 {
-    /// <summary>No mode switch there: a battle in an instance (the evacuate bar, 撤离, is drawn in its
-    /// place), a menu, a loading screen, or the switch covered.</summary>
-    NotShown,
+    /// <summary>The switch isn't seen, which says nothing either way: not drawn (a battle in an instance,
+    /// with the evacuate bar, 撤离, in its place; a menu; a loading screen) or covered (an on-screen
+    /// display such as RivaTuner's, drawn into the game's own picture, sits at the top left by default).
+    /// <see cref="PartyTracker"/> keeps the last switch seen through a short spell of this, then lets
+    /// the squad panel's battle signs decide alone, as before the switch was read.</summary>
+    NotSeen,
 
     /// <summary>The mode switch (探索 / 工业, exploring or building) with its plain icon on the left: the
     /// player is out of battle.</summary>
@@ -34,6 +37,11 @@ public enum ModePillReading
 /// battle_controller_test_fullbattle2.mp4); anything else (menus, cutscenes, photo mode) 0.27 or
 /// less. Hence <see cref="MatchAt"/> halfway. The red mark: 0.42-0.45 of the icon's pixels red; the
 /// lightning bolt and the D-pad arrow 0.</para>
+/// <para>Overlays injected into the game (RivaTuner/MSI Afterburner, Steam, Discord, NVIDIA) are part of
+/// the captured picture, and RivaTuner's sits at the top left by default. Text and graphs over the
+/// switch don't make its shape (white capsule end on its dark band, compared pixel by pixel), so a
+/// covered switch reads <see cref="ModePillReading.NotSeen"/>, never the switch; covering it can only
+/// let the battle HUD up, never take it down.</para>
 /// </summary>
 public static class ModePill
 {
@@ -60,7 +68,8 @@ public static class ModePill
     /// <summary>Overlap (intersection over union) either end needs; see <see cref="Measure"/>.</summary>
     public const double MatchAt = 0.88;
 
-    /// <summary>Share of the left icon's pixels that are red when the game marks a fight.</summary>
+    /// <summary>Share of the left icon's pixels that are red when the game marks a fight: the mark fills
+    /// 0.42-0.45 of them; thin red strokes over it (an on-screen display's text) far less.</summary>
     public const double RedAt = 0.15;
 
     private const int WhiteMin = 200;
@@ -75,7 +84,7 @@ public static class ModePill
     public static ModePillReading Read(Frame frame, UiScaler ui)
     {
         var (shape, red) = Measure(frame, ui);
-        if (shape < MatchAt) return ModePillReading.NotShown;
+        if (shape < MatchAt) return ModePillReading.NotSeen;
         return red >= RedAt ? ModePillReading.Fighting : ModePillReading.OutOfBattle;
     }
 
@@ -100,6 +109,8 @@ public static class ModePill
         for (int x = rect.X; x < rect.Right; x++)
         {
             var (r, g, b) = frame.GetPixel(x, y);
+            // The mark's crimson: red 165-212, green 16-43, blue 70-88 (the controller recording).
+            // Orange (an on-screen display's text) has far more green.
             if (r >= 150 && r - Math.Max(g, b) >= 80) red++;
         }
         return red / (double)(rect.Width * rect.Height);

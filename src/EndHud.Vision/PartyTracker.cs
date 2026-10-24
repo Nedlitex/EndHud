@@ -47,6 +47,7 @@ public sealed class PartyTracker
     public const int FewerOperatorsReadings = 4;
 
     public const int ModePillReadings = 2;
+    public const int ModePillCoveredReadings = PresenceMemory.ReadingsToLeave;
 
     private readonly bool[] _dead = new bool[PartyLayout.SlotCount];
     private readonly Queue<double>[] _charge = Enumerable.Range(0, PartyLayout.SlotCount).Select(_ => new Queue<double>()).ToArray();
