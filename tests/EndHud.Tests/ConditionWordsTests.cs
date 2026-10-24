@@ -84,6 +84,8 @@ public class ConditionWordsTests
         new AllCondition([new ComboCondition("Arcane", true), new UltimateCondition("Tangtang", true)]),
         new AnyCondition([new ComboCondition("Arcane", true), new UltimateCondition("Tangtang", true)]),
         new NotCondition(new ControllingCondition("Si")),
+        new UltimateTimeLeftCondition("Laevatain", Comparison.AtMost, 30),
+        new PhaseCurrentCondition("charge", PlayedThrough: true),
     ];
 
     [Fact]

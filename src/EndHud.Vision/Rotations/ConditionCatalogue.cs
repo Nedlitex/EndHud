@@ -159,6 +159,9 @@ public enum ConditionProblemKind
 
     /// <summary>"Battle skill running" for an operator whose battle-skill time isn't read: it could never be told.</summary>
     SkillTimeNotRead,
+
+    /// <summary>"Time left of the ultimate" for an operator whose lasting ultimate isn't read: it could never be told.</summary>
+    UltimateTimeNotRead,
 }
 
 /// <param name="Kind">What is wrong.</param>

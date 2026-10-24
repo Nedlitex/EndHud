@@ -60,6 +60,9 @@ public enum AlertProblem
 
     /// <summary>"Battle skill running" for an operator whose battle-skill time isn't read (only Si's): it could never be told.</summary>
     SkillTimeNotRead,
+
+    /// <summary>"Time left of the ultimate" for an operator whose lasting ultimate isn't read: it could never be told.</summary>
+    UltimateTimeNotRead,
 }
 
 /// <summary>The alerts file: every rule, in the player's order.</summary>

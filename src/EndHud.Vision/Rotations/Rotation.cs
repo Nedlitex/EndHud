@@ -77,6 +77,8 @@ public enum Comparison
 [JsonDerivedType(typeof(PhaseShownCondition), "phaseShown")]
 [JsonDerivedType(typeof(PhasePlayedCondition), "phasePlayed")]
 [JsonDerivedType(typeof(BattleSkillActiveCondition), "battleSkillActive")]
+[JsonDerivedType(typeof(UltimateTimeLeftCondition), "ultimateTimeLeft")]
+[JsonDerivedType(typeof(PhaseCurrentCondition), "phaseCurrent")]
 public abstract record StateCondition;
 
 /// <summary>The team's skill points (技力), 0–3; a part-filled segment counts as a fraction.</summary>
@@ -135,6 +137,23 @@ public sealed record UltimateActiveCondition(string OperatorId, bool Active) : S
 /// </summary>
 public sealed record BattleSkillActiveCondition(string OperatorId, bool Active) : StateCondition;
 
+/// <summary>
+/// How much of an operator's lasting ultimate is left to run, as a percentage of its time bar
+/// (<see cref="LastingUltimateView.LeftShare"/>), e.g. "Laevatain's ultimate has at most 30% of its
+/// time left". 0% while it isn't running. Only operators whose lasting ultimate is read
+/// (<see cref="LastingUltimates.Operators"/>) can be told. Format 9.
+/// </summary>
+public sealed record UltimateTimeLeftCondition(string OperatorId, Comparison Is, int Percent) : StateCondition;
+
+/// <summary>
+/// The phase on the strip now is <paramref name="PhaseId"/> (as of the reading before this one, as
+/// the phase selector sees its own showings). With <paramref name="PlayedThrough"/>, also whether the
+/// step follower has played it through since it last came onto the strip (true: played through this
+/// showing; false: not yet). The played-through part needs the battle-skill keys read; while they
+/// aren't, it is ignored and only "the phase is X" is asked. Format 9.
+/// </summary>
+public sealed record PhaseCurrentCondition(string PhaseId, bool? PlayedThrough = null) : StateCondition;
+
 /// <summary>This doesn't hold (not), e.g. "not: Laevatain's ultimate charged to at most 50%". Unknown stays unknown. Format 3.</summary>
 public sealed record NotCondition(StateCondition Of) : StateCondition;
 
@@ -169,6 +188,15 @@ public interface IPhaseHistory
     /// <see cref="ConditionWalk.OnlyPlayed"/> and <see cref="RotationTracker.Ignored"/>).
     /// </summary>
     bool PlayedIgnored { get; }
+
+    /// <summary>The phase on the strip (<see cref="PhaseCurrentCondition"/>); null when there is none or it can't be told.</summary>
+    string? CurrentPhase => null;
+
+    /// <summary>
+    /// Has the step follower played this phase through since it last came onto the strip? False for a
+    /// phase not on the strip; null when it can't be told (no follower: the keys aren't read).
+    /// </summary>
+    bool? PlayedThroughThisShowing(string phaseId) => null;
 }
 
 public static class PhaseHistory
@@ -472,6 +500,12 @@ public enum RotationProblemKind
     /// (only Si's, <see cref="SkillRing.Operators"/>): it could never be told.
     /// </summary>
     SkillTimeNotRead,
+
+    /// <summary>A "time left of the ultimate" condition names an operator whose lasting ultimate isn't read (<see cref="LastingUltimates.Operators"/>).</summary>
+    UltimateTimeNotRead,
+
+    /// <summary>A "the current phase is" condition names a phase that isn't in the rotation (deleted).</summary>
+    PhaseCurrentMissingPhase,
 }
 
 /// <param name="Phase">The phase concerned (its name), if any.</param>
