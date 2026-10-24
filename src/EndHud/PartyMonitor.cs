@@ -814,7 +814,11 @@ internal sealed class PartyMonitor : IDisposable
                         gameArea = client;
                     }
                     // A screen that isn't 16:9: the game's picture between black bars (Letterbox).
-                    var content = Letterbox.Content(gameFrame);
+                    var letterbox = Letterbox.Read(gameFrame);
+                    var content = letterbox.Content;
+                    // Not 16:9 but the edges weren't taken as bars (an overlay drawn over a bar?): every region would be off.
+                    if (letterbox.BarsRejected)
+                        DiagnosticLog.Throttled("letterbox-rejected", RepeatLogEvery, $"game area {gameFrame.Width}x{gameFrame.Height}: {letterbox.Describe()}");
                     if (content.Width != gameFrame.Width || content.Height != gameFrame.Height)
                     {
                         DiagnosticLog.Throttled("letterbox", RepeatLogEvery, $"black bars cut off: game area {gameFrame.Width}x{gameFrame.Height}, picture {content}", "INFO");

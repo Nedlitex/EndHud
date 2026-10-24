@@ -100,7 +100,8 @@ public readonly record struct BarBlackness(double Pixels, double Lines)
     /// <summary>Black enough to be a bar (an overlay in a corner of it allowed).</summary>
     public bool IsBar => Pixels >= Letterbox.MinBlackPixels && Lines >= Letterbox.MinBlackLines;
 
-    public override string ToString() => $"{Pixels:P0} of pixels, {Lines:P0} of lines black";
+    public override string ToString() =>
+        string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{Math.Floor(Pixels * 100)}% of pixels, {Math.Floor(Lines * 100)}% of lines black");
 }
 
 /// <summary>

@@ -262,7 +262,51 @@ internal static class DiagnosticExport
         {
             sb.AppendLine($"OCR languages: unavailable ({ex.GetType().Name})");
         }
+        sb.AppendLine(DescribeRivaTuner(RivaTunerRunning(), OwnModules()));
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Whether RivaTuner Statistics Server (RTSS, which draws MSI Afterburner's on-screen display into the game's frames, so
+    /// EndHud reads it with the game) runs, and whether its hooks are loaded into EndHud itself. Null where it couldn't be
+    /// told. Only a process name and EndHud's own module list: nothing of another process is read.
+    /// </summary>
+    internal static string DescribeRivaTuner(bool? running, IEnumerable<string>? ownModules)
+    {
+        string hooks = ownModules is null
+            ? "unknown"
+            : ownModules.Where(m => m.StartsWith("RTSSHooks", StringComparison.OrdinalIgnoreCase)).ToList() is { Count: > 0 } found
+                ? $"yes ({string.Join(", ", found)})"
+                : "no";
+        string rtss = running switch { true => "running", false => "not running", null => "unknown" };
+        return $"RTSS (RivaTuner, Afterburner's on-screen display): {rtss}; RivaTuner hooks loaded in EndHud: {hooks}";
+    }
+
+    private static bool? RivaTunerRunning()
+    {
+        try
+        {
+            var found = Process.GetProcessesByName("RTSS");
+            foreach (var process in found) process.Dispose();
+            return found.Length > 0;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    private static List<string>? OwnModules()
+    {
+        try
+        {
+            using var self = Process.GetCurrentProcess();
+            return [.. self.Modules.Cast<ProcessModule>().Select(m => m.ModuleName ?? "")];
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     /// <summary>The operator library folder: the package, caches and how many portraits were learned (no images).</summary>
