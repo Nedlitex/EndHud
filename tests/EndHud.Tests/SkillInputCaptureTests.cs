@@ -78,6 +78,27 @@ public class SkillInputCaptureTests
         Assert.Contains("{0}", Value("Menu.SkillInput.Slot"));
     }
 
+    /// <summary>A key another program holds is named, with its slot, in a plain sentence; the slots read say nothing.</summary>
+    [Fact]
+    public void A_key_another_program_holds_is_named_with_its_slot()
+    {
+        string text = OverlayWindow.UnreadKeysText(
+            [new UnreadKey(1, UnreadKey.HeldElsewhere), new UnreadKey(3, 5)], SkillKeyCodes.Defaults, code => $"{code - 1}", ZhCn);
+
+        Assert.Equal(
+            "按键 1 已被其他程序占用，无法读取 1 号位战技。请关闭占用它的程序，或在下面为 1 号位换一个键。其他号位的战技仍会读取。\n" +
+            "按键 3 无法读取（Windows 拒绝），3 号位战技不会被标出。请在下面为 3 号位换一个键。其他号位的战技仍会读取。",
+            text);
+        Assert.Equal("", OverlayWindow.UnreadKeysText([], SkillKeyCodes.Defaults, _ => "1", ZhCn));
+    }
+
+    private static string ZhCn(string key)
+    {
+        string xaml = File.ReadAllText(Path.Combine(AppFolder(), "i18n", "zh-CN.xaml"));
+        var match = Regex.Match(xaml, $@"x:Key=""{Regex.Escape(key)}"">([^<]+)<");
+        return match.Success ? match.Groups[1].Value : throw new KeyNotFoundException(key);
+    }
+
     private static string AppFolder()
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)

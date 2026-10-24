@@ -57,9 +57,30 @@ public partial class OverlayWindow
         SkillInputCheckBox.IsEnabled = possible;
         SkillInputNeedsRotation.Visibility = possible ? Visibility.Collapsed : Visibility.Visible;
         SkillInputFailed.Visibility = _config.ReadSkillPresses && _skillInput.Failed ? Visibility.Visible : Visibility.Collapsed;
+        string unread = _config.ReadSkillPresses ? UnreadKeysText(_skillInput.UnreadKeys, _config.SkillKeys, SkillKeyDisplayName, Loc.Get) : "";
+        if (SkillInputUnreadKeys.Text != unread) SkillInputUnreadKeys.Text = unread;
+        SkillInputUnreadKeys.Visibility = unread.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         bool rows = possible && _config.ReadSkillPresses;
         if (!rows && _capturingSlot is not null) EndSkillKeyCapture();
         SkillKeyRows.IsEnabled = rows;
+    }
+
+    /// <summary>
+    /// One sentence per bound key the reader could not hold, naming the key and its slot ("按键 1 已被其他程序占用，
+    /// 无法读取 1 号位战技…"); empty when every key is read. <paramref name="text"/> gives a string resource's text.
+    /// </summary>
+    internal static string UnreadKeysText(IReadOnlyList<UnreadKey> unread, IReadOnlyList<int> keys, Func<int, string> keyName, Func<string, string> text) =>
+        string.Join("\n", unread
+            .Where(key => key.Slot is >= 1 and <= 4 && key.Slot <= keys.Count)
+            .Select(key => string.Format(
+                text(key.TakenByAnotherProgram ? "Menu.SkillInput.KeyTaken" : "Menu.SkillInput.KeyRefused"),
+                keyName(keys[key.Slot - 1]), key.Slot)));
+
+    /// <summary>A stored key's name on the player's layout, or "unnamed key".</summary>
+    private static string SkillKeyDisplayName(int code)
+    {
+        string name = SkillInputNative.KeyName(code);
+        return name.Length > 0 ? name : Loc.Get("Menu.SkillInput.UnnamedKey");
     }
 
     private void SkillInputCheckBox_Click(object sender, RoutedEventArgs e)
@@ -124,8 +145,7 @@ public partial class OverlayWindow
         for (int slot = 1; slot <= 4; slot++)
         {
             SkillKeyLabel(slot).Text = Loc.Format("Menu.SkillInput.Slot", slot);
-            string name = SkillInputNative.KeyName(_config.SkillKeys[slot - 1]);
-            SkillKeyName(slot).Text = name.Length > 0 ? name : Loc.Get("Menu.SkillInput.UnnamedKey");
+            SkillKeyName(slot).Text = SkillKeyDisplayName(_config.SkillKeys[slot - 1]);
         }
     }
 

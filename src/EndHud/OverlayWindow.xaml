@@ -339,6 +339,7 @@
                                        Style="{StaticResource FeatureNote}" Visibility="Collapsed" />
                             <TextBlock x:Name="SkillInputFailed" Text="{DynamicResource Menu.SkillInput.Failed}"
                                        Style="{StaticResource FeatureNote}" Visibility="Collapsed" />
+                            <TextBlock x:Name="SkillInputUnreadKeys" Style="{StaticResource FeatureNote}" Visibility="Collapsed" />
                             <TextBlock Text="{DynamicResource Menu.SkillInput.Hint}" Foreground="#99FFFFFF" FontSize="11"
                                        TextWrapping="Wrap" Margin="0,4,0,4" />
                             <StackPanel x:Name="SkillKeyRows">

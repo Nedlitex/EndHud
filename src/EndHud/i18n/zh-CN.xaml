@@ -251,6 +251,8 @@
     <sys:String x:Key="Menu.SkillInput.Taken">这个键已用于 {0} 号位战技。请换一个键，或按 Esc 保留原来的键。</sys:String>
     <sys:String x:Key="Menu.SkillInput.Failed">无法读取按键：Windows 拒绝了请求。排轴仍会按画面显示轴段，只是不会标出当前步骤。原因已记录在诊断信息中。</sys:String>
     <sys:String x:Key="Menu.SkillInput.UnnamedKey">未命名的按键</sys:String>
+    <sys:String x:Key="Menu.SkillInput.KeyTaken">按键 {0} 已被其他程序占用，无法读取 {1} 号位战技。请关闭占用它的程序，或在下面为 {1} 号位换一个键。其他号位的战技仍会读取。</sys:String>
+    <sys:String x:Key="Menu.SkillInput.KeyRefused">按键 {0} 无法读取（Windows 拒绝），{1} 号位战技不会被标出。请在下面为 {1} 号位换一个键。其他号位的战技仍会读取。</sys:String>
     <sys:String x:Key="Menu.Gauges">状态监视</sys:String>
     <sys:String x:Key="Menu.Gauges.Hint">战斗中在屏幕下方，用圆形图标显示每位干员的终结技充能（就绪时发光）、干员的专属计数（如青霆剑、猎矢、启示），以及连击等队伍增益（生效时发光）。专属计数只有操控该干员时才能看到，切换干员后显示最后看到的数值（变暗）。菜单打开时，可直接拖动屏幕上的状态监视调整位置。</sys:String>
     <sys:String x:Key="Menu.Gauges.ResetPosition">恢复默认位置</sys:String>
