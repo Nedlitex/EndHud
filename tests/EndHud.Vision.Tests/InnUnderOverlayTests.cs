@@ -41,6 +41,18 @@ public class InnUnderOverlayTests
         Assert.True(failures.Count == 0, $"{fixture} ({kind}) with the display at the top left: " + string.Join("; ", failures));
     }
 
+    /// <summary>Told by the title or timer, no sign is named; told by another sign, it is (the app logs that the top left is covered).</summary>
+    [Fact]
+    public async Task The_sign_is_named_only_when_the_title_was_covered()
+    {
+        var clean = await InnScreenTests.Load("session-fire-92");
+
+        Assert.Equal((InnScreenKind.Session, (string?)null), await InnScreen.DetectWithSignAsync(Text, clean));
+        var covered = await InnScreen.DetectWithSignAsync(Text, SyntheticOsd.Draw(clean, OsdPosition.TopLeft, background: true));
+        Assert.Equal(InnScreenKind.Session, covered?.Kind);
+        Assert.Equal("the Full Blaze meter", covered?.Sign);
+    }
+
     /// <summary>Frames that aren't the inn (combat, the open world, the squad screen): not the inn by any sign, display or not.</summary>
     public static TheoryData<string> NotTheInn()
     {

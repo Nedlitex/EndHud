@@ -21,23 +21,29 @@ public static partial class InnScreen
     internal static readonly PixelRect DispatchHeading = new(600, 1110, 300, 80);
 
     /// <summary>The screen showing, or null when it isn't one of the inn's (or it can't be told).</summary>
-    public static async Task<InnScreenKind?> DetectAsync(InnText text, Frame frame)
+    public static async Task<InnScreenKind?> DetectAsync(InnText text, Frame frame) => (await DetectWithSignAsync(text, frame))?.Kind;
+
+    /// <summary>
+    /// <see cref="DetectAsync"/>, with the sign the screen was told by when it wasn't the top-left title or timer (null
+    /// when it was): a log line can then say the top left was covered.
+    /// </summary>
+    public static async Task<(InnScreenKind Kind, string? Sign)?> DetectWithSignAsync(InnText text, Frame frame)
     {
         var layout = new InnLayout(frame);
         string title = await text.ReadAsync(frame, layout.TopLeft(Title), TimerInk, layout.Scale) ?? "";
         // OCR may miss a character of a title ("//菜设定", "//营业设正"): two of them are enough.
-        if (title.Contains("营业")) return InnScreenKind.Setup;
-        if (title.Contains("主题")) return InnScreenKind.ThemeList;
-        if (title.Contains("菜单") || title.Contains("菜设") || title.Contains("单设")) return InnScreenKind.Menu;
-        if (KitchenTitle().IsMatch(title)) return InnScreenKind.ChefPicker;
+        if (title.Contains("营业")) return (InnScreenKind.Setup, null);
+        if (title.Contains("主题")) return (InnScreenKind.ThemeList, null);
+        if (title.Contains("菜单") || title.Contains("菜设") || title.Contains("单设")) return (InnScreenKind.Menu, null);
+        if (KitchenTitle().IsMatch(title)) return (InnScreenKind.ChefPicker, null);
         if (ReadTime(frame, layout, TimerAtTop) is not null)
         {
             // The timer moved to the top: something covers the button. The dispatch panel, or another panel.
             string heading = await text.ReadAsync(frame, layout.Centered(DispatchHeading), InnText.White, layout.Scale) ?? "";
-            return heading.Contains("干员") || heading.Contains("加成") ? InnScreenKind.DispatchPanel : InnScreenKind.Session;
+            return (heading.Contains("干员") || heading.Contains("加成") ? InnScreenKind.DispatchPanel : InnScreenKind.Session, null);
         }
-        if (ReadTime(frame, layout, TimerBelowButton) is not null) return InnScreenKind.Session;
-        return (await DetectWithoutTitleAsync(text, frame, layout))?.Kind;
+        if (ReadTime(frame, layout, TimerBelowButton) is not null) return (InnScreenKind.Session, null);
+        return await DetectWithoutTitleAsync(text, frame, layout);
     }
 
     /// <summary>
@@ -47,10 +53,7 @@ public static partial class InnScreen
     /// its heading; the Full Blaze meter's "N/100" (a session); the menu's single dark tab, then its tabs' names; the setup
     /// screen's kitchen titles. A chef picker and the theme list have only their titles: unknown. Null when none shows.
     /// </summary>
-    public static Task<(InnScreenKind Kind, string Sign)?> DetectWithoutTitleAsync(InnText text, Frame frame) =>
-        DetectWithoutTitleAsync(text, frame, new InnLayout(frame));
-
-    private static async Task<(InnScreenKind Kind, string Sign)?> DetectWithoutTitleAsync(InnText text, Frame frame, InnLayout layout)
+    private static async Task<(InnScreenKind Kind, string? Sign)?> DetectWithoutTitleAsync(InnText text, Frame frame, InnLayout layout)
     {
         if (DispatchPanelReader.Shows(frame))
         {

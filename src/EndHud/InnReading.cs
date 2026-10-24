@@ -98,7 +98,15 @@ internal sealed class InnScreens(InnText text, InnPictures pictures, InnData dat
     private readonly MenuReader _menu = new(text, data);
     private readonly MenuRequirementsReader _requirements = new(text, data);
 
-    public Task<InnScreenKind?> DetectAsync(Frame frame) => InnScreen.DetectAsync(text, frame);
+    public async Task<InnScreenKind?> DetectAsync(Frame frame)
+    {
+        var found = await InnScreen.DetectWithSignAsync(text, frame);
+        // Told without the top-left title and timer: something covers them (an on-screen display such as Afterburner's).
+        if (found is { Sign: { } sign } screen)
+            DiagnosticLog.Throttled("inn-title-covered", TimeSpan.FromSeconds(30),
+                $"inn title area unreadable (an overlay at the top left?): {screen.Kind} told by {sign} (no session clock while covered)", "INFO");
+        return found?.Kind;
+    }
 
     public SessionClock? ReadClock(Frame frame) => InnScreen.ReadClock(frame);
 
