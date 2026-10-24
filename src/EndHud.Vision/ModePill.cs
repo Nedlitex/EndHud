@@ -28,7 +28,12 @@ public enum ModePillReading
 /// the left (x 112, <see cref="ExploringEnd"/>); building, it covers the lightning bolt and its free
 /// end is on the right (x 390, <see cref="BuildingEnd"/>). Both areas lie beside the name, so the
 /// word never enters the comparison. The evacuate bar is white past the exploring end's left edge and
-/// stops short of the building end, overlapping each about two thirds.</para>
+/// on the capsule's dark band, and stops short of the building end.</para>
+/// <para>Measured (endhud-cli trace-mode-pill): the switch 0.98 on every fixture and on the controller
+/// recording's frames over a bright sky; the evacuate bar 0.75-0.77 (fixtures, battle_test1.mp4,
+/// battle_controller_test_fullbattle2.mp4); anything else (menus, cutscenes, photo mode) 0.27 or
+/// less. Hence <see cref="MatchAt"/> halfway. The red mark: 0.42-0.45 of the icon's pixels red; the
+/// lightning bolt and the D-pad arrow 0.</para>
 /// </summary>
 public static class ModePill
 {
@@ -45,6 +50,13 @@ public static class ModePill
     // building it ends at x 390.
     private const double Top = 74, Bottom = 141, ExploringLeft = 112, BuildingRight = 390;
 
+    // The capsule's dark band around the slider, y 67 to 148 at 4K. Outside it is the scenery, which
+    // can be white (a bright sky made the switch score 0.81 in the controller recording).
+    private const double BandTop = 67, BandBottom = 148;
+
+    // The left icon's ring reaches x 104 at 4K (white with keyboard and mouse): not compared.
+    private const double LeftIconRingRight = 106;
+
     /// <summary>Overlap (intersection over union) either end needs; see <see cref="Measure"/>.</summary>
     public const double MatchAt = 0.88;
 
@@ -56,7 +68,7 @@ public static class ModePill
     /// <summary>Shift allowed, in 4K pixels (rounding at smaller sizes).</summary>
     private const int SearchRadius = 6;
 
-    private static readonly string[] ExploringShape = BuildShape(ExploringEnd, ExploringLeft, double.MaxValue);
+    private static readonly string[] ExploringShape = BuildShape(ExploringEnd, ExploringLeft, double.MaxValue, LeftIconRingRight);
     private static readonly string[] BuildingShape = BuildShape(BuildingEnd, double.MinValue, BuildingRight);
 
     /// <summary>What the mode switch says on this frame (the 16:9 picture, as every HUD reader gets it).</summary>
@@ -94,8 +106,10 @@ public static class ModePill
     }
 
     /// <summary>The slider (from <paramref name="left"/> to <paramref name="right"/>, round ends) over
-    /// <paramref name="area"/>, one character per 2 px at 4K.</summary>
-    private static string[] BuildShape(PixelRect area, double left, double right)
+    /// <paramref name="area"/>, one character per 2 px at 4K: white inside, dark on the rest of the
+    /// capsule's band, and the scenery above and below the band (and left of
+    /// <paramref name="comparedFrom"/>: the left icon's ring) left out.</summary>
+    private static string[] BuildShape(PixelRect area, double left, double right, double comparedFrom = double.MinValue)
     {
         const int step = 2;
         double radius = (Bottom - Top) / 2, centreY = (Top + Bottom) / 2;
@@ -109,7 +123,8 @@ public static class ModePill
                 double x = area.X + col * step + step / 2.0;
                 // Inside when within the radius of the slider's centre line.
                 double cx = Math.Clamp(x, left + radius, right - radius);
-                chars[col] = Math.Pow(x - cx, 2) + Math.Pow(y - centreY, 2) <= radius * radius ? '#' : '.';
+                chars[col] = y < BandTop || y > BandBottom || x < comparedFrom ? '?'
+                    : Math.Pow(x - cx, 2) + Math.Pow(y - centreY, 2) <= radius * radius ? '#' : '.';
             }
             rows[row] = new string(chars);
         }

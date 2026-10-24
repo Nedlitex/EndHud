@@ -3,7 +3,8 @@ namespace EndHud.Vision;
 /// <summary>
 /// Finds a white HUD shape (a marker, a button's letters) where it should be: the shape, drawn as
 /// text rows with '#' for white, is resampled to the screen's size and compared with the white
-/// pixels there, allowing a few pixels' shift.
+/// pixels there, allowing a few pixels' shift. A '?' is a pixel left out of the comparison (the
+/// scenery around a HUD element, white or not).
 /// </summary>
 internal static class WhiteShape
 {
@@ -17,9 +18,14 @@ internal static class WhiteShape
         int w = rect.Width, h = rect.Height;
         if (w < 10 || h < 6) return 0;
         var expected = new bool[w * h];
+        var ignored = new bool[w * h];
         for (int y = 0; y < h; y++)
         for (int x = 0; x < w; x++)
-            expected[y * w + x] = shape[y * shape.Length / h][x * shape[0].Length / w] == '#';
+        {
+            char c = shape[y * shape.Length / h][x * shape[0].Length / w];
+            expected[y * w + x] = c == '#';
+            ignored[y * w + x] = c == '?';
+        }
 
         // Which pixels are white, over the rectangle and the search margin around it.
         int m = searchRadius, ww = w + 2 * m, wh = h + 2 * m;
@@ -41,6 +47,7 @@ internal static class WhiteShape
             for (int y = 0; y < h; y++)
             for (int x = 0; x < w; x++)
             {
+                if (ignored[y * w + x]) continue;
                 bool isWhite = white[(y + m + dy) * ww + x + m + dx];
                 bool e = expected[y * w + x];
                 if (isWhite && e) both++;
