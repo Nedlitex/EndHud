@@ -174,6 +174,39 @@ public sealed class AlertStoreTests : IDisposable
         Assert.Equal([rule], AlertFormat.FromJson(AlertFormat.ToJson([rule])));
     }
 
+    /// <summary>
+    /// "Phase played" (owner, 2026-10-23) is offered in alerts: a rule using it is written at alerts
+    /// format 2, so a build from before refuses it as "newer" instead of renaming the file as
+    /// unreadable; rules without it stay at format 1. The code keeps its "EHA1:" prefix (the code's own version).
+    /// </summary>
+    [Fact]
+    public void A_phase_played_rule_round_trips_at_format_2_and_others_stay_at_1()
+    {
+        var played = AlertRule.New([new NotCondition(new PhasePlayedCondition("charge", Comparison.AtLeast, 2)), new SkillPointsCondition(Comparison.AtLeast, 2)], "");
+
+        string code = AlertFormat.ToShareCode([played]);
+
+        Assert.StartsWith("EHA1:", code);
+        Assert.Equal([played], AlertFormat.FromShareCode(code));
+        Assert.Contains("\"format\": 2", AlertFormat.ToJson([played, CryoThree()]));
+        Assert.Contains("\"kind\": \"phasePlayed\"", AlertFormat.ToJson([played]));
+        Assert.Contains("\"format\": 1", AlertFormat.ToJson([CryoThree()]));
+        Assert.Equal([played], AlertFormat.FromJson(AlertFormat.ToJson([played])));
+        Assert.Empty(played.Problems());
+        Assert.Equal(AlertReadError.NewerFormat, Assert.Throws<AlertReadException>(() => AlertFormat.FromJson("{ \"format\": 3, \"rules\": [] }")).Error);
+    }
+
+    /// <summary>An alerts file written before "phase played" (format 1) loads as it was.</summary>
+    [Fact]
+    public void A_format_1_file_still_loads()
+    {
+        const string json = """{ "format": 1, "rules": [ { "id": "a", "when": [ { "kind": "skillPoints", "is": "AtLeast", "value": 1.8 } ], "message": "可以放战技了" } ] }""";
+
+        var rule = Assert.Single(AlertFormat.FromJson(json));
+
+        Assert.Equal(new AlertRule("a", [new SkillPointsCondition(Comparison.AtLeast, 1.8)], "可以放战技了"), rule);
+    }
+
     [Fact]
     public void A_damaged_code_is_refused()
     {

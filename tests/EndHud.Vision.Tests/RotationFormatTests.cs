@@ -396,6 +396,72 @@ public sealed class RotationFormatTests : IDisposable
         Assert.Empty(own.Problems());
     }
 
+    /// <summary>"Phase played" is new in format 5: only a rotation that uses it needs it, and it round-trips at any depth.</summary>
+    [Fact]
+    public void A_nested_phase_played_condition_needs_format_5_and_round_trips()
+    {
+        var guide = Guide();
+        var played = new AnyCondition([new NotCondition(new PhasePlayedCondition("charge", Comparison.Below, 2)), new UltimateCondition("Laevatain", true)]);
+        var rotation = guide with { Phases = [guide.Phases[0], guide.Phases[1], guide.Phases[2] with { When = [played] }] };
+
+        Assert.Equal(5, Rotation.CurrentFormat);
+        Assert.Equal(5, Rotation.FormatNeeded(rotation.Phases, lastMatchWins: false));
+        Assert.Equal(4, Rotation.FormatNeeded([guide.Phases[0] with { When = [new PhaseShownCondition("charge-2", Comparison.AtLeast, 1)] }], lastMatchWins: false));
+        string json = RotationFormat.ToJson(rotation with { Format = Rotation.FormatNeeded(rotation.Phases, false) });
+        Assert.Contains("\"kind\": \"phasePlayed\"", json);
+        var back = RotationFormat.FromJson(json);
+        Assert.Equal(played, Assert.Single(back.Phases[2].When));
+        Assert.Empty(back.Problems());
+    }
+
+    /// <summary>A format 4 file (from the build before "phase played") still loads as it was.</summary>
+    [Fact]
+    public void A_format_4_file_still_loads()
+    {
+        const string json = """
+            { "format": 4, "id": "old", "name": "旧轴", "squad": ["Laevatain", "Camille", "Arcane", "Ardelia"],
+              "phases": [
+                { "id": "charge", "name": "充能轴", "steps": [ { "operatorId": "Ardelia", "action": "BasicAttack" } ] },
+                { "id": "burst", "name": "爆发轴", "when": [ { "kind": "phaseShown", "phaseId": "charge", "is": "AtLeast", "times": 2 } ],
+                  "steps": [ { "operatorId": "Laevatain", "action": "Ultimate" } ] } ] }
+            """;
+
+        var rotation = RotationFormat.FromJson(json);
+
+        Assert.Equal(4, rotation.Format);
+        Assert.Equal(new PhaseShownCondition("charge", Comparison.AtLeast, 2), Assert.Single(rotation.Phases[1].When));
+    }
+
+    /// <summary>
+    /// A count of a deleted phase can never be known, and a gate that needs its own phase played
+    /// before it can show can never open (it must be shown to be played): both are pointed out. A
+    /// gate on its own plays that holds at 0 ("at most twice") is fine: it leaves after so many rounds.
+    /// </summary>
+    [Fact]
+    public void A_played_count_of_a_missing_phase_and_a_gate_that_can_never_open_are_problems()
+    {
+        var guide = Guide();
+        var rotation = guide with
+        {
+            Phases =
+            [
+                guide.Phases[0],
+                guide.Phases[1] with { Steps = [guide.Phases[1].Steps[0] with { Expect = [new PhasePlayedCondition("gone", Comparison.AtLeast, 1)] }] },
+                guide.Phases[2] with { When = [new AllCondition([new PhasePlayedCondition("burst", Comparison.AtLeast, 1), new UltimateCondition("Laevatain", true)])] },
+            ],
+        };
+
+        var problems = rotation.Problems();
+
+        Assert.Contains(new RotationProblem(RotationProblemKind.PhasePlayedOwnGateNeverOpens, guide.Phases[2].Name), problems);
+        Assert.Contains(new RotationProblem(RotationProblemKind.PhasePlayedMissingPhase, guide.Phases[1].Name, 1), problems);
+        Assert.Equal(2, problems.Count);
+        var leaves = guide with { Phases = [guide.Phases[0], guide.Phases[2] with { When = [new PhasePlayedCondition("burst", Comparison.AtMost, 2)] }] };
+        Assert.Empty(leaves.Problems());
+        var orElse = guide with { Phases = [guide.Phases[0], guide.Phases[2] with { When = [new AnyCondition([new PhasePlayedCondition("burst", Comparison.AtLeast, 1), new UltimateCondition("Laevatain", true)])] }] };
+        Assert.Empty(orElse.Problems());
+    }
+
     /// <summary>A build that reads up to format 3 refuses a format 4 file as "newer" (simulated one format up, as this build reads 4).</summary>
     [Fact]
     public void Format_4_file_is_refused_by_a_build_reading_3()

@@ -390,6 +390,15 @@ public enum RotationProblemKind
 
     /// <summary>A "phase shown" condition names a phase that isn't in the rotation (deleted).</summary>
     PhaseShownMissingPhase,
+
+    /// <summary>A "phase played" condition names a phase that isn't in the rotation (deleted).</summary>
+    PhasePlayedMissingPhase,
+
+    /// <summary>
+    /// A phase's entry condition requires the phase itself played some times, and 0 doesn't do: it can
+    /// never open (the phase must be shown to be played, and played to be shown).
+    /// </summary>
+    PhasePlayedOwnGateNeverOpens,
 }
 
 /// <param name="Phase">The phase concerned (its name), if any.</param>
