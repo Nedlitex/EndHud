@@ -195,16 +195,16 @@ public class NextReleaseRotationsTests
         var spent = new Reading(true);
 
         Assert.Equal("爆发轴 IV", fight.Read(charged with { SiRunning = true }));
-        Assert.Equal("爆发轴 IV", fight.Read(charged with { SiRunning = true }));                                   // 汤汤 战技: not seen
-        Assert.Equal("爆发轴 IV", fight.Read(charged with { SiRunning = true, ComboUsed = Tangtang }));             // 汤汤 连携技: jumps
-        Assert.Equal("爆发轴 IV", fight.Read(charged with { SiRunning = true, UltimateReady = [LastRite, Arcane] })); // 祀 终结技
-        Assert.Equal("爆发轴 IV", fight.Read(spent with { UltimateReady = [Arcane], TangtangCharge = 0.85 }));      // 别礼 终结技
-        Assert.Equal("爆发轴 IV", fight.Read(spent with { UltimateReady = [Arcane, Tangtang] }));                  // 汤汤's ready …
+        Assert.Equal("爆发轴 IV", fight.Read(charged with { SiRunning = true }));                                   // Tangtang's battle skill: not seen
+        Assert.Equal("爆发轴 IV", fight.Read(charged with { SiRunning = true, ComboUsed = Tangtang }));             // Tangtang's combo: jumps
+        Assert.Equal("爆发轴 IV", fight.Read(charged with { SiRunning = true, UltimateReady = [LastRite, Arcane] })); // Si's ultimate
+        Assert.Equal("爆发轴 IV", fight.Read(spent with { UltimateReady = [Arcane], TangtangCharge = 0.85 }));      // Last Rite's ultimate
+        Assert.Equal("爆发轴 IV", fight.Read(spent with { UltimateReady = [Arcane, Tangtang] }));                  // Tangtang's ready …
         Assert.Equal("爆发轴 IV", fight.Read(spent with { UltimateReady = [Arcane] }));                            // … and used
-        Assert.Equal("爆发轴 IV", fight.Read(spent));                                                              // 诀 终结技·意
-        Assert.Equal("爆发轴 IV", fight.Read(spent with { ComboUsed = Arcane }));                                  // 诀 连携技·意
-        Assert.Equal("爆发轴 IV", fight.Read(spent with { ComboUsed = LastRite }));                                // 别礼 连携技
-        Assert.Equal("爆发轴 IV", fight.Read(spent with { ComboUsed = Si }));                                      // 祀 连携技: played through
+        Assert.Equal("爆发轴 IV", fight.Read(spent));                                                              // Arcane's ultimate
+        Assert.Equal("爆发轴 IV", fight.Read(spent with { ComboUsed = Arcane }));                                  // Arcane's combo
+        Assert.Equal("爆发轴 IV", fight.Read(spent with { ComboUsed = LastRite }));                                // Last Rite's combo
+        Assert.Equal("爆发轴 IV", fight.Read(spent with { ComboUsed = Si }));                                      // Si's combo: played through
         Assert.Equal("充能轴 I", fight.Read(spent));
     }
 }

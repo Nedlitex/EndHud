@@ -11,7 +11,7 @@ public enum CastSource
     /// <summary>That slot's button went from available to a countdown across the readings.</summary>
     Cooldown,
 
-    /// <summary>The player's key or pad press for that slot (only with 读取战技按键 on).</summary>
+    /// <summary>The player's key or pad press for that slot (only with the key reading switch on, <c>ReadSkillPresses</c>).</summary>
     Press,
 
     /// <summary>An empowered battle skill's flash ending the glow, with no skill point spent (some are free).</summary>
@@ -92,7 +92,7 @@ public sealed class ScreenCastJudge
 
     /// <summary>A new reading.</summary>
     /// <param name="before">The reading before (presses are judged against it); null for the first.</param>
-    /// <param name="presses">Presses made up to <paramref name="now"/>'s time; empty without 读取战技按键.</param>
+    /// <param name="presses">Presses made up to <paramref name="now"/>'s time; empty with the key reading off.</param>
     public CastJudging Update(PartyState? before, PartyState now, IReadOnlyList<SkillPress> presses)
     {
         var at = now.ReadAt ?? TimeSpan.Zero;
