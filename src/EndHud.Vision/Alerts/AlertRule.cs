@@ -51,6 +51,9 @@ public enum AlertProblem
 
     /// <summary>"Phase shown N times" belongs to a rotation; an alert has none (from a hand-edited or shared file).</summary>
     PhaseShownNotAllowed,
+
+    /// <summary>"Battle skill running" for an operator whose battle-skill time isn't read (only Si's): it could never be told.</summary>
+    SkillTimeNotRead,
 }
 
 /// <summary>The alerts file: every rule, in the player's order.</summary>

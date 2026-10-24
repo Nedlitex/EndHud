@@ -309,6 +309,25 @@ public class RotationFollowerTests
         Assert.Equal(1, follower.Selectors["r"].TimesShown("charge"));
     }
 
+    /// <summary>
+    /// Alerts read the phases of the rotation followed through the follower's history. Without the
+    /// keys read there is no step follower, but the phase selector still knows what it showed: "phase
+    /// shown" is known, "phase played" ignored (before, the alerts got no history at all).
+    /// </summary>
+    [Fact]
+    public void Without_the_keys_the_history_still_knows_the_phases_shown()
+    {
+        var rotation = new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
+            [new RotationPhase("charge", "Charge", [new RotationStep("Ardelia", StepAction.BattleSkill)])]);
+        var follower = new RotationFollower();
+
+        var follow = follower.Update(Reading(inBattle: true), true, For(rotation), presses: null);
+
+        Assert.Equal(1, follow.History.TimesShown("charge"));
+        Assert.True(follow.History.PlayedIgnored);
+        Assert.Null(follow.History.TimesPlayed("charge"));
+    }
+
     /// <summary>BUG2: a phase gate on a boss status (here inside an "any") never opened: the statuses were read only for steps.</summary>
     [Fact]
     public void A_status_in_a_phase_gate_turns_status_reading_on()

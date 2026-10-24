@@ -225,7 +225,8 @@ public sealed class AlertStoreTests : IDisposable
     {
         Assert.Equal([AlertProblem.NoConditions], AlertRule.New([], "x").Problems());
         Assert.Equal([AlertProblem.EmptyConditionGroup], AlertRule.New([new AnyCondition([])], "x").Problems());
-        Assert.Equal([AlertProblem.PhaseShownNotAllowed], AlertRule.New([new NotCondition(new PhaseShownCondition("p", Comparison.AtLeast, 1))], "x").Problems());
+        // "Phase shown" names a phase of the rotation followed, like "phase played" (owner, 2026-10-24: the same full set everywhere).
+        Assert.Empty(AlertRule.New([new NotCondition(new PhaseShownCondition("p", Comparison.AtLeast, 1))], "x").Problems());
         Assert.Empty(CryoThree().Problems());
     }
 }

@@ -227,9 +227,12 @@ public sealed class AlertEditorTests : IDisposable
         Assert.Empty(Store().Load().Rules);
     }
 
-    /// <summary>An alert has no rotation: "phase shown" isn't offered.</summary>
+    /// <summary>
+    /// The same full set as a rotation (owner, 2026-10-24): "phase shown" too, naming a phase of any
+    /// rotation, known while that rotation is followed, as "phase played".
+    /// </summary>
     [Fact]
-    public void Phase_shown_is_not_offered()
+    public void Every_kind_is_offered_phase_shown_included()
     {
         List<object> kinds = [];
         OnEditor(Store(), () => { }, editor =>
@@ -238,7 +241,8 @@ public sealed class AlertEditorTests : IDisposable
             kinds = Pickers(editor)[0].Items.Cast<ComboBoxItem>().Select(i => i.Tag).ToList();
         });
 
-        Assert.DoesNotContain("PhaseShown", kinds);
+        Assert.Equal(ConditionCatalogue.EditorKinds, kinds.Cast<string>());
+        Assert.Contains("PhaseShown", kinds);
         Assert.Contains("BossStatus", kinds);
         Assert.Contains("Counter", kinds);
     }
