@@ -76,13 +76,13 @@ public sealed class DispatchPanelReader(InnText text, InnPictures pictures, InnD
     public static PixelRect CardOnScreen(int card, int width, int height) => new InnLayout(width, height).Centered(CardArea(card));
 
     /// <summary>The panel, or null when it isn't showing (no tab is dark).</summary>
-    public async Task<DispatchPanel?> ReadAsync(Frame frame)
-    {
-        var layout = new InnLayout(frame);
-        var (kitchen, kitchens) = Tabs(frame, layout);
-        // The tabs' samples alone also read the dining room behind the session's dark bars as "kitchen 1 of 1" (owner, live
-        // 2026-10-21: the panel's marks over the room with the panel closed): the first dish card's light face must show too.
-        if (kitchen == 0 || !FirstCardShows(frame, layout)) return null;
+    public async Task<DispatchPanel?> ReadAsync(Frame frame)
+    {
+        var layout = new InnLayout(frame);
+        var (kitchen, kitchens) = Tabs(frame, layout);
+        // The tabs' samples alone also read the dining room behind the session's dark bars as "kitchen 1 of 1" (owner, live
+        // 2026-10-21: the panel's marks over the room with the panel closed): the first dish card's light face must show too.
+        if (kitchen == 0 || !FirstCardShows(frame, layout)) return null;
 
         var chefs = new string?[2];
         var names = new string?[2];
