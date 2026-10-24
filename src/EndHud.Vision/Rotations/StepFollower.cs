@@ -43,6 +43,20 @@ public sealed class StepFollower(Rotation rotation)
     /// <summary>This round of the phase has been counted as played through.</summary>
     private bool _counted;
 
+    /// <summary>The phase followed has been played through since it came onto the strip (<see cref="PhaseCurrentCondition"/>).</summary>
+    private bool _playedThisShowing;
+
+    /// <summary>
+    /// Has this phase been played through since it last came onto the strip? False for a phase that
+    /// isn't the one followed now; null for a phase not in the rotation.
+    /// </summary>
+    public bool? PlayedThroughThisShowing(string phaseId)
+    {
+        for (int i = 0; i < rotation.Phases.Count; i++)
+            if (rotation.Phases[i].Id == phaseId) return i == _phase && _playedThisShowing;
+        return null;
+    }
+
     /// <summary>
     /// Times the phase was played through this fight (<see cref="PhasePlayedCondition"/>); null for a
     /// phase not in the rotation.
@@ -58,6 +72,7 @@ public sealed class StepFollower(Rotation rotation)
     public void EndFight()
     {
         _phase = -1;
+        _playedThisShowing = false;
         Array.Clear(_timesPlayed);
     }
 
@@ -70,6 +85,7 @@ public sealed class StepFollower(Rotation rotation)
         var steps = _played.Where(p => p.PhaseIndex == phase).ToList();
         if (phase != _phase || _done.Length != steps.Count)
         {
+            if (phase != _phase) _playedThisShowing = false; // it came onto the strip
             _phase = phase;
             _done = new bool[steps.Count];
             _counted = false;
@@ -148,6 +164,7 @@ public sealed class StepFollower(Rotation rotation)
         if (!seen) return;
         _timesPlayed[_phase]++;
         _counted = true;
+        _playedThisShowing = true;
     }
 
     /// <summary>The last step of the group starting at <paramref name="at"/>: the steps after it marked WithPrevious belong to it.</summary>

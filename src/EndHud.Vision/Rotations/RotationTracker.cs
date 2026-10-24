@@ -378,6 +378,14 @@ public sealed class RotationTracker(Rotation rotation)
                     : null;
             case UltimateActiveCondition c:
                 return UltimateRunning(c.OperatorId, state) is { } running ? running == c.Active : null;
+            case UltimateTimeLeftCondition c:
+                return UltimateLeft(c.OperatorId, state) is { } left ? Compare(left * 100, c.Is, c.Percent) : null;
+            case PhaseCurrentCondition c:
+                if (history.CurrentPhase is not { } current) return null;
+                if (current != c.PhaseId) return false;
+                // The played-through part needs the keys read: without them it is ignored.
+                if (c.PlayedThrough is not { } wanted || history.PlayedIgnored) return true;
+                return history.PlayedThroughThisShowing(c.PhaseId) is { } playedThrough ? playedThrough == wanted : null;
             case BattleSkillActiveCondition c:
                 return SkillRunning(c.OperatorId, state) is { } skillRunning ? skillRunning == c.Active : null;
             case ComboChargeCondition c:
@@ -422,6 +430,20 @@ public sealed class RotationTracker(Rotation rotation)
         if (running.ContainsKey(operatorId)) return true;
         if (LastingUltimates.Operators.Contains(operatorId) || state.UltimateTimeLeft is null) return false;
         return null;
+    }
+
+    /// <summary>
+    /// The share of this operator's lasting ultimate still to run, 0–1, from the ones
+    /// <see cref="LastingUltimates"/> has running (<see cref="LastingUltimateView.LeftShare"/>; worked
+    /// out from this reading alone when the caller didn't); 0 when hers isn't running. Null when it
+    /// can't be told: the bottom HUD out of sight (no skill points read), or an operator whose lasting
+    /// ultimate isn't read.
+    /// </summary>
+    private static double? UltimateLeft(string operatorId, PartyState state)
+    {
+        if (state.SkillPoints is null || !LastingUltimates.Operators.Contains(operatorId)) return null;
+        var running = state.RunningUltimates ?? new LastingUltimates().Update(state, TimeSpan.Zero);
+        return running.TryGetValue(operatorId, out var view) ? view.LeftShare : 0;
     }
 
     /// <summary>

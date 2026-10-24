@@ -53,7 +53,10 @@ internal sealed class ConditionEditor(
             "UltimateCharge" => new UltimateChargeCondition(first, Comparison.AtLeast, 80),
             "UltimateActive" => new UltimateActiveCondition(first, true),
             // Only an operator whose skill time is read (Si) can be asked about.
-            "BattleSkillActive" => new BattleSkillActiveCondition(SkillTimed().FirstOrDefault()?.Id ?? SkillRing.Operators[0], true),
+            "BattleSkillActive" => new BattleSkillActiveCondition(Readable(kind).FirstOrDefault()?.Id ?? SkillRing.Operators[0], true),
+            // Only an operator whose lasting ultimate is read (Laevatain, Zhuang Fangyi, Yvonne).
+            "UltimateTimeLeft" => new UltimateTimeLeftCondition(Readable(kind).FirstOrDefault()?.Id ?? first, Comparison.AtMost, 30),
+            "PhaseCurrent" => new PhaseCurrentCondition(defaultPhaseId?.Invoke() ?? phases().FirstOrDefault().Id ?? ""),
             "ComboCharge" => new ComboChargeCondition(first, Comparison.AtLeast, 80),
             "BattleSkill" => new BattleSkillCondition(first, true),
             "Counter" => counters().FirstOrDefault() is { } c ? new CounterCondition(c.OperatorId, c.Id, Comparison.AtLeast, c.Max ?? 1) : new SkillPointsCondition(Comparison.AtLeast, 2),
@@ -79,9 +82,9 @@ internal sealed class ConditionEditor(
     private static string KindOf(StateCondition c) => ConditionCatalogue.Of(c is NotCondition not ? not.Of : c).EditorKind ?? "SkillPoints";
 
     /// <summary>Who, a comparison, and a percentage (0% to 100% by 1%; a value from a file is kept as it is). At most 0%: just used.</summary>
-    private (ComboBox Who, ComboBox Compare, ComboBox Value) ChargePickers(Panel row, string operatorId, Comparison comparison, int percent)
+    private (ComboBox Who, ComboBox Compare, ComboBox Value) ChargePickers(Panel row, string operatorId, Comparison comparison, int percent, IEnumerable<OperatorInfo>? offered = null)
     {
-        var who = OperatorPicker(operatorId);
+        var who = OperatorPicker(operatorId, offered);
         var compare = ComparePicker(comparison);
         var percents = Enumerable.Range(0, 101).ToList();
         if (!percents.Contains(percent)) percents = [.. percents.Append(percent).Order()];
@@ -213,12 +216,36 @@ internal sealed class ConditionEditor(
             }
             case BattleSkillActiveCondition c:
             {
-                var who = OperatorPicker(c.OperatorId, SkillTimed());
+                var who = OperatorPicker(c.OperatorId, Readable("BattleSkillActive"));
                 var state = Picker([true, false], a => Loc.Get(a ? "Editor.Active" : "Editor.NotActive"), c.Active);
                 row.Children.Add(who);
                 row.Children.Add(state);
                 read = () => new BattleSkillActiveCondition((string)Picked(who), (bool)Picked(state));
                 hint = Loc.Get("Editor.SkillTimeHint");
+                break;
+            }
+            case UltimateTimeLeftCondition c:
+            {
+                var (who, compare, value) = ChargePickers(row, c.OperatorId, c.Is, c.Percent, Readable("UltimateTimeLeft"));
+                read = () => new UltimateTimeLeftCondition((string)Picked(who), (Comparison)Picked(compare), (int)Picked(value));
+                hint = Loc.Get("Editor.UltimateTimeLeftHint");
+                break;
+            }
+            case PhaseCurrentCondition c:
+            {
+                var choices = phases().ToList();
+                if (!choices.Any(p => p.Id == c.PhaseId)) choices.Insert(0, (c.PhaseId, Loc.Get("Editor.PhaseMissing")));
+                var which = Picker(choices, p => p.Label, choices.First(p => p.Id == c.PhaseId));
+                // 0: whether played through or not; 1: played through this showing; 2: not yet.
+                var played = Picker([0, 1, 2], p => Loc.Get(p switch { 1 => "Editor.PhaseCurrent.Played", 2 => "Editor.PhaseCurrent.NotPlayed", _ => "Editor.PhaseCurrent.Any" }),
+                    c.PlayedThrough switch { true => 1, false => 2, null => 0 });
+                row.Children.Add(new TextBlock { Text = Loc.Get("Editor.PhaseCurrent.Is"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
+                row.Children.Add(which);
+                row.Children.Add(played);
+                read = () => new PhaseCurrentCondition((((string Id, string Label))Picked(which)).Id, (int)Picked(played) switch { 1 => true, 2 => false, _ => null });
+                // Kept and editable while the keys aren't read, saying the played-through part is ignored until they are.
+                hint = Loc.Get(keysRead() ? "Editor.PhaseCurrentHint" : "Editor.PhaseCurrentNeedsKeys");
+                kind.ToolTip = hint;
                 break;
             }
             case UltimateChargeCondition c:
@@ -403,8 +430,9 @@ internal sealed class ConditionEditor(
         string? why =
             needs.Needs.HasFlag(ConditionNeeds.KeysRead) && !keysRead() ? "Editor.PhasePlayedNeedsKeys"
             : needs.Needs.HasFlag(ConditionNeeds.Phase) && phases().Count == 0 ? "Editor.PhasePlayedNoPhases"
-            // Only Si's skill time is read: without her in the list, nobody to ask about.
-            : needs.OnlyFor is { } only && !operators().Any(o => only.Contains(o.Id)) ? "Editor.SkillTimeNoOperator"
+            // Only Si's skill time is read, only some lasting ultimates: without them in the list, nobody to ask about.
+            : needs.OnlyFor is { } only && !operators().Any(o => only.Contains(o.Id))
+                ? needs.Needs.HasFlag(ConditionNeeds.SkillTime) ? "Editor.SkillTimeNoOperator" : "Editor.UltimateTimeNoOperator"
             : null;
         if (why is null) return item;
         if (why == "Editor.PhasePlayedNeedsKeys") item.Content = Loc.Get($"Editor.Condition.{kind}.NeedsKeys");
@@ -434,8 +462,9 @@ internal sealed class ConditionEditor(
     private static ComboBox ComparePicker(Comparison selected) =>
         Picker([Comparison.AtLeast, Comparison.AtMost, Comparison.Exactly, Comparison.Below, Comparison.Above], c => Loc.Get($"Editor.Compare.{c}"), selected);
 
-    /// <summary>The offered operators whose battle-skill time is read (<see cref="SkillRing.Operators"/>: Si).</summary>
-    private IEnumerable<OperatorInfo> SkillTimed() => operators().Where(o => SkillRing.Operators.Contains(o.Id));
+    /// <summary>The offered operators this kind can be told for (<see cref="ConditionKind.OnlyFor"/>: Si's skill time, the lasting ultimates); everyone offered for other kinds.</summary>
+    private IEnumerable<OperatorInfo> Readable(string kind) =>
+        ConditionCatalogue.Kinds.First(k => k.EditorKind == kind).OnlyFor is { } only ? operators().Where(o => only.Contains(o.Id)) : operators();
 
     private ComboBox OperatorPicker(string selected, IEnumerable<OperatorInfo>? offered = null)
     {

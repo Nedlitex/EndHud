@@ -200,7 +200,7 @@ public sealed class RotationFormatTests : IDisposable
     [Theory]
     [InlineData("""{ "name": "x" }""", RotationReadError.NotARotation)]
     [InlineData("not json", RotationReadError.NotARotation)]
-    [InlineData("""{ "format": 9, "id": "x" }""", RotationReadError.NewerFormat)]
+    [InlineData("""{ "format": 99, "id": "x" }""", RotationReadError.NewerFormat)]
     public void A_file_that_isnt_a_rotation_this_build_can_read_is_refused(string json, RotationReadError expected) =>
         Assert.Equal(expected, Assert.Throws<RotationReadException>(() => RotationFormat.FromJson(json)).Error);
 
@@ -370,7 +370,7 @@ public sealed class RotationFormatTests : IDisposable
 
         Assert.Equal(2, Rotation.FormatNeeded(plain, lastMatchWins: false));
         Assert.Equal(3, Rotation.FormatNeeded(plain, lastMatchWins: true));
-        Assert.Equal(8, Rotation.CurrentFormat);
+        Assert.Equal(9, Rotation.CurrentFormat);
     }
 
     [Fact]

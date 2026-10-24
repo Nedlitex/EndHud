@@ -38,17 +38,18 @@ internal static class ConditionWords
     {
         text ??= Loc.Get;
         string statement = Statement(condition, library, phaseName, text);
-        return Current(condition, state, history) is { } now
+        return Current(condition, state, history, phaseName) is { } now
             ? string.Format(CultureInfo.InvariantCulture, text("Rotation.Reason.NeedNow"), statement, now)
             : string.Format(CultureInfo.InvariantCulture, text("Rotation.Reason.Need"), statement);
     }
 
     /// <summary>
     /// The value the condition compares, as read now: skill points, a charge's or cooldown's percentage,
-    /// a counter, a status's stacks or level, a phase's showings or plays. Null for a yes/no kind, or
-    /// when it isn't read.
+    /// a counter, a status's stacks or level, a phase's showings or plays, a lasting ultimate's time
+    /// left, the phase on the strip. Null for a yes/no kind, or when it isn't read.
     /// </summary>
-    public static string? Current(StateCondition condition, PartyState? state, IPhaseHistory? history)
+    /// <param name="phaseName">The phases by the names shown; null: ids.</param>
+    public static string? Current(StateCondition condition, PartyState? state, IPhaseHistory? history, Func<string, string?>? phaseName = null)
     {
         string Number(int n) => n.ToString(CultureInfo.InvariantCulture);
         PartySlot? Slot(string id) => state?.Slots.FirstOrDefault(s => s.Operator?.Operator.Id == id);
@@ -72,6 +73,12 @@ internal static class ConditionWords
                 return history?.TimesShown(c.PhaseId) is { } shown ? Number(shown) : null;
             case PhasePlayedCondition c:
                 return history is { PlayedIgnored: false } && history.TimesPlayed(c.PhaseId) is { } played ? Number(played) : null;
+            case UltimateTimeLeftCondition c:
+                if (state?.SkillPoints is null || !LastingUltimates.Operators.Contains(c.OperatorId)) return null;
+                var running = state.RunningUltimates ?? new LastingUltimates().Update(state, TimeSpan.Zero);
+                return Percent(running.TryGetValue(c.OperatorId, out var view) ? view.LeftShare : 0);
+            case PhaseCurrentCondition:
+                return history?.CurrentPhase is { } current ? phaseName?.Invoke(current) ?? current : null;
             default:
                 return null;
         }
@@ -94,6 +101,13 @@ internal static class ConditionWords
             UltimateCondition c => F(c.Ready ? "Alert.Describe.Ultimate.Ready" : "Alert.Describe.Ultimate.Used", Who(c.OperatorId)),
             UltimateChargeCondition c => F("Alert.Describe.UltimateCharge", Who(c.OperatorId), Symbol(c.Is), Percent(c.Percent)),
             UltimateActiveCondition c => F(c.Active ? "Alert.Describe.UltimateActive" : "Alert.Describe.UltimateOver", Who(c.OperatorId)),
+            UltimateTimeLeftCondition c => F("Alert.Describe.UltimateTimeLeft", Who(c.OperatorId), Symbol(c.Is), Percent(c.Percent)),
+            PhaseCurrentCondition c => F(c.PlayedThrough switch
+            {
+                true => "Alert.Describe.PhaseCurrent.Played",
+                false => "Alert.Describe.PhaseCurrent.NotPlayed",
+                null => "Alert.Describe.PhaseCurrent",
+            }, Phase(c.PhaseId)),
             BattleSkillActiveCondition c => F(c.Active ? "Alert.Describe.BattleSkillActive" : "Alert.Describe.BattleSkillOver", Who(c.OperatorId)),
             CounterCondition c => F("Alert.Describe.Counter", Who(c.OperatorId),
                 OperatorCounters.Definitions.FirstOrDefault(d => d.OperatorId == c.OperatorId && d.Id == c.CounterId)?.NameZh ?? c.CounterId,

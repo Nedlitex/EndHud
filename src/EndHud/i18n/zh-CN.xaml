@@ -102,6 +102,16 @@
     <sys:String x:Key="Editor.Condition.UltimateCharge">终结技充能</sys:String>
     <sys:String x:Key="Editor.Condition.UltimateActive">终结技持续中</sys:String>
     <sys:String x:Key="Editor.Condition.BattleSkillActive">战技持续中</sys:String>
+    <sys:String x:Key="Editor.Condition.UltimateTimeLeft">终结技剩余持续时间</sys:String>
+    <sys:String x:Key="Editor.UltimateTimeLeftHint">按技力条上方的终结技持续时间条估算剩余时间占整条的百分比；没有在持续时算 0%。在后台持续的也算。目前只读取莱万汀、庄方宜、伊冯的。</sys:String>
+    <sys:String x:Key="Editor.UltimateTimeNoOperator">小队中没有能读取终结技持续时间的干员（目前只有莱万汀、庄方宜、伊冯）。</sys:String>
+    <sys:String x:Key="Editor.Condition.PhaseCurrent">当前轴段</sys:String>
+    <sys:String x:Key="Editor.PhaseCurrent.Is">是</sys:String>
+    <sys:String x:Key="Editor.PhaseCurrent.Any">不论是否打完</sys:String>
+    <sys:String x:Key="Editor.PhaseCurrent.Played">本次已打完</sys:String>
+    <sys:String x:Key="Editor.PhaseCurrent.NotPlayed">本次未打完</sys:String>
+    <sys:String x:Key="Editor.PhaseCurrentHint">排轴条上现在显示的轴段。“本次已打完”指这个轴段这次出现在排轴条上以后，每一步都打到了（按你的战技按键判断）；轴段离开后再出现时重新算。</sys:String>
+    <sys:String x:Key="Editor.PhaseCurrentNeedsKeys">排轴条上现在显示的轴段。“本次已打完 / 本次未打完”需要先在菜单的排轴设置中开启“读取战技按键”；未开启时只判断是不是这个轴段。</sys:String>
     <sys:String x:Key="Editor.SkillTimeHint">按祀的战技按钮判断：图标变成漩涡（或第二次释放后的叉形蝴蝶）时为持续中，变回蝴蝶时结束，即她计数圈外紫色倒计时的那段时间。按钮被特效挡住时按倒计时估计；手柄布局下读不到，条件无法判断。</sys:String>
     <sys:String x:Key="Editor.SkillTimeNoOperator">小队中没有能读取战技持续时间的干员（目前只有祀）。</sys:String>
     <sys:String x:Key="Editor.Condition.Counter">干员资源</sys:String>
@@ -165,6 +175,7 @@
     <sys:String x:Key="Rotation.Problem.PhaseShownOwnGate">轴段“{0}”的进入条件用了它自己的显示次数：它一出现，次数就变了，条件也跟着变。请改用其他轴段的次数。</sys:String>
     <sys:String x:Key="Rotation.Problem.PhaseShownMissingPhase">轴段“{0}”的条件引用了一个已删除的轴段，请重新选择轴段或删除这个条件。</sys:String>
     <sys:String x:Key="Rotation.Problem.PhasePlayedMissingPhase">轴段“{0}”的完成次数条件引用了一个已删除的轴段，请重新选择轴段或删除这个条件。</sys:String>
+    <sys:String x:Key="Rotation.Problem.UltimateTimeNotRead">轴段“{0}”的条件中“终结技剩余持续时间”选了莱万汀、庄方宜、伊冯以外的干员：目前只读取她们的终结技持续时间，这个条件永远无法判断。请改选她们之一，或删除这个条件。</sys:String>
     <sys:String x:Key="Rotation.Problem.SkillTimeNotRead">轴段“{0}”的条件中“战技持续中”选了祀以外的干员：目前只读取祀的战技持续时间，这个条件永远无法判断。请改选祀，或删除这个条件。</sys:String>
     <sys:String x:Key="Rotation.Problem.PhasePlayedOwnGate">轴段“{0}”的进入条件要求它自己先完成过：可它要先出现才能被完成，所以永远不会出现。请改用其他轴段的次数，或改用“至多”“小于”。</sys:String>
     <sys:String x:Key="Editor.CopyPhase">复制轴段</sys:String>
@@ -441,6 +452,11 @@
     <sys:String x:Key="Alert.Describe.Controlling">正在操控 {0}</sys:String>
     <sys:String x:Key="Alert.Describe.PhaseShown">{0} 已显示 {1} {2} 次</sys:String>
     <sys:String x:Key="Alert.Describe.PhasePlayed">{0} 已完成 {1} {2} 次</sys:String>
+    <sys:String x:Key="Alert.Describe.UltimateTimeLeft">{0} 终结技剩余持续时间 {1} {2}%</sys:String>
+    <sys:String x:Key="Alert.Describe.PhaseCurrent">当前轴段 是 {0}</sys:String>
+    <sys:String x:Key="Alert.Describe.PhaseCurrent.Played">当前轴段 是 {0} 且本次已打完</sys:String>
+    <sys:String x:Key="Alert.Describe.PhaseCurrent.NotPlayed">当前轴段 是 {0} 且本次未打完</sys:String>
+    <sys:String x:Key="Alerts.Problem.UltimateTimeNotRead">提示“{0}”的条件中“终结技剩余持续时间”选了莱万汀、庄方宜、伊冯以外的干员：目前只读取她们的终结技持续时间，这个条件永远无法判断。请改选她们之一，或删除这个条件。</sys:String>
     <sys:String x:Key="Alert.Sample">战斗提示会在这里弹出</sys:String>
     <sys:String x:Key="Alerts.Title">战斗提示</sys:String>
     <sys:String x:Key="Alerts.Intro">战斗中条件满足时，在屏幕右侧（和连携提示左右对称的位置）弹出提示：圆圈里是提示的对象（技力、敌人状态或干员头像），旁边滑出提示文字。最多显示 3 秒，条件不再满足时提前收起；条件要先不满足、再次满足，才会再次提示。对所有小队和排轴都有效。</sys:String>

@@ -42,6 +42,15 @@ public sealed class PhaseSelector(Rotation rotation) : IPhaseHistory
     /// <summary>The last <see cref="Update"/> had no step follower: the battle-skill keys aren't read, "phase played" is ignored.</summary>
     public bool PlayedIgnored => _plays is null;
 
+    /// <summary>
+    /// The phase on the strip (<see cref="PhaseCurrentCondition"/>): during an <see cref="Update"/>, the
+    /// one shown by the reading before, as the counts are; null before the first reading of a fight.
+    /// </summary>
+    public string? CurrentPhase => _current is { } i ? rotation.Phases[i].Id : null;
+
+    /// <summary>Played through since it last came onto the strip, from the step follower of the last <see cref="Update"/>; null without one.</summary>
+    public bool? PlayedThroughThisShowing(string phaseId) => _plays?.PlayedThroughThisShowing(phaseId);
+
     /// <summary>Times the phase has come onto the strip this fight (the one on it now included); null for a phase not in the rotation.</summary>
     public int? TimesShown(string phaseId)
     {

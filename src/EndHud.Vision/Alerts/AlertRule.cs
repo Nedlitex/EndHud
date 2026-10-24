@@ -42,6 +42,7 @@ public sealed record AlertRule(string Id, IReadOnlyList<StateCondition> When, st
             {
                 ConditionProblemKind.EmptyGroup => AlertProblem.EmptyConditionGroup,
                 ConditionProblemKind.SkillTimeNotRead => AlertProblem.SkillTimeNotRead,
+                ConditionProblemKind.UltimateTimeNotRead => AlertProblem.UltimateTimeNotRead,
                 _ => (AlertProblem?)null,
             };
             if (kind is { } k && !problems.Contains(k)) problems.Add(k);
@@ -69,7 +70,8 @@ public enum AlertProblem
 public sealed record AlertFile(int Format, IReadOnlyList<AlertRule> Rules)
 {
     /// <summary>
-    /// 4: "phase shown" conditions (<see cref="PhaseShownCondition"/>; before, the editor refused them).
+    /// 4: "phase shown" conditions (<see cref="PhaseShownCondition"/>; before, the editor refused them), "time
+    /// left of the ultimate" and "the current phase is" (<see cref="UltimateTimeLeftCondition"/>, <see cref="PhaseCurrentCondition"/>).
     /// 3: "battle skill running" conditions (<see cref="BattleSkillActiveCondition"/>).
     /// 2: "phase played" conditions (<see cref="PhasePlayedCondition"/>). 1: everything else. Rules are
     /// written in the lowest format that holds them (<see cref="FormatNeeded"/>), so a build from

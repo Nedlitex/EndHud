@@ -83,7 +83,7 @@ internal sealed class RotationDraft
                 // A priority rule's condition: the same problems as an entry condition's, naming the rule.
                 RotationProblemKind.ConditionOperatorNotInSquad when problem.Rule is { } rule => Loc.Format("Rotation.Problem.RuleOperator", problem.Phase ?? "", rule),
                 RotationProblemKind.EmptyConditionGroup when problem.Rule is { } rule => Loc.Format("Rotation.Problem.EmptyRuleGroup", problem.Phase ?? "", rule),
-                RotationProblemKind.PhaseShownMissingPhase or RotationProblemKind.PhasePlayedMissingPhase when problem.Rule is { } rule =>
+                RotationProblemKind.PhaseShownMissingPhase or RotationProblemKind.PhasePlayedMissingPhase or RotationProblemKind.PhaseCurrentMissingPhase when problem.Rule is { } rule =>
                     Loc.Format("Rotation.Problem.RuleMissingPhase", problem.Phase ?? "", rule),
                 RotationProblemKind.PriorityRuleWithoutCondition => Loc.Format("Rotation.Problem.RuleWithoutCondition", problem.Phase ?? "", problem.Rule ?? 0),
                 RotationProblemKind.PriorityWithoutEntryCondition => Loc.Format("Rotation.Problem.PriorityWithoutGate", problem.Phase ?? ""),
@@ -97,10 +97,12 @@ internal sealed class RotationDraft
                 RotationProblemKind.EmptyConditionGroup when problem.Step is null => Loc.Format("Rotation.Problem.EmptyGateGroup", problem.Phase ?? ""),
                 RotationProblemKind.EmptyConditionGroup => Loc.Format("Rotation.Problem.EmptyGroup", problem.Phase ?? "", problem.Step ?? 0),
                 RotationProblemKind.PhaseShownOwnGate => Loc.Format("Rotation.Problem.PhaseShownOwnGate", problem.Phase ?? ""),
-                RotationProblemKind.PhaseShownMissingPhase => Loc.Format("Rotation.Problem.PhaseShownMissingPhase", problem.Phase ?? ""),
+                // The sentence names no kind: "the condition names a deleted phase".
+                RotationProblemKind.PhaseShownMissingPhase or RotationProblemKind.PhaseCurrentMissingPhase => Loc.Format("Rotation.Problem.PhaseShownMissingPhase", problem.Phase ?? ""),
                 RotationProblemKind.PhasePlayedMissingPhase => Loc.Format("Rotation.Problem.PhasePlayedMissingPhase", problem.Phase ?? ""),
                 RotationProblemKind.PhasePlayedOwnGateNeverOpens => Loc.Format("Rotation.Problem.PhasePlayedOwnGate", problem.Phase ?? ""),
                 RotationProblemKind.SkillTimeNotRead => Loc.Format("Rotation.Problem.SkillTimeNotRead", problem.Phase ?? ""),
+                RotationProblemKind.UltimateTimeNotRead => Loc.Format("Rotation.Problem.UltimateTimeNotRead", problem.Phase ?? ""),
                 _ => null,
             };
             if (message is not null && !messages.Contains(message)) messages.Add(message);

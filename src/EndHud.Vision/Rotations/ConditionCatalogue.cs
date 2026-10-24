@@ -46,6 +46,9 @@ public enum ConditionNeeds
 
     /// <summary>Only for operators whose battle-skill time is read (<see cref="SkillRing.Operators"/>).</summary>
     SkillTime = 8,
+
+    /// <summary>Only for operators whose lasting ultimate is read (<see cref="LastingUltimates.Operators"/>).</summary>
+    UltimateTime = 16,
 }
 
 /// <summary>One kind of condition, as everything that handles conditions sees it.</summary>
@@ -73,7 +76,10 @@ public sealed record ConditionKind(
     IReadOnlySet<ConditionHostKind> Hosts)
 {
     /// <summary>The only operators it can be told for; null: anyone.</summary>
-    public IReadOnlyCollection<string>? OnlyFor => Needs.HasFlag(ConditionNeeds.SkillTime) ? SkillRing.Operators : null;
+    public IReadOnlyCollection<string>? OnlyFor =>
+        Needs.HasFlag(ConditionNeeds.SkillTime) ? SkillRing.Operators
+        : Needs.HasFlag(ConditionNeeds.UltimateTime) ? LastingUltimates.Operators
+        : null;
 }
 
 /// <summary>
@@ -102,6 +108,7 @@ public static class ConditionCatalogue
         Kind<UltimateCondition>("Ultimate", "ultimate", "Ultimate", 2, 1, who: c => c.OperatorId),
         Kind<UltimateChargeCondition>("UltimateCharge", "ultimateCharge", "UltimateCharge", 2, 1, who: c => c.OperatorId, comparison: c => c.Is),
         Kind<UltimateActiveCondition>("UltimateActive", "ultimateActive", "UltimateActive", 3, 1, who: c => c.OperatorId),
+        Kind<UltimateTimeLeftCondition>("UltimateTimeLeft", "ultimateTimeLeft", "UltimateTimeLeft", 9, 4, ConditionNeeds.UltimateTime, who: c => c.OperatorId, comparison: c => c.Is),
         Kind<BattleSkillActiveCondition>("BattleSkillActive", "battleSkillActive", "BattleSkillActive", 7, 3, ConditionNeeds.SkillTime, who: c => c.OperatorId),
         Kind<CounterCondition>("Counter", "counter", "Counter", 2, 1, who: c => c.OperatorId, comparison: c => c.Is),
         Kind<BossStatusCondition>("BossStatus", "bossStatus", "BossStatus", 2, 1, ConditionNeeds.BossStatuses),
@@ -109,6 +116,8 @@ public static class ConditionCatalogue
         // An alert names a phase of any of the player's rotations, told while that rotation is followed.
         Kind<PhaseShownCondition>("PhaseShown", "phaseShown", "PhaseShown", 4, 4, ConditionNeeds.Phase, comparison: c => c.Is, phase: c => c.PhaseId),
         Kind<PhasePlayedCondition>("PhasePlayed", "phasePlayed", "PhasePlayed", 5, 2, ConditionNeeds.Phase | ConditionNeeds.KeysRead, comparison: c => c.Is, phase: c => c.PhaseId),
+        // Its played-through part needs the keys read, but "the phase is X" doesn't: never greyed out.
+        Kind<PhaseCurrentCondition>("PhaseCurrent", "phaseCurrent", "PhaseCurrent", 9, 4, ConditionNeeds.Phase, phase: c => c.PhaseId),
         Kind<AllCondition>("All", "all", "Group", 2, 1),
         Kind<AnyCondition>("Any", "any", "Group", 2, 1),
         Kind<NotCondition>("Not", "not", null, 3, 1),
@@ -226,7 +235,7 @@ public static class ConditionRules
             return ConditionProblemKind.PhaseShownOwnGate;
         string? who = kind.OperatorOf(condition);
         if (who is not null && kind.OnlyFor is { } readable && !readable.Contains(who))
-            return ConditionProblemKind.SkillTimeNotRead;
+            return kind.Needs.HasFlag(ConditionNeeds.SkillTime) ? ConditionProblemKind.SkillTimeNotRead : ConditionProblemKind.UltimateTimeNotRead;
         if (who is not null && host.Squad is { } squad && !squad.Contains(who))
             return ConditionProblemKind.OperatorNotInSquad;
         return null;

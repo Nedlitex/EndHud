@@ -366,6 +366,43 @@ public sealed class RotationEditorTests : IDisposable
         Assert.Contains("\"action\": \"HeavyAttack\"", File.ReadAllText(Directory.GetFiles(_folder, "*.json").Single()));
     }
 
+    /// <summary>
+    /// The kinds added on 2026-10-24, from the pickers: "the current phase is Charge, not played
+    /// through yet" and "Laevatain's ultimate has at most 30% of its time left" (only the operators
+    /// whose lasting ultimate is read are offered). Saved in format 9.
+    /// </summary>
+    [Fact]
+    public void The_current_phase_and_the_ultimate_time_left_are_built_with_the_pickers()
+    {
+        var library = TwoPhases();
+
+        string said = "";
+        List<object> whoOffered = [];
+        OnEditor(library, _ => { }, editor =>
+        {
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;               // Burst
+            Click(editor, "AddGateButton");
+            var gate = (StackPanel)editor.FindName("GateRows");
+            Pick(RowOf(gate.Children[0]).Children.OfType<ComboBox>().First(), "PhaseCurrent");
+            var current = RowOf(gate.Children[0]).Children.OfType<ComboBox>().ToList(); // kind, phase, played through
+            Pick(current[1], ("p", "Charge I"));
+            Pick(current[2], 2);
+            Click(editor, "AddGateButton");
+            Pick(RowOf(gate.Children[1]).Children.OfType<ComboBox>().First(), "UltimateTimeLeft");
+            var left = RowOf(gate.Children[1]).Children.OfType<ComboBox>().ToList();   // kind, who, compare, percent
+            whoOffered = left[1].Items.Cast<ComboBoxItem>().Select(i => i.Tag).ToList();
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        });
+
+        Assert.Equal(["Laevatain"], whoOffered);
+        var saved = Assert.Single(library.Own.Load().Rotations);
+        Assert.True(saved.Phases[1].When.Count == 2, $"editor said: {said}");
+        Assert.Equal(new PhaseCurrentCondition("p", PlayedThrough: false), saved.Phases[1].When[0]);
+        Assert.Equal(new UltimateTimeLeftCondition("Laevatain", Comparison.AtMost, 30), saved.Phases[1].When[1]);
+        Assert.Equal(9, saved.Format);
+    }
+
     /// <summary>"mine": Charge (id p), then Burst (id burst) with this entry condition.</summary>
     private RotationLibrary TwoPhases(params StateCondition[] burstGate)
     {

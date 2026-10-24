@@ -315,6 +315,8 @@ public sealed record Rotation(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool LastMatchWins = false)
 {
     /// <summary>
+    /// 9: "time left of the ultimate" and "the current phase is" conditions
+    /// (<see cref="UltimateTimeLeftCondition"/>, <see cref="PhaseCurrentCondition"/>).
     /// 8: heavy-attack steps (<see cref="StepAction.HeavyAttack"/>).
     /// 7: "battle skill running" conditions (<see cref="BattleSkillActiveCondition"/>).
     /// 6: phase priorities (<see cref="RotationPhase.Priority"/>, <see cref="RotationPhase.PriorityRules"/>).
@@ -324,7 +326,7 @@ public sealed record Rotation(
     /// holds it (<see cref="FormatNeeded"/>), so one that uses nothing new stays readable by builds
     /// from before format 3.
     /// </summary>
-    public const int CurrentFormat = 8;
+    public const int CurrentFormat = 9;
 
     /// <summary>The lowest format that holds these phases and options.</summary>
     public static int FormatNeeded(IEnumerable<RotationPhase> phases, bool lastMatchWins)
@@ -440,6 +442,8 @@ public sealed record Rotation(
                 ConditionProblemKind.EmptyGroup => RotationProblemKind.EmptyConditionGroup,
                 ConditionProblemKind.OperatorNotInSquad => RotationProblemKind.ConditionOperatorNotInSquad,
                 ConditionProblemKind.MissingPhase when problem.Condition is PhasePlayedCondition => RotationProblemKind.PhasePlayedMissingPhase,
+                ConditionProblemKind.MissingPhase when problem.Condition is PhaseCurrentCondition => RotationProblemKind.PhaseCurrentMissingPhase,
+                ConditionProblemKind.UltimateTimeNotRead => RotationProblemKind.UltimateTimeNotRead,
                 ConditionProblemKind.MissingPhase => RotationProblemKind.PhaseShownMissingPhase,
                 ConditionProblemKind.PhaseShownOwnGate => RotationProblemKind.PhaseShownOwnGate,
                 ConditionProblemKind.PhasePlayedOwnGateNeverOpens => RotationProblemKind.PhasePlayedOwnGateNeverOpens,
