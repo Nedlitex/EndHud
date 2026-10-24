@@ -1926,7 +1926,10 @@ and the current step decide. Measuring the diamond brings it back.
 (readings, the corner sampled between them, casts judged); `endhud-cli trace-video --casts` prints them, and
 `RecordedCastsTests` runs it on `Recordings/battle-casts-30fps.mp4` (30 fps, the fight of the bug below) against its
 casts labelled by eye. On the research recordings (keyboard, 61 casts): 50 named by the flash, 2 by the countdown, 9
-by nobody (fills against bright or blue scenes), 0 wrong slots on the 16 checked by eye.
+by nobody (fills against bright or blue scenes), 0 wrong slots on the 16 checked by eye. This implementation, through
+`trace-video --casts` on battle_test2_si (not in the repository; its 13 casts labelled by eye): 12 named on the
+right slot, 0 wrong, 0 cast that wasn't, the 13th (85.6 s, a bright blue scene) unattributed; each decided 0.3-0.9 s
+after the cast (the fill is told after it ends, and a drop waits for it).
 
 **Resync** ([`StepFollower`](src/EndHud.Vision/Rotations/StepFollower.cs); owner, 2026-10-24: "if somehow we didnt
 track battle skill but observe combo, we should jump to the combo"):
