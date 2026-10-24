@@ -8,18 +8,27 @@ namespace EndHud;
 
 /// <summary>
 /// What the rotation strip shows for a tracker position: the phase it's in. Every step looks the
-/// same: EndHud can't see which button the player pressed, so it doesn't mark a current step (no
-/// chevrons, nothing greyed out as done, no reasons why "this" step isn't ready).
+/// same unless the player has turned on reading their battle-skill keys; then done steps fade and
+/// the current one has chevrons (cyan: use it now; white: not yet, with why under the strip).
 /// </summary>
 internal static class RotationStripView
 {
     /// <summary>How many of the next phase's steps the strip shows after the current phase.</summary>
     public const int NextStepsShown = 2;
 
-    /// <summary>What to draw for a tracker position: its phase (see <see cref="ForPhase"/>).</summary>
-    public static StripView Build(Rotation rotation, RotationPosition position, PartyState? state, OperatorLibrary? library,
-        Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar) =>
-        ForPhase(rotation, position.Step.PhaseIndex, library, skillIcon, avatar);
+    /// <summary>What to draw for a tracker position: its phase (see <see cref="ForPhase"/>), with the steps marked when <paramref name="steps"/> says where the player is.</summary>
+    /// <param name="steps">Where the player is inside the phase (<see cref="StepFollower"/>); null: every step alike.</param>
+    public static StripView Build(Rotation rotation, RotationPosition position, StepPosition? steps, PartyState? state, OperatorLibrary? library,
+        Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar)
+    {
+        var view = ForPhase(rotation, position.Step.PhaseIndex, library, skillIcon, avatar, steps);
+        if (steps is not { Ready: false } || steps.Phase != position.Step.PhaseIndex) return view;
+        int current = steps.Marks.ToList().IndexOf(StepMark.Current);
+        if (current < 0) return view;
+        var step = rotation.Played().Where(p => p.PhaseIndex == steps.Phase).ElementAt(current).Step;
+        var reasons = steps.Checks.Where(c => c.Holds == false).Select(c => Reason(c, step, state, library)).OfType<string>().ToList();
+        return view with { Reasons = reasons };
+    }
 
     /// <summary>
     /// What to drag and size while the menu is open, out of battle: the first phase of the rotation
@@ -39,30 +48,42 @@ internal static class RotationStripView
     /// can mark where this phase ends. The editor's preview uses this too, so it shows what the game
     /// will.
     /// </summary>
+    /// <param name="steps">Where the player is inside this phase; null (the editor's preview, or no keys read): every step alike.</param>
     public static StripView ForPhase(Rotation rotation, int phase, OperatorLibrary? library,
-        Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar)
+        Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, StepPosition? steps = null)
     {
         var played = rotation.Played();
         var current = played.Where(p => p.PhaseIndex == phase).ToList();
+        // Marks for another phase (or a different count of steps) aren't this phase's: drawn alike.
+        if (steps is not null && (steps.Phase != phase || steps.Marks.Count != current.Count)) steps = null;
         StripNext? next = null;
         if (rotation.NextInFlow(phase) is { } n)
         {
             var upcoming = played.Where(p => p.PhaseIndex == n).Take(NextStepsShown).ToList();
             // The first of them starts a new phase: never drawn overlapping the step before.
-            next = new StripNext(upcoming[0].PhaseLabel, upcoming.Select((p, i) => Step(p, library, skillIcon, avatar, i > 0)).ToList());
+            next = new StripNext(upcoming[0].PhaseLabel, upcoming.Select((p, i) => Step(p, library, skillIcon, avatar, i > 0, StripStepState.Upcoming)).ToList());
         }
-        return new StripView(rotation.PhaseLabel(phase), current.Select((p, i) => Step(p, library, skillIcon, avatar, i > 0)).ToList(), next, []);
+        return new StripView(rotation.PhaseLabel(phase),
+            current.Select((p, i) => Step(p, library, skillIcon, avatar, i > 0, State(steps, i))).ToList(), next, []);
     }
 
+    /// <summary>How the <paramref name="index"/>th step of the phase is drawn.</summary>
+    private static StripStepState State(StepPosition? steps, int index) => steps is null ? StripStepState.Upcoming : steps.Marks[index] switch
+    {
+        StepMark.Done => StripStepState.Done,
+        StepMark.Current => steps.Ready ? StripStepState.Ready : StripStepState.Waiting,
+        _ => StripStepState.Upcoming,
+    };
+
     private static StripStep Step(PlayedStep p, OperatorLibrary? library,
-        Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, bool mayOverlap)
+        Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, bool mayOverlap, StripStepState state)
     {
         var op = library?.Find(p.Step.OperatorId);
         // A basic attack has no skill icon: the operator's face fills the circle instead, and no small face in the corner.
         bool basic = p.Step.Action == StepAction.BasicAttack;
         var icon = op is null ? null : basic ? avatar(op) : skillIcon(op, p.Step.Action);
         return new StripStep(icon, op is null || basic ? null : avatar(op),
-            p.Step.Label ?? Loc.Get($"Rotation.Action.{p.Step.Action}"), p.Step.Note, StripStepState.Upcoming, mayOverlap && p.Step.WithPrevious);
+            p.Step.Label ?? Loc.Get($"Rotation.Action.{p.Step.Action}"), p.Step.Note, state, mayOverlap && p.Step.WithPrevious);
     }
 
     /// <summary>Why the current step isn't ready, in words.</summary>
@@ -94,7 +115,7 @@ internal static class RotationStripView
                 StatusNames.Zh(c.StatusId) ?? c.StatusId),
             ControllingCondition c => Loc.Format("Rotation.Reason.Controlling", Name(c.OperatorId)),
             // An unmet "all": its parts that don't hold. An unmet "any": every part, as alternatives.
-            // No phase history here: the strip shows no reasons in game today, so a "phase shown" part stays unknown.
+            // No phase history here: a "phase shown" part stays unknown, so it isn't listed as unmet.
             AllCondition all => JoinReasons(all.Of.Where(part => state is null || RotationTracker.Evaluate(part, state, PhaseHistory.None) == false), "　", step, state, library),
             AnyCondition any => JoinReasons(any.Of, Loc.Get("Rotation.Reason.Or"), step, state, library) is { } alternatives ? Loc.Format("Rotation.Reason.AnyOf", alternatives) : null,
             NotCondition not => Reason(new ConditionCheck(CheckKind.Expected, not.Of, false), step, state, library) is { } inner ? Loc.Format("Rotation.Reason.Not", inner) : null,

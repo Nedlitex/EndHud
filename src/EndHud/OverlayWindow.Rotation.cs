@@ -90,7 +90,7 @@ public partial class OverlayWindow
     }
 
     private StripView View(Rotation rotation, RotationPosition position) =>
-        RotationStripView.Build(rotation, position, _lastState, _party.Identifier?.Library, SkillIcon, Avatar);
+        RotationStripView.Build(rotation, position, steps: null, _lastState, _party.Identifier?.Library, SkillIcon, Avatar);
 
     /// <summary>The operator's icon for this action, from the library; loaded once, in the background.</summary>
     private BitmapSource? SkillIcon(OperatorInfo op, StepAction action)
