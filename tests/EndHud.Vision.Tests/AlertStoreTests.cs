@@ -109,7 +109,7 @@ public sealed class AlertStoreTests : IDisposable
     public void A_newer_file_is_left_alone_and_save_is_refused()
     {
         Directory.CreateDirectory(_folder);
-        const string newer = "{ \"format\": 2, \"rules\": [] }";
+        const string newer = "{ \"format\": 3, \"rules\": [] }";
         File.WriteAllText(FilePath, newer);
         var store = new AlertStore(FilePath);
 

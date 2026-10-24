@@ -8,7 +8,8 @@ namespace EndHud.Vision.Alerts;
 /// rotations), a pop-up with <see cref="Message"/> shows. Global: for every fight and every squad.
 /// </summary>
 /// <param name="Id">Kept for the rule's whole life: correcting a rule rewrites it under the same id.</param>
-/// <param name="When">All must hold. Every rotation condition kind except "phase shown" (there is no rotation).</param>
+/// <param name="When">All must hold. Every rotation condition kind except "phase shown" (there is no rotation).
+/// "Phase played" names a phase of one of the player's rotations: known while that rotation is the one followed.</param>
 /// <param name="Message">What the pop-up says; empty: the condition itself in words.</param>
 public sealed record AlertRule(string Id, IReadOnlyList<StateCondition> When, string Message)
 {
@@ -55,7 +56,17 @@ public enum AlertProblem
 /// <summary>The alerts file: every rule, in the player's order.</summary>
 public sealed record AlertFile(int Format, IReadOnlyList<AlertRule> Rules)
 {
-    public const int CurrentFormat = 1;
+    /// <summary>
+    /// 2: "phase played" conditions (<see cref="PhasePlayedCondition"/>). 1: everything else. Rules are
+    /// written in the lowest format that holds them (<see cref="FormatNeeded"/>), so a build from
+    /// before format 2 still reads rules that use nothing new, and refuses the rest as "newer"
+    /// (never renaming the file as unreadable).
+    /// </summary>
+    public const int CurrentFormat = 2;
+
+    /// <summary>The lowest format that holds these rules.</summary>
+    public static int FormatNeeded(IEnumerable<AlertRule> rules) =>
+        ConditionWalk.Flatten(rules.SelectMany(r => r.When)).Any(c => c is PhasePlayedCondition) ? 2 : 1;
 
     /// <summary>The most rules kept: "new" and imports stop here.</summary>
     public const int MaxRules = 100;

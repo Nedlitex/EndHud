@@ -39,8 +39,11 @@ public static class AlertFormat
 
     private static readonly JsonSerializerOptions Compact = new(Json) { WriteIndented = false };
 
-    public static string ToJson(IEnumerable<AlertRule> rules) =>
-        JsonSerializer.Serialize(new AlertFile(AlertFile.CurrentFormat, rules.ToList()), Json);
+    public static string ToJson(IEnumerable<AlertRule> rules)
+    {
+        var list = rules.ToList();
+        return JsonSerializer.Serialize(new AlertFile(AlertFile.FormatNeeded(list), list), Json);
+    }
 
     public static IReadOnlyList<AlertRule> FromJson(string json)
     {
@@ -70,7 +73,10 @@ public static class AlertFormat
     {
         using var buffer = new MemoryStream();
         using (var deflate = new DeflateStream(buffer, CompressionLevel.SmallestSize))
-            deflate.Write(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new AlertFile(AlertFile.CurrentFormat, rules.ToList()), Compact)));
+        {
+            var list = rules.ToList();
+            deflate.Write(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new AlertFile(AlertFile.FormatNeeded(list), list), Compact)));
+        }
         return ShareCodePrefix + Convert.ToBase64String(buffer.ToArray()).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }
 

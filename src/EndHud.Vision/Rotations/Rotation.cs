@@ -217,19 +217,20 @@ public sealed record Rotation(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool LastMatchWins = false)
 {
     /// <summary>
-    /// 4: basic-attack steps, "phase shown" conditions, the "below"/"above" (<see cref="Comparison.Below"/>,
+    /// 5: "phase played" conditions (<see cref="PhasePlayedCondition"/>). 4: basic-attack steps, "phase shown" conditions, the "below"/"above" (<see cref="Comparison.Below"/>,
     /// <see cref="Comparison.Above"/>) comparisons. 3: "not" and "ultimate active" conditions, and <see cref="LastMatchWins"/>. 2: phases with entry conditions, all/any
     /// groups. 1 (read, converted): a fixed sequence. A rotation is saved in the lowest format that
     /// holds it (<see cref="FormatNeeded"/>), so one that uses nothing new stays readable by builds
     /// from before format 3.
     /// </summary>
-    public const int CurrentFormat = 4;
+    public const int CurrentFormat = 5;
 
     /// <summary>The lowest format that holds these phases and options.</summary>
     public static int FormatNeeded(IEnumerable<RotationPhase> phases, bool lastMatchWins)
     {
         var list = phases.ToList();
         var conditions = ConditionWalk.Of(list).ToList();
+        if (conditions.Any(c => c is PhasePlayedCondition)) return 5;
         if (list.Any(p => p.Steps.Any(s => s.Action == StepAction.BasicAttack))
             || conditions.Any(c => c is PhaseShownCondition || ConditionWalk.ComparisonOf(c) is Comparison.Below or Comparison.Above))
             return 4;
@@ -304,6 +305,8 @@ public sealed record Rotation(
             else if (phase.Steps[0].WithPrevious)
                 problems.Add(new RotationProblem(RotationProblemKind.FirstStepWithPrevious, phase.Name, 1));
             CheckConditions(phase.When, phase, null, problems);
+            if (Required(phase.When).Any(c => c is PhasePlayedCondition own && own.PhaseId == phase.Id && !Holds(0, own.Is, own.Times)))
+                problems.Add(new RotationProblem(RotationProblemKind.PhasePlayedOwnGateNeverOpens, phase.Name));
             for (int i = 0; i < phase.Steps.Count; i++)
             {
                 var step = phase.Steps[i];
@@ -335,6 +338,9 @@ public sealed record Rotation(
                 case NotCondition not:
                     CheckConditions([not.Of], owner, step, problems);
                     break;
+                case PhasePlayedCondition played when Phase(played.PhaseId) is null:
+                    problems.Add(new RotationProblem(RotationProblemKind.PhasePlayedMissingPhase, phase, step));
+                    break;
                 case PhaseShownCondition shown when Phase(shown.PhaseId) is null:
                     problems.Add(new RotationProblem(RotationProblemKind.PhaseShownMissingPhase, phase, step));
                     break;
@@ -362,6 +368,20 @@ public sealed record Rotation(
             }
         }
     }
+
+    /// <summary>The conditions that must all hold: the list's, and inside "all" groups (not inside an "or" or a "not").</summary>
+    private static IEnumerable<StateCondition> Required(IEnumerable<StateCondition> conditions) =>
+        conditions.SelectMany(c => c is AllCondition all ? Required(all.Of) : [c]);
+
+    /// <summary>Does a whole count compare so (the comparisons of <see cref="RotationTracker"/>, on whole numbers)?</summary>
+    private static bool Holds(int count, Comparison comparison, int target) => comparison switch
+    {
+        Comparison.AtLeast => count >= target,
+        Comparison.AtMost => count <= target,
+        Comparison.Below => count < target,
+        Comparison.Above => count > target,
+        _ => count == target,
+    };
 
     private static string Roman(int n)
     {
