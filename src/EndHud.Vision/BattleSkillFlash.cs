@@ -90,7 +90,6 @@ public static class BattleSkillFlash
     /// <param name="button">0-3, from the left.</param>
     public static FlashSample Measure(Frame image, double scale, int button)
     {
-        if (button >= 0) return new FlashSample(-1, -1, -1, 0); // RED: not measured yet
         double cx = image.Width - (UiScaler.ReferenceWidth - (CentreX + button * SkillLayout.Pitch)) * scale;
         double cy = image.Height - (UiScaler.ReferenceHeight - CentreY) * scale;
         Span<int> fill = stackalloc int[256], spread = stackalloc int[256], scene = stackalloc int[256];
