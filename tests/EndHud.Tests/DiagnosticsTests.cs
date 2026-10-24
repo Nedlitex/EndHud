@@ -1,6 +1,7 @@
 using System.IO;
 using System.IO.Compression;
 using EndHud.Vision;
+using EndHud.Vision.Tests;
 using Xunit;
 
 namespace EndHud.Tests;
@@ -107,6 +108,60 @@ public class DiagnosticsTests : IDisposable
         var uid = DiagnosticExport.UidArea(2560, 1440);
         Assert.Equal((byte)0, masked.GetPixel(uid.X + uid.Width / 2, 80 + uid.Y + uid.Height / 2).R);
         Assert.Equal((byte)255, masked.GetPixel(1280, 800).R);
+    }
+
+    /// <summary>
+    /// A 16:10 screen with MSI Afterburner's on-screen display (RivaTuner) in the bottom bar: the bars are still found, so
+    /// the UID is blacked out where it is in the picture, in the exported game picture too (2026-10-24 investigation: the
+    /// display kept the bars and the mask fell in the bar, the UID showing).
+    /// </summary>
+    [Fact]
+    public async Task With_an_on_screen_display_in_the_bottom_bar_the_uid_is_still_blacked_out()
+    {
+        var (padded, picture) = SyntheticOsd.Letterboxed(White(2560, 1440), 2560, 1600);
+        var frame = SyntheticOsd.Draw(padded, OsdPosition.BottomRight, background: true);
+        var uid = DiagnosticExport.UidArea(picture.Width, picture.Height);
+        int x = picture.X + uid.X + uid.Width / 2, y = picture.Y + uid.Y + uid.Height / 2;
+
+        var masked = DiagnosticExport.WithoutUid(frame);
+        Assert.Equal((byte)0, masked.GetPixel(x, y).R);
+        Assert.Equal((byte)255, masked.GetPixel(x, picture.Y + uid.Y - 4).R);
+
+        string config = Path.Combine(Directory.CreateDirectory(_folder).FullName, "config.json");
+        File.WriteAllText(config, "{}");
+        string zip = Path.Combine(_folder, "out", "osd.zip");
+        await OnSta(() => DiagnosticExport.WriteAsync(DiagnosticSize.Full, zip, "game window: 2560x1600", frame, config, []));
+        using var archive = ZipFile.OpenRead(zip);
+        string extracted = Path.Combine(_folder, "osd-game.png");
+        archive.GetEntry("game.png")!.ExtractToFile(extracted);
+        Assert.Equal((byte)0, (await ImageFile.LoadAsync(extracted)).GetPixel(x, y).R);
+    }
+
+    /// <summary>
+    /// A frame that isn't 16:9 whose edges aren't black enough to be bars (something lit across the top one): the whole
+    /// frame is read, but the UID is also blacked out where it would be in a letterboxed picture, in case they were bars.
+    /// </summary>
+    [Fact]
+    public void When_bars_are_expected_but_rejected_the_uid_is_blacked_out_where_they_would_put_it()
+    {
+        var (frame, picture) = SyntheticOsd.Letterboxed(White(2560, 1440), 2560, 1600);
+        for (int x = 0; x < frame.Width; x++) frame.Bgra[(10 * frame.Width + x) * 4 + 1] = 200;
+        Assert.Equal(new PixelRect(0, 0, 2560, 1600), Letterbox.Content(frame));
+
+        var masked = DiagnosticExport.WithoutUid(frame);
+
+        var inPicture = DiagnosticExport.UidArea(picture.Width, picture.Height);
+        Assert.Equal((byte)0, masked.GetPixel(picture.X + inPicture.X + inPicture.Width / 2, picture.Y + inPicture.Y + inPicture.Height / 2).R);
+        var inFrame = DiagnosticExport.UidArea(frame.Width, frame.Height);
+        Assert.Equal((byte)0, masked.GetPixel(inFrame.X + inFrame.Width / 2, inFrame.Y + inFrame.Height / 2).R);
+        Assert.Equal((byte)255, masked.GetPixel(1280, 800).R);
+    }
+
+    private static Frame White(int width, int height)
+    {
+        var bgra = new byte[width * height * 4];
+        Array.Fill(bgra, (byte)255);
+        return new Frame(width, height, bgra);
     }
 
     [Theory]

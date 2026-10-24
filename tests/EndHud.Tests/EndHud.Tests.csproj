@@ -27,6 +27,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The synthetic RivaTuner/Afterburner on-screen display, shared with the vision tests. -->
+    <Compile Include="..\EndHud.Vision.Tests\Support\SyntheticOsd.cs" Link="Support\SyntheticOsd.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- The readings of the owner's 2026-10-20 inn recording (text: what the readers read on each frame, no picture),
          replayed through the session and the overlays' views (InnReplayTests). -->
     <None Include="Fixtures\inn-replay\*.jsonl.gz" CopyToOutputDirectory="PreserveNewest" />
