@@ -28,7 +28,7 @@ public sealed class FlashSampler
         var buttons = BattleSkillFlash.MeasureAll(corner, scale);
         lock (_lock)
         {
-            foreach (var flash in _tracker.Add(at, buttons).Take(0)) // RED: nothing told
+            foreach (var flash in _tracker.Add(at, buttons))
             {
                 _told.Add(flash);
                 _byKind[(int)flash.Kind]++;

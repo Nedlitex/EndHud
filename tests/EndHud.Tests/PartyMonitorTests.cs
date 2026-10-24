@@ -41,4 +41,18 @@ public class PartyMonitorTests
         Assert.All(hidden.Slots, s => Assert.Null(s.Operator));
         Assert.All(first.Slots, s => Assert.Null(s.Operator));
     }
+
+    [Fact]
+    public void The_battle_skill_buttons_are_sampled_in_battle_with_keyboard_and_mouse_through_the_window_only()
+    {
+        var now = TimeSpan.Zero;
+        Assert.True(PartyMonitor.SamplesFlashes(HudLayout.KeyboardMouse, fromWindow: true, now));
+        // Through an ultimate's cutscene (the panel hidden), and not after.
+        Assert.True(PartyMonitor.SamplesFlashes(HudLayout.KeyboardMouse, fromWindow: true, PartyMonitor.FlashSamplingHold));
+        Assert.False(PartyMonitor.SamplesFlashes(HudLayout.KeyboardMouse, fromWindow: true, PartyMonitor.FlashSamplingHold + TimeSpan.FromSeconds(0.1)));
+        // The controller layout's buttons are elsewhere; the screen fallback has no window frames to tap.
+        Assert.False(PartyMonitor.SamplesFlashes(HudLayout.Controller, fromWindow: true, now));
+        Assert.False(PartyMonitor.SamplesFlashes(null, fromWindow: true, now));
+        Assert.False(PartyMonitor.SamplesFlashes(HudLayout.KeyboardMouse, fromWindow: false, now));
+    }
 }

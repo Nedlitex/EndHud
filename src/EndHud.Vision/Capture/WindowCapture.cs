@@ -134,7 +134,7 @@ public sealed class WindowCapture : IDisposable
             return;
         }
 
-        if (_tap is { } tap && tap.Every < TimeSpan.Zero) Tap(frame, tap); // RED: never
+        if (_tap is { } tap) Tap(frame, tap);
 
         TaskCompletionSource<Frame>? tcs;
         lock (_lock)
