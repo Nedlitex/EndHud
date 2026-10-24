@@ -9,8 +9,13 @@ using EndHud.Vision.Operators;
 //   endhud-cli analyze-video <recording.mp4> [--every <seconds>] [--from <seconds>] [--to <seconds>]
 //       Per sampled frame: HP, combo, ultimate per slot, the layout, the controlled slot and Laevatain's petals.
 //   endhud-cli trace-video <recording.mp4> [--every <seconds>] [--from <seconds>] [--to <seconds>]
+//                          [--presses <file>] [--rotation <rotation.json> --squad <id1>,<id2>,<id3>,<id4>]
 //       One CSV row per sampled frame: skill points and, per slot, combo, ultimate and battle skill
-//       button, for studying when abilities are used.
+//       button, for studying when abilities are used. --presses: a file of the battle skills cast,
+//       lines "seconds,slot" ('#' comments); a "presses" column says how each was judged against the
+//       row before (e.g. "2:Counted 2:Repeat"). --rotation with --squad (the operator ids by slot, so
+//       no naming is needed): "phase,step" columns, the phase the strip shows and the step it marks
+//       current (1-based; "-" out of battle or with no step marked).
 //   endhud-cli trace-inn <recording.mp4> [--every <seconds>] [--from <seconds>] [--to <seconds>] [--end-margin <seconds>] [--reference <folder>]
 //       Text only (never an image): per sampled frame the inn screen, the timer and each table card
 //       (state and item ids); then every order once and how often each dish and drink was ordered,
@@ -35,7 +40,8 @@ return args.FirstOrDefault() switch
     "fetch-operators" when args.Length >= 2 => await FetchAsync(args[1]),
     "identify" when args.Length >= 2 && Option("--library") is { } lib => await IdentifyAsync(args[1], lib, Option("--debug-dir")),
     "analyze-video" when args.Length >= 2 => await AnalyzeVideoAsync(args[1], double.Parse(Option("--every") ?? "1"), double.Parse(Option("--from") ?? "0"), Option("--to") is { } to ? double.Parse(to) : null),
-    "trace-video" when args.Length >= 2 => await TraceVideoAsync(args[1], double.Parse(Option("--every") ?? "0.25"), double.Parse(Option("--from") ?? "0"), Option("--to") is { } to ? double.Parse(to) : null),
+    "trace-video" when args.Length >= 2 => await TraceVideoAsync(args[1], double.Parse(Option("--every") ?? "0.25"), double.Parse(Option("--from") ?? "0"), Option("--to") is { } to ? double.Parse(to) : null,
+        Option("--presses"), Option("--rotation"), Option("--squad")),
     "trace-skills" when args.Length >= 2 => await TraceSkillsAsync(args[1], double.Parse(Option("--every") ?? "0.25", System.Globalization.CultureInfo.InvariantCulture),
         double.Parse(Option("--from") ?? "0", System.Globalization.CultureInfo.InvariantCulture), Option("--to") is { } skillsTo ? double.Parse(skillsTo, System.Globalization.CultureInfo.InvariantCulture) : null),
     "trace-inn" when args.Length >= 2 =>await EndHud.Cli.InnTrace.RunAsync(args[1], double.Parse(Option("--every") ?? "0.5", System.Globalization.CultureInfo.InvariantCulture),
@@ -63,6 +69,7 @@ static int Usage()
           endhud-cli fetch-operators <library-dir>
           endhud-cli identify <screenshot.png> --library <library-dir> [--debug-dir <dir>]
           endhud-cli analyze-video <recording.mp4> [--every <seconds>] [--from <seconds>] [--to <seconds>]
+          endhud-cli trace-video <recording.mp4> [--every <seconds>] [--from <seconds>] [--to <seconds>] [--presses <file>] [--rotation <rotation.json> --squad <id1>,<id2>,<id3>,<id4>]
           endhud-cli trace-inn <recording.mp4> [--every <seconds>] [--from <seconds>] [--to <seconds>] [--end-margin <seconds>] [--reference <folder>]
           endhud-cli read-bubbles <frame.png|jpg>... [--reference <folder>]
           endhud-cli learn <screenshot.png> --library <library-dir> --slots <id1>,<id2>,<id3>,<id4>
@@ -90,19 +97,88 @@ static async Task<int> CaptureAsync(string titlePart, string outPath)
     return 0;
 }
 
-// HP, combo cooldown and ultimate charge per slot over time, one line per sampled frame.
-static async Task<int> TraceVideoAsync(string path, double everySeconds, double from, double? to)
+// HP, combo cooldown and ultimate charge per slot over time, one line per sampled frame. With a
+// presses file, how each press was judged; with a rotation and its squad, the phase and step the
+// strip would mark (the overlay's own rules: in battle only, starting over when the fight ends).
+static async Task<int> TraceVideoAsync(string path, double everySeconds, double from, double? to,
+    string? pressesPath, string? rotationPath, string? squadIds)
 {
+    if ((rotationPath is null) != (squadIds is null))
+    {
+        Console.Error.WriteLine("--rotation and --squad go together: the rotation, and the squad's operator ids by slot");
+        return 2;
+    }
+    string[]? squad = squadIds?.Split(',').Select(id => id.Trim()).ToArray();
+    if (squad is { Length: not 4 } || squad?.Any(id => id.Length == 0) == true)
+    {
+        Console.Error.WriteLine("--squad needs four operator ids, slot 1 first: <id1>,<id2>,<id3>,<id4>");
+        return 2;
+    }
+    EndHud.Vision.Input.ISkillPressSource? presses;
+    EndHud.Vision.Rotations.Rotation? rotation;
+    try
+    {
+        presses = pressesPath is null ? null : EndHud.Vision.Input.FileSkillPresses.Parse(File.ReadAllText(pressesPath));
+        rotation = rotationPath is null ? null : EndHud.Vision.Rotations.RotationFormat.FromJson(File.ReadAllText(rotationPath));
+    }
+    catch (Exception ex) when (ex is FormatException or IOException or EndHud.Vision.Rotations.RotationReadException)
+    {
+        Console.Error.WriteLine(ex.Message);
+        return 1;
+    }
+    var selector = rotation is null ? null : new EndHud.Vision.Rotations.PhaseSelector(rotation);
+    var steps = rotation is null ? null : new EndHud.Vision.Rotations.StepFollower(rotation);
+    var visibility = new StripVisibility();
+    bool wasInBattle = false;
+    PartyState? previous = null;
+
     var video = await VideoFile.OpenAsync(path);
     var reader = new PartyReader(new TextRecognizer());
     static string F(double? v) => v is { } x ? x.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) : "";
-    Console.WriteLine("t,panel,layout,active,sp," + string.Join(",", Enumerable.Range(1, 4).Select(i => $"combo{i},comboReady{i},ult{i},ultReady{i},bs{i}")));
+    Console.WriteLine("t,panel,layout,active,sp," + string.Join(",", Enumerable.Range(1, 4).Select(i => $"combo{i},comboReady{i},ult{i},ultReady{i},bs{i}"))
+        + (presses is null ? "" : ",presses") + (rotation is null ? "" : ",phase,step"));
     for (double t = from; t < Math.Min(to ?? double.MaxValue, video.Duration.TotalSeconds); t += everySeconds)
     {
-        var state = await reader.ReadAsync(await video.GetFrameAsync(TimeSpan.FromSeconds(t)));
+        var state = await reader.ReadAsync(await video.GetFrameAsync(TimeSpan.FromSeconds(t))) with { ReadAt = TimeSpan.FromSeconds(t) };
+        // The squad as given: no naming needed to follow the rotation.
+        if (squad is not null)
+            state = state with
+            {
+                Slots = state.Slots.Select((s, i) => i < squad.Length && !s.Empty
+                    ? s with { Operator = new OperatorMatch(new OperatorInfo(squad[i], squad[i], squad[i], squad[i] + ".png"), 1, false) }
+                    : s).ToList(),
+            };
         var cells = state.Slots.Select(s => s.Dead || s.Empty ? ",,,," :
             $"{F(s.Combo?.Progress)},{s.Combo?.Ready},{F(s.Ultimate?.Progress)},{s.Ultimate?.Ready},{s.BattleSkill}");
-        Console.WriteLine($"{F(t)},{state.PanelVisible},{state.Layout},{state.ActiveSlot},{F(state.SkillPoints)},{string.Join(",", cells)}");
+        string row = $"{F(t)},{state.PanelVisible},{state.Layout},{state.ActiveSlot},{F(state.SkillPoints)},{string.Join(",", cells)}";
+
+        // Each row's presses, judged against the row before (as the overlay judges a reading's).
+        var judged = presses is null ? [] : EndHud.Vision.Rotations.SkillPressJudge.Judge(previous, presses.TakeUntil(state.ReadAt!.Value));
+        if (presses is not null) row += "," + string.Join(" ", judged.Select(j => $"{j.Press.Slot}:{j.Verdict}"));
+
+        if (selector is not null && steps is not null)
+        {
+            bool inBattle = visibility.Update(state);
+            if (wasInBattle && !inBattle)
+            {
+                selector.EndFight();
+                steps.EndFight();
+            }
+            wasInBattle = inBattle;
+            string phase = "-", step = "-";
+            if (inBattle)
+            {
+                var shown = selector.Update(state);
+                var cast = judged.Where(j => j.Verdict == EndHud.Vision.Rotations.PressVerdict.Counted).Select(j => j.Press.Slot).ToList();
+                var position = steps.Update(shown.Step.PhaseIndex, previous, state, cast, selector);
+                phase = shown.Step.PhaseLabel;
+                int current = position.Marks.ToList().IndexOf(EndHud.Vision.Rotations.StepMark.Current);
+                if (current >= 0) step = (current + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+            row += $",{phase},{step}";
+        }
+        Console.WriteLine(row);
+        previous = state;
     }
     return 0;
 }
