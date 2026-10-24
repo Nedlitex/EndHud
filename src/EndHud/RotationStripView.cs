@@ -87,7 +87,7 @@ internal static class RotationStripView
     }
 
     /// <summary>Why the current step isn't ready, in words.</summary>
-    public static string? Reason(ConditionCheck check, RotationStep step, PartyState? state, OperatorLibrary? library)
+    public static string? Reason(ConditionCheck check, RotationStep step, PartyState? state, OperatorLibrary? library, IPhaseHistory? history = null)
     {
         string Name(string id) => library?.Find(id)?.NameZh ?? id;
         if (check.Kind == CheckKind.OwnAbility)
