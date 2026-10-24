@@ -264,4 +264,127 @@ public class PhaseSelectorTests
         selector.EndFight();
         Assert.Equal("Charge II", Shown(selector, Charging)); // a new fight: not shown yet
     }
+
+    // ---- Priorities (format 6): among the phases whose entry condition holds, the biggest priority wins ----
+
+    private static readonly StateCondition ArcaneAtLeast20 = new UltimateChargeCondition("Arcane", Comparison.AtLeast, 20);
+    private static readonly StateCondition ArcaneReady = new UltimateCondition("Arcane", true);
+    private static readonly StateCondition LiinoReady = new UltimateCondition("Liino", true);
+    private static readonly StateCondition ArrowsAtLeast2 = new CounterCondition("Typhoeus", OperatorCounters.HuntingArrow.Id, Comparison.AtLeast, 2);
+
+    /// <summary>Charge (gated on Arcane at 20% or more) above Burst (gated on Arcane ready), then an otherwise phase.</summary>
+    private static PhaseSelector Ranked(RotationPhase charge, RotationPhase burst, bool lastMatchWins = false) =>
+        new(new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
+        [
+            charge,
+            burst,
+            new RotationPhase("rest", "Rest", [new RotationStep("Perlica", StepAction.Combo)]),
+        ], lastMatchWins));
+
+    private static RotationPhase Charge(int priority = 0, params PriorityRule[] rules) =>
+        new("charge", "Charge", [new RotationStep("Arcane", StepAction.Combo)], [ArcaneAtLeast20]) { Priority = priority, PriorityRules = rules };
+
+    private static RotationPhase Burst(int priority = 0, params PriorityRule[] rules) =>
+        new("burst", "Burst", [new RotationStep("Arcane", StepAction.Ultimate)], [ArcaneReady]) { Priority = priority, PriorityRules = rules };
+
+    /// <summary>Both entry conditions hold (Arcane ready); Liino's ultimate ready or at half; Typhoeus's arrows read or covered.</summary>
+    private static PartyState BothHold(bool liinoReady = false, bool arrowsCovered = false) =>
+        Reading(arrows: arrowsCovered ? null : 4, signs: 4, arcane: 1, liino: liinoReady ? 1 : 0.5);
+
+    [Fact]
+    public void A_bigger_priority_wins_over_list_order()
+    {
+        Assert.Equal("Burst II", Shown(Ranked(Charge(0), Burst(5)), BothHold()));
+        Assert.Equal("Charge I", Shown(Ranked(Charge(5), Burst(0), lastMatchWins: true), BothHold()));
+        Assert.Equal("Burst II", Shown(Ranked(Charge(-3), Burst(-1)), BothHold())); // negatives too: -1 is bigger
+    }
+
+    /// <summary>The owner's rule 3: equal priorities go by list order, the first (or the last, with "last match wins").</summary>
+    [Fact]
+    public void Equal_priorities_go_by_list_order()
+    {
+        Assert.Equal("Charge I", Shown(Ranked(Charge(3), Burst(3)), BothHold()));
+        Assert.Equal("Burst II", Shown(Ranked(Charge(3), Burst(3), lastMatchWins: true), BothHold()));
+    }
+
+    /// <summary>Every existing rotation sets no priority: all 0, exactly today's choice (the first, or the last, that holds).</summary>
+    [Fact]
+    public void All_priorities_0_is_list_order_as_before()
+    {
+        Assert.Equal("Charge I", Shown(Ranked(Charge(), Burst()), BothHold()));
+        Assert.Equal("Burst II", Shown(Ranked(Charge(), Burst(), lastMatchWins: true), BothHold()));
+        // Only one holds: that one, whatever the order.
+        Assert.Equal("Charge I", Shown(Ranked(Charge(), Burst()), Reading(4, 4, arcane: 0.5, liino: 0.5)));
+        Assert.Equal("Rest III", Shown(Ranked(Charge(), Burst()), Reading(4, 4, arcane: 0.1, liino: 0.5)));
+    }
+
+    /// <summary>A priority only ranks phases whose entry condition holds: a lower one that holds beats a higher one that doesn't.</summary>
+    [Fact]
+    public void A_priority_only_ranks_phases_whose_condition_holds()
+    {
+        Assert.Equal("Charge I", Shown(Ranked(Charge(0), Burst(9)), Reading(4, 4, arcane: 0.5, liino: 0.5)));
+    }
+
+    /// <summary>The "otherwise" phase keeps its role: a priority on it doesn't put it above a phase whose condition holds.</summary>
+    [Fact]
+    public void The_otherwise_phase_is_not_ranked()
+    {
+        var selector = new PhaseSelector(new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
+        [
+            new RotationPhase("rest", "Rest", [new RotationStep("Perlica", StepAction.Combo)]) { Priority = 100 },
+            Burst(0),
+        ]));
+
+        Assert.Equal("Rest I", Shown(selector, Reading(4, 4, arcane: 0.5, liino: 0.5)));
+        Assert.Equal("Burst II", Shown(selector, BothHold()));
+    }
+
+    /// <summary>"If Liino's ultimate is ready, the priority is 10": the rule decides only while it holds.</summary>
+    [Fact]
+    public void A_rule_that_holds_sets_the_priority()
+    {
+        var rule = new PriorityRule([LiinoReady], 10);
+
+        Assert.Equal("Charge I", Shown(Ranked(Charge(0), Burst(0, rule)), BothHold(liinoReady: false)));
+        Assert.Equal("Burst II", Shown(Ranked(Charge(0), Burst(0, rule)), BothHold(liinoReady: true)));
+    }
+
+    /// <summary>The first rule that holds sets the priority; the later ones aren't asked.</summary>
+    [Fact]
+    public void The_first_rule_that_holds_wins()
+    {
+        var burst = Burst(0, new PriorityRule([LiinoReady], 3), new PriorityRule([ArcaneReady], 9));
+
+        Assert.Equal("Charge I", Shown(Ranked(Charge(5), burst), BothHold(liinoReady: true)));  // the first rule: 3 < 5
+        Assert.Equal("Burst II", Shown(Ranked(Charge(5), burst), BothHold(liinoReady: false))); // the second: 9 > 5
+    }
+
+    /// <summary>A rule that can't be read (the arrows covered) doesn't hold: the next rule applies, or the base priority.</summary>
+    [Fact]
+    public void A_rule_that_cant_be_read_is_skipped()
+    {
+        var thenReady = Burst(0, new PriorityRule([ArrowsAtLeast2], 9), new PriorityRule([ArcaneReady], 1));
+        var thenBase = Burst(7, new PriorityRule([ArrowsAtLeast2], 1));
+
+        Assert.Equal("Charge I", Shown(Ranked(Charge(5), thenReady), BothHold(arrowsCovered: true))); // 1, not 9
+        Assert.Equal("Burst II", Shown(Ranked(Charge(5), thenReady), BothHold()));                     // read: 9
+        Assert.Equal("Burst II", Shown(Ranked(Charge(5), thenBase), BothHold(arrowsCovered: true)));  // the base, 7
+        Assert.Equal("Charge I", Shown(Ranked(Charge(5), thenBase), BothHold()));                     // read: 1
+    }
+
+    /// <summary>No rule holds: the base priority.</summary>
+    [Fact]
+    public void Without_a_rule_holding_the_base_priority_applies()
+    {
+        Assert.Equal("Burst II", Shown(Ranked(Charge(5), Burst(7, new PriorityRule([LiinoReady], 1))), BothHold(liinoReady: false)));
+    }
+
+    /// <summary>A rule of nothing but "phase played" while the keys aren't read is ignored, so it doesn't hold (else it would hold always).</summary>
+    [Fact]
+    public void A_rule_of_only_phase_played_without_the_keys_does_not_hold()
+    {
+        var burst = Burst(0, new PriorityRule([new PhasePlayedCondition("charge", Comparison.AtMost, 5)], 9));
+
+        Assert.Equal("Charge I", Shown(Ranked(Charge(5), burst), BothHold()));
+    }
 }

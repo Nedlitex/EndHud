@@ -189,6 +189,47 @@ public sealed record RotationPhase(string Id, string Name, IReadOnlyList<Rotatio
     /// <summary>Entered only through its entry condition.</summary>
     [JsonIgnore]
     public bool Gated => When.Count > 0;
+
+    /// <summary>
+    /// The phase's priority when no rule of <see cref="PriorityRules"/> holds: among the phases whose
+    /// entry condition holds, the one with the biggest priority is shown; equal priorities go by list
+    /// order (<see cref="Rotation.LastMatchWins"/>). 0 when not set, so a rotation that sets none
+    /// behaves as list order alone. Only ranks gated phases. Format 6 when not 0.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int Priority { get; init; }
+
+    /// <summary>
+    /// "If this holds, the priority is that", in order: the first rule whose condition holds sets the
+    /// phase's priority, else <see cref="Priority"/> applies. A rule that can't be read, or made only of
+    /// ignored parts ("phase played" without the keys), doesn't hold. Format 6 when there is one.
+    /// </summary>
+    [JsonIgnore]
+    public IReadOnlyList<PriorityRule> PriorityRules { get; init; } = [];
+
+    /// <summary>The rules as written in the file: left out when there are none.</summary>
+    [JsonInclude]
+    [JsonPropertyName("priorityRules")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    private IReadOnlyList<PriorityRule>? PriorityRulesInFile
+    {
+        get => PriorityRules.Count > 0 ? PriorityRules : null;
+        init => PriorityRules = value ?? [];
+    }
+
+    /// <summary>The priority set: a base other than 0, or a rule.</summary>
+    [JsonIgnore]
+    public bool Prioritised => Priority != 0 || PriorityRules.Count > 0;
+}
+
+/// <summary>"If <paramref name="When"/> holds (all of it), the phase's priority is <paramref name="Priority"/>."</summary>
+public sealed record PriorityRule(IReadOnlyList<StateCondition> When, int Priority)
+{
+    public IReadOnlyList<StateCondition> When { get; init; } = When ?? [];
+
+    public bool Equals(PriorityRule? other) => other is not null && Priority == other.Priority && When.SequenceEqual(other.When);
+
+    public override int GetHashCode() => HashCode.Combine(Priority, When.Count);
 }
 
 /// <summary>A step with where it comes from (for the strip and the tracker).</summary>
