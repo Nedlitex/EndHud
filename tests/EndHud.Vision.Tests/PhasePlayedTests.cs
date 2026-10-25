@@ -118,8 +118,10 @@ public sealed class PhasePlayedTests
         Assert.Equal("Charge I", fight.Read(Plain));
         Assert.Equal(0, fight.Steps.TimesPlayed("charge")); // the half round left isn't counted
 
-        // Charge starts over at Ardelia; Laevatain's cast jumps past her: one missed cast in a round of two still counts.
+        // Charge came back with every light out: Ardelia's cast from before doesn't count for this round.
         fight.Press(Laevatain);
+        Assert.Equal(0, fight.Steps.TimesPlayed("charge"));
+        fight.Press(Ardelia);
         Assert.Equal(1, fight.Steps.TimesPlayed("charge"));
     }
 
@@ -129,37 +131,35 @@ public sealed class PhasePlayedTests
 
     private const int Camille = 2;
 
-    /// <summary>Owner, 2026-10-24: "played through" allows one missed cast step per round.</summary>
+    /// <summary>
+    /// Owner, 2026-10-24 (the light-up model): a round counts when every step that can be seen used is lit, in any
+    /// order; no missed cast is allowed for, and the last step played first doesn't end it.
+    /// </summary>
     [Fact]
-    public void A_round_with_one_cast_missed_is_played_through_and_with_two_is_not()
+    public void A_round_counts_only_once_every_cast_step_is_lit_in_any_order()
     {
-        var one = new Fight(Three);
-        one.Read(Plain);
-        one.Press(Ardelia);
-        one.Press(Camille); // Laevatain's cast not seen: skipped
-        Assert.Equal(1, one.Steps.TimesPlayed("p"));
-
-        var two = new Fight(Three);
-        two.Read(Plain);
-        two.Press(Camille); // Ardelia's and Laevatain's not seen
-        Assert.Equal(0, two.Steps.TimesPlayed("p"));
+        var fight = new Fight(Three);
+        fight.Read(Plain);
+        fight.Press(Camille); // the last step first
+        Assert.Equal(0, fight.Steps.TimesPlayed("p"));
+        fight.Press(Ardelia);
+        Assert.Equal(0, fight.Steps.TimesPlayed("p")); // Laevatain's not seen yet
+        fight.Press(Laevatain);
+        Assert.Equal(1, fight.Steps.TimesPlayed("p"));
     }
 
+    /// <summary>A phase's first step cast again with a step still unlit doesn't start the phase over or count the round.</summary>
     [Fact]
-    public void Starting_the_phase_over_counts_the_round_left_if_it_missed_at_most_one_cast()
+    public void Casting_the_first_step_again_neither_starts_over_nor_counts()
     {
-        var one = new Fight(Three);
-        one.Read(Plain);
-        one.Press(Ardelia);
-        one.Press(Laevatain);
-        one.Press(Ardelia); // Camille's last cast missed: the player started over
-        Assert.Equal(1, one.Steps.TimesPlayed("p"));
-
-        var two = new Fight(Three);
-        two.Read(Plain);
-        two.Press(Ardelia);
-        two.Press(Ardelia); // two of three missed
-        Assert.Equal(0, two.Steps.TimesPlayed("p"));
+        var fight = new Fight(Three);
+        fight.Read(Plain);
+        fight.Press(Ardelia);
+        fight.Press(Laevatain);
+        fight.Press(Ardelia); // Camille's not seen: no round over
+        Assert.Equal(0, fight.Steps.TimesPlayed("p"));
+        fight.Press(Camille);
+        Assert.Equal(1, fight.Steps.TimesPlayed("p"));
     }
 
     [Fact]

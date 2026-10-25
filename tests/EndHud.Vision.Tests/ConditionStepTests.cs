@@ -7,8 +7,8 @@ namespace EndHud.Vision.Tests;
 /// <summary>
 /// A condition step (owner, 2026-10-24: "add a condition node in rotation, e.g. check whether enemy
 /// has 3 ice infliction, and show a highlight when satisfied"): a step that is its conditions, no
-/// skill. It is the current step until its conditions hold, then done; when they
-/// can't be told, a later real cast passes it (as a basic attack is passed). Squad slots: Laevatain
+/// skill. It lights up when its conditions hold (owner: "condition met should also light up to
+/// indicate"), in any order, and stays lit for the round; nothing passes it. Squad slots: Laevatain
 /// (1), Camille (2), Arcane (3), Ardelia (4).
 /// </summary>
 public class ConditionStepTests
@@ -53,40 +53,51 @@ public class ConditionStepTests
         }
     }
 
+    private const StepMark L = StepMark.Lit, C = StepMark.Current, U = StepMark.Unlit;
+
     [Fact]
-    public void It_is_current_until_it_holds_then_done()
+    public void It_is_current_until_it_holds_then_lit_and_stays_lit()
     {
         var fight = new Fight(Of(Wait(CryoThree), new RotationStep("Ardelia", StepAction.BattleSkill), new RotationStep("Laevatain", StepAction.BattleSkill)));
 
-        Assert.Equal([StepMark.Current, StepMark.Unlit, StepMark.Unlit], fight.Read(Reading(1)));
-        Assert.Equal([StepMark.Current, StepMark.Unlit, StepMark.Unlit], fight.Read(Reading(2)));
-        Assert.Equal([StepMark.Lit, StepMark.Current, StepMark.Unlit], fight.Read(Reading(3)));
-        // Done stays done when it stops holding: the step was reached.
-        Assert.Equal([StepMark.Lit, StepMark.Current, StepMark.Unlit], fight.Read(Reading(0)));
+        Assert.Equal([C, U, U], fight.Read(Reading(1)));
+        Assert.Equal([C, U, U], fight.Read(Reading(2)));
+        Assert.Equal([L, C, U], fight.Read(Reading(3)));
+        Assert.Equal([L, C, U], fight.Read(Reading(0))); // it stopped holding: still lit this round
     }
 
-    /// <summary>Its conditions seen not holding: a cast of a later step doesn't pass it (it is what the player waits for).</summary>
+    /// <summary>In any order, as a cast: a condition step later in the phase lights the moment it is met.</summary>
     [Fact]
-    public void Not_holding_it_holds_the_marker()
+    public void A_condition_step_later_in_the_phase_lights_when_met_whatever_comes_before()
+    {
+        var fight = new Fight(Of(new RotationStep("Ardelia", StepAction.BattleSkill), Wait(CryoThree), new RotationStep("Laevatain", StepAction.BattleSkill)));
+
+        Assert.Equal([C, L, U], fight.Read(Reading(3)));
+    }
+
+    /// <summary>Not met: a cast of a later step lights that step only; the condition step stays unlit, under the chevron.</summary>
+    [Fact]
+    public void Not_holding_it_stays_unlit_and_keeps_the_chevron()
     {
         var fight = new Fight(Of(Wait(CryoThree), new RotationStep("Ardelia", StepAction.BattleSkill), new RotationStep("Laevatain", StepAction.BattleSkill)));
 
         fight.Read(Reading(1));
 
-        Assert.Equal([StepMark.Current, StepMark.Unlit, StepMark.Unlit], fight.Read(Reading(1), Ardelia));
+        Assert.Equal([C, L, U], fight.Read(Reading(1), Ardelia));
     }
 
-    /// <summary>Owner, 2026-10-24: if its condition is unknown, a later real cast passes it.</summary>
+    /// <summary>Its conditions can't be told (the statuses not read): not met, so it doesn't light; nothing passes it either.</summary>
     [Fact]
-    public void Unknown_a_later_cast_passes_it()
+    public void Unknown_it_stays_unlit()
     {
         var fight = new Fight(Of(Wait(CryoThree), new RotationStep("Ardelia", StepAction.BattleSkill), new RotationStep("Laevatain", StepAction.BattleSkill)));
 
-        Assert.Equal([StepMark.Current, StepMark.Unlit, StepMark.Unlit], fight.Read(Reading(null)));
-        Assert.Equal([StepMark.Lit, StepMark.Lit, StepMark.Current], fight.Read(Reading(null), Ardelia));
+        Assert.Equal([C, U, U], fight.Read(Reading(null)));
+        Assert.Equal([C, L, U], fight.Read(Reading(null), Ardelia));
+        Assert.Equal([L, L, C], fight.Read(Reading(3)));
     }
 
-    /// <summary>The step waited on doesn't make a phase "played" by itself, but a phase isn't played through until it is done.</summary>
+    /// <summary>A condition step counts for the default finish: the round is played through once it is lit too.</summary>
     [Fact]
     public void A_phase_ending_in_a_condition_step_is_played_through_when_it_holds()
     {

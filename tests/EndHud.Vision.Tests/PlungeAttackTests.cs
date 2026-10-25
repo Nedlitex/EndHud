@@ -29,16 +29,17 @@ public class PlungeAttackTests
     }
 
     [Fact]
-    public void A_plunge_attack_is_display_only_and_a_later_cast_passes_it()
+    public void A_plunge_attack_is_display_only_and_neutral()
     {
         Assert.True(StepAction.PlungeAttack.IsDisplayOnly());
         var follower = new StepFollower(Of(new RotationStep(RotationStep.Controlled, StepAction.PlungeAttack), new RotationStep("Ardelia", StepAction.BattleSkill),
             new RotationStep("Laevatain", StepAction.BattleSkill)));
 
         var first = follower.Update(0, null, Plain(), [], PhaseHistory.None);
-        Assert.Equal([StepMark.Current, StepMark.Unlit, StepMark.Unlit], first.Marks);
-        Assert.True(first.Ready); // nothing to wait for
-        Assert.Equal([StepMark.Lit, StepMark.Lit, StepMark.Current], follower.Update(0, Plain(), Plain(), Casts.Seen([Ardelia]), PhaseHistory.None).Marks);
+        // Never seen: neutral, in its place; the chevron goes to the first step that can be seen used.
+        Assert.Equal([StepMark.Neutral, StepMark.Current, StepMark.Unlit], first.Marks);
+        Assert.True(first.Ready); // Ardelia's battle skill, with 2 points
+        Assert.Equal([StepMark.Neutral, StepMark.Lit, StepMark.Current], follower.Update(0, Plain(), Plain(), Casts.Seen([Ardelia]), PhaseHistory.None).Marks);
     }
 
     [Fact]

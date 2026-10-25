@@ -183,12 +183,39 @@ public class NextReleaseRotationsTests
     }
 
     /// <summary>
-    /// The bug that started following battle skills from the screen (test_battle_track_bug1, 2026-10-24): Tangtang's
-    /// battle skill, the burst's first step, wasn't tracked, and the burst was held "until played through" for the rest
-    /// of the fight. Now her combo seen used jumps past it (skipped), and one missed cast still plays the burst through.
+    /// The owner's example (2026-10-24): "in many burst rotations, you play 4 ults, the rotation says an order but in
+    /// reality it can be arbitrary, but if user happens to play the last one first, then the rotation is immediately
+    /// over". Here Arcane's ultimate (the last written) comes first and Si's combo (the burst's last step) early: each
+    /// lights its own step, and the burst is played through only when every step that can be seen is lit.
     /// </summary>
     [Fact]
-    public void The_burst_with_its_first_battle_skill_missed_is_still_played_through()
+    public void The_burst_played_in_another_order_is_not_over_until_every_step_is_lit()
+    {
+        var fight = new Fight(Si_rotation());
+        var charged = new Reading(true) { UltimateReady = [Si, LastRite, Arcane], TangtangCharge = 0.85 };
+
+        Assert.Equal("爆发轴 IV", fight.Read(charged));
+        Assert.Equal("爆发轴 IV", fight.Read(charged, Tangtang));                                                // 汤汤 战技
+        Assert.Equal("爆发轴 IV", fight.Read(charged with { ComboUsed = Tangtang }));                            // 汤汤 连携技
+        Assert.Equal("爆发轴 IV", fight.Read(charged with { UltimateReady = [Si, LastRite] }));                  // 诀 终结技·意, the last ultimate, first
+        Assert.Equal("爆发轴 IV", fight.Read(charged with { UltimateReady = [Si, LastRite], ComboUsed = Si }));  // 祀 连携技, the burst's last step, early
+        Assert.Equal("爆发轴 IV", fight.Read(charged with { UltimateReady = [LastRite] }));                      // 祀 终结技
+        Assert.Equal("爆发轴 IV", fight.Read(charged with { UltimateReady = [Tangtang] }));                      // 别礼 终结技; 汤汤's ready …
+        Assert.Equal("爆发轴 IV", fight.Read(charged with { UltimateReady = [] }));                              // … and used
+        Assert.Equal("爆发轴 IV", fight.Read(charged with { UltimateReady = [], ComboUsed = Arcane }));          // 诀 连携技·意
+        Assert.Equal(0, fight.Steps.TimesPlayed("burst"));                                                      // 别礼 连携技 still unlit
+        Assert.Equal("爆发轴 IV", fight.Read(charged with { UltimateReady = [], ComboUsed = LastRite }));        // 别礼 连携技: every step lit
+        Assert.Equal(1, fight.Steps.TimesPlayed("burst"));
+        Assert.Equal("充能轴 I", fight.Read(new Reading(true)));
+    }
+
+    /// <summary>
+    /// Nothing is skipped (owner, 2026-10-24), so no missed cast is allowed for: with Tangtang's battle skill not seen,
+    /// the burst stays on the strip, its chevron on her battle skill, until she casts it; then it is played through.
+    /// (Before, the follower jumped past it and allowed one missed cast a round.)
+    /// </summary>
+    [Fact]
+    public void The_burst_with_tangtangs_battle_skill_not_seen_stays_until_she_casts_it()
     {
         var fight = new Fight(Si_rotation());
         var charged = new Reading(false) { UltimateReady = [Si, LastRite, Arcane], TangtangCharge = 0.85 };
@@ -196,7 +223,7 @@ public class NextReleaseRotationsTests
 
         Assert.Equal("爆发轴 IV", fight.Read(charged with { SiRunning = true }));
         Assert.Equal("爆发轴 IV", fight.Read(charged with { SiRunning = true }));                                   // Tangtang's battle skill: not seen
-        Assert.Equal("爆发轴 IV", fight.Read(charged with { SiRunning = true, ComboUsed = Tangtang }));             // Tangtang's combo: jumps
+        Assert.Equal("爆发轴 IV", fight.Read(charged with { SiRunning = true, ComboUsed = Tangtang }));             // Tangtang's combo
         Assert.Equal("爆发轴 IV", fight.Read(charged with { SiRunning = true, UltimateReady = [LastRite, Arcane] })); // Si's ultimate
         Assert.Equal("爆发轴 IV", fight.Read(spent with { UltimateReady = [Arcane], TangtangCharge = 0.85 }));      // Last Rite's ultimate
         Assert.Equal("爆发轴 IV", fight.Read(spent with { UltimateReady = [Arcane, Tangtang] }));                  // Tangtang's ready …
@@ -204,7 +231,10 @@ public class NextReleaseRotationsTests
         Assert.Equal("爆发轴 IV", fight.Read(spent));                                                              // Arcane's ultimate
         Assert.Equal("爆发轴 IV", fight.Read(spent with { ComboUsed = Arcane }));                                  // Arcane's combo
         Assert.Equal("爆发轴 IV", fight.Read(spent with { ComboUsed = LastRite }));                                // Last Rite's combo
-        Assert.Equal("爆发轴 IV", fight.Read(spent with { ComboUsed = Si }));                                      // Si's combo: played through
+        Assert.Equal("爆发轴 IV", fight.Read(spent with { ComboUsed = Si }));                                      // Si's combo
+        Assert.Equal("爆发轴 IV", fight.Read(spent));                                                              // still waiting on her battle skill
+        Assert.Equal(0, fight.Steps.TimesPlayed("burst"));
+        Assert.Equal("爆发轴 IV", fight.Read(spent, Tangtang));                                                    // there it is: played through
         Assert.Equal("充能轴 I", fight.Read(spent));
     }
 }

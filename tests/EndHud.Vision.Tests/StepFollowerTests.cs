@@ -6,14 +6,16 @@ using Xunit;
 namespace EndHud.Vision.Tests;
 
 /// <summary>
-/// Following the step inside the phase the strip shows. Squad slots: Laevatain (1), Camille (2),
-/// Arcane (3), Ardelia (4). The charge phase: Ardelia's battle skill, Laevatain's battle skill,
-/// Camille's combo, an Arcane basic attack, Ardelia's battle skill, Laevatain's ultimate.
+/// Following the steps inside the phase the strip shows, by lighting them up (owner, 2026-10-24: "skip over is bad
+/// ... a rotation is fixed order but in reality it can be played in different orders"): each step lights when its
+/// use is seen, in any order; nothing is ever skipped. Squad slots: Laevatain (1), Camille (2), Arcane (3),
+/// Ardelia (4). The charge phase: Ardelia's battle skill, Laevatain's battle skill, Camille's combo, an Arcane basic
+/// attack, Ardelia's battle skill, Laevatain's ultimate.
 /// </summary>
 public sealed class StepFollowerTests
 {
     private static readonly string[] Squad = ["Laevatain", "Camille", "Arcane", "Ardelia"];
-    private const int Laevatain = 1, Camille = 2, Ardelia = 4;
+    private const int Laevatain = 1, Camille = 2, Arcane = 3, Ardelia = 4;
 
     private static readonly Rotation Charge = new(Rotation.CurrentFormat, "r", "r", Squad,
     [
@@ -34,13 +36,14 @@ public sealed class StepFollowerTests
     private sealed record Reading(double? SkillPoints = 2.0)
     {
         public bool[] ComboReady { get; init; } = [true, true, true, true];
+        public bool[] UltimateReady { get; init; } = [false, false, false, false];
         public BattleSkillState?[] Skill { get; init; } = [BattleSkillState.Available, BattleSkillState.Available, BattleSkillState.Available, BattleSkillState.Available];
 
         public PartyState ToState()
         {
             var slots = Enumerable.Range(0, 4).Select(i => new PartySlot(i + 1, null, 1.0, "", new Frame(1, 1, new byte[4]),
                 Combo: new ComboReading(ComboReady[i] ? 1 : 0.02, ComboReady[i]),
-                Ultimate: new UltimateReading(false, 0.2),
+                Ultimate: new UltimateReading(UltimateReady[i], UltimateReady[i] ? 1 : 0.2),
                 Operator: new OperatorMatch(new OperatorInfo(Squad[i], Squad[i], Squad[i], Squad[i] + ".png"), 1, true))
             {
                 BattleSkill = Skill[i],
@@ -50,6 +53,9 @@ public sealed class StepFollowerTests
     }
 
     private static readonly PartyState Plain = new Reading().ToState();
+
+    /// <summary>A reading where this slot's combo was just used (its bar emptied).</summary>
+    private static PartyState ComboUsed(int slot) => new Reading { ComboReady = [.. Enumerable.Range(1, 4).Select(s => s != slot)] }.ToState();
 
     /// <summary>Drives a follower reading by reading, as the overlay does: each reading after the one before.</summary>
     private sealed class Fight(Rotation rotation)
@@ -75,205 +81,179 @@ public sealed class StepFollowerTests
         }
     }
 
-    private const StepMark D = StepMark.Lit, C = StepMark.Current, U = StepMark.Unlit, S = StepMark.Skipped;
-
-    private static SkillCast Certain(int slot, double at = 0) => new(slot, TimeSpan.FromSeconds(at), CastSource.Flash, Paid: true);
-
-    private static PartyState At(double seconds, PartyState? state = null) => (state ?? Plain) with { ReadAt = TimeSpan.FromSeconds(seconds) };
+    private const StepMark L = StepMark.Lit, C = StepMark.Current, U = StepMark.Unlit, N = StepMark.Neutral;
 
     [Fact]
-    public void At_the_start_the_first_step_is_current()
+    public void At_the_start_the_first_step_is_current_and_the_basic_attack_is_neutral()
     {
         var fight = new Fight(Charge);
-        Assert.Equal([C, U, U, U, U, U], fight.Read(Plain).Marks);
+        Assert.Equal([C, U, U, N, U, U], fight.Read(Plain).Marks);
     }
 
     [Fact]
-    public void A_counted_press_marks_its_step_done_and_moves_on()
+    public void A_cast_lights_its_step_and_the_chevron_moves_to_the_first_unlit_one()
     {
         var fight = new Fight(Charge);
         fight.Read(Plain);
 
-        Assert.Equal([D, C, U, U, U, U], fight.Press(Ardelia).Marks);
-        Assert.Equal([D, D, C, U, U, U], fight.Press(Laevatain).Marks);
+        Assert.Equal([L, C, U, N, U, U], fight.Press(Ardelia).Marks);
+        Assert.Equal([L, L, C, N, U, U], fight.Press(Laevatain).Marks);
     }
 
     [Fact]
-    public void A_press_of_another_slot_moves_nothing()
+    public void A_press_of_another_slot_lights_nothing()
     {
         var fight = new Fight(Charge);
         fight.Read(Plain);
 
-        Assert.Equal([C, U, U, U, U, U], fight.Press(Camille).Marks); // Camille has no battle-skill step here
+        Assert.Equal([C, U, U, N, U, U], fight.Press(Camille).Marks); // Camille has no battle-skill step here
     }
 
-    /// <summary>Owner, 2026-10-24: a cast seen for certain of a later step jumps there; the steps passed are skipped.</summary>
+    /// <summary>
+    /// The owner (2026-10-24): "skip over is bad". A later step used first lights that step only; the steps before it
+    /// stay unlit, the chevron stays on the first of them, and nothing is ever marked skipped.
+    /// </summary>
     [Fact]
-    public void A_certain_cast_of_a_later_step_jumps_there_and_skips_the_steps_passed()
+    public void A_later_step_used_first_lights_only_itself_and_skips_nothing()
     {
         var fight = new Fight(Charge);
         fight.Read(Plain);
 
-        Assert.Equal([S, D, C, U, U, U], fight.Press(Laevatain).Marks); // step 2 while step 1 (Ardelia) is undone
+        Assert.Equal([C, L, U, N, U, U], fight.Press(Laevatain).Marks);
+        Assert.Equal([C, L, L, N, U, U], fight.Read(ComboUsed(Camille)).Marks);
+        Assert.Equal([L, L, L, N, C, U], fight.Press(Ardelia).Marks); // the earlier one, now seen
     }
 
+    /// <summary>A use lights the first unlit step of the phase with the same operator and action.</summary>
     [Fact]
-    public void A_cast_not_seen_for_certain_only_marks_the_current_group()
+    public void The_same_skill_twice_lights_its_first_unlit_step_then_the_next()
     {
         var fight = new Fight(Charge);
         fight.Read(Plain);
 
-        // An empowered cast with no point spent, or a press while the points couldn't be read.
-        Assert.Equal([C, U, U, U, U, U], fight.Cast(Plain, new SkillCast(Laevatain, TimeSpan.Zero, CastSource.Empowered, Paid: false)).Marks);
-        Assert.Equal([D, C, U, U, U, U], fight.Cast(Plain, new SkillCast(Ardelia, TimeSpan.Zero, CastSource.Press, Paid: false)).Marks);
+        Assert.Equal([L, C, U, N, U, U], fight.Press(Ardelia).Marks);
+        Assert.Equal([L, C, U, N, L, U], fight.Press(Ardelia).Marks);
+        Assert.Equal([L, C, U, N, L, U], fight.Press(Ardelia).Marks); // no third Ardelia step: nothing
     }
 
-    /// <summary>The owner's example: the battle skill wasn't tracked, the combo is seen: jump to the combo.</summary>
     [Fact]
-    public void A_combo_seen_with_the_battle_skills_before_it_untracked_jumps_to_the_combo()
+    public void A_combo_or_an_ultimate_seen_used_lights_its_step_in_any_order()
+    {
+        var fight = new Fight(Charge);
+        fight.Read(new Reading { UltimateReady = [true, false, false, false] }.ToState());
+
+        Assert.Equal([C, U, U, N, U, L], fight.Read(Plain).Marks);         // Laevatain's ultimate spent
+        Assert.Equal([C, U, L, N, U, L], fight.Read(ComboUsed(Camille)).Marks);
+    }
+
+    /// <summary>A cast not certain (an empowered one with no point spent, a press while the points weren't read) is still a cast of that slot.</summary>
+    [Fact]
+    public void A_cast_not_certain_still_lights_its_step()
     {
         var fight = new Fight(Charge);
         fight.Read(Plain);
 
-        var position = fight.Read(new Reading { ComboReady = [true, false, true, true] }.ToState());
-
-        Assert.Equal([S, S, D, C, U, U], position.Marks); // the basic attack after it is current
+        Assert.Equal([C, L, U, N, U, U], fight.Cast(Plain, new SkillCast(Laevatain, TimeSpan.Zero, CastSource.Empowered, Paid: false)).Marks);
+        Assert.Equal([L, L, C, N, U, U], fight.Cast(Plain, new SkillCast(Ardelia, TimeSpan.Zero, CastSource.Press, Paid: false)).Marks);
     }
 
     [Fact]
-    public void A_jump_passes_basic_attacks_as_done_and_goes_to_the_nearest_later_copy()
-    {
-        var fight = new Fight(Charge);
-        fight.Read(Plain);
-        fight.Press(Ardelia);
-
-        // Ardelia again: step 5 (the nearest copy after step 1); Laevatain and Camille's combo skipped, the basic attack done.
-        Assert.Equal([D, S, S, D, D, C], fight.Press(Ardelia).Marks);
-    }
-
-    [Fact]
-    public void A_cast_told_late_fills_in_the_step_a_later_use_jumped_past()
-    {
-        var fight = new Fight(Charge);
-        fight.Read(At(0));
-        fight.Press(Ardelia);
-        // The combo is seen at 1.0 s; Laevatain's cast (at 0.9 s) is only named at the reading after, by its flash.
-        Assert.Equal([D, S, D, C, U, U], fight.Read(At(1.0, new Reading { ComboReady = [true, false, true, true] }.ToState())).Marks);
-        Assert.Equal([D, D, D, C, U, U], fight.Cast(At(1.25, new Reading { ComboReady = [true, false, true, true] }.ToState()), Certain(Laevatain, at: 0.9)).Marks);
-    }
-
-    [Fact]
-    public void Points_spent_by_nobody_named_mark_the_current_battle_skill_if_its_operator_could_cast()
+    public void Points_spent_by_nobody_named_light_the_chevrons_battle_skill_if_its_operator_could_cast()
     {
         var fight = new Fight(Charge);
         fight.Read(Plain);
         var nobody = new SkillCast(null, TimeSpan.Zero, CastSource.Unattributed, Paid: true);
 
-        Assert.Equal([D, C, U, U, U, U], fight.Cast(Plain, nobody).Marks);
+        Assert.Equal([L, C, U, N, U, U], fight.Cast(Plain, nobody).Marks);
         // Laevatain's button cooling in the reading before: it wasn't her.
         var cooling = new Reading { Skill = [BattleSkillState.Cooling, BattleSkillState.Available, BattleSkillState.Available, BattleSkillState.Available] }.ToState();
         fight.Cast(cooling);
-        Assert.Equal([D, C, U, U, U, U], fight.Cast(cooling, nobody).Marks);
+        Assert.Equal([L, C, U, N, U, U], fight.Cast(cooling, nobody).Marks);
     }
 
     [Fact]
-    public void Points_spent_by_nobody_named_never_mark_a_combo_step()
+    public void Points_spent_by_nobody_named_never_light_a_combo_step()
     {
         var fight = new Fight(Charge);
         fight.Read(Plain);
         fight.Press(Ardelia);
         fight.Press(Laevatain);
 
-        Assert.Equal([D, D, C, U, U, U], fight.Cast(Plain, new SkillCast(null, TimeSpan.Zero, CastSource.Unattributed, Paid: true)).Marks);
-    }
-
-    [Fact]
-    public void A_combo_seen_used_marks_a_combo_step_without_any_press()
-    {
-        var fight = new Fight(Charge);
-        fight.Read(Plain);
-        fight.Press(Ardelia);
-        fight.Press(Laevatain);
-
-        var position = fight.Read(new Reading { ComboReady = [true, false, true, true] }.ToState());
-
-        Assert.Equal([D, D, D, C, U, U], position.Marks);
+        Assert.Equal([L, L, C, N, U, U], fight.Cast(Plain, new SkillCast(null, TimeSpan.Zero, CastSource.Unattributed, Paid: true)).Marks);
     }
 
     /// <summary>The press is the cast: the button seen cooling after it must not count the same cast again.</summary>
     [Fact]
-    public void A_cooldown_seen_on_the_button_does_not_mark_a_battle_skill_step()
+    public void A_cooldown_seen_on_the_button_does_not_light_a_battle_skill_step()
     {
         var fight = new Fight(Charge);
         fight.Read(Plain);
 
         var position = fight.Read(new Reading { Skill = [BattleSkillState.Available, BattleSkillState.Available, BattleSkillState.Available, BattleSkillState.Cooling] }.ToState());
 
-        Assert.Equal([C, U, U, U, U, U], position.Marks);
+        Assert.Equal([C, U, U, N, U, U], position.Marks);
     }
 
+    /// <summary>A basic attack is never seen: the chevron passes over it to the next step that can be, and it stays in place, neutral.</summary>
     [Fact]
-    public void A_basic_attack_step_is_passed_by_the_next_real_cast()
+    public void The_chevron_passes_over_a_basic_attack()
     {
         var fight = new Fight(Charge);
         fight.Read(Plain);
         fight.Press(Ardelia);
         fight.Press(Laevatain);
-        var combo = new Reading { ComboReady = [true, false, true, true] }.ToState();
-        Assert.Equal([D, D, D, C, U, U], fight.Read(combo).Marks); // on the basic attack
-        Assert.True(fight.Read(combo).Ready); // a basic attack never waits
 
-        Assert.Equal([D, D, D, D, D, C], fight.Read(combo, 0, Ardelia).Marks);
+        var position = fight.Read(ComboUsed(Camille));
+
+        Assert.Equal([L, L, L, N, C, U], position.Marks);
+        Assert.True(position.Ready); // Ardelia's battle skill, with 2 points
     }
 
-    /// <summary>The owner's ask (2026-10-24): a heavy attack is ignored when following, as a basic attack is.</summary>
+    /// <summary>The owner's example: four ultimates of a burst, the last one played first. It must not be over.</summary>
     [Fact]
-    public void A_heavy_attack_step_never_waits_and_is_passed_by_the_next_real_cast()
+    public void Four_ultimates_in_any_order_finish_the_round_only_when_all_four_are_lit()
     {
         var rotation = new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
-            [new RotationPhase("p", "P",
-            [
-                new RotationStep("Ardelia", StepAction.BattleSkill),
-                new RotationStep("Arcane", StepAction.HeavyAttack),
-                new RotationStep("Laevatain", StepAction.BattleSkill),
-                new RotationStep("Ardelia", StepAction.BattleSkill),
-            ])]);
+            [new RotationPhase("burst", "Burst", [.. Squad.Select(id => new RotationStep(id, StepAction.Ultimate))])]);
         var fight = new Fight(rotation);
-        fight.Read(Plain);
+        bool[] ready = [true, true, true, true];
+        fight.Read(new Reading { UltimateReady = ready }.ToState());
 
-        var onHeavy = fight.Press(Ardelia);
-        Assert.Equal([D, C, U, U], onHeavy.Marks);
-        Assert.True(onHeavy.Ready); // a heavy attack never waits
-        Assert.Equal([D, D, D, C], fight.Press(Laevatain).Marks);
+        foreach (int slot in new[] { Ardelia, Arcane, Laevatain })
+        {
+            ready[slot - 1] = false;
+            fight.Read(new Reading { UltimateReady = [.. ready] }.ToState());
+            Assert.Equal(0, fight.Follower.TimesPlayed("burst"));
+        }
+        // Laevatain's, Arcane's and Ardelia's lit, in the reverse of the written order; Camille's still to come.
+        Assert.Equal([L, C, L, L], fight.Read(new Reading { UltimateReady = [.. ready] }.ToState()).Marks);
+
+        ready[Camille - 1] = false;
+        var last = fight.Read(new Reading { UltimateReady = ready }.ToState());
+
+        Assert.Equal(1, fight.Follower.TimesPlayed("burst"));
+        Assert.Equal([C, U, U, U], last.Marks); // played through: the lights go out for a new round
     }
 
+    /// <summary>The default finish: every step that can be seen used lit. Then it counts once and starts a new round.</summary>
     [Fact]
-    public void A_phase_ending_in_basic_attacks_starts_over_on_its_first_cast()
-    {
-        var rotation = new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
-            [new RotationPhase("p", "P", [new RotationStep("Ardelia", StepAction.BattleSkill), new RotationStep("Arcane", StepAction.BasicAttack)])]);
-        var fight = new Fight(rotation);
-        fight.Read(Plain);
-        Assert.Equal([D, C], fight.Press(Ardelia).Marks);
-
-        Assert.Equal([D, C], fight.Press(Ardelia).Marks); // the next round's first step
-    }
-
-    [Fact]
-    public void A_phase_played_through_starts_again_at_its_first_step()
+    public void A_round_with_every_step_lit_counts_once_and_the_lights_go_out()
     {
         var rotation = new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
             [new RotationPhase("p", "P", [new RotationStep("Ardelia", StepAction.BattleSkill), new RotationStep("Laevatain", StepAction.BattleSkill)])]);
         var fight = new Fight(rotation);
         fight.Read(Plain);
-        fight.Press(Ardelia);
 
-        Assert.Equal([C, U], fight.Press(Laevatain).Marks);
-        Assert.Equal([D, C], fight.Press(Ardelia).Marks);
+        Assert.Equal([C, L], fight.Press(Laevatain).Marks);
+        Assert.Equal(0, fight.Follower.TimesPlayed("p"));
+        Assert.Equal([C, U], fight.Press(Ardelia).Marks);
+        Assert.Equal(1, fight.Follower.TimesPlayed("p"));
+        Assert.Equal([C, U], fight.Read(Plain).Marks);
+        Assert.Equal(1, fight.Follower.TimesPlayed("p")); // once per round, not once per reading
     }
 
     [Fact]
-    public void Steps_used_together_may_come_in_either_order()
+    public void Steps_used_together_are_both_current_and_light_in_either_order()
     {
         var rotation = new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
         [
@@ -287,24 +267,22 @@ public sealed class StepFollowerTests
         ]);
         var fight = new Fight(rotation);
         fight.Read(Plain);
-        Assert.Equal([D, C, C, U], fight.Press(Ardelia).Marks); // both of the group are current
+        Assert.Equal([L, C, C, U], fight.Press(Ardelia).Marks); // both of the group are current
 
-        var arcaneUsed = new Reading { ComboReady = [true, true, false, true] }.ToState();
-        Assert.Equal([D, C, D, U], fight.Read(arcaneUsed).Marks);
-        var camilleUsed = new Reading { ComboReady = [true, false, false, true] }.ToState();
-        Assert.Equal([D, D, D, C], fight.Read(camilleUsed).Marks);
+        Assert.Equal([L, C, L, U], fight.Read(ComboUsed(Arcane)).Marks);
+        Assert.Equal([L, L, L, C], fight.Read(ComboUsed(Camille)).Marks);
     }
 
     [Fact]
-    public void A_new_phase_starts_at_its_first_step()
+    public void A_new_phase_starts_with_every_step_unlit()
     {
         var fight = new Fight(Charge);
         fight.Read(Plain);
-        Assert.Equal([D, C, U, U, U, U], fight.Press(Ardelia).Marks);
+        Assert.Equal([L, C, U, N, U, U], fight.Press(Ardelia).Marks);
 
         Assert.Equal([C, U], fight.Read(Plain, phase: 1).Marks);
         Assert.Equal(1, fight.Read(Plain, phase: 1).Phase);
-        Assert.Equal([C, U, U, U, U, U], fight.Read(Plain, phase: 0).Marks);
+        Assert.Equal([C, U, U, N, U, U], fight.Read(Plain, phase: 0).Marks);
     }
 
     [Fact]
@@ -330,14 +308,14 @@ public sealed class StepFollowerTests
     }
 
     [Fact]
-    public void Ending_the_fight_starts_over()
+    public void Ending_the_fight_puts_every_light_out()
     {
         var fight = new Fight(Charge);
         fight.Read(Plain);
-        Assert.Equal([D, C, U, U, U, U], fight.Press(Ardelia).Marks);
+        Assert.Equal([L, C, U, N, U, U], fight.Press(Ardelia).Marks);
 
         fight.Follower.EndFight();
 
-        Assert.Equal([C, U, U, U, U, U], fight.Read(Plain).Marks);
+        Assert.Equal([C, U, U, N, U, U], fight.Read(Plain).Marks);
     }
 }
