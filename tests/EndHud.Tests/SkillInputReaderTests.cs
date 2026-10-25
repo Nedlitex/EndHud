@@ -152,15 +152,25 @@ public class SkillHotkeysTests
 /// The real reader on the desktop. The game runs as administrator and EndHud doesn't, so Windows keeps
 /// the game's keystrokes from EndHud's Raw Input (UIPI); a hotkey still arrives. So the four bound keys
 /// are hotkeys, held only while reading, which is only while the game is in front. The test proves who
-/// holds a key by trying to register it itself: that fails while EndHud holds it and succeeds once
-/// EndHud has let it go. No input is injected: nothing is typed into any program.
+/// holds a key by trying to register it itself: that fails while the reader holds it and succeeds once
+/// the reader has let it go. No input is injected: nothing is typed into any program.
+/// <para>
+/// A hotkey belongs to the whole desktop session, not to one process: while a running EndHud reads the
+/// player's 1-4 (the game in front), or a second test run's reader holds them, nobody else can take
+/// them, and a test on 1-4 sees them held before its own reader starts. So the reader is given keys
+/// from F13-F24 instead, which no program here binds, and only ones nobody holds when the test starts;
+/// test runs side by side take turns (<see cref="KeyTurn"/>). What is proven is the same for any four
+/// keys (the reader registers whatever it is given); that the player's defaults are the bare digits
+/// 1-4 is proven by <see cref="SkillHotkeysTests"/>, with no Windows registration. It also keeps the
+/// tests from taking the real digits away from the game the owner may be playing.
+/// </para>
 /// </summary>
 [Trait("Category", "Desktop")] // registers with Windows' input: runs locally, not on CI runners
 [Collection(WpfCollection.Name)]
-public class SkillInputReaderTests
+public sealed class SkillInputReaderTests : IDisposable
 {
-    /// <summary>The default keys' virtual keys: the top-row 1 to 4.</summary>
-    private static readonly uint[] DigitKeys = [0x31, 0x32, 0x33, 0x34];
+    /// <summary>F13-F24 as stored key codes (set-1 scan codes).</summary>
+    private static readonly int[] SpareKeyCodes = [0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6A, 0x6B, 0x6C, 0x6D, 0x6E, 0x76];
 
     private static readonly bool[] AllFree = [true, true, true, true], AllHeld = [false, false, false, false];
 
@@ -173,6 +183,35 @@ public class SkillInputReaderTests
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
+    /// <summary>One of these tests at a time across every test run on this desktop (worktrees run side by side).</summary>
+    private static readonly Semaphore KeyTurn = new(1, 1, @"Local\EndHud.Tests.SkillInputReader.Keys");
+
+    private readonly int[] _keys;   // the four keys the reader is given (stored codes), slots 1-4
+    private readonly uint[] _vks;   // their virtual keys
+    private readonly int _spareKey; // a fifth free key, for rebinding slot 1
+    private readonly uint _spareVk;
+
+    public SkillInputReaderTests()
+    {
+        Assert.True(KeyTurn.WaitOne(TimeSpan.FromMinutes(2)), "another test run kept the skill-key tests' turn for 2 minutes");
+        try
+        {
+            var free = SpareKeyCodes.Select(code => (Code: code, Vk: SkillInputNative.VirtualKey(code)))
+                .Where(k => k.Vk != 0 && Free([k.Vk])[0]).ToList();
+            Assert.True(free.Count >= 5, $"only {free.Count} of F13-F24 are free on this desktop (5 needed): another program holds the rest");
+            _keys = [.. free.Take(4).Select(k => k.Code)];
+            _vks = [.. free.Take(4).Select(k => k.Vk)];
+            (_spareKey, _spareVk) = free[4];
+        }
+        catch
+        {
+            KeyTurn.Release();
+            throw;
+        }
+    }
+
+    public void Dispose() => KeyTurn.Release();
+
     /// <summary>For each key, whether this test could take it as a bare hotkey (given straight back).</summary>
     internal static bool[] Free(IReadOnlyList<uint> keys) => [.. keys.Select((vk, i) =>
     {
@@ -181,29 +220,29 @@ public class SkillInputReaderTests
         return free;
     })];
 
-    private static void Listen(SkillInputReader reader, bool on)
+    private void Listen(SkillInputReader reader, bool on)
     {
-        reader.SetListening(on, SkillKeyCodes.Defaults);
+        reader.SetListening(on, _keys);
         if (on) Assert.True(reader.WaitStarted(TimeSpan.FromSeconds(5)), "the reader's thread never said it started");
     }
 
     [Fact]
     public void Turning_reading_on_holds_the_four_keys_and_off_lets_them_go()
     {
-        Assert.Equal(AllFree, Free(DigitKeys)); // nobody holds them before
+        Assert.Equal(AllFree, Free(_vks)); // nobody holds them before
         using var reader = new SkillInputReader();
 
         Listen(reader, true);
         Assert.False(reader.Failed, reader.Describe());
-        Assert.Equal(AllHeld, Free(DigitKeys));
-        Assert.Equal(DigitKeys, reader.HeldHotkeys.Select(h => h.VirtualKey).Order());
+        Assert.Equal(AllHeld, Free(_vks));
+        Assert.Equal(_vks.Order(), reader.HeldHotkeys.Select(h => h.VirtualKey).Order());
         Assert.All(reader.HeldHotkeys, h => Assert.Equal(NoRepeat, h.Modifiers)); // bare key; held, it counts once
         Assert.Empty(reader.UnreadKeys);
         Assert.StartsWith("listening: keyboard (4 of 4 keys held)", reader.Describe());
 
         Listen(reader, false);
 
-        Assert.Equal(AllFree, Free(DigitKeys));
+        Assert.Equal(AllFree, Free(_vks));
         Assert.Empty(reader.HeldHotkeys);
         Assert.True(reader.Ended);
         Assert.Equal("off", reader.Describe());
@@ -216,23 +255,24 @@ public class SkillInputReaderTests
         using var reader = new SkillInputReader();
 
         Listen(reader, OverlayWindow.SkillInputListens(config, gameInFront: false));
-        Assert.Equal(AllFree, Free(DigitKeys)); // the game isn't in front: the digits are everyone's
+        Assert.Equal(AllFree, Free(_vks)); // the game isn't in front: the keys are everyone's
 
         Listen(reader, OverlayWindow.SkillInputListens(config, gameInFront: true));
-        Assert.Equal(AllHeld, Free(DigitKeys));
+        Assert.Equal(AllHeld, Free(_vks));
 
         Listen(reader, OverlayWindow.SkillInputListens(config, gameInFront: false)); // the game left the front
-        Assert.Equal(AllFree, Free(DigitKeys));
+        Assert.Equal(AllFree, Free(_vks));
 
         config.ReadSkillPresses = false;
         Listen(reader, OverlayWindow.SkillInputListens(config, gameInFront: true)); // the player turned it off
-        Assert.Equal(AllFree, Free(DigitKeys));
+        Assert.Equal(AllFree, Free(_vks));
     }
 
     [Fact]
     public void A_key_another_program_holds_is_named_by_slot_and_the_others_are_read()
     {
-        Assert.True(RegisterHotKey(IntPtr.Zero, TestId + 9, 0, 0x33), "the test could not take key 3 first");
+        // The test is the other program: it takes slot 3's key first (free: picked so, in this test's turn).
+        Assert.True(RegisterHotKey(IntPtr.Zero, TestId + 9, 0, _vks[2]), $"the test could not take slot 3's key first (error {Marshal.GetLastPInvokeError()})");
         try
         {
             using var reader = new SkillInputReader();
@@ -240,7 +280,7 @@ public class SkillInputReaderTests
 
             Assert.Equal([new UnreadKey(3, UnreadKey.HeldElsewhere)], reader.UnreadKeys);
             Assert.True(reader.UnreadKeys[0].TakenByAnotherProgram);
-            Assert.Equal([0x31u, 0x32u, 0x34u], reader.HeldHotkeys.Select(h => h.VirtualKey).Order());
+            Assert.Equal(new[] { _vks[0], _vks[1], _vks[3] }.Order(), reader.HeldHotkeys.Select(h => h.VirtualKey).Order());
             Assert.False(reader.Failed);
             Assert.StartsWith("listening: keyboard (3 of 4 keys held)", reader.Describe());
 
@@ -259,13 +299,13 @@ public class SkillInputReaderTests
         using var reader = new SkillInputReader();
         Listen(reader, true);
 
-        reader.SetListening(true, [0x10, 0x03, 0x04, 0x05]); // slot 1 on Q
+        reader.SetListening(true, [_spareKey, _keys[1], _keys[2], _keys[3]]); // slot 1 on another key
         Assert.True(reader.WaitStarted(TimeSpan.FromSeconds(5)));
 
-        Assert.Equal([true, false, false, false], Free(DigitKeys));
-        Assert.Equal([false], Free([0x51u]));
+        Assert.Equal([true, false, false, false], Free(_vks));
+        Assert.Equal([false], Free([_spareVk]));
         Listen(reader, false);
-        Assert.Equal([true], Free([0x51u]));
+        Assert.Equal([true], Free([_spareVk]));
     }
 
     [Fact]
@@ -290,11 +330,11 @@ public class SkillInputReaderTests
     {
         var reader = new SkillInputReader();
         Listen(reader, true);
-        Assert.Equal(AllHeld, Free(DigitKeys));
+        Assert.Equal(AllHeld, Free(_vks));
 
         reader.Dispose();
 
-        Assert.Equal(AllFree, Free(DigitKeys));
+        Assert.Equal(AllFree, Free(_vks));
         Assert.True(reader.Ended);
     }
 }
