@@ -62,7 +62,8 @@ rotation charts.
   dim; basic, heavy and plunge attacks, which can't be seen, are neutral (half dim, a dashed ring) and
   stay in place. The first unlit step in written order has two chevrons, cyan when it can be used
   now, white when not yet, with the reason under the strip (skill points short, the battle skill
-  cooling down). Nothing is ever skipped. When the phase's finish condition holds (by default:
+  cooling down). Cyan needs every check known to hold: a condition that can't be read now (the boss's
+  statuses out of sight) keeps it white with no reason for that condition (owner, 2026-10-25). Nothing is ever skipped. When the phase's finish condition holds (by default:
   every step that lights up lit) the lights go out for a new round. Battle skills are seen by the
   flash on their button and the skill point spent; the player's keys (`ReadSkillPresses`, off until
   turned on) only assist. See [Following battle skills from the screen](#following-battle-skills-from-the-screen).

@@ -267,7 +267,9 @@ public sealed class StepFollower(Rotation rotation)
         var checks = new List<ConditionCheck> { new(CheckKind.OwnAbility, null, own) };
         foreach (var condition in step.Expect)
             checks.Add(new ConditionCheck(CheckKind.Expected, condition, RotationTracker.Holds(condition, now, slots, history)));
-        bool ready = own == true && checks.All(c => c.Holds != false);
+        // Ready only when every check is known to hold: one that can't be read now keeps the step waiting, with no reason
+        // under the strip (only checks known not to hold give one). Owner 2026-10-25: "not ready, dont say why".
+        bool ready = checks.All(c => c.Holds == true);
         return new StepPosition(phase, marks, ready, checks);
     }
 }
