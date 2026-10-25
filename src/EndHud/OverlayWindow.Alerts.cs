@@ -65,7 +65,9 @@ public partial class OverlayWindow
     /// </summary>
     private bool TrackAlerts(PartyState? state, bool inBattle, IPhaseHistory history)
     {
-        var follow = _alertFollower.Update(state, inBattle, _config.AlertsEnabled && _config.PartyOcrEnabled, _alertRules, history, _clock.Elapsed);
+        // In an open-world fight by their own setting: held back there, the rules start over as at a fight's start, so
+        // turning the setting on mid-fight pops what holds then.
+        var follow = _alertFollower.Update(state, inBattle, _config.AlertsEnabled && _config.PartyOcrEnabled && Overlays.Alerts, _alertRules, history, _clock.Elapsed);
         foreach (string id in follow.TakeDown) TakeDownAlert(id);
         foreach (var rule in follow.Show) ShowAlert(rule);
         return follow.ReadBossStatuses;

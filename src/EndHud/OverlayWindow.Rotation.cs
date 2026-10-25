@@ -74,12 +74,31 @@ public partial class OverlayWindow
         bool alertsNeedStatuses = TrackAlerts(state, follow.InBattle, follow.History);
         _party.ReadBossStatuses = follow.ReadBossStatuses || alertsNeedStatuses;
         RenderRotation();
+        NoticeRotationHeldBack();
         TrackGauges(state, follow.InBattle);
+    }
+
+    /// <summary>Which battle overlays show in this battle: in an open-world fight, each by its own setting.</summary>
+    private BattleOverlays Overlays => BattleOverlays.For(_config, _lastState?.BattleKind ?? BattleKind.Unknown);
+
+    /// <summary>The first time the strip is held back in an open-world fight: the tray says so once, and where to turn it on.</summary>
+    internal event Action? RotationHeldBackInOpenWorld;
+
+    private void NoticeRotationHeldBack()
+    {
+        bool heldBack = OpenWorldNotice.RotationHeldBack(_config, _lastState?.BattleKind ?? BattleKind.Unknown,
+            stripWouldShow: _rotationPosition is not null && _config.RotationEnabled);
+        if (!OpenWorldNotice.Due(_config, heldBack)) return;
+        ConfigStore.Save(_config);
+        DiagnosticLog.Info("rotation strip held back in an open-world fight: told the player once (menu, 排轴)");
+        RotationHeldBackInOpenWorld?.Invoke();
     }
 
     private void RenderRotation()
     {
-        StripView? view = _rotationPosition is { } at && _config.RotationEnabled ? View(at.Rotation, at.Position)
+        // In an open-world fight the strip shows only with its setting on; the following behind it runs either way
+        // (RotationFollower), so turning the setting on mid-fight shows the right step at once.
+        StripView? view = _rotationPosition is { } at && _config.RotationEnabled && Overlays.Rotation ? View(at.Rotation, at.Position)
             // Something to drag, size and see through while the menu is open, out of battle (a player
             // couldn't adjust the strip before a fight).
             : _menuOpen && _config.RotationEnabled && _config.PartyOcrEnabled ? SampleView()

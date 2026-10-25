@@ -67,8 +67,11 @@ public partial class OverlayWindow
         if (state is not null && inBattle) _buffsSeen.AddRange(state.Buffs.Select(b => b.Id).Except(_buffsSeen).ToList());
         _timerViews = state is not null && inBattle ? state.RunningSkills ?? _skillTimers.Update(state, _clock.Elapsed) : new Dictionary<string, SkillTimerView>();
         _ultimateViews = state is not null && inBattle ? state.RunningUltimates ?? new Dictionary<string, LastingUltimateView>() : new Dictionary<string, LastingUltimateView>();
-        _gauges = state is not null && inBattle && _config.GaugesEnabled && _config.PartyOcrEnabled
-            ? GaugesView.Build(state, _counterMemory.Update(state), _buffsSeen, _timerViews, _ultimateViews, SkillIcon, Avatar, StatusIcon)
+        // In an open-world fight by their own setting; the counters are remembered either way, so turning it on mid-fight
+        // shows them as they are.
+        var counters = state is not null && inBattle && _config.GaugesEnabled && _config.PartyOcrEnabled ? _counterMemory.Update(state) : null;
+        _gauges = state is not null && counters is not null && Overlays.Gauges
+            ? GaugesView.Build(state, counters, _buffsSeen, _timerViews, _ultimateViews, SkillIcon, Avatar, StatusIcon)
             : null;
         RenderGauges();
     }

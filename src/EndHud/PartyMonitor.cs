@@ -698,6 +698,7 @@ internal sealed class PartyMonitor : IDisposable
         var ct = _cts.Token;
         bool panelSeen = false, firstReading = true;
         var modePillSeen = ModePillReading.NotSeen; // the top-left mode switch, as last logged
+        var battleKindSeen = BattleKind.Unknown; // instance or open world, as last logged
         string names = "";
         Task? avatars = null;
         Task<PartyState>? naming = null;
@@ -867,6 +868,14 @@ internal sealed class PartyMonitor : IDisposable
                         modePillSeen = state.ModePill;
                         var (pillShape, pillRed) = ModePill.Measure(gameFrame, new UiScaler(gameFrame.Width, gameFrame.Height));
                         DiagnosticLog.Info($"mode switch (top left): {modePillSeen} (shape {pillShape:F2}, red {pillRed:F2})");
+                    }
+                    // The battle kind decides which overlays show in an open-world fight: say when it changes, with the
+                    // evacuate bar's measures (the reading that made it).
+                    if (state.BattleKind != battleKindSeen)
+                    {
+                        battleKindSeen = state.BattleKind;
+                        var bar = EvacuateBar.Measure(gameFrame, new UiScaler(gameFrame.Width, gameFrame.Height));
+                        DiagnosticLog.Info($"battle kind (top left): {battleKindSeen} (evacuate bar white {bar.White:F2}, characters {bar.First:F2} {bar.Second:F2}; mode switch {raw.ModePill})");
                     }
                     // Back after long enough for the team menu: the last names may be another squad's.
                     // Shown while a slow naming runs, they put the old squad on the HUD for seconds.

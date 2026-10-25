@@ -10,9 +10,10 @@ namespace EndHud;
 /// in an open-world fight each follows its own setting: the rotation strip off by default, the gauges, the combo-ready
 /// hints and the alert pop-ups on.
 /// <para>
-/// Only what is drawn is held back: the rotation's phase and step following, the gauges' memory, the combo cooldowns
-/// and the alert rules keep running in an open-world fight (they are cheap, and a setting turned on mid-fight then shows
-/// the fight as it is, not from its start), and the menu's placement samples show whatever the kind.
+/// Only what is drawn is held back: the rotation's phase and step following, the gauges' counter memory and the combo
+/// cooldowns keep running in an open-world fight (they run on the reading already taken, so it costs next to nothing,
+/// and a setting turned on mid-fight then shows the fight as it is, not from its start); held-back alert rules start
+/// over as at a fight's start, so turning them on pops what holds then. The menu's placement samples show whatever the kind.
 /// </para>
 /// </summary>
 internal sealed record BattleOverlays(bool Rotation, bool Gauges, bool ComboHints, bool Alerts)

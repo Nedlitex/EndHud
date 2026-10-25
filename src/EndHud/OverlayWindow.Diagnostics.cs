@@ -38,7 +38,7 @@ public partial class OverlayWindow
         sb.AppendLine(Vision.Capture.GraphicsInfo.Describe(_game));
         if (_lastState is { } state)
         {
-            sb.AppendLine($"last reading: panel {(state.PanelVisible ? "seen" : "not seen")} ({PartyMonitor.DescribeLayout(state)}), in combat {state.InCombat}, mode switch {state.ModePill}, skill points {Vision.SkillPointBar.Describe(state)}, controlled slot {state.ActiveSlot?.ToString() ?? "-"}");
+            sb.AppendLine($"last reading: panel {(state.PanelVisible ? "seen" : "not seen")} ({PartyMonitor.DescribeLayout(state)}), in combat {state.InCombat}, mode switch {state.ModePill}, battle kind {state.BattleKind}, skill points {Vision.SkillPointBar.Describe(state)}, controlled slot {state.ActiveSlot?.ToString() ?? "-"}");
             foreach (var slot in state.Slots)
                 sb.AppendLine($"  slot {slot.Number}: {slot.Operator?.Operator.Id ?? "not named"}, level {slot.Level?.ToString() ?? "-"}, hp {slot.Hp?.ToString("P0") ?? "-"}{(slot.Dead ? ", fallen" : "")}");
         }

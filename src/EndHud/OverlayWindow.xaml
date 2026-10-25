@@ -255,6 +255,12 @@
                                Style="{StaticResource FeatureNote}" Visibility="Collapsed" />
                     <TextBlock Text="{DynamicResource Menu.ComboHint.Hint}" Foreground="#99FFFFFF" FontSize="11"
                                TextWrapping="Wrap" Margin="0,4,0,4" />
+                    <!-- In open-world fights too (BattleOverlays): on by default. -->
+                    <CheckBox x:Name="ComboHintOpenWorldCheckBox" Click="OpenWorldCheckBox_Click" Margin="0,2,0,0">
+                        <TextBlock Text="{DynamicResource Menu.ComboHint.OpenWorld}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <TextBlock Text="{DynamicResource Menu.OpenWorld.Hint}" Foreground="#99FFFFFF" FontSize="11"
+                               TextWrapping="Wrap" Margin="0,2,0,4" />
                     <StackPanel x:Name="ComboHintSettings">
                         <StackPanel x:Name="ComboHintModes">
                             <StackPanel.Resources>
@@ -301,6 +307,12 @@
                                Style="{StaticResource FeatureNote}" Visibility="Collapsed" />
                     <TextBlock Text="{DynamicResource Menu.Rotation.Hint}" Foreground="#99FFFFFF" FontSize="11"
                                TextWrapping="Wrap" Margin="0,4,0,4" />
+                    <!-- In open-world fights too (BattleOverlays): off by default (owner, 2026-10-25). -->
+                    <CheckBox x:Name="RotationOpenWorldCheckBox" Click="OpenWorldCheckBox_Click" Margin="0,2,0,0">
+                        <TextBlock Text="{DynamicResource Menu.Rotation.OpenWorld}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <TextBlock Text="{DynamicResource Menu.OpenWorld.Hint}" Foreground="#99FFFFFF" FontSize="11"
+                               TextWrapping="Wrap" Margin="0,2,0,4" />
                     <!-- Size: on top of following the game window. Applied while dragging. -->
                     <DockPanel x:Name="RotationSizeRow" Margin="0,4,0,0">
                         <TextBlock Text="{DynamicResource Menu.Gauges.Size}" VerticalAlignment="Center" Margin="0,0,8,0" />
@@ -393,6 +405,12 @@
                                Style="{StaticResource FeatureNote}" Visibility="Collapsed" />
                     <TextBlock Text="{DynamicResource Menu.Alerts.Hint}" Foreground="#99FFFFFF" FontSize="11"
                                TextWrapping="Wrap" Margin="0,4,0,4" />
+                    <!-- In open-world fights too (BattleOverlays): on by default. -->
+                    <CheckBox x:Name="AlertsOpenWorldCheckBox" Click="OpenWorldCheckBox_Click" Margin="0,2,0,0">
+                        <TextBlock Text="{DynamicResource Menu.Alerts.OpenWorld}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <TextBlock Text="{DynamicResource Menu.OpenWorld.Hint}" Foreground="#99FFFFFF" FontSize="11"
+                               TextWrapping="Wrap" Margin="0,2,0,4" />
                     <TextBlock x:Name="AlertsCountText" Foreground="#CCFFFFFF" Margin="0,2,0,4" />
                     <!-- Editing works with the pop-ups off: rules can be prepared before turning them on. -->
                     <Button x:Name="EditAlertsButton" HorizontalAlignment="Left" Padding="10,2"
@@ -413,6 +431,12 @@
                                Style="{StaticResource FeatureNote}" Visibility="Collapsed" />
                     <TextBlock Text="{DynamicResource Menu.Gauges.Hint}" Foreground="#99FFFFFF" FontSize="11"
                                TextWrapping="Wrap" Margin="0,4,0,4" />
+                    <!-- In open-world fights too (BattleOverlays): on by default. -->
+                    <CheckBox x:Name="GaugesOpenWorldCheckBox" Click="OpenWorldCheckBox_Click" Margin="0,2,0,0">
+                        <TextBlock Text="{DynamicResource Menu.Gauges.OpenWorld}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <TextBlock Text="{DynamicResource Menu.OpenWorld.Hint}" Foreground="#99FFFFFF" FontSize="11"
+                               TextWrapping="Wrap" Margin="0,2,0,4" />
                     <!-- Size: on top of following the game window. Applied while dragging. -->
                     <DockPanel x:Name="GaugesSizeRow" Margin="0,4,0,0">
                         <TextBlock Text="{DynamicResource Menu.Gauges.Size}" VerticalAlignment="Center" Margin="0,0,8,0" />

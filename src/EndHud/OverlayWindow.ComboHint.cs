@@ -100,9 +100,9 @@ public partial class OverlayWindow
     private void UpdateComboHints()
     {
         var state = _lastState;
-        var wanted = (state is not null && _config.ComboHintEnabled && _config.PartyOcrEnabled
-                ? _hints.Update(state, _clock.Elapsed).Select(n => state.Slots[n - 1]).Where(Nameable)
-                : [])
+        // The cooldowns are followed in an open-world fight either way; the banners show there by their own setting.
+        var due = state is not null && _config.ComboHintEnabled && _config.PartyOcrEnabled ? _hints.Update(state, _clock.Elapsed) : [];
+        var wanted = (state is not null && Overlays.ComboHints ? due.Select(n => state.Slots[n - 1]).Where(Nameable) : [])
             .Select(s => (s.Number, Key: s.Operator?.Operator.Id ?? $"slot{s.Number}", Slot: (PartySlot?)s))
             .ToList();
         // Something to drag while placing it.

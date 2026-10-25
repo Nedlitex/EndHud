@@ -80,6 +80,7 @@ public partial class OverlayWindow : Window
         InitSkillInput();
         InitGaugeSettings();
         InitAlertSettings();
+        InitOpenWorldSettings();
         VersionText.Text = ReleaseChecker.DisplayVersion;
 
         _party = new PartyMonitor(TimeSpan.FromMilliseconds(Math.Max(250, config.OcrIntervalMs))) { UpdatesEnabled = () => _config.CheckForUpdates };

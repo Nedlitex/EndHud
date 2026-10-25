@@ -257,6 +257,12 @@
     <sys:String x:Key="Menu.Rotation.Edit">编辑排轴…</sys:String>
     <sys:String x:Key="Menu.Rotation.ResetPosition">恢复默认位置</sys:String>
     <sys:String x:Key="Menu.Rotation.Opacity">不透明度</sys:String>
+    <sys:String x:Key="Menu.Rotation.OpenWorld">在大世界战斗中也显示排轴</sys:String>
+    <sys:String x:Key="Menu.ComboHint.OpenWorld">在大世界战斗中也显示连携就绪提示</sys:String>
+    <sys:String x:Key="Menu.Alerts.OpenWorld">在大世界战斗中也弹出战斗提示</sys:String>
+    <sys:String x:Key="Menu.Gauges.OpenWorld">在大世界战斗中也显示状态监视</sys:String>
+    <sys:String x:Key="Menu.OpenWorld.Hint">副本战斗（左上角有“撤离”按钮）中总是显示；左上角没有“撤离”的战斗算大世界战斗。</sys:String>
+    <sys:String x:Key="Notice.RotationHiddenInOpenWorld">大世界战斗中现在默认不显示排轴，副本战斗中照常显示。想在大世界战斗中也显示：按 Ctrl+Shift+M 打开菜单，在“排轴”中勾选“在大世界战斗中也显示排轴”。</sys:String>
     <sys:String x:Key="Menu.SkillInput">读取战技按键（辅助判断）</sys:String>
     <sys:String x:Key="Menu.SkillInput.Hint">排轴不开这个也会按画面标出你打到了哪一步。开启后，EndHud 还会读取你释放战技的按键（键盘或手柄）作为辅助：画面上分不出是哪个号位放的战技时（例如背景太亮），以按键为准。只识别下面 4 个战技键和手柄 L1/LB 组合键，其他按键当场丢弃，不保存、不记录。默认关闭。</sys:String>
     <sys:String x:Key="Menu.SkillInput.Slot">{0} 号位战技</sys:String>

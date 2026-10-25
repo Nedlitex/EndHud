@@ -109,6 +109,8 @@ internal sealed class TrayIcon : IDisposable
         };
         // What to install for the inn helper: said here and in the log, never over the game.
         _overlay.InnProblemFound += text => OnUi(() => Notify(text, null));
+        // Once ever (OpenWorldNotice): the rotation strip is now hidden in open-world fights, and where to turn it back on.
+        _overlay.RotationHeldBackInOpenWorld += () => OnUi(() => Notify(Loc.Get("Notice.RotationHiddenInOpenWorld"), null));
         _overlay.NewOperatorsFound += added => OnUi(() =>
             Notify(Loc.Format("Operators.NewFound", string.Join("、", added.Select(o => o.NameZh))), null));
 
