@@ -109,6 +109,34 @@ public class StaggerBarTests
         Assert.Equal(1, after!.NodesReached);
     }
 
+    /// <summary>
+    /// An on-screen display drawn into the game (<see cref="SyntheticOsd"/>; its top-centre position covers the bar's middle
+    /// 22-78 %, a line of text crossing the bar's rows) at each position, with and without its backdrop, at 4K and 1080p:
+    /// the bar reads as on the clean frame or unknown, never another state, fill, countdown or node. The same fields are
+    /// in the slow combat gate (<see cref="OnScreenDisplayCombatGateTests"/>).
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Files))]
+    public async Task Under_a_display_reads_the_same_or_unknown(string file)
+    {
+        var source = await Load(file);
+        var wrong = new List<string>();
+        foreach (var (size, frame) in new[] { ("4K", source), ("1080p", SimulatedScreen.FullHd.Render(source)) })
+        {
+            var clean = Fields(StaggerBar.Read(frame));
+            foreach (var position in SyntheticOsd.Positions)
+            foreach (bool background in new[] { true, false })
+            {
+                var (_, found) = OnScreenDisplayCombatGateTests.Compare(clean, Fields(StaggerBar.Read(SyntheticOsd.Draw(frame, position, background))));
+                wrong.AddRange(found.Select(w => $"{size} {position}{(background ? " bg" : "")} {w}"));
+            }
+        }
+        Assert.True(wrong.Count == 0, string.Join("; ", wrong));
+
+        static Dictionary<string, string?> Fields(StaggerReading? reading) =>
+            OnScreenDisplayCombatGateTests.StaggerFields(reading).ToDictionary(f => f.Field, f => f.Value);
+    }
+
     /// <summary>The memory forgets a boss's nodes once no bar has been seen for a while (another boss may have others).</summary>
     [Fact]
     public async Task The_memory_forgets_without_a_bar()

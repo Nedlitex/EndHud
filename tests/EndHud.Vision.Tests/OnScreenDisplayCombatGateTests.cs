@@ -15,7 +15,7 @@ namespace EndHud.Vision.Tests;
 /// <para>
 /// Read at 4K and at 1080p over the combat, exploration and HUD fixtures (both layouts): the squad panel (seen, in
 /// combat, squad size, the controlled slot, skill points and the bar's segment count, the time bar; per slot fallen, HP, level, combo, ultimate,
-/// battle skill), the mode switch, the evacuate bar (撤离: an instance), team buffs, the boss's statuses, the squad's counters and Si's button with the squad
+/// battle skill), the mode switch, the evacuate bar (撤离: an instance), team buffs, the boss's statuses and stagger bar, the squad's counters and Si's button with the squad
 /// known. What the app keeps from a reading follows <see cref="PartyTracker"/>: a reading without the squad panel is not
 /// taken, so its slot values count as unknown. Each variant's verdicts are written to the test output ("GATE" lines).
 /// </para>
@@ -35,7 +35,7 @@ public class OnScreenDisplayCombatGateTests(ITestOutputHelper output)
     [
         "battle-hud", "controller", "infliction", "vulnerable", "vulnerable-and-infliction", "reactions", "buffs",
         "portrait-counters", "si-timer-second-cast", "ultimate-time", "lasting-ultimate-background", "panel-or-not",
-        "small-squads", "counters", "faded-squad", "skill-points",
+        "small-squads", "counters", "faded-squad", "skill-points", "stagger",
     ];
 
     public static TheoryData<string> CombatFrames()
@@ -205,6 +205,7 @@ public class OnScreenDisplayCombatGateTests(ITestOutputHelper output)
         }
         if (state.InCombat) r["buffs"] = string.Join(" ", buffs.Read(frame).Select(b => $"{b.Id}:{b.Stacks}"));
         foreach (var st in boss.Read(frame)) r[$"boss {st.Position}"] = $"{st.StatusId}:{st.Stacks}";
+        foreach (var (field, value) in StaggerFields(StaggerBar.Read(frame))) r[field] = value;
 
         // The counters and Si's button, with the squad known (as once named).
         if (Squad(fixture) is { } squad)
@@ -226,6 +227,20 @@ public class OnScreenDisplayCombatGateTests(ITestOutputHelper output)
             foreach (var c in OperatorCounters.Read(frame, fixture.Contains("zhuang", StringComparison.Ordinal) ? "Zhuang_Fangyi" : "Typhoeus"))
                 r[$"controlled counter {c.CounterId}"] = c.Value?.ToString(CultureInfo.InvariantCulture);
         return r;
+    }
+
+    /// <summary>
+    /// The boss's stagger bar as gate fields: its state, fill and countdown, and each node box by its place (reached or
+    /// not), so a box hidden by the display is unknown (absent) while a box made up by it is wrong.
+    /// </summary>
+    public static IEnumerable<(string Field, string? Value)> StaggerFields(StaggerReading? reading)
+    {
+        if (reading is null) yield break;
+        yield return ("boss stagger", reading.State.ToString());
+        yield return ("boss stagger progress", F(reading.Progress));
+        yield return ("boss stagger countdown", reading.CountdownLeft is { } c ? F(c) : "none");
+        foreach (double node in reading.Nodes)
+            yield return ($"boss stagger node {F(node)}", reading.State == StaggerState.Staggered || node <= reading.Progress + StaggerBar.NodeReachedSlack ? "reached" : "not reached");
     }
 
     private static readonly Lazy<Dictionary<string, string[]>> Labelled = new(() =>
