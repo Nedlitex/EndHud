@@ -151,6 +151,54 @@ public sealed class OperatorPackageTests : IDisposable
         Assert.False(File.Exists(Path.Combine(_root, "operators", "escaped.txt")));
     }
 
+    /// <summary><paramref name="zip"/> with more files: <paramref name="count"/> of them, each <paramref name="size"/> zero bytes.</summary>
+    private static byte[] WithFiles(byte[] zip, int count, long size)
+    {
+        using var buffer = new MemoryStream();
+        buffer.Write(zip);
+        using (var archive = new ZipArchive(buffer, ZipArchiveMode.Update, leaveOpen: true))
+        {
+            var chunk = new byte[1024 * 1024];
+            for (int i = 0; i < count; i++)
+            {
+                using var stream = archive.CreateEntry($"padding/{i}.bin", CompressionLevel.Fastest).Open();
+                for (long left = size; left > 0; left -= chunk.Length) stream.Write(chunk, 0, (int)Math.Min(chunk.Length, left));
+            }
+        }
+        return buffer.ToArray();
+    }
+
+    [Fact]
+    public void A_package_with_too_many_files_is_refused_and_the_current_copy_kept()
+    {
+        var package = RepositoryPackage();
+        OperatorPackage.Install(Reference, package);
+        var later = Variant(package, OperatorPackage.ReadInfo(package)!.ContentAtUtc.AddDays(1));
+
+        var ex = Assert.Throws<InvalidDataException>(() => OperatorPackage.InstallIfNewer(Reference, WithFiles(later, OperatorPackage.MaxFiles, 1)));
+
+        Assert.Contains("files", ex.Message);
+        Assert.Equal(OperatorPackage.ReadInfo(package), OperatorPackage.Installed(Reference));
+        Assert.False(Directory.Exists(Reference + ".new"));
+    }
+
+    [Fact]
+    public void A_package_that_unpacks_too_large_is_refused_and_the_current_copy_kept()
+    {
+        var package = RepositoryPackage();
+        OperatorPackage.Install(Reference, package);
+        var later = Variant(package, OperatorPackage.ReadInfo(package)!.ContentAtUtc.AddDays(1));
+
+        // A few hundred KB compressed, over the limit unpacked.
+        var bomb = WithFiles(later, 1, OperatorPackage.MaxUnpackedBytes);
+        Assert.True(bomb.Length < 4 * 1024 * 1024, $"{bomb.Length} bytes");
+        var ex = Assert.Throws<InvalidDataException>(() => OperatorPackage.InstallIfNewer(Reference, bomb));
+
+        Assert.Contains("larger than", ex.Message);
+        Assert.Equal(OperatorPackage.ReadInfo(package), OperatorPackage.Installed(Reference));
+        Assert.False(Directory.Exists(Reference + ".new"));
+    }
+
     // ---- From GitHub ----
 
     private const string Api = "https://api.example/repos/x/y/contents/operators?ref=main";

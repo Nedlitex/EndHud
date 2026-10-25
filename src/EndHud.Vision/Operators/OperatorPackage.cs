@@ -169,6 +169,12 @@ public static class OperatorPackage
             throw new InvalidDataException($"The package lists {incoming.Dishes.Count} dishes (the current copy has {before.Dishes.Count}); keeping the current copy.");
     }
 
+    /// <summary>The most files a package may hold (today's has about 230).</summary>
+    public const int MaxFiles = 5000;
+
+    /// <summary>The most a package may unpack to, all files together (today's: about 1.3 MB).</summary>
+    public const long MaxUnpackedBytes = 256L * 1024 * 1024;
+
     /// <summary>Install <paramref name="zip"/>, replacing the reference folder; the operators it added.</summary>
     public static IReadOnlyList<OperatorInfo> Install(string referenceFolder, byte[] zip)
     {
