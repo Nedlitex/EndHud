@@ -156,6 +156,44 @@ public class OnScreenDisplayCombatTests
     }
 
     /// <summary>
+    /// Naming the squad with the display over the portraits at the bottom left: the display is static, so every one
+    /// of the readings that settle a name agreed on what it covered (Laevatain read as another operator in 10 of 16
+    /// cases). Twelve readings, as on the clean frame: each slot is named as on the clean frame, or not named.
+    /// </summary>
+    [Theory]
+    [InlineData("combat-all-ready.jpg")]
+    [InlineData("exploration-levels-visible.png")]
+    [InlineData("ultimate-charge-near-half.jpg")]
+    [InlineData("battle-low-hp.jpg")]
+    public async Task A_squad_under_a_display_is_named_as_it_is_or_not_at_all(string file)
+    {
+        var library = await OperatorCache.LoadAsync(Path.Combine(Path.GetTempPath(), "endhud-osd-naming-" + Environment.ProcessId));
+        var reader = new PartyReader(new TextRecognizer());
+        async Task<string?[]> Names(Frame frame)
+        {
+            var clock = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            var identifier = new SquadIdentifier(library, () => clock);
+            var state = await reader.ReadAsync(frame);
+            await identifier.PrepareAsync(state);
+            var named = state;
+            for (int i = 0; i < 12; i++)
+            {
+                clock += TimeSpan.FromSeconds(0.5);
+                named = await identifier.IdentifyAsync(state);
+            }
+            return [.. named.Slots.Select(s => s.Operator?.Operator.Id)];
+        }
+        var frame = (await Sizes(file)).Single(s => s.Size == "1080p").Frame;
+        var clean = await Names(frame);
+        foreach (var (name, covered) in Covered(frame, OsdPosition.BottomLeft))
+        {
+            var read = await Names(covered);
+            for (int i = 0; i < read.Length; i++)
+                if (read[i] is { } id) Assert.True(id == clean[i], $"{name}: slot {i + 1} {clean[i] ?? "not named"} named {id}");
+        }
+    }
+
+    /// <summary>
     /// A squad of three with the display over slot 1: slot 1 showing nothing readable was taken for a screen without
     /// the squad panel, so the squad was read as four.
     /// </summary>
