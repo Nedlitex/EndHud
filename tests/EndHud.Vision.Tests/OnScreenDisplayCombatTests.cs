@@ -1,3 +1,4 @@
+using EndHud.Vision.Operators;
 using Xunit;
 
 namespace EndHud.Vision.Tests;
@@ -122,6 +123,35 @@ public class OnScreenDisplayCombatTests
             foreach (var (name, covered) in Covered(frame, OsdPosition.TopCentre))
                 foreach (var status in reader.Read(covered))
                     Assert.True(clean.Contains((status.StatusId, status.Position)), $"{size} {name}: {status.StatusId} at position {status.Position}");
+        }
+    }
+
+    /// <summary>
+    /// The counters on the squad portraits under the display's backdrop at the bottom left: Laevatain's flower, every
+    /// petal dimmed to a dark grey, read 3 stacks as 0, and Typhoeus's dots, lit white dimmed to the unlit grey, 8 as 0.
+    /// Each counter read under it is the clean value or unknown. The squad as the fixture's labels give it.
+    /// </summary>
+    [Theory]
+    [InlineData("portrait-counters/laevatain-35s.jpg", "", "Laevatain", "Si", "")]
+    [InlineData("portrait-counters/laevatain-55s.jpg", "", "Laevatain", "Si", "")]
+    [InlineData("portrait-counters/typhoeus-20s.jpg", "Typhoeus", "", "", "")]
+    public async Task Portrait_counters_under_a_display_read_their_value_or_unknown(string file, string slot1, string slot2, string slot3, string slot4)
+    {
+        string[] squad = [slot1, slot2, slot3, slot4];
+        var reader = new PartyReader(new TextRecognizer());
+        PartyState Named(PartyState state) => state with
+        {
+            Slots = [.. state.Slots.Select(s => squad[s.Number - 1] is { Length: > 0 } id && !s.Empty
+                ? s with { Operator = new OperatorMatch(new OperatorInfo(id, id, id, id + ".png"), 1, true) } : s)],
+        };
+        foreach (var (size, frame) in await Sizes(file))
+        {
+            var clean = OperatorCounters.ReadSquad(frame, Named(await reader.ReadAsync(frame)));
+            foreach (var (name, covered) in Covered(frame, OsdPosition.BottomLeft))
+                foreach (var counter in OperatorCounters.ReadSquad(covered, Named(await reader.ReadAsync(covered))))
+                    if (counter.Value is { } value)
+                        Assert.True(clean.Any(c => c.OperatorId == counter.OperatorId && c.CounterId == counter.CounterId && c.Value == value),
+                            $"{size} {name}: {counter.OperatorId} {counter.CounterId} read {value}");
         }
     }
 
