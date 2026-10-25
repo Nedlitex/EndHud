@@ -1685,6 +1685,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   | `ultimate` | `operatorId`, `ready` | that operator's ultimate is ready or charging |
   | `ultimateCharge` | `operatorId`, `is`, `percent` (0–100) | that operator's ultimate is charged so far (ready is 100; at most 0 is just used) |
   | `battleSkillActive` | `operatorId`, `active` (format 7) | that operator's lasting battle skill is running (`true`) or not: Si's, from the swirl on her battle-skill button until the butterfly is back (the purple countdown round her stacks' circle, see [Si's battle-skill timer](#sis-battle-skill-timer)). This reading's button decides (swirl or crossed-out butterfly: running; butterfly: not); a reading that can't tell it (an effect, a countdown look) goes by the overlay's timer (`PartyState.RunningSkills`, the estimate while it lasts): running while it shows one, else unknown. Unknown with a controller (the buttons aren't read). Only Si's is read (`SkillRing.Operators`); naming anyone else is refused (`SkillTimeNotRead`), and the editors offer only Si, greyed out without her |
+  | `battleSkillEmpowered` | `operatorId`, `empowered` (format 11) | that operator's battle skill is empowered (战技已强化, `true`) or not: the steady near-white glow on the rim of their battle-skill button, judged over the last 0.5 s of the corner sampled 30 times a second (see [Following battle skills from the screen](#following-battle-skills-from-the-screen); `PartyState.Empowered`, `PartyState.EmpoweredOf`). Keyboard and mouse and controller alike (either diamond: LB held or not). Unknown when the corner isn't sampled (no window capture), the squad panel is out of sight or out of battle, with keyboard and mouse when that reading couldn't read the slot's button, and whenever the glow can't be told (below). Any operator may be named: whose battle skill the game empowers is not EndHud's to say |
   | `ultimateActive` | `operatorId`, `active` (format 3) | that operator's lasting ultimate is running (`true`) or not, whoever is controlled: one of the running ones from [Lasting ultimates](#lasting-ultimates) (`PartyState.RunningUltimates`), on the time bar or carried on in the background. Unknown while the skill points can't be read, and, for an operator whose ultimate isn't one of the known lasting ones, while a bar shows (it could be hers); with no bar, false |
   | `ultimateTimeLeft` | `operatorId`, `is`, `percent` (0–100) (format 9) | how much of that operator's lasting ultimate is left to run, as a % of its time bar (`LastingUltimateView.LeftShare` of the running ones from [Lasting ultimates](#lasting-ultimates), on the bar or carried on in the background); 0 while it isn't running (as a ready ultimate's charge is 100). Unknown while the skill points can't be read. Only Laevatain, Zhuang Fangyi and Yvonne (`LastingUltimates.Operators`); anyone else is refused (`UltimateTimeNotRead`), and the editors offer only them, greyed out without any. No seconds: no ultimate's length has been measured |
   | `counter` | `operatorId`, `counterId`, `is`, `value` | an operator's own resource compares so (see below) |
@@ -1747,7 +1748,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   that machinery (`PhaseHistory.KeysNotRead`, `IPhaseHistory.PlayedIgnored`,
   `RotationTracker.Ignored`, `ConditionWalk.OnlyPlayed`, `ConditionNeeds.KeysRead`) is gone.
 
-- `format`: 10 when a phase has a `finish` condition (and so for `stepsLit`); else 9 when it uses `ultimateTimeLeft`, `phaseCurrent`, a `Condition` or `PlungeAttack` step, or the `"controlled"` operator; else 8 when it uses a `HeavyAttack` step; else 7 when it uses `battleSkillActive`; else 6 when a phase sets `priority` (other than 0) or `priorityRules`; else 5 when it uses `phasePlayed`; else 4 when it uses a `BasicAttack` step, `Below`/`Above` or `phaseShown`; else 3 when it
+- `format`: 11 when it uses `battleSkillEmpowered`; else 10 when a phase has a `finish` condition (and so for `stepsLit`); else 9 when it uses `ultimateTimeLeft`, `phaseCurrent`, a `Condition` or `PlungeAttack` step, or the `"controlled"` operator; else 8 when it uses a `HeavyAttack` step; else 7 when it uses `battleSkillActive`; else 6 when a phase sets `priority` (other than 0) or `priorityRules`; else 5 when it uses `phasePlayed`; else 4 when it uses a `BasicAttack` step, `Below`/`Above` or `phaseShown`; else 3 when it
   uses `not`, `ultimateActive` or `lastMatchWins`; else 2. A rotation is saved in the lowest
   format that holds it (`Rotation.FormatNeeded`), so one using nothing new stays readable by older
   builds, and the published `rotations/*.json` stay at format 3 or lower (a test checks). A
@@ -1980,17 +1981,20 @@ crop was the scene. The tracker tells, 0.65 s after a fill, whether the rim was 
 and not before = the glow starting (`EmpoweredStart`), not a cast; lit before and off after = the empowered battle
 skill used (`EmpoweredCast`)**. Neither the glow nor its start ever counts as a cast; an empowered cast counts like
 any other (most spend a point), and is the one flash that counts without a point spent (Camille's second form costs
-nothing). There is no "empowered" condition (owner: not now).
+nothing).
+
+**Empowered as a condition** (owner, 2026-10-24: "empowered skill should be a condition as well"; `battleSkillEmpowered`, 战技已强化, above). Per sample and button, `BattleSkillFlash.Glow`: **lit** when the rim is near white all round (`RimAllRound`: in twelve sectors round the button, the third least lit at 0.15 or more; 0.29-0.54 under the glow in both layouts, 0-0.02 on every other button of the fixtures: a ring, where an on-screen display's white text over part of the rim lights only the sectors it covers); **not lit** when under 0.12 of the rim is near white (0-0.1 at rest) on a button seen (at least 0.1 of its middle light and grey: 0.16-0.8 on every button seen, 0 under a display's 55 % black backdrop or with the HUD gone); **can't be told** otherwise, and whenever the scene round the button is bright (median 200 or more, or half of it 200 or more: a white flash of the scene behind the see-through buttons lights every rim alike, full battle 3 at 80.5 s and 104.3 s; under the glow at most 0.2 of it), or three or more lines of text are over the button (`BattleSkillButton.TextLines`). `CastFlashTracker.Empowered` over the last 0.5 s (at least 5 samples): lit on 70 % of them is empowered, seen unlit on 70 % is not, anything else unknown (a cast's ring crosses the rim in under 0.2 s, so it is "not"). `FlashSampler.Empowered` turns buttons into slots as the casts are, and each reading carries it (`PartyState.Empowered`). Gated by the on-screen display test (`OnScreenDisplayEmpoweredGateTests`: the clean verdict or unknown per slot, both layouts, five positions, with and without the backdrop).
 
 **The fast path.** The flash is too short for the readings (every 250 ms or slower), so the button corner is sampled
 on its own, 30 times a second at most, from the frames Windows already sends:
 [`WindowCapture.SetCornerTap`](src/EndHud.Vision/Capture/WindowCapture.cs) copies only that corner off the GPU
 (`StagingCopy.CopyRegion`, `CopySubresourceRegion` into a small staging texture of its own) on the capture's thread;
 [`FlashSampler`](src/EndHud.Vision/FlashSampler.cs) measures and tells. `PartyMonitor` taps the corner (the game's
-area, then its 16:9 picture: letterbox-aware) only in the keyboard-and-mouse layout, through the window capture,
+area, then its 16:9 picture: letterbox-aware; the layout's own corner, `BattleSkillFlash.Region(w, h, layout)`) in either layout once one
+was seen, through the window capture,
 while the last reading in combat was at most 3 s ago, and never while the top-left mode switch says out of battle
 (exploring or building: it stops at once; `SamplesFlashes`); each reading takes the flashes told since the
-one before (`PartyState.Flashes`). Cost, measured: 0.74 ms of CPU per sample at 4K (four discs and their scene rings,
+one before (`PartyState.Flashes`) and the empowered verdict as of then (`PartyState.Empowered`). Cost, measured: 0.74 ms of CPU per sample at 4K (four discs and their scene rings,
 the rings sampled every other pixel; 0.23 ms at 1080p), about 2 % of one core at 30 a second, plus a 1.2 MB read
 back from the GPU per sample. The diagnostics line `battle-skill flash: N samples, X ms each; Fill …` counts them.
 
@@ -2012,15 +2016,29 @@ A cast is **certain** (`SkillCast.Certain`) when a point was spent and the slot 
 measure). Until the light-up model only certain uses could make the strip jump; now any cast of a slot lights its
 step (below), and nothing jumps.
 
-**Controller layout.** Casting is LB held, and the flash is in the LB-held diamond, which sits elsewhere (4K centres
-L 3262,1774, T 3412,1608, R 3558,1774, B 3412,~1902), with a grey "pressed" disc before the flash; a quick pass matched
-12 of 29 drops. So with a controller the corner isn't sampled: skill points spent, the pad presses (with the key reading on)
-and the current step decide. Measuring the diamond brings it back.
+**Controller layout** (measured on battle_controller_test_fullbattle3 at 30 fps, 2026-10-24). A battle skill is cast with LB held, so
+its flash is in the held diamond, which sits up and to the left of the plain one (4K centres, slots 1-4: plain (3422,1854),
+(3553,1723), (3684,1854), (3553,1982); held (3264,1776), (3414,1610), (3560,1776), (3414,1904)). The corner read is both
+(`BattleSkillFlash.ControllerCorner`, 710x680 at 4K), and **each sample says which diamond it shows** (`BattleSkillFlash.PlacesOf`):
+the plain one by the LB/L1 badge in its middle (`HudLayoutDetector.SkillsBadgeShown`), the held one by three of its four face-button
+badges (a dark ring round a white letter), else neither and the sample is passed over (a cutscene, the HUD fading between them). The
+badge was on 3,423 of the 3,485 plain-diamond frames and never with three held badges; three or four held badges on 259 of the 358
+held frames. LB is held and let go faster than the readings follow, which is why the corner decides, not the reading's layout.
+The held buttons are see-through and lighter (their top half 105-190 at rest over a light floor), and the pressed one turns light
+grey (145-180) before the flash turns it white (195-230): a fill there is 195 or brighter and stands out 45 above the scene round it
+(a white fill of 200 in front of a light floor at 146). A fill in the plain diamond never counts: no cast is made there (it is the
+empowered glow starting, or an ultimate's long press let go). The diamond keeps every place for a small squad (an empty place is a
+ring with a slash), so its buttons are slots directly (`FlashEvent.Places`), and the judge's "button read before" check is the
+keyboard's only. Hand-labelled over 20-160 s of that recording (every skill-point drop of about 1 with the fill seen on the sheets):
+**13 casts, 12 found on the right slot, 1 missed, 0 wrong** (the miss, 53.6 s slot 2: the HUD fading, the fill only 160). A long
+press for an ultimate whitens the button like a cast (146.9 s); no point is spent, and the judge also leaves out a slot whose ultimate
+was just spent. Before this (a quick fixed-position pass): 12 of 29.
 
 **The recorded check.** [`RecordingCasts`](src/EndHud.Vision/RecordingCasts.cs) reads a recording the app's way
 (readings, the corner sampled between them, casts judged); `endhud-cli trace-video --casts` prints them, and
 `RecordedCastsTests` runs it on `Recordings/battle-casts-30fps.mp4` (30 fps, the fight of the bug below) against its
-casts labelled by eye. On the research recordings (keyboard, 61 casts): 50 named by the flash, 2 by the countdown, 9
+casts labelled by eye; `RecordedControllerCastsTests` the same on `Recordings/battle-controller-30fps.mp4` (21 s of the controller
+recording above, its four casts with LB held labelled by eye: all four on their slots from the flash, nothing else cast). On the research recordings (keyboard, 61 casts): 50 named by the flash, 2 by the countdown, 9
 by nobody (fills against bright or blue scenes), 0 wrong slots on the 16 checked by eye. This implementation, through
 `trace-video --casts` on battle_test2_si (not in the repository; its 13 casts labelled by eye): 12 named on the
 right slot, 0 wrong, 0 cast that wasn't, the 13th (85.6 s, a bright blue scene) unattributed; each decided 0.3-0.9 s
@@ -2217,7 +2235,7 @@ One file for every rule, global (every fight, every squad): `%APPDATA%\EndHud\al
   no rotation of its own, so they name a phase of any of the player's rotations (listed as
   "rotation · phase", `AlertEditor.PhaseChoices`), and are known while that rotation is the one the
   strip follows (else unknown: the rule neither fires nor re-arms).
-- `format`: 4 when a rule uses `phaseShown` (before, the editor refused it), `ultimateTimeLeft` or `phaseCurrent`, else 3 when one uses `battleSkillActive`, else 2 when one uses `phasePlayed`, else 1, the lowest that holds the rules
+- `format`: 5 when a rule uses `battleSkillEmpowered`, else 4 when one uses `phaseShown` (before, the editor refused it), `ultimateTimeLeft` or `phaseCurrent`, else 3 when one uses `battleSkillActive`, else 2 when one uses `phasePlayed`, else 1, the lowest that holds the rules
   (`AlertFile.FormatNeeded`): rules using nothing new stay readable by builds from before format 2,
   which refuse the rest as newer (left as it is, never renamed as unreadable). The share code keeps
   its `EHA1:` prefix (the code's own version).
@@ -2407,8 +2425,9 @@ exception: hosted runners can't capture windows, so they only run on a developer
   published rotations at format 3 or lower); `phasePlayed` (counted per round, one missed cast allowed, reset at the end of
   a fight: `PhasePlayedTests`, `RotationFollowerTests`); following battle skills from the screen (the flash on 4K
   crops, `BattleSkillFlashTests`; runs of samples, `CastFlashTrackerTests`; the corner tap, `WindowCaptureTests`; the
-  judge, `ScreenCastJudgeTests`; resync and skipped steps, `StepFollowerTests`; the 30 fps recording,
-  `FlashSamplerTests` and `RecordedCastsTests`), alerts at format 2 only when needed;
+  judge, `ScreenCastJudgeTests`; resync and skipped steps, `StepFollowerTests`; the 30 fps recordings,
+  `FlashSamplerTests`, `RecordedCastsTests` and `RecordedControllerCastsTests`; the controller's diamonds on 4K crops of full battle 3,
+  `BattleSkillFlashTests`; "battle skill empowered", `BattleSkillEmpoweredConditionTests` and `OnScreenDisplayEmpoweredGateTests`), alerts at format 2 only when needed;
   the tracker (picking a step with no reset, moving only on seen use, steps used together, going
   off-script, looping, nothing on screen, stacks and levels in status conditions); the phase
   selector's counts and their reset at the end of a fight; the editor's working copy and the
@@ -2462,7 +2481,7 @@ package, add it to `requirements.txt` with an exact version.
 | `identify <screenshot> --library <dir>` | Show each slot's learned match and closest wiki avatars (model differences, lower = closer). |
 | `learn <screenshot> --library <dir> --slots A,B,C,D` | Teach a library the squad in a screenshot (operator ids, slot order). |
 | `build-portrait-references <squads.json> <out.json>` | Rebuild EndHud's built-in in-game portrait references from labelled 4K squad screenshots. |
-| `trace-video <video>` `[--every <s>] [--from <s>] [--to <s>] [--presses <file>] [--casts] [--rotation <rotation.json> --squad <id1>,<id2>,<id3>,<id4>]` | One CSV row per sampled frame: skill points and, per slot, combo, ultimate and battle-skill button, for studying when abilities are used. `--presses`: a file of the battle skills cast in the recording, lines `seconds,slot` (`#` starts a comment; a bad line is refused with its line number); a `presses` column says how each press was judged against the row before (e.g. `2:Counted 2:Repeat`). `--casts` (a 30 fps recording): the battle-skill corner of every frame sampled between rows, as the app does, and a `casts` column of the casts judged at each row (`slot:source@seconds`, e.g. `3:Flash@16.43`, `?:Unattributed@20.25`). `--rotation` with `--squad` (the operator ids by slot, so no naming is needed): `phase,step` columns, the phase the strip shows and the step it marks current (1-based; `-` out of battle or with no step marked), followed from the casts judged. |
+| `trace-video <video>` `[--every <s>] [--from <s>] [--to <s>] [--presses <file>] [--casts] [--rotation <rotation.json> --squad <id1>,<id2>,<id3>,<id4>]` | One CSV row per sampled frame: skill points and, per slot, combo, ultimate and battle-skill button, for studying when abilities are used. `--presses`: a file of the battle skills cast in the recording, lines `seconds,slot` (`#` starts a comment; a bad line is refused with its line number); a `presses` column says how each press was judged against the row before (e.g. `2:Counted 2:Repeat`). `--casts` (a 30 fps recording): the battle-skill corner of every frame sampled between rows, as the app does, and a `casts` column of the casts judged at each row (`slot:source@seconds`, e.g. `3:Flash@16.43`, `?:Unattributed@20.25`), and an `empowered` column, each slot's battle skill empowered as that row takes it (`y`, `n`, `-` when it can't be told; slot 1 first, e.g. `ny--`). Both layouts: the corner read follows the layout of the last row that saw the squad panel. `--rotation` with `--squad` (the operator ids by slot, so no naming is needed): `phase,step` columns, the phase the strip shows and the step it marks current (1-based; `-` out of battle or with no step marked), followed from the casts judged. |
 | `trace-inn <video>` `[--every <s>] [--from <s>] [--to <s>] [--end-margin <s>] [--reference <dir>]` | Text only, never an image: per sampled frame (0.5 s) the inn screen, the timer, each table card's state and item ids and the dispatch panel's dishes and queue; then every order once (counted only after its table was seen choosing, items by a vote over the frames that showed them), the counts per dish and drink, gourmand orders apart, the menu and the theme as the screens state them. For measuring what guests order. `--end-margin` leaves out a recording's last seconds. |
 | `trace-mode-pill <video\|image>...` `[--every <s>] [--from <s>] [--to <s>] [--end-margin <s>]` | Text only: per frame (a recording sampled every `--every` s, never its last `--end-margin` s, 5 by default; or each image) the top-left mode switch's shape score, the red share of its icon, the reading, and whether the squad panel reads as on screen and in combat. For tuning [the mode switch](#out-of-battle-the-mode-switch). |
 | `fetch-operators <dir>` | Download or update the roster, avatars and skill icons from the wiki into `<dir>/reference`, as the app does (`identify` and `learn` use the same layout). |
@@ -2614,7 +2633,7 @@ looks much like a ready one there, and holds last a second or two, so the last r
 Operator counters, buffs and the boss's statuses are read where they are with keyboard and mouse
 (bottom and top centre, which the controller layout doesn't move), but the recordings have none
 of them to confirm. Not read yet: levels (the squad isn't drawn out of combat there), battle
-skill cooldowns, and so Si's battle-skill timer (`SkillRing.Read` returns nothing there), and the
+skill cooldowns (the cast flash and the empowered glow are read there, see [Following battle skills from the screen](#following-battle-skills-from-the-screen)), and so Si's battle-skill timer (`SkillRing.Read` returns nothing there), and the
 counters on the switched-out operators' portraits (`PortraitCounters.Read` returns nothing there:
 the controlled operator's counter is live, the others' show their last value, dimmed).
 
