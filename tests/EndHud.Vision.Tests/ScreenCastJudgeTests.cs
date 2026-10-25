@@ -19,6 +19,8 @@ public sealed class ScreenCastJudgeTests
         public FlashEvent[] Flashes { get; init; } = [];
         public int Squad { get; init; } = 4;
         public ModePillReading ModePill { get; init; } = ModePillReading.NotSeen;
+        /// <summary>The skill-point bar's segment count; null as when not told (most tests).</summary>
+        public int? SkillPointMax { get; init; }
 
         public PartyState ToState()
         {
@@ -26,7 +28,7 @@ public sealed class ScreenCastJudgeTests
                 ? new PartySlot(i + 1, null, 1.0, "", new Frame(1, 1, new byte[4]),
                     Combo: new ComboReading(0.5, false), Ultimate: new UltimateReading(UltimateReady[i], UltimateReady[i] ? 1 : 0.2)) { BattleSkill = Skill[i] }
                 : new PartySlot(i + 1, null, null, "", new Frame(1, 1, new byte[4])) { Empty = true }).ToList();
-            return new PartyState(slots, PanelMarks: 8) { SkillPoints = SkillPoints, ActiveSlot = 1, ReadAt = TimeSpan.FromSeconds(Seconds), Flashes = Flashes, ModePill = ModePill };
+            return new PartyState(slots, PanelMarks: 8) { SkillPoints = SkillPoints, SkillPointMax = SkillPointMax, ActiveSlot = 1, ReadAt = TimeSpan.FromSeconds(Seconds), Flashes = Flashes, ModePill = ModePill };
         }
     }
 
@@ -73,6 +75,29 @@ public sealed class ScreenCastJudgeTests
         var casts = Judge(With(Fight(dropAt: 1.0), 1.5, r => r with { Flashes = [Flash(2, 0.95)] }));
         var cast = Assert.Single(casts);
         Assert.Equal((2, CastSource.Flash), (cast.Slot, cast.Source));
+    }
+
+    /// <summary>A bar of seven segments (2026-10-25): a cast still spends one point, 7.0 to 6.0.</summary>
+    [Fact]
+    public void Seven_segments_a_point_spent_and_a_flash_is_that_slots_cast()
+    {
+        var readings = Enumerable.Range(0, 12).Select(k => k * 0.25)
+            .Select(t => new Reading(t, t >= 1.0 ? 6.0 : 7.0) { SkillPointMax = 7, Flashes = Math.Abs(t - 1.0) < 1e-6 ? [Flash(2, 0.9)] : [] });
+        var cast = Assert.Single(Judge(readings));
+        Assert.Equal((2, CastSource.Flash, true), (cast.Slot, cast.Source, cast.Paid));
+    }
+
+    /// <summary>
+    /// The bar changing size between readings (seven segments full, then three full) isn't four casts: points read
+    /// against another bar aren't spent. Whether the game does this isn't known; reading 3 of 3 after 7 of 7 must not
+    /// make casts up.
+    /// </summary>
+    [Fact]
+    public void Points_on_a_bar_of_another_size_are_no_cast()
+    {
+        var readings = Enumerable.Range(0, 12).Select(k => k * 0.25)
+            .Select(t => t >= 1.0 ? new Reading(t, 3.0) { SkillPointMax = 3 } : new Reading(t, 7.0) { SkillPointMax = 7 });
+        Assert.Empty(Judge(readings));
     }
 
     [Fact]
