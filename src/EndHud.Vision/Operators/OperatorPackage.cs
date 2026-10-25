@@ -187,7 +187,14 @@ public static class OperatorPackage
             Directory.CreateDirectory(staging);
             using (var archive = new ZipArchive(new MemoryStream(zip), ZipArchiveMode.Read))
             {
+                // Checked before anything is written (the sizes the package declares), and again while unpacking
+                // (the bytes that really come out), so a package can't fill the disk.
+                if (archive.Entries.Count > MaxFiles)
+                    throw new InvalidDataException($"The package has {archive.Entries.Count} files, more than the {MaxFiles} accepted.");
+                if (archive.Entries.Sum(e => e.Length) > MaxUnpackedBytes)
+                    throw new InvalidDataException($"The package unpacks larger than {MaxUnpackedBytes} bytes, the most accepted.");
                 string root = staging + Path.DirectorySeparatorChar;
+                long left = MaxUnpackedBytes;
                 foreach (var entry in archive.Entries)
                 {
                     if (entry.FullName.EndsWith('/')) continue;
@@ -195,7 +202,11 @@ public static class OperatorPackage
                     if (!target.StartsWith(root, StringComparison.OrdinalIgnoreCase))
                         throw new InvalidDataException($"The package has a file outside its folder: {entry.FullName}");
                     Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                    entry.ExtractToFile(target);
+                    using (var input = new TrustedHttp.CappedStream(entry.Open(), left))
+                    using (var output = File.Create(target))
+                        input.CopyTo(output);
+                    File.SetLastWriteTime(target, entry.LastWriteTime.DateTime); // as ExtractToFile does
+                    left -= new FileInfo(target).Length;
                 }
             }
             var roster = OperatorReference.ReadRoster(staging);
