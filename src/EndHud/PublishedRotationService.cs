@@ -48,7 +48,8 @@ internal sealed class PublishedRotationService(RotationLibrary library) : IDispo
         try
         {
             using var http = GitHubHttp.Create(TimeSpan.FromSeconds(20));
-            var result = await RotationSync.SyncAsync(library, http, Api, ReleaseChecker.UserAgent, _cts.Token);
+            var result = await RotationSync.SyncAsync(library, http, Api, ReleaseChecker.UserAgent,
+                EndHud.Vision.TrustedHttp.GitHubRepository(ReleaseChecker.Repository), _cts.Token);
             if (result is { Changed: true }) Changed?.Invoke(result, automatic);
             return result;
         }

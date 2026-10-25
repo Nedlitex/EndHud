@@ -180,7 +180,7 @@ public sealed class OperatorPackageTests : IDisposable
     }
 
     private Task<OperatorPackageSyncResult?> SyncAsync(FakeGitHub github) =>
-        OperatorPackageSync.SyncAsync(Reference, new HttpClient(github), Api, "EndHud-tests");
+        OperatorPackageSync.SyncAsync(Reference, new HttpClient(github), Api, "EndHud-tests", _ => true);
 
     [Fact]
     public async Task A_newer_package_on_GitHub_is_installed_once()

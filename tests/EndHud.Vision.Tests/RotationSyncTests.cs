@@ -21,7 +21,7 @@ public sealed class RotationSyncTests : IDisposable
 
     private static Rotation Named(string id, string name) => RotationFormatTests.Guide() with { Id = id, Name = name };
 
-    private Task<RotationSyncResult?> Sync() => RotationSync.SyncAsync(Library, _github.Client(), Api, "EndHud-tests");
+    private Task<RotationSyncResult?> Sync() => RotationSync.SyncAsync(Library, _github.Client(), Api, "EndHud-tests", _ => true);
 
     [Fact]
     public async Task New_rotations_are_downloaded_and_unchanged_ones_are_not_downloaded_again()

@@ -40,12 +40,17 @@ public static partial class RotationSync
     /// <summary>The contents API for a repository's <c>rotations/</c> folder on main.</summary>
     public static string ContentsApi(string repository) => $"https://api.github.com/repos/{repository}/contents/rotations?ref=main";
 
+    /// <summary>The most a rotation file, or the folder's listing, may be (a real rotation is a few KB).</summary>
+    public const int MaxFileBytes = 1024 * 1024;
+
     /// <summary>Bring the published rotations up to date. Null when the folder couldn't be listed.</summary>
-    /// <exception cref="HttpRequestException">GitHub couldn't be reached.</exception>
+    /// <param name="trusted">Where the listing and the files may come from, every redirect checked too
+    /// (the app: <see cref="TrustedHttp.GitHubRepository"/>). A file listed anywhere else is counted as failed.</param>
+    /// <exception cref="HttpRequestException">GitHub couldn't be reached, or the listing's address isn't trusted.</exception>
     public static async Task<RotationSyncResult?> SyncAsync(RotationLibrary library, HttpClient http, string api, string userAgent,
-        CancellationToken ct = default)
+        Func<Uri, bool> trusted, CancellationToken ct = default)
     {
-        var listing = await ListAsync(http, api, userAgent, ct);
+        var listing = await ListAsync(http, api, userAgent, trusted, ct);
         if (listing is null) return null;
 
         var store = library.Published;
@@ -64,7 +69,7 @@ public static partial class RotationSync
             byte[] bytes;
             try
             {
-                bytes = await GetAsync(http, file.Url, userAgent, ct);
+                bytes = await GetAsync(http, file.Url, userAgent, trusted, ct);
                 if (GitBlobSha(bytes) != file.Sha) throw new InvalidDataException($"{file.Id}.json doesn't match its SHA.");
                 rotation = RotationFormat.FromJson(Encoding.UTF8.GetString(bytes));
                 if (rotation.Id != file.Id) throw new InvalidDataException($"{file.Id}.json holds the rotation \"{rotation.Id}\".");
@@ -95,45 +100,43 @@ public static partial class RotationSync
     private sealed record ListedFile(string Id, string Sha, string Url);
 
     /// <summary>The folder's rotation files, or null if it can't be listed (404, or not a listing).</summary>
-    private static async Task<List<ListedFile>?> ListAsync(HttpClient http, string api, string userAgent, CancellationToken ct)
+    private static async Task<List<ListedFile>?> ListAsync(HttpClient http, string api, string userAgent, Func<Uri, bool> trusted, CancellationToken ct)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, api);
-        request.Headers.Accept.ParseAdd("application/vnd.github+json");
-        request.Headers.UserAgent.ParseAdd(userAgent);
-        using var response = await http.SendAsync(request, ct);
+        using var response = await TrustedHttp.GetAsync(http, new Uri(api), trusted, request =>
+        {
+            request.Headers.Accept.ParseAdd("application/vnd.github+json");
+            request.Headers.UserAgent.ParseAdd(userAgent);
+        }, HttpCompletionOption.ResponseHeadersRead, ct);
         if (response.StatusCode == HttpStatusCode.NotFound) return null;
         response.EnsureSuccessStatusCode();
 
-        JsonArray entries;
         try
         {
-            if (JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) is not JsonArray array) return null;
-            entries = array;
+            if (JsonNode.Parse(await TrustedHttp.ReadCappedAsync(response, MaxFileBytes, ct)) is not JsonArray entries) return null;
+            var files = new List<ListedFile>();
+            foreach (var entry in entries)
+            {
+                if (entry?["type"]?.GetValue<string>() != "file") continue;
+                string? name = entry["name"]?.GetValue<string>(), sha = entry["sha"]?.GetValue<string>(), url = entry["download_url"]?.GetValue<string>();
+                if (name is null || sha is null || url is null) return null; // not the listing we know: change nothing
+                if (FileName().Match(name) is not { Success: true } match) continue; // e.g. a README
+                files.Add(new ListedFile(match.Groups[1].Value, sha.ToLowerInvariant(), url));
+            }
+            return files;
         }
-        catch (JsonException)
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException or InvalidDataException)
         {
-            return null;
+            return null; // damaged, oversized, or not the listing we know: change nothing
         }
-
-        var files = new List<ListedFile>();
-        foreach (var entry in entries)
-        {
-            if (entry?["type"]?.GetValue<string>() != "file") continue;
-            string? name = entry["name"]?.GetValue<string>(), sha = entry["sha"]?.GetValue<string>(), url = entry["download_url"]?.GetValue<string>();
-            if (name is null || sha is null || url is null) return null; // not the listing we know: change nothing
-            if (FileName().Match(name) is not { Success: true } match) continue; // e.g. a README
-            files.Add(new ListedFile(match.Groups[1].Value, sha.ToLowerInvariant(), url));
-        }
-        return files;
     }
 
-    private static async Task<byte[]> GetAsync(HttpClient http, string url, string userAgent, CancellationToken ct)
+    private static async Task<byte[]> GetAsync(HttpClient http, string url, string userAgent, Func<Uri, bool> trusted, CancellationToken ct)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.UserAgent.ParseAdd(userAgent);
-        using var response = await http.SendAsync(request, ct);
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) throw new InvalidDataException($"not an address: {url}");
+        using var response = await TrustedHttp.GetAsync(http, uri, trusted, request => request.Headers.UserAgent.ParseAdd(userAgent),
+            HttpCompletionOption.ResponseHeadersRead, ct);
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadAsByteArrayAsync(ct);
+        return await TrustedHttp.ReadCappedAsync(response, MaxFileBytes, ct);
     }
 
     /// <summary>Git's id for a file's content: SHA-1 of "blob &lt;length&gt;\0" + the bytes.</summary>

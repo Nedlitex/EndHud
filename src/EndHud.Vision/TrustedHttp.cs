@@ -50,6 +50,22 @@ public static class TrustedHttp
         }
     }
 
+    /// <summary>
+    /// The files synced from a repository (recommended rotations, the operator package): its folder listings on
+    /// GitHub's API (<c>https://api.github.com/repos/&lt;repository&gt;/…</c>) and its files as GitHub serves them
+    /// (<c>https://raw.githubusercontent.com/&lt;repository&gt;/…</c>); https, the usual port, no user name.
+    /// </summary>
+    public static Func<Uri, bool> GitHubRepository(string repository)
+    {
+        string path = "/" + repository.Trim('/') + "/";
+        return url => url.IsAbsoluteUri && url.Scheme == Uri.UriSchemeHttps && url.IsDefaultPort && url.UserInfo.Length == 0 && url.IdnHost.ToLowerInvariant() switch
+        {
+            "api.github.com" => url.AbsolutePath.StartsWith("/repos" + path, StringComparison.OrdinalIgnoreCase),
+            "raw.githubusercontent.com" => url.AbsolutePath.StartsWith(path, StringComparison.OrdinalIgnoreCase),
+            _ => false,
+        };
+    }
+
     private static UntrustedSourceException Refused(Uri url) =>
         new($"refused to download from {(url.IsAbsoluteUri ? $"{url.Scheme}://{url.Host}" : url.OriginalString)}: not a source EndHud trusts for this");
 

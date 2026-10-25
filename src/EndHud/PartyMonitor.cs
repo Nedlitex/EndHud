@@ -589,7 +589,8 @@ internal sealed class PartyMonitor : IDisposable
             _lastCheckUtc = DateTime.UtcNow;
             using var http = GitHubHttp.Create(TimeSpan.FromSeconds(30));
             var result = await OperatorPackageSync.SyncAsync(ReferenceFolder, http,
-                OperatorPackageSync.ContentsApi(ReleaseChecker.Repository), ReleaseChecker.UserAgent, _cts.Token);
+                OperatorPackageSync.ContentsApi(ReleaseChecker.Repository), ReleaseChecker.UserAgent,
+                EndHud.Vision.TrustedHttp.GitHubRepository(ReleaseChecker.Repository), _cts.Token);
             DiagnosticLog.Info($"operator package check: {(result is null ? "failed" : result.Installed ? $"installed a newer one ({result.Added.Count} new operators)" : "up to date")}");
             if (result is { Installed: true })
             {
