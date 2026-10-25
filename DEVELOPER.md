@@ -78,7 +78,7 @@ rotation charts.
   | `skillPoints` | the skill-point glyph, "≥2" |
   | `teamBuff` | the buff's icon (Link's), "≥1" |
   | `bossStatus` present / absent | the status's icon, "≥1" (or "≥3"; a reaction's level "≥II") / slashed, no number |
-  | `counter` | the operator's avatar (counters have no icon of their own), "=4" |
+  | `counter` | the counter's drawn glyph (below), "=4" |
   | `combo`, `ultimate`, `battleSkill` ready / not | that skill's icon / slashed |
   | `comboCharge`, `ultimateCharge` | that skill's icon, "≥90%" |
   | `ultimateActive`, `battleSkillActive` | that skill's icon and a small triangle (running); not running: slashed |
@@ -89,6 +89,27 @@ rotation charts.
   | `stepsLit` all / at least N / these | an amber ring / the ring, "≥N" / each named step's own icon |
   | `not` | its condition's badge with the slash toggled; over a group, pushed down (not (a and b) = not a / not b) |
   | `all` / `any` | a badge per part / the same, a "/" before each later part |
+
+  **Counter glyphs** (owner, 2026-10-25: a counter in a condition should be "the actual counter icon, not the character
+  icon, or otherwise it is unclear what it means"). The community wiki has no picture of any counter (checked
+  2026-10-25: none of the 6,312 files on endfield.wiki.gg is one, and the talents that grant them carry generic talent
+  icons), so EndHud draws each one ([`CounterGlyphs`](src/EndHud/CounterGlyphs.cs), owner's choice): a simple vector
+  copy of the counter as the game draws it full beside the HP bar, sharp at any size, on a transparent square. Shapes
+  come from where `OperatorCounters` reads them and the drawings measured round them on the fixtures; colours are the
+  medians measured there. Numbers the game prints on or beside a counter are left out (the badge has its own).
+
+  | Counter | Glyph | Measured on |
+  |---|---|---|
+  | Laevatain's 熔火 (`melting-flame`) | four pink petals (214, 76, 107) | `battle-hud/battle-47s` (4 stacks) |
+  | Typhoeus's 猎矢 (`hunting-arrow`) | four slanted cyan bars, each with its small end triangle (63, 255, 250) | `counters/native-9_5s` (4 arrows) |
+  | Typhoeus's 启示 (`sign`) | eight white dots in two columns (237, 237, 239) | `counters/native-33s` (8 signs) |
+  | Zhuang Fangyi's 青霆剑 (`sunderblade`) | nine cyan diamonds in rows of 1, 2, 3, 2, 1 (174, 251, 230) | `counters/zhuang-96s` (9 swords) |
+  | Si's 伤害层数 (`damage-stacks`) | her green badge, four lobes round a hollow middle (150, 254, 163) | `si/stacks-14s` (0, no number) |
+
+  The same glyph is the condition step's circle and the alert pop-up's icon (drawn whole there, not cut round like an
+  avatar). A counter id with no glyph (one from a newer file) keeps the operator's avatar. The gauge row's counter
+  circles keep the avatar: they show whose counter it is, and the segments round it already draw the count. The
+  editor's counter picker lists counters by name, without pictures.
 
   A badge is bright with an amber edge while its condition holds now, dim (`RotationStrip.DimBadgeOpacity`, grey edge)
   while it doesn't or can't be told. The current step's are judged by the follower's checks (`StepPosition.Checks`),
@@ -2833,14 +2854,9 @@ Copy `src/EndHud/i18n/zh-CN.xaml` to, for example, `en-US.xaml`, translate the v
   drawn in the owner's two recordings at 4K: if the game draws her portrait differently, or on a
   smaller screen than measured, no badge may stay unknown (her stacks show the last value seen). A battle skill's cooldown is read
   as available or cooling, not its seconds.
-- A condition on an operator's counter shows that operator's avatar, not the counter's own picture
-  (Laevatain's flower, Typhoeus's arrow bars and dots, Zhuang Fangyi's grid of swords, Si's green
-  badge): on the strip's badges, a condition step's circle, the alert pop-up and the gauge row. The
-  operator package's source has no picture of any of them (checked 2026-10-25): none of the 6,312
-  files on endfield.wiki.gg is one, its glossary gives Sign and Hunting Arrow no icon (and has no
-  entry for the other three), and the talents that grant them carry the wiki's generic talent icons
-  (a shield, a broken square, a lightning bolt), not the counter's art. The Chinese BWIKI has none
-  either. A counter picture needs another source or a drawing of EndHud's own: the owner's call.
+- Counter glyphs are EndHud's own drawings, copied from the counters as measured at 4K (see
+  [Rotation strip](#rotation-strip-排轴)): close to the game's, not its art. A counter added to the
+  game shows its operator's avatar in conditions until a glyph is drawn for it.
 - Lasting ultimates: the time bar's owner is told by its colour for Laevatain (red), Zhuang
   Fangyi (gold) and Yvonne (teal) only; a bar of another colour is shown for no one, and
   "ultimate active" for an operator not known to have one is unknown while a bar shows. Yvonne's
