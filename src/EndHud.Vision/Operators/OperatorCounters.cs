@@ -71,7 +71,10 @@ public static class OperatorCounters
         place.OnPortrait && !PortraitCounters.OutlineShows(frame, counter, place) ? null
         : counter == MeltingFlame ? ReadPetals(frame, place)
         : counter == HuntingArrow ? ReadArrows(frame, place)
-        : counter == Sign ? ReadSigns(frame, place)
+        // On a portrait the dots are read only with the arrow bars beside them: dots dimmed by something
+        // over the portrait (an on-screen display's backdrop) are grey like unlit ones, while the bars
+        // then read as neither. Every portrait of the fixtures with its dots read had its bars read too.
+        : counter == Sign ? place.OnPortrait && ReadArrows(frame, place) is null ? null : ReadSigns(frame, place)
         : counter == Sunderblade ? ReadSunderblades(frame, place)
         : counter == SiStacks ? ReadSiStacks(frame, place)
         : null;
@@ -90,6 +93,7 @@ public static class OperatorCounters
         foreach (var (qx, qy) in new[] { (-1, -1), (1, -1), (-1, 1), (1, 1) })
         {
             int n = 0, white = 0, pink = 0, dark = 0;
+            var levels = new List<int>();
             for (double r = PetalInner * s; r <= PetalOuter * s; r += 1)
             for (double a = 20; a <= 70; a += 5)
             {
@@ -99,6 +103,7 @@ public static class OperatorCounters
                 var (cr, cg, cb) = frame.GetPixel(x, y);
                 int max = Math.Max(cr, Math.Max(cg, cb)), min = Math.Min(cr, Math.Min(cg, cb));
                 n++;
+                levels.Add(max);
                 if (min > 170) white++;
                 else if (cr > 170 && cr - cg > 70 && cb > cg) pink++;
                 else if (max < 110 && max - min < 40) dark++;
@@ -106,7 +111,14 @@ public static class OperatorCounters
             if (n == 0) return null;
             if (white > n * PetalShare) lit++;
             else if (pink > n * PinkPetalShare) pinkPetals++;
-            else if (dark > n * PetalShare) darkPetals++;
+            else if (dark > n * PetalShare)
+            {
+                // An unlit petal is grey; near black, or a lit one dimmed to grey, is the flower seen through
+                // something dark (an on-screen display's backdrop read 3 stacks as 0).
+                levels.Sort();
+                if (levels[levels.Count / 2] is < UnlitPetalFrom or > UnlitPetalTo) return null;
+                darkPetals++;
+            }
         }
 
         if (pinkPetals >= 3) return 4;
@@ -280,5 +292,9 @@ public static class OperatorCounters
     // A lit petal measured 0.65 white, a dark one 0.86 dark; a pink one only 0.39–0.47 bright pink
     // (it shades darker towards its edge).
     private const double PetalShare = 0.5;
+    // An unlit petal's middle level (brightest channel): 54-67 on the flowers on Laevatain's portrait
+    // (Fixtures/portrait-counters); under a display's 55 % black backdrop 23-30, and a lit petal 85-93.
+    private const int UnlitPetalFrom = 40;
+    private const int UnlitPetalTo = 80;
     private const double PinkPetalShare = 0.3;
 }
