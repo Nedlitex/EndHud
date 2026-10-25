@@ -51,13 +51,18 @@ jobs:
           "version=$version" >> $env:GITHUB_OUTPUT
           "EndHud $version (fast release: no tests, no install or update checks)"
 
+      # Every NuGet package checked against packages.lock.json; the publish then takes them from the NuGet cache
+      # (it can't restore in locked mode itself: see release.yml).
+      - name: Restore the locked packages
+        run: dotnet restore EndHud.sln --locked-mode
+
       # One EndHud.exe with .NET included, so players don't need to install anything first.
       - name: Publish EndHud.exe
         run: >
           dotnet publish src/EndHud -c Release -r win-x64 --self-contained true
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
           -p:EnableCompressionInSingleFile=true -p:Version=${{ env.VERSION }}
-          -o out/publish
+          -p:RestoreLockedMode=false -o out/publish
 
       - name: Build the installer
         run: |

@@ -22,12 +22,6 @@
     <StartupObject>EndHud.Program</StartupObject>
     <!-- No DOTNET_STARTUP_HOOKS: nothing outside EndHud runs code inside it at start. -->
     <StartupHookSupport>false</StartupHookSupport>
-    <!--
-      The packages a release publish restores (release.yml: -r win-x64, single file) are the ones every build
-      restores, so one packages.lock.json holds them and CI can restore it in locked mode.
-    -->
-    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
-    <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
   </PropertyGroup>
 
   <ItemGroup>

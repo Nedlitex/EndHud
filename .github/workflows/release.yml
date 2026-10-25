@@ -67,13 +67,19 @@ jobs:
           "version=$version" >> $env:GITHUB_OUTPUT
           "EndHud $version"
 
+      # Every NuGet package checked against the content hashes in the packages.lock.json files. The publishes
+      # below then take them from the NuGet cache; they can't restore in locked mode themselves (-r win-x64 and
+      # the single file add a runtime graph and the SDK's own trimming package, whose version follows the SDK).
+      - name: Restore the locked packages
+        run: dotnet restore EndHud.sln --locked-mode
+
       # One EndHud.exe with .NET included, so players don't need to install anything first.
       - name: Publish EndHud.exe
         run: >
           dotnet publish src/EndHud -c Release -r win-x64 --self-contained true
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
           -p:EnableCompressionInSingleFile=true -p:Version=${{ env.VERSION }}
-          -o out/publish
+          -p:RestoreLockedMode=false -o out/publish
 
       - name: Build the installer
         run: |
@@ -96,7 +102,7 @@ jobs:
       # The same code as an old version, for the update job to update from.
       - name: Build an old EndHud (0.0.1) to update from
         run: |
-          dotnet publish src/EndHud -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:Version=0.0.1 -o out/old/publish
+          dotnet publish src/EndHud -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:Version=0.0.1 -p:RestoreLockedMode=false -o out/old/publish
           dotnet wix build installer/EndHud.wxs -arch x64 -define "Version=0.0.1" -define "PublishDir=${{ github.workspace }}\out\old\publish" -o "out\old\EndHud-0.0.1.msi"
           Copy-Item out/old/publish/EndHud.exe out/old/EndHud-0.0.1-portable.exe
 

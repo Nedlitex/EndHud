@@ -7,9 +7,6 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>EndHud.Vision</RootNamespace>
-    <!-- As EndHud.csproj: a release publish restores what every build restores (one packages.lock.json). -->
-    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
-    <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
   </PropertyGroup>
 
   <ItemGroup>

@@ -108,6 +108,18 @@ public partial class WorkflowHardeningTests
             Assert.True(File.Exists(Path.Combine(Root, Path.GetDirectoryName(project)!, "packages.lock.json")), $"{project}: no packages.lock.json");
     }
 
+    [Theory]
+    [InlineData("release.yml")]
+    [InlineData("fast-release.yml")]
+    public void A_release_checks_every_package_against_the_lock_files_before_it_publishes(string file)
+    {
+        var build = Map(Map(Workflow(Path.Combine(Root, ".github", "workflows", file))["jobs"], "jobs")["build"], "build");
+        var steps = ((List<object>)build["steps"]).Select(s => Map(s, "step")).ToList();
+        int restore = steps.FindIndex(s => (s.GetValueOrDefault("run") as string ?? "").Trim() == "dotnet restore EndHud.sln --locked-mode");
+        int publish = steps.FindIndex(s => (s.GetValueOrDefault("run") as string ?? "").Contains("dotnet publish"));
+        Assert.True(restore >= 0 && publish > restore, $"{file}: restore step {restore}, publish step {publish}");
+    }
+
     /// <summary>owner/repo[/path]@40 hex digits # v1[.2[.3]]</summary>
     [GeneratedRegex(@"^[\w.-]+/[\w.-]+(/[\w./-]+)?@[0-9a-f]{40} # v\d+(\.\d+)*$")]
     private static partial Regex PinnedAction();

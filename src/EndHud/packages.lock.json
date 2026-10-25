@@ -2,12 +2,6 @@
   "version": 1,
   "dependencies": {
     "net8.0-windows10.0.22621": {
-      "Microsoft.NET.ILLink.Tasks": {
-        "type": "Direct",
-        "requested": "[8.0.0, )",
-        "resolved": "8.0.0",
-        "contentHash": "B3etT5XQ2nlWkZGO2m/ytDYrOmSsQG1XNBaM6ZYlX5Ch/tDrMFadr0/mK6gjZwaQc55g+5+WZMw4Cz3m8VEF7g=="
-      },
       "Microsoft.ML.OnnxRuntime": {
         "type": "Transitive",
         "resolved": "1.20.1",
@@ -33,16 +27,6 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.ML.OnnxRuntime": "[1.20.1, )"
-        }
-      }
-    },
-    "net8.0-windows10.0.22621/win-x64": {
-      "Microsoft.ML.OnnxRuntime": {
-        "type": "Transitive",
-        "resolved": "1.20.1",
-        "contentHash": "NzUD79BC6R7TKROLyB3XCzXTpbNZ1YfOdVbult7hoFvd/xyRecOMiRO5HTzkPXvaFlcvZ91+WNCiroAPzUE7Dw==",
-        "dependencies": {
-          "Microsoft.ML.OnnxRuntime.Managed": "1.20.1"
         }
       }
     }
