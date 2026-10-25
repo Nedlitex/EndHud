@@ -111,6 +111,7 @@ internal static class ConditionWords
                 null => "Alert.Describe.PhaseCurrent",
             }, Phase(c.PhaseId)),
             BattleSkillActiveCondition c => F(c.Active ? "Alert.Describe.BattleSkillActive" : "Alert.Describe.BattleSkillOver", Who(c.OperatorId)),
+            BattleSkillEmpoweredCondition c => F(c.Empowered ? "Alert.Describe.BattleSkillEmpowered" : "Alert.Describe.BattleSkillNotEmpowered", Who(c.OperatorId)),
             CounterCondition c => F("Alert.Describe.Counter", Who(c.OperatorId),
                 OperatorCounters.Definitions.FirstOrDefault(d => d.OperatorId == c.OperatorId && d.Id == c.CounterId)?.NameZh ?? c.CounterId,
                 Symbol(c.Is), c.Value),

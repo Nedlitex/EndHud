@@ -120,6 +120,8 @@ public static class ConditionCatalogue
         Kind<UltimateActiveCondition>("UltimateActive", "ultimateActive", "UltimateActive", 3, 1, who: c => c.OperatorId),
         Kind<UltimateTimeLeftCondition>("UltimateTimeLeft", "ultimateTimeLeft", "UltimateTimeLeft", 9, 4, ConditionNeeds.UltimateTime, who: c => c.OperatorId, comparison: c => c.Is),
         Kind<BattleSkillActiveCondition>("BattleSkillActive", "battleSkillActive", "BattleSkillActive", 7, 3, ConditionNeeds.SkillTime, who: c => c.OperatorId),
+        // Anyone: whose battle skill the game empowers isn't EndHud's to say; the glow is read on every slot's button.
+        Kind<BattleSkillEmpoweredCondition>("BattleSkillEmpowered", "battleSkillEmpowered", "BattleSkillEmpowered", 11, 5, who: c => c.OperatorId),
         Kind<CounterCondition>("Counter", "counter", "Counter", 2, 1, who: c => c.OperatorId, comparison: c => c.Is),
         Kind<BossStatusCondition>("BossStatus", "bossStatus", "BossStatus", 2, 1, ConditionNeeds.BossStatuses),
         Kind<ControllingCondition>("Controlling", "controlling", "Controlling", 2, 1, who: c => c.OperatorId),

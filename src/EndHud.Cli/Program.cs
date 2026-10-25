@@ -175,7 +175,7 @@ static async Task<int> TraceVideoAsync(string path, double everySeconds, double 
     var video = await VideoFile.OpenAsync(path);
     static string F(double? v) => v is { } x ? x.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) : "";
     Console.WriteLine("t,panel,layout,active,sp," + string.Join(",", Enumerable.Range(1, 4).Select(i => $"combo{i},comboReady{i},ult{i},ultReady{i},bs{i}"))
-        + (presses is null ? "" : ",presses") + (casts ? ",casts" : "") + (rotation is null ? "" : ",phase,step"));
+        + (presses is null ? "" : ",presses") + (casts ? ",casts,empowered" : "") + (rotation is null ? "" : ",phase,step"));
     // With --casts the battle-skill corner of every frame (30 fps) between rows, as the app samples it live.
     const double FrameTime = 1 / 30.0;
     int perRow = casts ? Math.Max(1, (int)Math.Round(everySeconds / FrameTime)) : 1;
@@ -197,6 +197,8 @@ static async Task<int> TraceVideoAsync(string path, double everySeconds, double 
         // Each row's presses, judged against the row before (as the overlay judges a reading's); the casts decided.
         if (presses is not null) row += "," + string.Join(" ", judging.Presses.Select(j => $"{j.Press.Slot}:{j.Verdict}"));
         if (casts) row += "," + string.Join(" ", judging.Casts.Select(c => $"{c.Slot?.ToString() ?? "?"}:{c.Source}@{F(c.At.TotalSeconds)}"));
+        // Each slot's battle skill empowered as the reading takes it (y, n, or - when it can't be told), slot 1 first.
+        if (casts) row += "," + string.Concat(Enumerable.Range(0, 4).Select(i => state.EmpoweredOf(i) switch { true => "y", false => "n", null => "-" }));
 
         if (selector is not null && steps is not null)
         {

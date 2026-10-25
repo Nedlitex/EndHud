@@ -117,6 +117,10 @@
     <sys:String x:Key="Editor.PhaseCurrentHint">排轴条上现在显示的轴段。“本次已打完”指这个轴段这次出现在排轴条上以后，它的完成条件成立过（没有完成条件时：除普攻、重击、下落攻击以外的每一步都点亮，顺序不限；按画面判断：战技释放时按钮的闪光和技力消耗、连携技、终结技）；轴段离开后再出现时重新算。</sys:String>
     <sys:String x:Key="Editor.SkillTimeHint">按祀的战技按钮判断：图标变成漩涡（或第二次释放后的叉形蝴蝶）时为持续中，变回蝴蝶时结束，即她计数圈外紫色倒计时的那段时间。按钮被特效挡住时按倒计时估计；手柄布局下读不到，条件无法判断。</sys:String>
     <sys:String x:Key="Editor.SkillTimeNoOperator">小队中没有能读取战技持续时间的干员（目前只有祀）。</sys:String>
+    <sys:String x:Key="Editor.Condition.BattleSkillEmpowered">战技已强化</sys:String>
+    <sys:String x:Key="Editor.Empowered">已强化</sys:String>
+    <sys:String x:Key="Editor.NotEmpowered">未强化</sys:String>
+    <sys:String x:Key="Editor.EmpoweredHint">按该干员战技按钮外圈持续亮着的白色光环判断：光环亮着算已强化。键鼠和手柄布局都能读；按钮被特效或遮挡物盖住、或者背后画面很亮时无法判断。</sys:String>
     <sys:String x:Key="Editor.Condition.Counter">干员资源</sys:String>
     <sys:String x:Key="Editor.Condition.BossStatus">敌人状态</sys:String>
     <sys:String x:Key="Editor.Condition.Controlling">当前操控</sys:String>
@@ -470,6 +474,8 @@
     <sys:String x:Key="Alert.Describe.UltimateOver">{0} 终结技已结束</sys:String>
     <sys:String x:Key="Alert.Describe.BattleSkillActive">{0} 战技持续中</sys:String>
     <sys:String x:Key="Alert.Describe.BattleSkillOver">{0} 战技已结束</sys:String>
+    <sys:String x:Key="Alert.Describe.BattleSkillEmpowered">{0} 战技已强化</sys:String>
+    <sys:String x:Key="Alert.Describe.BattleSkillNotEmpowered">{0} 战技未强化</sys:String>
     <sys:String x:Key="Alert.Describe.Counter">{0} {1} {2} {3}</sys:String>
     <sys:String x:Key="Alert.Describe.Status.Has">敌人有 {0}</sys:String>
     <sys:String x:Key="Alert.Describe.Status.HasNot">敌人没有 {0}</sys:String>

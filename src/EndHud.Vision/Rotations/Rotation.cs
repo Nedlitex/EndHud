@@ -90,6 +90,7 @@ public enum Comparison
 [JsonDerivedType(typeof(UltimateTimeLeftCondition), "ultimateTimeLeft")]
 [JsonDerivedType(typeof(PhaseCurrentCondition), "phaseCurrent")]
 [JsonDerivedType(typeof(StepsLitCondition), "stepsLit")]
+[JsonDerivedType(typeof(BattleSkillEmpoweredCondition), "battleSkillEmpowered")]
 public abstract record StateCondition;
 
 /// <summary>Which steps a <see cref="StepsLitCondition"/> asks to be lit.</summary>
@@ -178,6 +179,15 @@ public sealed record UltimateActiveCondition(string OperatorId, bool Active) : S
 /// (<see cref="SkillRing.Operators"/>) can be told. Format 7.
 /// </summary>
 public sealed record BattleSkillActiveCondition(string OperatorId, bool Active) : StateCondition;
+
+/// <summary>
+/// An operator's battle skill is empowered (战技已强化), or not when <paramref name="Empowered"/> is false: the steady
+/// white glow on the rim of that operator's battle-skill button (<see cref="BattleSkillFlash.Glow"/>), told over the last
+/// half second of the corner sampled many times a second (<see cref="PartyState.Empowered"/>), with keyboard and mouse
+/// and with a controller (either diamond). Any operator may be named: whose battle skill the game empowers, and when,
+/// is the game's to say, not EndHud's. Format 11.
+/// </summary>
+public sealed record BattleSkillEmpoweredCondition(string OperatorId, bool Empowered) : StateCondition;
 
 /// <summary>
 /// How much of an operator's lasting ultimate is left to run, as a percentage of its time bar
@@ -372,6 +382,7 @@ public sealed record Rotation(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool LastMatchWins = false)
 {
     /// <summary>
+    /// 11: "battle skill empowered" conditions (<see cref="BattleSkillEmpoweredCondition"/>).
     /// 10: phases' finish conditions (<see cref="RotationPhase.Finish"/>) and "the phase's steps lit" in them
     /// (<see cref="StepsLitCondition"/>).
     /// 9: "time left of the ultimate" and "the current phase is" conditions
@@ -387,7 +398,7 @@ public sealed record Rotation(
     /// holds it (<see cref="FormatNeeded"/>), so one that uses nothing new stays readable by builds
     /// from before format 3.
     /// </summary>
-    public const int CurrentFormat = 10;
+    public const int CurrentFormat = 11;
 
     /// <summary>The lowest format that holds these phases and options.</summary>
     public static int FormatNeeded(IEnumerable<RotationPhase> phases, bool lastMatchWins)

@@ -77,6 +77,7 @@ public enum AlertProblem
 public sealed record AlertFile(int Format, IReadOnlyList<AlertRule> Rules)
 {
     /// <summary>
+    /// 5: "battle skill empowered" conditions (<see cref="BattleSkillEmpoweredCondition"/>).
     /// 4: "phase shown" conditions (<see cref="PhaseShownCondition"/>; before, the editor refused them), "time
     /// left of the ultimate" and "the current phase is" (<see cref="UltimateTimeLeftCondition"/>, <see cref="PhaseCurrentCondition"/>).
     /// 3: "battle skill running" conditions (<see cref="BattleSkillActiveCondition"/>).
@@ -85,7 +86,7 @@ public sealed record AlertFile(int Format, IReadOnlyList<AlertRule> Rules)
     /// before format 2 still reads rules that use nothing new, and refuses the rest as "newer"
     /// (never renaming the file as unreadable).
     /// </summary>
-    public const int CurrentFormat = 4;
+    public const int CurrentFormat = 5;
 
     /// <summary>The lowest format that holds these rules: each condition's kind says (<see cref="ConditionCatalogue"/>).</summary>
     public static int FormatNeeded(IEnumerable<AlertRule> rules) =>

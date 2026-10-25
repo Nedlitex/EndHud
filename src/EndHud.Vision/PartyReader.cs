@@ -81,10 +81,32 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
 
     /// <summary>
     /// The battle-skill buttons' flashes told since the reading before (<see cref="FlashSampler"/>, on the same clock as
-    /// <see cref="ReadAt"/>), oldest first. Empty when the buttons aren't sampled: out of battle, in the controller
-    /// layout, or while the game is read from the screen instead of its window.
+    /// <see cref="ReadAt"/>), oldest first. Empty when the buttons aren't sampled: out of battle, before a layout was
+    /// seen, or while the game is read from the screen instead of its window.
     /// </summary>
     public IReadOnlyList<FlashEvent> Flashes { get; init; } = [];
+
+    /// <summary>
+    /// Each slot's battle skill empowered (the steady white glow on its button's rim), slot 1 first, as the corner
+    /// sampled many times a second saw it over the last half second (<see cref="FlashSampler.Empowered"/>): true, false, or
+    /// null when it couldn't be told. Empty when the buttons aren't sampled (as <see cref="Flashes"/>). Read through
+    /// <see cref="EmpoweredOf"/>, which also leaves it unknown when this reading couldn't see the button.
+    /// </summary>
+    public IReadOnlyList<bool?> Empowered { get; init; } = [];
+
+    /// <summary>
+    /// The slot's battle skill empowered, as far as this reading can say: unknown while the squad panel is out of
+    /// sight or out of battle, and with keyboard and mouse while this reading couldn't read the slot's button (an
+    /// effect, or a display drawn over it). With a controller the buttons aren't read; the corner's own checks (the
+    /// diamond seen, the button seen, no scene light as bright as the glow) stand.
+    /// </summary>
+    /// <param name="slot">0-3.</param>
+    public bool? EmpoweredOf(int slot)
+    {
+        if (!PanelVisible || !InCombat || slot < 0 || slot >= Slots.Count || Slots[slot].Empty) return null;
+        if (Layout == HudLayout.KeyboardMouse && Slots[slot].BattleSkill is null) return null;
+        return slot < Empowered.Count ? Empowered[slot] : null;
+    }
 
     /// <summary>How many operators the squad has (1-4): the slots that aren't <see cref="PartySlot.Empty"/>.</summary>
     public int SquadSize => Slots.Count(s => !s.Empty);

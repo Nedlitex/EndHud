@@ -26,9 +26,24 @@ public enum SkillButtonPlaces
 /// <param name="Scene">Median brightness of the scene round the button (a ring just outside it).</param>
 /// <param name="Rim">Share of near-white pixels on the button's rim: 0.25-0.73 under the empowered glow, 0-0.1 at rest.</param>
 /// <param name="Icon">Share of the disc's middle that is light and grey (the icon, a countdown's digits, a fill): 0.16-0.8
-/// on every button seen on screen, 0 under a dark backdrop or with the HUD gone.</param>
+/// on every button seen on screen, 0 under a dark backdrop or with the HUD gone; <see cref="BattleSkillFlash.CoveredByText"/> (-1)
+/// with three or more lines of text over the button (an on-screen display's, <see cref="BattleSkillButton.TextLines"/>).</param>
 /// <param name="Places">Which layout's places it was measured at.</param>
-public readonly record struct FlashSample(double Fill, double Spread, double Scene, double Rim, double Icon, SkillButtonPlaces Places);
+public readonly record struct FlashSample(double Fill, double Spread, double Scene, double Rim, double Icon, SkillButtonPlaces Places)
+{
+    /// <summary>
+    /// The rim's near-white share all round: in twelve sectors round the button, the third least lit (two may be dark: a
+    /// face-button badge beside it, an effect over one side). The empowered glow is a whole ring; the white text of an
+    /// on-screen display over part of the rim lights only the sectors it covers (it raised <see cref="Rim"/> from 0.15 to
+    /// 0.29 over a filled button in the display gate).
+    /// </summary>
+    public double RimAllRound { get; init; }
+
+    /// <summary>Share of the scene round the button at least <see cref="BattleSkillFlash.BrightScene"/> bright: a white flash
+    /// of the scene there lights the see-through rim too. Its median (<see cref="Scene"/>) alone misses it once part of the
+    /// ring is darkened (an on-screen display's backdrop over it).</summary>
+    public double SceneBright { get; init; }
+}
 
 /// <summary>
 /// The battle-skill buttons measured for the cast flash, one frame at a time. When a slot casts its battle skill,
@@ -153,15 +168,29 @@ public static class BattleSkillFlash
 
     /// <summary>
     /// The empowered glow on this button in this sample: lit (true), not lit on a button seen on screen (false), or
-    /// can't be told (null): the scene behind as bright as the glow, or the button not seen (a dark backdrop, the HUD
-    /// gone).
+    /// can't be told (null): the scene behind as bright as the glow, lines of text over the button, or the button not
+    /// seen (a dark backdrop, the HUD gone).
     /// </summary>
     public static bool? Glow(FlashSample s)
     {
-        if (s.Scene >= BrightScene) return null;
-        if (RimLit(s)) return true;
-        return s.Icon >= IconSeenAt ? false : null;
+        if (s.Scene >= BrightScene || s.SceneBright >= BrightSceneShare || s.Icon < 0) return null;
+        if (s.RimAllRound >= RimAllRoundAt) return true;
+        return s.Rim < RimUnlitBelow && s.Icon >= IconSeenAt ? false : null;
     }
+
+    /// <summary>The glow is lit all round from this (<see cref="FlashSample.RimAllRound"/>: 0.29-0.54 under the glow in both
+    /// layouts, 0-0.02 on every other button of the fixtures).</summary>
+    public const double RimAllRoundAt = 0.15;
+
+    /// <summary>
+    /// The rim unlit: under this near-white share overall (0-0.1 at rest). Between it and lit all round (the white text
+    /// of a display over part of the rim) the glow can't be told.
+    /// </summary>
+    public const double RimUnlitBelow = 0.12;
+
+    /// <summary>A white flash of the scene round the button: this share of it bright (0.72-0.93 on the scene-light
+    /// fixtures; at most 0.39 round a button with the scene behind it lit, 0.2 under the glow).</summary>
+    public const double BrightSceneShare = 0.5;
 
     /// <summary>The dark disc of a countdown (the button cooling down after a cast).</summary>
     public static bool Countdown(FlashSample s) => s.Fill is >= 0 and < CountdownBelow;
@@ -236,7 +265,8 @@ public static class BattleSkillFlash
         double cx = image.Width - (UiScaler.ReferenceWidth - rx) * scale;
         double cy = image.Height - (UiScaler.ReferenceHeight - ry) * scale;
         Span<int> fill = stackalloc int[256], spread = stackalloc int[256], scene = stackalloc int[256];
-        int fills = 0, scenes = 0, rim = 0, rimWhite = 0, icon = 0, iconLight = 0;
+        Span<int> sector = stackalloc int[RimSectors], sectorWhite = stackalloc int[RimSectors];
+        int fills = 0, scenes = 0, sceneBright = 0, rim = 0, rimWhite = 0, icon = 0, iconLight = 0;
         double fillIn = Sq(FillInner * scale), fillOut = Sq(FillOuter * scale), rimIn = Sq(RimInner * scale), rimOut = Sq(RimOuter * scale);
         double sceneIn = Sq(SceneInner * scale), sceneOut = Sq(SceneOuter * scale), below = FillBelowCentre * scale, iconOut = Sq(IconOuter * scale);
         // The scene ring is the big one: every other pixel of it is plenty for a median.
@@ -261,6 +291,7 @@ public static class BattleSkillFlash
                     {
                         scene[max]++;
                         scenes++;
+                        if (max >= BrightScene) sceneBright++;
                     }
                     continue;
                 }
@@ -268,8 +299,14 @@ public static class BattleSkillFlash
                 {
                     if (d2 <= rimOut)
                     {
+                        int s = Math.Min(RimSectors - 1, (int)((Math.Atan2(dy, dx) + Math.PI) / (2 * Math.PI) * RimSectors));
                         rim++;
-                        if (min > 200) rimWhite++;
+                        sector[s]++;
+                        if (min > 200)
+                        {
+                            rimWhite++;
+                            sectorWhite[s]++;
+                        }
                     }
                     continue;
                 }
@@ -286,14 +323,34 @@ public static class BattleSkillFlash
                 }
             }
         }
+        // Lines of text over the button (an on-screen display's): its look is the display's, not the button's.
+        bool text = Math.Max(BattleSkillButton.WhiteLines(image, cx, cy, scale), BattleSkillButton.WhiteLines(image, cx, cy, scale, BattleSkillButton.BesideIcon))
+                    >= BattleSkillButton.TextLines;
+        // All round the rim: the share in the sector that is the RimSectorsSpared+1-th least lit.
+        Span<double> shares = stackalloc double[RimSectors];
+        for (int s = 0; s < RimSectors; s++) shares[s] = sector[s] == 0 ? 0 : sectorWhite[s] / (double)sector[s];
+        shares.Sort();
         return new FlashSample(
             fills == 0 ? -1 : Median(fill, fills),
             fills == 0 ? -1 : Median(spread, fills),
             scenes == 0 ? -1 : Median(scene, scenes),
             rim == 0 ? 0 : rimWhite / (double)rim,
-            icon == 0 ? 0 : iconLight / (double)icon,
-            places);
+            text ? CoveredByText : icon == 0 ? 0 : iconLight / (double)icon,
+            places)
+        {
+            RimAllRound = rim == 0 ? 0 : shares[RimSectorsSpared],
+            SceneBright = scenes == 0 ? 0 : sceneBright / (double)scenes,
+        };
     }
+
+    /// <summary>The rim is looked at in this many sectors round the button...</summary>
+    private const int RimSectors = 12;
+
+    /// <summary>...of which this many may be dark (a face-button badge or the ultimate's circle beside the button, an effect over one side).</summary>
+    private const int RimSectorsSpared = 2;
+
+    /// <summary>The <see cref="FlashSample.Icon"/> of a button with lines of text over it (an on-screen display's): its glow can't be told.</summary>
+    public const double CoveredByText = -1;
 
     private static double Sq(double v) => v * v;
 

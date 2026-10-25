@@ -42,7 +42,7 @@ public static class BattleSkillButton
     internal const int TextLines = 3;
 
     /// <summary>The icon's half width (4K): the lines are also counted on the disc beside it, where the icon doesn't join them.</summary>
-    private const double BesideIcon = 42;
+    internal const double BesideIcon = 42;
 
     /// <summary>
     /// Inside this radius (4K) the white rows are counted: the dark disc (to 58), the outline left out. At 44 (the icon's

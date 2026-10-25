@@ -967,7 +967,7 @@ internal sealed class PartyMonitor : IDisposable
                     }
                     Action<Frame>? onCorner = sample ? cornerFrame => _flashes.Sample(cornerFrame, flashScale, InnClock.Now, flashLayout) : null;
                     capture?.SetCornerTap(sample ? flashCorner : null, FlashSampler.Every, onCorner);
-                    Report(state with { ReadAt = frameAt, Flashes = sample ? _flashes.Take() : [] }, null);
+                    Report(state with { ReadAt = frameAt, Flashes = sample ? _flashes.Take() : [], Empowered = sample ? _flashes.Empowered(state.SquadSize) : [] }, null);
                 }
                 catch (TimeoutException)
                 {

@@ -110,7 +110,7 @@ internal static class RotationStripView
         {
             // The first condition's icon, the alert pop-up's rule (ConditionIcon); the conditions in words under it.
             var subject = ConditionIcon.Subject(p.Step.Expect);
-            return new StripStep(ConditionIcon.Picture(subject, library, look.StatusIcon, avatar), null,
+            return new StripStep(ConditionIcon.Picture(subject, library, look.StatusIcon, avatar, skillIcon), null,
                 p.Step.Label ?? Loc.Get("Rotation.Action.Condition"),
                 p.Step.Note ?? ConditionWords.Statements(p.Step.Expect, library, look.PhaseName),
                 state, false, new StripCondition(subject.Kind == AlertSubjectKind.SkillPoints));

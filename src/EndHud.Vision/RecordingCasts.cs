@@ -49,7 +49,7 @@ public sealed class RecordingCasts(VideoFile video, PartyReader reader)
             if (read.PanelVisible) layout = read.Layout;
             if (sampleCorners) sampler.Sample(frame.Crop(corner), scale, at, layout);
 
-            var state = read with { ReadAt = at, Flashes = sampler.Take() };
+            var state = read with { ReadAt = at, Flashes = sampler.Take(), Empowered = sampleCorners ? sampler.Empowered(read.SquadSize) : [] };
             if (prepare is not null) state = prepare(state);
             var judging = judge.Update(before, state, presses?.TakeUntil(at) ?? []);
             yield return new RecordedReading(t, state, judging);

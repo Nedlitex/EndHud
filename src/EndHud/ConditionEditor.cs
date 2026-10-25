@@ -58,6 +58,7 @@ internal sealed class ConditionEditor(
             "UltimateActive" => new UltimateActiveCondition(first, true),
             // Only an operator whose skill time is read (Si) can be asked about.
             "BattleSkillActive" => new BattleSkillActiveCondition(Readable(kind).FirstOrDefault()?.Id ?? SkillRing.Operators[0], true),
+            "BattleSkillEmpowered" => new BattleSkillEmpoweredCondition(first, true),
             // Only an operator whose lasting ultimate is read (Laevatain, Zhuang Fangyi, Yvonne).
             "UltimateTimeLeft" => new UltimateTimeLeftCondition(Readable(kind).FirstOrDefault()?.Id ?? first, Comparison.AtMost, 30),
             "PhaseCurrent" => new PhaseCurrentCondition(defaultPhaseId?.Invoke() ?? phases().FirstOrDefault().Id ?? ""),
@@ -228,6 +229,16 @@ internal sealed class ConditionEditor(
                 row.Children.Add(state);
                 read = () => new BattleSkillActiveCondition((string)Picked(who), (bool)Picked(state));
                 hint = Loc.Get("Editor.SkillTimeHint");
+                break;
+            }
+            case BattleSkillEmpoweredCondition c:
+            {
+                var who = OperatorPicker(c.OperatorId);
+                var state = Picker([true, false], e => Loc.Get(e ? "Editor.Empowered" : "Editor.NotEmpowered"), c.Empowered);
+                row.Children.Add(who);
+                row.Children.Add(state);
+                read = () => new BattleSkillEmpoweredCondition((string)Picked(who), (bool)Picked(state));
+                hint = Loc.Get("Editor.EmpoweredHint");
                 break;
             }
             case UltimateTimeLeftCondition c:

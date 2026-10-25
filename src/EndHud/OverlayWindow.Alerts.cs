@@ -98,7 +98,7 @@ public partial class OverlayWindow
     private UIElement AlertIcon(AlertRule rule)
     {
         var subject = ConditionIcon.Subject(rule.When);
-        var picture = ConditionIcon.Picture(subject, _party.Identifier?.Library, StatusIcon, Avatar);
+        var picture = ConditionIcon.Picture(subject, _party.Identifier?.Library, StatusIcon, Avatar, SkillIcon);
         return AlertPopUp.Icon(picture, subject.Kind == AlertSubjectKind.SkillPoints);
     }
 

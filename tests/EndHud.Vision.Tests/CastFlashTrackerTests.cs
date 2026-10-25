@@ -11,7 +11,10 @@ namespace EndHud.Vision.Tests;
 public sealed class CastFlashTrackerTests
 {
     /// <summary>A keyboard-and-mouse sample; the recorded samples predate the icon measure, so the button counts as seen (0.3).</summary>
-    private static FlashSample Keyboard(double fill, double spread, double scene, double rim) => new(fill, spread, scene, rim, 0.3, SkillButtonPlaces.Row);
+    private static FlashSample Keyboard(double fill, double spread, double scene, double rim) => Measured(new(fill, spread, scene, rim, 0.3, SkillButtonPlaces.Row));
+
+    /// <summary>A made-up or recorded sample whose rim, where lit, is lit all round, and whose scene is bright where it is 200 or more.</summary>
+    private static FlashSample Measured(FlashSample s) => s with { RimAllRound = s.Rim, SceneBright = s.Scene >= BattleSkillFlash.BrightScene ? 1 : 0 };
 
     private static readonly FlashSample Rest = Keyboard(75, 4, 70, 0);
 
@@ -158,9 +161,9 @@ public sealed class CastFlashTrackerTests
 
     // The controller (made-up runs at the values measured on full battle 3).
 
-    private static FlashSample Held(double fill, double scene = 110, double rim = 0) => new(fill, 6, scene, rim, 0.4, SkillButtonPlaces.DiamondHeld);
+    private static FlashSample Held(double fill, double scene = 110, double rim = 0) => Measured(new(fill, 6, scene, rim, 0.4, SkillButtonPlaces.DiamondHeld));
 
-    private static FlashSample Plain(double fill, double scene = 110, double rim = 0, double icon = 0.3) => new(fill, 6, scene, rim, icon, SkillButtonPlaces.Diamond);
+    private static FlashSample Plain(double fill, double scene = 110, double rim = 0, double icon = 0.3) => Measured(new(fill, 6, scene, rim, icon, SkillButtonPlaces.Diamond));
 
     /// <summary>Slot 3's button (button 2) as given, the others as <paramref name="rest"/>, 30 times a second from <paramref name="from"/>.</summary>
     private static IEnumerable<(TimeSpan, FlashSample[])> Slot3(double from, IEnumerable<FlashSample> run, FlashSample rest) =>
