@@ -30,7 +30,7 @@ public sealed class ScreenCastJudgeTests
         }
     }
 
-    private static FlashEvent Flash(int slot, double seconds, FlashKind kind = FlashKind.Fill) => new(slot - 1, TimeSpan.FromSeconds(seconds), kind);
+    private static FlashEvent Flash(int slot, double seconds, FlashKind kind = FlashKind.Fill) => new(slot - 1, TimeSpan.FromSeconds(seconds), kind, SkillButtonPlaces.Row);
 
     private static SkillPress Press(int slot, double seconds) => new(slot, TimeSpan.FromSeconds(seconds));
 
@@ -181,7 +181,7 @@ public sealed class ScreenCastJudgeTests
     {
         // Buttons 2-4 (from the left) are slots 1-3.
         var readings = Fight(dropAt: 1.0).Select(r => r with { Squad = 3 });
-        var cast = Assert.Single(Judge(With(readings, 1.0, r => r with { Flashes = [new FlashEvent(1, TimeSpan.FromSeconds(0.9), FlashKind.Fill)] })));
+        var cast = Assert.Single(Judge(With(readings, 1.0, r => r with { Flashes = [new FlashEvent(1, TimeSpan.FromSeconds(0.9), FlashKind.Fill, SkillButtonPlaces.Row)] })));
         Assert.Equal(1, cast.Slot);
     }
 
@@ -202,5 +202,25 @@ public sealed class ScreenCastJudgeTests
         var readings = Enumerable.Range(0, 12).Select(k => k * 0.25).Select(t => new Reading(t, t >= 1.0 ? 0.4 : 2.4));
         var casts = Judge(With(readings, 1.0, r => r with { Flashes = [Flash(1, 0.85), Flash(3, 0.95)] }));
         Assert.Equal([1, 3], casts.Select(c => c.Slot!.Value).Order());
+    }
+
+    [Fact]
+    public void With_a_controller_the_diamond_keeps_its_places_for_a_squad_of_two()
+    {
+        // The controller's diamond draws an empty place as a ring with a slash: its second button is slot 2, not slot 4's.
+        var readings = Fight(dropAt: 1.0).Select(r => r with { Squad = 2 });
+        var cast = Assert.Single(Judge(With(readings, 1.0, r => r with { Flashes = [new FlashEvent(1, TimeSpan.FromSeconds(0.9), FlashKind.Fill, SkillButtonPlaces.DiamondHeld)] })));
+        Assert.Equal((2, CastSource.Flash), (cast.Slot, cast.Source));
+    }
+
+    [Fact]
+    public void With_a_controller_a_flash_counts_though_the_buttons_are_not_read()
+    {
+        // The controller's buttons aren't read for available or cooling: the "button read before" check is keyboard-only.
+        var readings = Fight(dropAt: 1.0).Select(r => r with { Skill = [null, null, null, null] });
+        var cast = Assert.Single(Judge(With(readings, 1.0, r => r with { Flashes = [new FlashEvent(2, TimeSpan.FromSeconds(0.9), FlashKind.Fill, SkillButtonPlaces.DiamondHeld)] })));
+        Assert.Equal((3, CastSource.Flash), (cast.Slot, cast.Source));
+        // With keyboard and mouse an unread button still names nobody (a dimmed one shows the scene through it).
+        Assert.Equal(CastSource.Unattributed, Assert.Single(Judge(With(readings, 1.0, r => r with { Flashes = [Flash(3, 0.9)] }))).Source);
     }
 }

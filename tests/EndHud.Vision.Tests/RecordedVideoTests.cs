@@ -38,6 +38,16 @@ public static class Recordings
     public const string BattleCastsLabels = "battle-casts-30fps.casts.txt";
 
     /// <summary>
+    /// 21 s at 30 fps of a controller fight (full battle 3 from 25 s): casts with LB held on slots 3, 1, 1 and 2, the
+    /// last slot 2's empowered cast (its rim glowing from about 18 s). Its casts, labelled by eye, are in
+    /// <see cref="BattleControllerLabels"/>.
+    /// </summary>
+    public const string BattleController = "battle-controller-30fps.mp4";
+
+    /// <summary>The battle skills cast in <see cref="BattleController"/>: lines "seconds,slot".</summary>
+    public const string BattleControllerLabels = "battle-controller-30fps.casts.txt";
+
+    /// <summary>
     /// The tests that decode <see cref="BattleCasts"/> frame by frame run on their own, after the others
     /// (<see cref="ThirtyFpsCollection"/>): beside the other recording tests, with the game open on the same PC, the
     /// video decoder ran out of memory (OutOfMemoryException from GetThumbnailAsync, in those tests and the others).

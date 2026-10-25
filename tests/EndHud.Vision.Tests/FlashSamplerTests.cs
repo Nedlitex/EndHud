@@ -22,7 +22,7 @@ public sealed class FlashSamplerTests
         {
             var at = TimeSpan.FromSeconds(frame / 30.0);
             var corner = await video.GetRegionAsync(at, BattleSkillFlash.Region(video.Width, video.Height));
-            sampler.Sample(corner, new UiScaler(video.Width, video.Height).Scale, at);
+            sampler.Sample(corner, new UiScaler(video.Width, video.Height).Scale, at, HudLayout.KeyboardMouse);
             if (at.TotalSeconds >= nextTake)
             {
                 taken.AddRange(sampler.Take());
@@ -71,12 +71,64 @@ public sealed class FlashSamplerTests
         Assert.Equal(whole.Bgra, corner.Bgra);
     }
 
+    /// <summary>
+    /// The controller recording's corner (both diamonds) from <paramref name="from"/> to <paramref name="to"/> seconds, every
+    /// <paramref name="every"/>-th frame, as the app samples it in the controller layout; the flashes, and the empowered
+    /// verdict by slot (squad of four) at each time asked for.
+    /// </summary>
+    private static async Task<(List<FlashEvent> Flashes, Dictionary<double, IReadOnlyList<bool?>> Empowered)> SampleControllerAsync(
+        double from, double to, int every, params double[] askAt)
+    {
+        var video = await VideoFile.OpenAsync(Recordings.PathOf(Recordings.BattleController));
+        var sampler = new FlashSampler();
+        var region = BattleSkillFlash.Region(video.Width, video.Height, HudLayout.Controller);
+        double scale = new UiScaler(video.Width, video.Height).Scale;
+        var flashes = new List<FlashEvent>();
+        var empowered = new Dictionary<double, IReadOnlyList<bool?>>();
+        for (int frame = (int)Math.Round(from * 30); frame <= to * 30; frame += every)
+        {
+            var at = TimeSpan.FromSeconds(frame / 30.0);
+            sampler.Sample(await video.GetRegionAsync(at, region), scale, at, HudLayout.Controller);
+            foreach (double t in askAt.Where(t => Math.Abs(t - at.TotalSeconds) < every / 60.0)) empowered[t] = sampler.Empowered(4);
+        }
+        flashes.AddRange(sampler.Take());
+        return (flashes, empowered);
+    }
+
+    [Fact]
+    public async Task With_a_controller_each_cast_is_one_fill_on_its_own_slot_in_the_held_diamond()
+    {
+        // Labelled by eye: slot 3 at 1.97, slot 1 at 2.87 (Recordings/battle-controller-30fps.casts.txt).
+        var (flashes, _) = await SampleControllerAsync(1.0, 4.0, every: 1);
+        Assert.Equal([(2, FlashKind.Fill, SkillButtonPlaces.DiamondHeld), (0, FlashKind.Fill, SkillButtonPlaces.DiamondHeld)],
+            flashes.Select(f => (f.Button, f.Kind, f.Places)));
+        Assert.InRange(flashes[0].At.TotalSeconds, 1.9, 2.1);
+        Assert.InRange(flashes[1].At.TotalSeconds, 2.8, 3.0);
+    }
+
+    [Fact]
+    public async Task With_a_controller_at_15_hz_too()
+    {
+        var (flashes, _) = await SampleControllerAsync(1.0, 4.0, every: 2);
+        Assert.Equal([2, 0], flashes.Where(f => f.Kind == FlashKind.Fill).Select(f => f.Button));
+    }
+
+    [Fact]
+    public async Task Slot_2s_empowered_glow_is_told_while_it_lasts_and_not_before()
+    {
+        // Its rim glows from about 18.0 s until its cast at 19.37.
+        var (_, empowered) = await SampleControllerAsync(16.0, 19.2, every: 2, 17.0, 18.8, 19.1);
+        Assert.Equal([false, false, false, false], empowered[17.0]);
+        Assert.Equal([false, true, false, false], empowered[18.8]);
+        Assert.Equal(true, empowered[19.1][1]);
+    }
+
     [Fact]
     public void Sampling_counts_are_described_without_any_picture()
     {
         var sampler = new FlashSampler();
         var rest = new Frame(820, 370, Enumerable.Repeat((byte)60, 820 * 370 * 4).ToArray());
-        sampler.Sample(rest, 1, TimeSpan.Zero);
+        sampler.Sample(rest, 1, TimeSpan.Zero, HudLayout.KeyboardMouse);
         Assert.Matches(@"^battle-skill flash: 1 samples, \d+\.\d\d ms each; Fill 0, EmpoweredFill 0, EmpoweredCast 0, EmpoweredStart 0$", sampler.Describe());
     }
 }

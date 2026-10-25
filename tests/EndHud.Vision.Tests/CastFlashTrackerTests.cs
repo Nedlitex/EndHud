@@ -156,6 +156,89 @@ public sealed class CastFlashTrackerTests
         Assert.Empty(Run(samples));
     }
 
+    // The controller (made-up runs at the values measured on full battle 3).
+
+    private static FlashSample Held(double fill, double scene = 110, double rim = 0) => new(fill, 6, scene, rim, 0.4, SkillButtonPlaces.DiamondHeld);
+
+    private static FlashSample Plain(double fill, double scene = 110, double rim = 0, double icon = 0.3) => new(fill, 6, scene, rim, icon, SkillButtonPlaces.Diamond);
+
+    /// <summary>Slot 3's button (button 2) as given, the others as <paramref name="rest"/>, 30 times a second from <paramref name="from"/>.</summary>
+    private static IEnumerable<(TimeSpan, FlashSample[])> Slot3(double from, IEnumerable<FlashSample> run, FlashSample rest) =>
+        run.Select((b, k) => (TimeSpan.FromSeconds(from + k / 30.0), new[] { rest, rest, b, rest }));
+
+    [Fact]
+    public void With_lb_held_the_pressed_grey_then_the_white_fill_is_one_cast_told_in_the_held_diamond()
+    {
+        var pressed = Enumerable.Repeat(Held(155), 6);
+        var flash = new[] { Held(201, 130), Held(201, 130), Held(203, 131), Held(199, 115) };
+        var tracker = new CastFlashTracker();
+        var told = new List<FlashEvent>();
+        foreach (var (at, buttons) in Slot3(0, Enumerable.Repeat(Held(120), 30).Concat(pressed).Concat(flash).Concat(Enumerable.Repeat(Held(145), 30)), Held(120)))
+            told.AddRange(tracker.Add(at, buttons));
+        var fill = Assert.Single(told);
+        Assert.Equal((2, FlashKind.Fill, SkillButtonPlaces.DiamondHeld), (fill.Button, fill.Kind, fill.Places));
+        Assert.InRange(fill.At.TotalSeconds, 1.19, 1.21);
+    }
+
+    [Fact]
+    public void A_fill_in_the_plain_diamond_is_no_cast()
+    {
+        var tracker = new CastFlashTracker();
+        var samples = Slot3(0, Enumerable.Repeat(Plain(80), 30).Concat(Enumerable.Repeat(Plain(205, 120), 4)).Concat(Enumerable.Repeat(Plain(80), 30)), Plain(80));
+        Assert.Empty(samples.SelectMany(s => tracker.Add(s.Item1, s.Item2)).ToList());
+    }
+
+    /// <summary>The verdict per button after feeding these samples.</summary>
+    private static IReadOnlyList<bool?> EmpoweredAfter(IEnumerable<(TimeSpan, FlashSample[])> samples)
+    {
+        var tracker = new CastFlashTracker();
+        TimeSpan last = default;
+        foreach (var (at, buttons) in samples)
+        {
+            tracker.Add(at, buttons);
+            last = at;
+        }
+        return tracker.Empowered(last);
+    }
+
+    [Fact]
+    public void A_rim_lit_for_half_a_second_is_empowered_and_the_others_not()
+    {
+        var verdict = EmpoweredAfter(Slot3(0, Enumerable.Repeat(Plain(120, rim: 0.4), 20), Plain(80)));
+        Assert.Equal([false, false, true, false], verdict);
+    }
+
+    [Fact]
+    public void A_cast_ring_passing_the_rim_is_not_empowered()
+    {
+        // The ring grows out of the button in under 0.2 s.
+        var run = Enumerable.Repeat(Plain(80), 14).Concat(Enumerable.Repeat(Plain(80, rim: 0.3), 4)).Concat(Enumerable.Repeat(Plain(80), 2));
+        Assert.Equal(false, EmpoweredAfter(Slot3(0, run, Plain(80)))[2]);
+    }
+
+    [Fact]
+    public void Scene_light_or_a_button_not_seen_is_unknown_never_not_empowered()
+    {
+        Assert.Null(EmpoweredAfter(Slot3(0, Enumerable.Repeat(Plain(200, scene: 240, rim: 0.5), 20), Plain(80)))[2]);
+        Assert.Null(EmpoweredAfter(Slot3(0, Enumerable.Repeat(Plain(40, icon: 0), 20), Plain(80)))[2]);
+    }
+
+    [Fact]
+    public void Too_few_samples_tell_nothing()
+    {
+        var verdict = EmpoweredAfter(Slot3(0, Enumerable.Repeat(Plain(120, rim: 0.4), 3), Plain(80)));
+        Assert.All(verdict, v => Assert.Null(v));
+        Assert.All(new CastFlashTracker().Empowered(TimeSpan.FromSeconds(5)), v => Assert.Null(v));
+    }
+
+    [Fact]
+    public void The_glow_is_followed_across_the_two_diamonds()
+    {
+        // LB held and let go while slot 3's rim glows: the same slot in either diamond.
+        var run = Enumerable.Range(0, 20).Select(k => k % 6 < 3 ? Plain(120, rim: 0.4) : Held(150, rim: 0.45));
+        Assert.Equal(true, EmpoweredAfter(Slot3(0, run, Plain(80)))[2]);
+    }
+
     /// <summary>Every button at rest, 30 times a second.</summary>
     private static IEnumerable<(TimeSpan, FlashSample[])> Steady(double from, double seconds) =>
         Enumerable.Range(0, (int)Math.Round(seconds * 30)).Select(k => (TimeSpan.FromSeconds(from + k / 30.0), new[] { Rest, Rest, Rest, Rest }));
