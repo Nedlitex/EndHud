@@ -1,0 +1,66 @@
+using Xunit;
+
+namespace EndHud.Vision.Tests;
+
+/// <summary>
+/// The combat readers one by one under an on-screen display drawn into the game's frames (MSI Afterburner's, drawn by
+/// RivaTuner; <see cref="SyntheticOsd"/>), each where the 2026-10-24 investigation found a wrong value: what is read
+/// under it is the clean frame's value or unknown. <see cref="OnScreenDisplayCombatGateTests"/> runs every combat
+/// reading over every combat fixture; these name the case each fix is for.
+/// </summary>
+public class OnScreenDisplayCombatTests
+{
+    private static async Task<Frame> Load(string file) => await ImageFile.LoadAsync(CombatFrameTests.Fixture(file));
+
+    /// <summary>The fixture at 4K and at 1080p.</summary>
+    private static async Task<IEnumerable<(string Size, Frame Frame)>> Sizes(string file)
+    {
+        var source = await Load(file);
+        return [("4K", source), ("1080p", SimulatedScreen.FullHd.Render(source))];
+    }
+
+    private static IEnumerable<(string Name, Frame Frame)> Covered(Frame frame, OsdPosition position) =>
+        new[] { true, false }.Select(bg => ($"{position}{(bg ? " with its backdrop" : "")}", SyntheticOsd.Draw(frame, position, bg)));
+
+    /// <summary>
+    /// The display's text across the HP bar cut the fill short (1.00 read 0.79 or 0.33, 0.69 read 0.00), and its
+    /// backdrop dimmed the fill below the fill colours (read as an empty bar): now the bar is unknown.
+    /// </summary>
+    [Theory]
+    [InlineData("combat-all-ready.jpg")]
+    [InlineData("lasting-ultimate-background/zl-46s.jpg")]
+    [InlineData("battle-low-hp.jpg")]
+    [InlineData("controller/combat.jpg")]
+    public async Task An_HP_bar_under_a_display_reads_its_value_or_unknown(string file)
+    {
+        var reader = new PartyReader(new TextRecognizer());
+        foreach (var (size, frame) in await Sizes(file))
+        {
+            var clean = await reader.ReadAsync(frame);
+            foreach (var (name, covered) in Covered(frame, OsdPosition.BottomLeft))
+            {
+                var read = await reader.ReadAsync(covered);
+                for (int i = 0; i < clean.Slots.Count; i++)
+                    if (read.Slots[i].Hp is { } hp)
+                        Assert.True(clean.Slots[i].Hp is { } was && Math.Abs(hp - was) <= 0.03,
+                            $"{file} {size} {name}: slot {i + 1} HP {clean.Slots[i].Hp:F2} read {hp:F2}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// A squad of three with the display over slot 1: slot 1 showing nothing readable was taken for a screen without
+    /// the squad panel, so the squad was read as four.
+    /// </summary>
+    [Fact]
+    public async Task A_squad_of_three_stays_three_with_a_display_over_slot_1()
+    {
+        var reader = new PartyReader(new TextRecognizer());
+        foreach (var (size, frame) in await Sizes("lasting-ultimate-background/zl-46s.jpg"))
+        {
+            Assert.Equal(3, (await reader.ReadAsync(frame)).SquadSize);
+            foreach (var (name, covered) in Covered(frame, OsdPosition.BottomLeft))
+                Assert.True((await reader.ReadAsync(covered)).SquadSize == 3, $"{size} {name}");
+        }
+    }
+}

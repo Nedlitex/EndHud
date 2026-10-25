@@ -142,7 +142,8 @@ public class OnScreenDisplayCombatGateTests(ITestOutputHelper output)
         {
             string p = $"slot {s.Number} ";
             if (s.Empty) continue;
-            r[p + "fallen"] = s.Dead.ToString();
+            // With its HP bar unreadable (something over it), whether the operator has fallen is unknown too.
+            r[p + "fallen"] = s.Dead ? "True" : s.Hp is null ? null : "False";
             r[p + "hp"] = s.Hp is { } hp ? F(hp) : null;
             r[p + "level"] = s.Level?.ToString(CultureInfo.InvariantCulture);
             r[p + "combo"] = s.Combo is { } c ? c.Ready ? "ready" : F(c.Progress) : null;
