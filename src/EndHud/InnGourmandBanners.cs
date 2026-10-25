@@ -356,13 +356,13 @@ internal sealed class InnGourmandPicks
 /// <summary>
 /// Where the gourmands' tiles go: each table at its own spot, whoever else is there, so nothing ever moves (owner, live
 /// 2026-10-21, test_yuanyuan8: "make the position FIXED, so user does not need to chase around"), where the owner drew them
-/// (2026-10-22: "the gourmand location IS TOO close to center! should be roughly at where I draw"; "the left 3 banner for
-/// gourmand should be table 1-3, right should be 4-6"): tables 1, 2, 3 down the left of the screen, top to bottom, and
-/// 4, 5, 6 down the right. Each tile is centred on its spot's centre (<see cref="Centers"/>, fractions of the window's
+/// (2026-10-22: "the gourmand location IS TOO close to center! should be roughly at where I draw"), with tables 1, 3, 5
+/// down the left of the screen, top to bottom, and 2, 4, 6 down the right, as the inn's tables really stand (2026-10-24:
+/// "135 table at left, and 246 at right, to match the real layout"; before, 1-3 left and 4-6 right). Each tile is centred on its spot's centre (<see cref="Centers"/>, fractions of the window's
 /// centred 16:9 area):
 /// <list type="bullet">
-/// <item>Left, x 0.11–0.24 drawn: tables 1, 2, 3 centred at y 0.36 (just under the open panel's kitchen tabs), 0.60, 0.825.</item>
-/// <item>Right, x 0.76–0.91 drawn: tables 4, 6 centred at x 0.835, y 0.36 and 0.795; table 5 at y 0.55, moved left just
+/// <item>Left, x 0.11–0.24 drawn: tables 1, 3, 5 centred at y 0.36 (just under the open panel's kitchen tabs), 0.60, 0.825.</item>
+/// <item>Right, x 0.76–0.91 drawn: tables 2, 6 centred at x 0.835, y 0.36 and 0.795; table 4 at y 0.55, moved left just
 /// enough to end at x 0.85, clear of the game's Full Blaze meter (from x 0.855 with 开启满堂彩 up, y 0.50–0.645, on the 4K frames).</item>
 /// </list>
 /// The same with the dispatch panel open, and shown there (never put away): the left ones then lie over the panel's chef
@@ -379,8 +379,9 @@ internal static class InnGourmandLayout
     /// <summary>Each table's spot's centre (tables 1 to 6), as fractions of the 16:9 area.</summary>
     public static readonly IReadOnlyList<Point> Centers =
     [
-        new(0.175, 0.36), new(0.175, 0.60), new(0.175, 0.825),
-        new(0.835, 0.36), new(0.85 - 0.0610, 0.55), new(0.835, 0.795),
+        new(0.175, 0.36), new(0.835, 0.36),           // tables 1 (left) and 2 (right): top row
+        new(0.175, 0.60), new(0.85 - 0.0610, 0.55),   // tables 3 and 4: middle row
+        new(0.175, 0.825), new(0.835, 0.795),         // tables 5 and 6: bottom row
     ];
 
     /// <summary>

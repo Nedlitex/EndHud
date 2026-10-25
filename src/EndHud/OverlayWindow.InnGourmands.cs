@@ -7,7 +7,7 @@ namespace EndHud;
 
 /// <summary>
 /// The gourmands' tiles (<see cref="InnGourmandView.Tile"/>): during a session, while a gourmand's order is open, one tile
-/// per gourmand at its table's fixed spot (<see cref="InnGourmandLayout"/>: tables 1-3 down the left, 4-6 down the right;
+/// per gourmand at its table's fixed spot (<see cref="InnGourmandLayout"/>: tables 1, 3, 5 down the left, 2, 4, 6 down the right;
 /// owner, test_yuanyuan8: "make the position FIXED"), fading in when new and out when served, shown with the dispatch panel
 /// open or closed. A tile never moves; what it says changing redraws it in place. Nothing to drag: the spots
 /// follow the game's screen. The inn's size (smaller only) and opacity apply.

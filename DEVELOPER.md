@@ -1127,8 +1127,8 @@ window's centred 16:9 area (the tests' `InnScreenAreas`): the panel x 0.109–0.
 0.518–0.653) x 0.112–0.38; with it closed the top-left block down to y 0.487 (x to 0.285), the table cards to y 0.132
 and the game's last-call bar to x 0.6194, y 0.167. So:
 Where they are now is the owner's own layout (2026-10-22, after trying the middle: "that must stay at the middle bottom,
-above the dishes in hands"; "the gourmand location IS TOO close to center! should be roughly at where I draw"; "the left
-3 banner for gourmand should be table 1-3, right should be 4-6"):
+above the dishes in hands"; "the gourmand location IS TOO close to center! should be roughly at where I draw"; 2026-10-24:
+"135 table at left, and 246 at right, to match the real layout"; before, tables 1-3 left and 4-6 right):
 - **The kitchens' circles** (`InnKitchenCircleLayout`): one row centred across the screen, its bottom at y 0.845, right
   above the held-dishes tray (its slots start at 0.853): 540 × 82 at 1080p, x 0.359–0.641, y 0.769–0.845. The same with
   the dispatch panel open: the row then covers the lower dish cards' bottom line and the queue strip's right end (the
@@ -1137,12 +1137,12 @@ above the dishes in hands"; "the gourmand location IS TOO close to center! shoul
   nothing, dcaebc9). No drag (an old config with `InnCircleX/Y` still loads). InnCirclesFixedTests: one place per
   kitchen, panel open or closed, one to three circles, 1080p/1440p/4K; centred; above the tray; clear of the HUD and
   of the gourmands' spots.
-- **The gourmands' tiles** (`InnGourmandLayout.Centers`, fractions of the centred 16:9 area): tables 1, 2, 3 down the
-  left, centred at x 0.175, y 0.36, 0.60, 0.825; tables 4 and 6 down the right at x 0.835, y 0.36 and 0.795; table 5 at
+- **The gourmands' tiles** (`InnGourmandLayout.Centers`, fractions of the centred 16:9 area): tables 1, 3, 5 down the
+  left, centred at x 0.175, y 0.36, 0.60, 0.825; tables 2 and 6 down the right at x 0.835, y 0.36 and 0.795; table 4 at
   y 0.55, ending at x 0.85, clear of the Full Blaze count. Shown with the panel open too, never put away: the left ones
   then over the chef column, the right ones over the right dish-card column's name ends and prices (accepted for the
   owner's spots). On session-two-dishes.jpg table 6's tile reaches the last 0.6 % of the green bar right of 派单 and
-  table 5's the left third of the round smiley gauge (成功连续上餐) beside the Full Blaze count (InnSixGourmandsTests measures
+  table 4's the left third of the round smiley gauge (成功连续上餐) beside the Full Blaze count (InnSixGourmandsTests measures
   the first). Half see-through backgrounds, solid pictures and words.
 - **The banners** (开启满堂彩, the last call): by default top-left at (0.25, 0.36), the combo hint's height just right of
   table 1's tile (`HudConfig.DefaultInnCallX/Y`; settings version 5 moves the old defaults, (0.2, 0.36) until version 3
