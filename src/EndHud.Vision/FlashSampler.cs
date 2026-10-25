@@ -17,24 +17,58 @@ public sealed class FlashSampler
     private readonly CastFlashTracker _tracker = new();
     private readonly List<FlashEvent> _told = [];
     private long _samples, _ticks;
+    private TimeSpan? _last; // the latest sample measured
+    private bool? _controller; // the layout of the latest sample: a controller's (true) or keyboard and mouse
     private readonly int[] _byKind = new int[Enum.GetValues<FlashKind>().Length];
 
     /// <summary>A corner of the game picture: its bottom-right corner is the picture's.</summary>
     /// <param name="scale">The picture's HUD scale (<see cref="UiScaler.Scale"/>).</param>
     /// <param name="at">When the frame arrived, on the readings' clock.</param>
-    public void Sample(Frame corner, double scale, TimeSpan at)
+    /// <param name="layout">The HUD layout the readings last saw: keyboard and mouse measure the row; with a controller
+    /// the corner itself says which diamond it shows (LB is held and let go faster than the readings follow), and a
+    /// corner showing neither (a cutscene, the HUD fading between them) is passed over.</param>
+    public void Sample(Frame corner, double scale, TimeSpan at, HudLayout layout)
     {
         long start = Stopwatch.GetTimestamp();
-        var buttons = BattleSkillFlash.MeasureAll(corner, scale);
+        bool controller = layout != HudLayout.KeyboardMouse;
+        var places = controller ? BattleSkillFlash.PlacesOf(corner, scale) : SkillButtonPlaces.Row;
+        var buttons = places is { } p ? BattleSkillFlash.MeasureAll(corner, scale, p) : null;
         lock (_lock)
         {
-            foreach (var flash in _tracker.Add(at, buttons))
+            // Another layout: its buttons are other places, so nothing in progress carries over.
+            if (_controller is { } was && was != controller) _tracker.Forget();
+            _controller = controller;
+            if (buttons is not null)
             {
-                _told.Add(flash);
-                _byKind[(int)flash.Kind]++;
+                _last = at;
+                foreach (var flash in _tracker.Add(at, buttons))
+                {
+                    _told.Add(flash);
+                    _byKind[(int)flash.Kind]++;
+                }
             }
             _samples++;
             _ticks += Stopwatch.GetTimestamp() - start;
+        }
+    }
+
+    /// <summary>
+    /// Each slot's battle skill empowered as of the latest sample (<see cref="CastFlashTracker.Empowered"/>), slot 1
+    /// first: true, false, or null when it can't be told (and for every slot before anything was sampled). The keyboard
+    /// row is drawn from the right for a squad of fewer than four; the controller's diamond keeps every place.
+    /// </summary>
+    /// <param name="squadSize">The squad's operators (1-4).</param>
+    public IReadOnlyList<bool?> Empowered(int squadSize)
+    {
+        lock (_lock)
+        {
+            var slots = new bool?[4];
+            if (_last is not { } at || _controller is not { } controller) return slots;
+            var buttons = _tracker.Empowered(at);
+            int offset = controller ? 0 : 4 - Math.Clamp(squadSize, 1, 4);
+            for (int slot = 0; slot < 4; slot++)
+                if (slot + offset < 4) slots[slot] = buttons[slot + offset];
+            return slots;
         }
     }
 
@@ -57,6 +91,7 @@ public sealed class FlashSampler
         {
             _tracker.Forget();
             _told.Clear();
+            _last = null;
         }
     }
 

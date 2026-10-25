@@ -66,7 +66,7 @@ public sealed class ScreenCastJudge
     private static readonly TimeSpan Kept = TimeSpan.FromSeconds(3);
 
     /// <summary>A flash on a slot, from the readings' flashes (buttons turned into slots).</summary>
-    private sealed record Flash(int Slot, TimeSpan At, FlashKind Kind)
+    private sealed record Flash(int Slot, TimeSpan At, FlashKind Kind, SkillButtonPlaces Places)
     {
         public bool Used { get; set; }
     }
@@ -98,14 +98,16 @@ public sealed class ScreenCastJudge
         var at = now.ReadAt ?? TimeSpan.Zero;
         var casts = new List<SkillCast>();
 
-        int offset = 4 - Math.Clamp(now.SquadSize, 1, 4); // a squad of fewer than four is drawn from the right
         // Out of battle by the mode switch (exploring, building): a flash there is no battle skill cast, and none
         // told before it is left to count as a free empowered cast.
         if (now.OutOfBattle) _flashes.Clear();
         else foreach (var flash in now.Flashes)
         {
+            // With keyboard and mouse a squad of fewer than four is drawn from the right; a controller's diamond keeps
+            // every place (an empty one is a ring with a slash).
+            int offset = flash.Places == SkillButtonPlaces.Row ? 4 - Math.Clamp(now.SquadSize, 1, 4) : 0;
             int slot = flash.Button - offset + 1;
-            if (slot is >= 1 and <= 4) _flashes.Add(new Flash(slot, flash.At, flash.Kind));
+            if (slot is >= 1 and <= 4) _flashes.Add(new Flash(slot, flash.At, flash.Kind, flash.Places));
         }
 
         var judged = SkillPressJudge.Judge(before, presses);
@@ -186,7 +188,8 @@ public sealed class ScreenCastJudge
             .Where(f => !f.Used && f.Kind is FlashKind.Fill or FlashKind.EmpoweredFill
                 && f.At >= drop.From - FlashBefore && f.At <= drop.To + FlashAfter
                 && !SpentUltimate(drop.Before, drop.Now, f.Slot)
-                && (f.Kind == FlashKind.EmpoweredFill || ButtonRead(drop.Before, f.Slot))
+                // A controller's buttons aren't read; its fill is only counted in the held diamond, whose white is the flash.
+                && (f.Kind == FlashKind.EmpoweredFill || f.Places != SkillButtonPlaces.Row || ButtonRead(drop.Before, f.Slot))
                 && !SameCast(f.Slot, f.At))
             .OrderBy(f => (f.At - drop.To).Duration())
             .FirstOrDefault();

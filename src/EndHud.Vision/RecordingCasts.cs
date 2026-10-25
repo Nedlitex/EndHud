@@ -30,8 +30,10 @@ public sealed class RecordingCasts(VideoFile video, PartyReader reader)
         PartyState? before = null;
         double end = Math.Min(to ?? double.MaxValue, video.Duration.TotalSeconds - sampleEvery);
         int sample = 0;
-        var corner = BattleSkillFlash.Region(video.Width, video.Height);
+        // Both layouts' corners: which one is read goes by the layout the last reading with the squad panel saw, as live.
+        var corner = BattleSkillFlash.AnyRegion(video.Width, video.Height);
         double scale = new UiScaler(video.Width, video.Height).Scale;
+        var layout = HudLayout.KeyboardMouse;
         for (double t = from; t <= end + 1e-9; t = from + ++sample * sampleEvery)
         {
             var at = TimeSpan.FromSeconds(t);
@@ -39,13 +41,15 @@ public sealed class RecordingCasts(VideoFile video, PartyReader reader)
             if (!reading)
             {
                 // Between readings only the corner, decoded on its own (a whole 4K frame per sample runs out of memory).
-                if (sampleCorners) sampler.Sample(await video.GetRegionAsync(at, corner), scale, at);
+                if (sampleCorners) sampler.Sample(await video.GetRegionAsync(at, corner), scale, at, layout);
                 continue;
             }
             var frame = await video.GetFrameAsync(at);
-            if (sampleCorners) sampler.Sample(frame.Crop(corner), scale, at);
+            var read = await reader.ReadAsync(frame);
+            if (read.PanelVisible) layout = read.Layout;
+            if (sampleCorners) sampler.Sample(frame.Crop(corner), scale, at, layout);
 
-            var state = await reader.ReadAsync(frame) with { ReadAt = at, Flashes = sampler.Take() };
+            var state = read with { ReadAt = at, Flashes = sampler.Take() };
             if (prepare is not null) state = prepare(state);
             var judging = judge.Update(before, state, presses?.TakeUntil(at) ?? []);
             yield return new RecordedReading(t, state, judging);

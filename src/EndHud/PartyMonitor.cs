@@ -318,13 +318,13 @@ internal sealed class PartyMonitor : IDisposable
     internal static readonly TimeSpan FlashSamplingHold = TimeSpan.FromSeconds(3);
 
     /// <summary>
-    /// Sample the battle-skill buttons between readings? In the keyboard-and-mouse layout (the controller's
-    /// buttons sit elsewhere and aren't measured), through the game's own window (a corner of its frames), and in
-    /// battle: the last reading in combat at most <see cref="FlashSamplingHold"/> ago, and the top-left mode switch
-    /// not saying out of battle (exploring, building: then at once, not after the hold).
+    /// Sample the battle-skill buttons between readings? In either layout once one was seen (the corner read is the
+    /// layout's: <see cref="BattleSkillFlash.Region(int, int, HudLayout)"/>), through the game's own window (a corner of its
+    /// frames), and in battle: the last reading in combat at most <see cref="FlashSamplingHold"/> ago, and the top-left
+    /// mode switch not saying out of battle (exploring, building: then at once, not after the hold).
     /// </summary>
     internal static bool SamplesFlashes(HudLayout? layout, bool fromWindow, TimeSpan sinceCombat, bool outOfBattle) =>
-        layout == HudLayout.KeyboardMouse && fromWindow && sinceCombat <= FlashSamplingHold && !outOfBattle;
+        layout is not null && fromWindow && sinceCombat <= FlashSamplingHold && !outOfBattle;
     private readonly Queue<RecentFrame> _recent = new();
     private DateTime _recentAt = DateTime.MinValue;
     private static readonly TimeSpan RecentFrameEvery = TimeSpan.FromSeconds(2);
@@ -826,10 +826,6 @@ internal sealed class PartyMonitor : IDisposable
                     }
                     LatestFrame = gameFrame;
                     var frameAt = InnClock.Now;
-                    // The battle-skill buttons' corner, in the window capture's frames (the game's area, then its picture).
-                    PixelRect? flashCorner = gameArea is { } area && BattleSkillFlash.Region(content.Width, content.Height) is var corner
-                        ? new PixelRect(area.X + content.X + corner.X, area.Y + content.Y + corner.Y, corner.Width, corner.Height)
-                        : null;
                     double flashScale = new UiScaler(content.Width, content.Height).Scale;
                     FrameRead(frameAt);
                     // The inn first: in it the squad panel isn't on screen, and its screens are read instead.
@@ -957,6 +953,11 @@ internal sealed class PartyMonitor : IDisposable
                     }
                     // Between readings, the battle-skill buttons many times a second for the cast flash (FlashSampler).
                     if (state.InCombat) combatAt = frameAt;
+                    // The layout's corner, in the window capture's frames (the game's area, then its picture).
+                    var flashLayout = layoutSeen ?? HudLayout.KeyboardMouse;
+                    PixelRect? flashCorner = gameArea is { } area && BattleSkillFlash.Region(content.Width, content.Height, flashLayout) is var corner
+                        ? new PixelRect(area.X + content.X + corner.X, area.Y + content.Y + corner.Y, corner.Width, corner.Height)
+                        : null;
                     bool sample = capture is not null && combatAt is { } fought
                         && SamplesFlashes(layoutSeen, flashCorner is not null, frameAt - fought, state.OutOfBattle);
                     if (sample != samplingFlashes)
@@ -964,8 +965,8 @@ internal sealed class PartyMonitor : IDisposable
                         samplingFlashes = sample;
                         if (!sample) _flashes.Forget();
                     }
-                    capture?.SetCornerTap(sample ? flashCorner : null, FlashSampler.Every,
-                        sample ? cornerFrame => _flashes.Sample(cornerFrame, flashScale, InnClock.Now) : null);
+                    Action<Frame>? onCorner = sample ? cornerFrame => _flashes.Sample(cornerFrame, flashScale, InnClock.Now, flashLayout) : null;
+                    capture?.SetCornerTap(sample ? flashCorner : null, FlashSampler.Every, onCorner);
                     Report(state with { ReadAt = frameAt, Flashes = sample ? _flashes.Take() : [] }, null);
                 }
                 catch (TimeoutException)

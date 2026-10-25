@@ -513,7 +513,7 @@ public class RotationFollowerTests
         };
 
     /// <summary>A flash on a slot's battle-skill button (a squad of four: button = slot - 1).</summary>
-    private static Vision.FlashEvent Flash(int slot, double seconds) => new(slot - 1, TimeSpan.FromSeconds(seconds), Vision.FlashKind.Fill);
+    private static Vision.FlashEvent Flash(int slot, double seconds) => new(slot - 1, TimeSpan.FromSeconds(seconds), Vision.FlashKind.Fill, Vision.SkillButtonPlaces.Row);
 
     /// <summary>Presses from a list, as the key reader gives them.</summary>
     private sealed class Presses(params SkillPress[] presses) : ISkillPressSource

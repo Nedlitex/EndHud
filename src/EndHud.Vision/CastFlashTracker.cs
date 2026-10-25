@@ -20,9 +20,11 @@ public enum FlashKind
 }
 
 /// <summary>A flash on a battle-skill button.</summary>
-/// <param name="Button">0-3 from the left (a squad of fewer than four is drawn from the right).</param>
+/// <param name="Button">0-3: from the left in the keyboard row (a squad of fewer than four is drawn from the right); the
+/// slot's place (slot 1 to 4) in the controller's diamonds.</param>
 /// <param name="At">The fill's first sample (on the clock the samples were stamped with).</param>
-public sealed record FlashEvent(int Button, TimeSpan At, FlashKind Kind);
+/// <param name="Places">Where the buttons were when the fill started, which says how <paramref name="Button"/> maps to a slot.</param>
+public sealed record FlashEvent(int Button, TimeSpan At, FlashKind Kind, SkillButtonPlaces Places);
 
 /// <summary>
 /// The cast flash from the battle-skill buttons sampled many times a second (<see cref="BattleSkillFlash"/>), one
@@ -73,10 +75,11 @@ public sealed class CastFlashTracker
     private readonly List<Run> _ended = [];
     private TimeSpan? _last;
 
-    private sealed class Run(int button, TimeSpan start)
+    private sealed class Run(int button, TimeSpan start, SkillButtonPlaces places)
     {
         public int Button { get; } = button;
         public TimeSpan Start { get; } = start;
+        public SkillButtonPlaces Places { get; } = places;
         public TimeSpan End { get; set; } = start;
         public int StandingOut { get; set; }
         public int MissedInARow { get; set; }
@@ -101,7 +104,7 @@ public sealed class CastFlashTracker
             var sample = buttons[b];
             if (BattleSkillFlash.Filled(sample))
             {
-                var run = _open[b] ??= new Run(b, at) { RimBefore = RimLit(b, at - RimBeforeFrom, at - RimBeforeTo) == true };
+                var run = _open[b] ??= new Run(b, at, sample.Places) { RimBefore = RimLit(b, at - RimBeforeFrom, at - RimBeforeTo) == true };
                 run.End = at;
                 run.MissedInARow = 0;
                 if (BattleSkillFlash.StandsOut(sample, Baseline(b, at))) run.StandingOut++;
@@ -121,17 +124,51 @@ public sealed class CastFlashTracker
             bool enough = run.StandingOut >= (interval >= Sparse ? 1 : 2) || run.Countdown == true;
             if (!enough || Scene(run)) continue;
             run.Counted = true;
-            told.Add(new FlashEvent(run.Button, run.Start, run.RimBefore ? FlashKind.EmpoweredFill : FlashKind.Fill));
+            told.Add(new FlashEvent(run.Button, run.Start, run.RimBefore ? FlashKind.EmpoweredFill : FlashKind.Fill, run.Places));
         }
         foreach (var run in _ended.Where(r => r.Told && at - r.End >= RimAfterTo).ToList())
         {
             _ended.Remove(run);
             if (!run.Counted) continue;
             bool? after = RimLit(run.Button, run.End + RimAfterFrom, run.End + RimAfterTo);
-            if (run.RimBefore && after == false) told.Add(new FlashEvent(run.Button, run.Start, FlashKind.EmpoweredCast));
-            else if (!run.RimBefore && after == true) told.Add(new FlashEvent(run.Button, run.Start, FlashKind.EmpoweredStart));
+            if (run.RimBefore && after == false) told.Add(new FlashEvent(run.Button, run.Start, FlashKind.EmpoweredCast, run.Places));
+            else if (!run.RimBefore && after == true) told.Add(new FlashEvent(run.Button, run.Start, FlashKind.EmpoweredStart, run.Places));
         }
         return told;
+    }
+
+    /// <summary>The empowered glow is judged over this much of the latest samples (it stays for 0.5-10 s; a cast's ring crosses the rim in under 0.2).</summary>
+    internal static readonly TimeSpan GlowOver = TimeSpan.FromSeconds(0.5);
+
+    /// <summary>At least this many samples in <see cref="GlowOver"/> to judge it (about 8 at 15 Hz).</summary>
+    private const int GlowSamples = 5;
+
+    /// <summary>
+    /// Each button's battle skill empowered at <paramref name="at"/>: its rim lit (the steady white glow,
+    /// <see cref="BattleSkillFlash.Glow"/>) on at least 70 % of the samples of the last half second (true), seen and
+    /// not lit on at least 70 % (false), else unknown: too few samples, scene light as bright as the glow, the button not
+    /// seen, or the glow just starting or ending. By button, as the samples are (<see cref="FlashEvent.Button"/>).
+    /// </summary>
+    public IReadOnlyList<bool?> Empowered(TimeSpan at)
+    {
+        var window = _samples.Where(s => s.At <= at && at - s.At < GlowOver).ToList();
+        var verdict = new bool?[4];
+        if (window.Count < GlowSamples) return verdict;
+        for (int b = 0; b < 4; b++)
+        {
+            int lit = 0, unlit = 0;
+            foreach (var (_, buttons) in window)
+            {
+                if (b >= buttons.Length) continue;
+                switch (BattleSkillFlash.Glow(buttons[b]))
+                {
+                    case true: lit++; break;
+                    case false: unlit++; break;
+                }
+            }
+            verdict[b] = lit >= RimSteady * window.Count ? true : unlit >= RimSteady * window.Count ? false : null;
+        }
+        return verdict;
     }
 
     /// <summary>Sampling stopped: nothing in progress carries over.</summary>

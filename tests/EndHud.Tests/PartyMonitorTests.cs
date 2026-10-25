@@ -43,15 +43,16 @@ public class PartyMonitorTests
     }
 
     [Fact]
-    public void The_battle_skill_buttons_are_sampled_in_battle_with_keyboard_and_mouse_through_the_window_only()
+    public void The_battle_skill_buttons_are_sampled_in_battle_in_either_layout_through_the_window_only()
     {
         var now = TimeSpan.Zero;
         Assert.True(PartyMonitor.SamplesFlashes(HudLayout.KeyboardMouse, fromWindow: true, now, outOfBattle: false));
         // Through an ultimate's cutscene (the panel hidden), and not after.
         Assert.True(PartyMonitor.SamplesFlashes(HudLayout.KeyboardMouse, fromWindow: true, PartyMonitor.FlashSamplingHold, outOfBattle: false));
         Assert.False(PartyMonitor.SamplesFlashes(HudLayout.KeyboardMouse, fromWindow: true, PartyMonitor.FlashSamplingHold + TimeSpan.FromSeconds(0.1), outOfBattle: false));
-        // The controller layout's buttons are elsewhere; the screen fallback has no window frames to tap.
-        Assert.False(PartyMonitor.SamplesFlashes(HudLayout.Controller, fromWindow: true, now, outOfBattle: false));
+        // The controller layout too (its own corner, both diamonds); not before a layout was seen; the screen fallback has no window frames to tap.
+        Assert.True(PartyMonitor.SamplesFlashes(HudLayout.Controller, fromWindow: true, now, outOfBattle: false));
+        Assert.True(PartyMonitor.SamplesFlashes(HudLayout.ControllerSkillsHeld, fromWindow: true, now, outOfBattle: false));
         Assert.False(PartyMonitor.SamplesFlashes(null, fromWindow: true, now, outOfBattle: false));
         Assert.False(PartyMonitor.SamplesFlashes(HudLayout.KeyboardMouse, fromWindow: false, now, outOfBattle: false));
         // The mode switch says out of battle (exploring, building): at once, not after the hold.
