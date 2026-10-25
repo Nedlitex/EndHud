@@ -116,7 +116,6 @@ internal sealed class RotationDraft
                 RotationProblemKind.UltimateTimeNotRead => Loc.Format("Rotation.Problem.UltimateTimeNotRead", problem.Phase ?? ""),
                 RotationProblemKind.ControlledOperatorOnlyForAttacks => Loc.Format("Rotation.Problem.ControlledOperatorOnlyForAttacks", problem.Phase ?? "", problem.Step ?? 0),
                 RotationProblemKind.ConditionStepEmpty => Loc.Format("Rotation.Problem.ConditionStepEmpty", problem.Phase ?? "", problem.Step ?? 0),
-                RotationProblemKind.ConditionStepWithPrevious => Loc.Format("Rotation.Problem.ConditionStepWithPrevious", problem.Phase ?? "", problem.Step ?? 0),
                 _ => null,
             };
             if (message is not null && !messages.Contains(message)) messages.Add(message);

@@ -273,15 +273,15 @@ public partial class RotationEditor : Window
 
     /// <summary>
     /// A basic or heavy attack isn't detected: say so under the action, and how its phase's condition
-    /// decides when it shows. A condition step has no operator and is never used with the previous
-    /// step: those are hidden, and its conditions are shown as the step itself.
+    /// decides when it shows. A condition step has no operator: that is hidden, and its conditions are shown as the step
+    /// itself. It may be used with the previous step (e.g. the check that goes with a heavy attack), so that stays.
     /// </summary>
     private void ShowBasicAttackHint()
     {
         BasicAttackHint.Visibility = _step?.Action.IsDisplayOnly() == true ? Visibility.Visible : Visibility.Collapsed;
         bool condition = _step?.Action == StepAction.Condition;
         var hidden = condition ? Visibility.Collapsed : Visibility.Visible;
-        StepOperatorRow.Visibility = StepOperator.Visibility = StepWithPrevious.Visibility = hidden;
+        StepOperatorRow.Visibility = StepOperator.Visibility = hidden;
         ConditionStepHint.Visibility = condition ? Visibility.Visible : Visibility.Collapsed;
         ExpectSection.Visibility = condition ? Visibility.Visible : Visibility.Collapsed;
         ExpectTitle.Text = Loc.Get(condition ? "Editor.ConditionStepExpect" : "Editor.Expect");
@@ -442,7 +442,8 @@ public partial class RotationEditor : Window
     {
         if (_loading || _step is null) return;
         var was = _step.Action;
-        if (StepOperator.SelectedItem is ComboBoxItem { Tag: string id }) _step.OperatorId = id;
+        // A condition step has no operator: the operator picker is hidden then, and what it still holds isn't the step's.
+        if (was != StepAction.Condition && StepOperator.SelectedItem is ComboBoxItem { Tag: string id }) _step.OperatorId = id;
         if (StepActionPicker.SelectedItem is ComboBoxItem { Tag: StepAction action }) _step.Action = action;
         if (_step.Action.IsDisplayOnly() != was.IsDisplayOnly())
         {
@@ -461,9 +462,8 @@ public partial class RotationEditor : Window
         _step.Note = StepNote.Text;
         if (_step.Action == StepAction.Condition && was != StepAction.Condition)
         {
-            // A condition step: no operator, on its own, and one condition to start from (the owner's example: an enemy status).
+            // A condition step: no operator, and one condition to start from (the owner's example: an enemy status).
             _step.OperatorId = "";
-            _step.WithPrevious = false;
             _step.Expect = [_conditionStepConditions.Default("BossStatus")];
         }
         else if (_step.Action != StepAction.Condition && was == StepAction.Condition)

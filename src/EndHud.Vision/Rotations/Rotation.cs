@@ -390,7 +390,8 @@ public sealed record Rotation(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool LastMatchWins = false)
 {
     /// <summary>
-    /// 12: "team buff stacks" conditions (<see cref="TeamBuffCondition"/>).
+    /// 12: "team buff stacks" conditions (<see cref="TeamBuffCondition"/>), and condition steps in a group (marked
+    /// <see cref="RotationStep.WithPrevious"/>, or followed by a step that is; builds before refused them).
     /// 11: "battle skill empowered" conditions (<see cref="BattleSkillEmpoweredCondition"/>).
     /// 10: phases' finish conditions (<see cref="RotationPhase.Finish"/>) and "the phase's steps lit" in them
     /// (<see cref="StepsLitCondition"/>).
@@ -419,8 +420,14 @@ public sealed record Rotation(
         if (list.Any(p => p.Prioritised)) format = Math.Max(format, 6);
         if (list.Any(p => p.Finish.Count > 0)) format = Math.Max(format, 10);
         foreach (var step in list.SelectMany(p => p.Steps)) format = Math.Max(format, StepActions.FormatNeeded(step));
+        if (list.Any(GroupsAConditionStep)) format = Math.Max(format, 12);
         return format;
     }
+
+    /// <summary>A condition step used together with the step before it or the step after it (<see cref="RotationStep.WithPrevious"/>).</summary>
+    private static bool GroupsAConditionStep(RotationPhase phase) =>
+        phase.Steps.Where((step, i) => i > 0 && step.WithPrevious
+            && (step.Action == StepAction.Condition || phase.Steps[i - 1].Action == StepAction.Condition)).Any();
 
     /// <summary>Is this rotation for this squad: the same four operators, in any order?</summary>
     public bool IsFor(IEnumerable<string?> squad)
@@ -505,7 +512,7 @@ public sealed record Rotation(
             {
                 var step = phase.Steps[i];
                 bool condition = step.Action == StepAction.Condition;
-                // A condition step has no operator; it waits on its own, never in a group with another step.
+                // A condition step has no operator; it may be in a group (format 12), e.g. the check that goes with a heavy attack.
                 // An attack may be by whoever is controlled; a skill is followed by whose it is.
                 if (step.OperatorId == RotationStep.Controlled && !step.Action.IsDisplayOnly())
                     problems.Add(new RotationProblem(RotationProblemKind.ControlledOperatorOnlyForAttacks, phase.Name, i + 1));
@@ -513,8 +520,6 @@ public sealed record Rotation(
                     problems.Add(new RotationProblem(RotationProblemKind.StepOperatorNotInSquad, phase.Name, i + 1));
                 if (condition && step.Expect.Count == 0)
                     problems.Add(new RotationProblem(RotationProblemKind.ConditionStepEmpty, phase.Name, i + 1));
-                if (i > 0 && step.WithPrevious && (condition || phase.Steps[i - 1].Action == StepAction.Condition))
-                    problems.Add(new RotationProblem(RotationProblemKind.ConditionStepWithPrevious, phase.Name, i + 1));
                 CheckConditions(step.Expect, condition ? ConditionHostKind.ConditionStep : ConditionHostKind.StepExpect, phase, i + 1, null, problems);
             }
         }
@@ -611,9 +616,6 @@ public enum RotationProblemKind
 
     /// <summary>A condition step without a condition: it would have nothing to wait for.</summary>
     ConditionStepEmpty,
-
-    /// <summary>A condition step used together with another step ("with the previous"): it waits on its own.</summary>
-    ConditionStepWithPrevious,
 
     /// <summary>
     /// A skill step (battle skill, combo, ultimate) names "whoever is controlled" (<see cref="RotationStep.Controlled"/>):

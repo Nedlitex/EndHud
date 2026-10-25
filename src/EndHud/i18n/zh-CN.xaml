@@ -180,7 +180,6 @@
     <sys:String x:Key="Rotation.Problem.PhaseShownMissingPhase">轴段“{0}”的条件引用了一个已删除的轴段，请重新选择轴段或删除这个条件。</sys:String>
     <sys:String x:Key="Rotation.Problem.PhasePlayedMissingPhase">轴段“{0}”的完成次数条件引用了一个已删除的轴段，请重新选择轴段或删除这个条件。</sys:String>
     <sys:String x:Key="Rotation.Problem.ConditionStepEmpty">轴段“{0}”第 {1} 步是条件步骤，但还没有条件。请添加条件或删除这一步。</sys:String>
-    <sys:String x:Key="Rotation.Problem.ConditionStepWithPrevious">轴段“{0}”第 {1} 步“与上一步连放”，但它或它的上一步是条件步骤：条件步骤要单独等待。请取消“与上一步连放”。</sys:String>
     <sys:String x:Key="Editor.ConditionStepHint">这一步不需要释放技能，只等下面的条件：条件满足时，排轴条上这一步点亮，这一轮里一直亮着（之后条件不再满足也一样）；不论它在第几步、前面的步骤打没打。条件不满足或暂时无法判断时（例如被特效挡住）不会点亮，也不会被跳过。</sys:String>
     <sys:String x:Key="Editor.ConditionStepExpect">等到这些条件都满足</sys:String>
     <sys:String x:Key="Editor.ConditionStepExpectHint">排轴条上显示第一个条件的图标（敌人状态的图标、干员头像或技力），下方写出条件；在“备注”中可以改成更短的文字。</sys:String>

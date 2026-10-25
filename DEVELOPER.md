@@ -1794,8 +1794,9 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   chevron on it, its badges show which conditions are missing (dim). It counts for the default
   finish like a cast step. (Until the light-up model it glowed cyan while its conditions held,
   `StripCondition.Holds`; that is gone: the lit look says it.) Refused: one with no condition
-  (`ConditionStepEmpty`) and one in a group (`ConditionStepWithPrevious`: it, or the step after it,
-  marked `withPrevious`).
+  (`ConditionStepEmpty`). It may be in a group (`withPrevious`, format 12; refused before, owner 2026-10-25: Laevatain's
+  熔火 check "is grouped with heavy attack (as they are the same step)"): drawn overlapping the step before, and followed
+  as any group (the chevron passes over an attack to it; it lights when met).
 - `operatorId` `"controlled"` (`RotationStep.Controlled`, format 9): an attack step done by whoever
   is controlled at the time (当前操控), e.g. a plunge attack after a combo. The strip shows the
   operator under the chevron in this reading (`PartyState.ActiveSlot`); nobody known (the editor's
@@ -1880,7 +1881,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   that machinery (`PhaseHistory.KeysNotRead`, `IPhaseHistory.PlayedIgnored`,
   `RotationTracker.Ignored`, `ConditionWalk.OnlyPlayed`, `ConditionNeeds.KeysRead`) is gone.
 
-- `format`: 12 when it uses `teamBuff`; else 11 when it uses `battleSkillEmpowered`; else 10 when a phase has a `finish` condition (and so for `stepsLit`); else 9 when it uses `ultimateTimeLeft`, `phaseCurrent`, a `Condition` or `PlungeAttack` step, or the `"controlled"` operator; else 8 when it uses a `HeavyAttack` step; else 7 when it uses `battleSkillActive`; else 6 when a phase sets `priority` (other than 0) or `priorityRules`; else 5 when it uses `phasePlayed`; else 4 when it uses a `BasicAttack` step, `Below`/`Above` or `phaseShown`; else 3 when it
+- `format`: 12 when it uses `teamBuff` or a `Condition` step in a group (`withPrevious` on it or on the step after it); else 11 when it uses `battleSkillEmpowered`; else 10 when a phase has a `finish` condition (and so for `stepsLit`); else 9 when it uses `ultimateTimeLeft`, `phaseCurrent`, a `Condition` or `PlungeAttack` step, or the `"controlled"` operator; else 8 when it uses a `HeavyAttack` step; else 7 when it uses `battleSkillActive`; else 6 when a phase sets `priority` (other than 0) or `priorityRules`; else 5 when it uses `phasePlayed`; else 4 when it uses a `BasicAttack` step, `Below`/`Above` or `phaseShown`; else 3 when it
   uses `not`, `ultimateActive` or `lastMatchWins`; else 2. A rotation is saved in the lowest
   format that holds it (`Rotation.FormatNeeded`), so one using nothing new stays readable by older
   builds, and the published `rotations/*.json` stay at format 3 or lower (a test checks). A
