@@ -23,6 +23,7 @@ public class SkillPointBarTests
 
         Assert.NotNull(state.SkillPoints);
         Assert.Equal(7.0, state.SkillPoints!.Value, 2);
+        Assert.Equal(7, state.SkillPointMax);
         Assert.True(state.InCombat);
     }
 
@@ -39,18 +40,32 @@ public class SkillPointBarTests
         return data;
     }
 
-    /// <summary>A drawn bar of <paramref name="segments"/> segments holding <paramref name="points"/>, at 4K and 1080p.</summary>
+    /// <summary>
+    /// A drawn bar of <paramref name="segments"/> segments holding <paramref name="points"/>, at 4K, 1080p and 720p. The
+    /// count exactly; the points to ±0.05, or to a column and a half of the segment where it is narrower than 30 px on
+    /// screen (twenty segments are 6 px wide at 1080p, so their fill is read to about a quarter). A segment narrower than
+    /// <see cref="SkillPointBar.MinColumns"/> (twenty at 720p, 4 px) isn't read at all: unknown, never a wrong value.
+    /// </summary>
     [Theory]
     [MemberData(nameof(Bars))]
     public void Any_count_of_segments_reads_its_points(int segments, double points)
     {
         var frame = SyntheticSkillPoints.Draw(segments, points);
-        foreach (var screen in new[] { frame, frame.Resize(1920, 1080) })
+        foreach (var screen in new[] { frame, frame.Resize(1920, 1080), frame.Resize(1280, 720) })
         {
-            var read = SkillPointBar.Measure(screen, new UiScaler(screen.Width, screen.Height));
+            var ui = new UiScaler(screen.Width, screen.Height);
+            var read = SkillPointBar.Measure(screen, ui);
+            double columns = ui.BottomCenter(SkillPointBar.Segment(segments, 0)).Width;
+            if (columns < SkillPointBar.MinColumns)
+            {
+                Assert.Null(read);
+                continue;
+            }
 
             Assert.NotNull(read);
-            Assert.InRange(read!.Value, points - 0.05, points + 0.05);
+            Assert.Equal(segments, read!.Value.Max);
+            double within = Math.Max(0.05, 1.5 / columns);
+            Assert.InRange(read.Value.Value, points - within, points + within);
         }
     }
 }

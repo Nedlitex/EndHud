@@ -41,9 +41,13 @@ public sealed record PartySlot(int Number, int? Level, double? Hp, string LevelT
 /// have missed it and this is the last one kept by <see cref="PartyTracker"/>.</param>
 public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks = 0, int ReadingsSinceSeen = 0)
 {
-    /// <summary>The team's skill points (技力), 0–3 with a fraction for the filling segment (see
-    /// <see cref="SkillPointBar"/>); null out of combat or when unreadable.</summary>
+    /// <summary>The team's skill points (技力), 0 to the bar's segment count (<see cref="SkillPointMax"/>, usually 3)
+    /// with a fraction for the filling segment (see <see cref="SkillPointBar"/>); null out of combat or when unreadable.</summary>
     public double? SkillPoints { get; init; }
+
+    /// <summary>How many segments the skill-point bar has (the most points it holds): read from the bar with
+    /// <see cref="SkillPoints"/>, usually 3, more in some fights; null when the bar wasn't read.</summary>
+    public int? SkillPointMax { get; init; }
 
     /// <summary>
     /// The lasting ultimate on the time bar under the HP (<see cref="UltimateTimeBar"/>): the share of
@@ -268,12 +272,14 @@ public sealed partial class PartyReader(TextRecognizer ocr)
         // place shows the scenery, which can look like an empty bar. Same place in every layout.
         bool inCombat = slots.Any(s => s.Combo is not null);
         var timeBar = inCombat ? UltimateTimeBar.Read(frame, ui) : null;
+        var points = inCombat ? SkillPointBar.Measure(frame, ui) : null;
         return new PartyState(slots, marks.Sum())
         {
             Layout = squad.Layout,
             PortraitWidths = [.. SquadGeometry.Layouts.Select(layout => ui.BottomLeft(SquadGeometry.For(layout).Portrait(0)).Width)],
             ActiveSlot = Vision.ActiveSlot.Find(frame, ui, squad),
-            SkillPoints = inCombat ? SkillPointBar.Measure(frame, ui) : null,
+            SkillPoints = points?.Value,
+            SkillPointMax = points?.Max,
             UltimateTimeLeft = timeBar?.Left,
             UltimateTimeColour = timeBar?.Colour,
             ModePill = Vision.ModePill.Read(frame, ui),
