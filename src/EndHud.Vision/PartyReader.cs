@@ -26,6 +26,14 @@ public sealed record PartySlot(int Number, int? Level, double? Hp, string LevelT
 
     /// <summary>This slot's battle skill button (bottom right): available or cooling; null when unreadable or fallen.</summary>
     public BattleSkillState? BattleSkill { get; init; }
+
+    /// <summary>
+    /// Something is drawn over the slot: its HP bar can't be read (<see cref="Hp"/> null on the screen), as with an
+    /// on-screen display such as RivaTuner's over the squad panel. Whether the operator has fallen can't be told then
+    /// (<see cref="Dead"/> is false), and the portrait above the bar isn't named (<see cref="Operators.SquadIdentifier"/>
+    /// keeps the slot's last name): a static display would otherwise be named as an operator on every reading.
+    /// </summary>
+    public bool Covered => Hp is null && !Empty && !Dead;
 }
 
 /// <param name="PanelMarks">How many of the eight "-" marks beside the HP bars were found (see <see cref="PanelMarkers"/>).</param>
@@ -145,11 +153,12 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
     /// fallen operator's mark, or, when a status covers every HP bar (a boss's conductive debuff,
     /// 4.5 s in the recordings), the controlled operator and charging ultimates. Read as the panel,
     /// that screen's floor and legs were named as the squad (four Purrchena in a recording) and kept
-    /// the gauges up through the loading screen after it.
+    /// the gauges up through the loading screen after it. An HP bar that can't be read (something over it,
+    /// <see cref="PartySlot.Covered"/>) shows no HP either.
     /// </summary>
     private bool LooksLikeAnotherScreen =>
         Slots.Count > 0
-        && Slots.Where(s => !s.Empty).All(s => !s.Dead && s.Hp is <= EmptyHp)
+        && Slots.Where(s => !s.Empty).All(s => !s.Dead && s.Hp is null or <= EmptyHp)
         && ActiveSlot is null
         && !Slots.Any(s => s.Ultimate is { } u && (u.Ready || u.Progress > EmptyHp));
 
@@ -204,7 +213,9 @@ public sealed partial class PartyReader(TextRecognizer ocr)
                 continue;
             }
 
-            var combo = ComboBar.Measure(frame, ui.BottomLeft(squad.ComboBar(i)));
+            // The HP bar unreadable (PartySlot.Covered): whatever is over it covers the combo bar and the
+            // level text just above it too, so neither is read (a display's dark backdrop read as an empty combo bar).
+            var combo = hp is null ? null : ComboBar.Measure(frame, ui.BottomLeft(squad.ComboBar(i)));
             if (!squad.ReadsLevelsAndSkills)
             {
                 var ultimate = squad.Ultimate(i) is { } circle ? UltimateGauge.Measure(frame, circle) : null;
@@ -213,7 +224,7 @@ public sealed partial class PartyReader(TextRecognizer ocr)
             }
 
             // In combat the combo bar replaces the level text, so there's nothing to OCR.
-            var (level, text) = combo is not null ? (null, "") : await ReadLevelAsync(frame, ui, i);
+            var (level, text) = combo is not null || hp is null ? (null, "") : await ReadLevelAsync(frame, ui, i);
             // The ultimate circles and battle skill buttons of a smaller squad are drawn from the right.
             int button = PartyLayout.SlotCount - size + i;
             slots.Add(new PartySlot(i + 1, level, hp, text, portrait, combo, UltimateGauge.Measure(frame, button),

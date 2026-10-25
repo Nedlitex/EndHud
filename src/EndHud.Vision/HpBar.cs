@@ -19,6 +19,7 @@ public static class HpBar
         int end = 0, gap = 0, blockColumns = 0, resumed = 0, tinted = 0, tintedFromLeft = 0, runStart = -1;
         double blockBrightness = 0;
         bool ended = false, light = false, lightThenDark = false, lightNotFill = false;
+        var columnLevels = new List<int>(r.Width);
         for (int x = r.X; x < r.Right; x++)
         {
             int hits = 0, brightness = 0, colour = 0;
@@ -32,6 +33,7 @@ public static class HpBar
             }
             bool fill = hits * 2 > y1 - y0;
             brightness /= y1 - y0;
+            columnLevels.Add(brightness);
             if (colour / (y1 - y0) >= TintedFrom && brightness < DimBelow)
             {
                 tinted++;
@@ -65,7 +67,25 @@ public static class HpBar
         // No fill from the left, yet the bar coloured from its left end or over most of it: not the
         // empty bar's grey track, but the fill dimmed out of reach (a display's dark backdrop over it).
         if (end == 0 && (tinted * 2 > r.Width || tintedFromLeft > maxGap)) return null;
+        // No fill, yet the bar lighter than its dark empty track (23-37 on the fixtures, fallen or not):
+        // a light fill dimmed below the fill colours (a pale orange bar under a display's backdrop, 114).
+        if (end == 0 && Median(columnLevels) is >= EmptyTrackBelow and < DimmestFill) return null;
+        // A fill dimmer than the game ever dims it (its squad dimmed: teal 146, dull pink 137): seen
+        // through something dark, a display's backdrop (cyan at 45 % is 111). The portrait above it is too.
+        if (blockColumns > 0 && blockBrightness / blockColumns < DimmestFill) return null;
         return end / (double)r.Width;
+    }
+
+    /// <summary>The fill's brightness (brightest channel, mean over the block) under which the bar is seen through something.</summary>
+    private const int DimmestFill = 125;
+
+    /// <summary>An empty bar's columns (brightest channel, the middle one) are darker than this.</summary>
+    private const int EmptyTrackBelow = 70;
+
+    private static int Median(List<int> values)
+    {
+        values.Sort();
+        return values[values.Count / 2];
     }
 
     /// <summary>A column darker than this (brightest channel, mean): black, as an overlay's text outline or shadow.</summary>

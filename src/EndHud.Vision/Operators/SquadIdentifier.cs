@@ -166,8 +166,9 @@ public sealed class SquadIdentifier(OperatorLibrary library)
                     continue;
                 }
                 // A fallen operator's portrait is the death mark: nothing to match. They're still
-                // whoever was in the slot (answers[k] stays null: keep the last answer).
-                if (slot.Dead) continue;
+                // whoever was in the slot (answers[k] stays null: keep the last answer). So is a slot
+                // with something drawn over it (PartySlot.Covered): its portrait shows that too.
+                if (slot.Dead || slot.Covered) continue;
 
                 // Settled, panel still there: stays named (see the class summary), and isn't compared.
                 int i = slot.Number - 1;
@@ -236,7 +237,7 @@ public sealed class SquadIdentifier(OperatorLibrary library)
                     slots.Add(slot);
                     continue;
                 }
-                if (slot.Dead)
+                if (slot.Dead || slot.Covered)
                 {
                     lock (_lock) slots.Add(slot with { Operator = _last[i]?.Match });
                     continue;
