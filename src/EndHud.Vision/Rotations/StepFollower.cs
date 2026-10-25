@@ -3,23 +3,20 @@ namespace EndHud.Vision.Rotations;
 /// <summary>How the strip draws a step of the phase it shows.</summary>
 public enum StepMark
 {
-    /// <summary>Seen used this round of the phase.</summary>
+    /// <summary>Seen used this round of the phase (a condition step: its conditions were met): lit.</summary>
     Lit,
 
-    /// <summary>The step to use next (several, for steps used together): drawn with chevrons.</summary>
+    /// <summary>The step to use next, the first unlit one in written order (several, for steps used together): drawn with chevrons.</summary>
     Current,
 
     /// <summary>Not seen used yet this round.</summary>
     Unlit,
 
-    /// <summary>A step EndHud can never see used (a basic, heavy or plunge attack).</summary>
-    Neutral,
-
     /// <summary>
-    /// Passed without being seen used: a later step was seen used for certain, so the player moved on past it.
-    /// Drawn faded like a done step, with a slash through it, so the player sees what was missed.
+    /// A step EndHud can never see used (a basic, heavy or plunge attack): drawn in its place, neither lit nor
+    /// waited on, and never counted for finishing the phase.
     /// </summary>
-    Skipped,
+    Neutral,
 }
 
 /// <summary>Where the player is inside the phase on the strip.</summary>
@@ -30,54 +27,41 @@ public enum StepMark
 public sealed record StepPosition(int Phase, IReadOnlyList<StepMark> Marks, bool Ready, IReadOnlyList<ConditionCheck> Checks);
 
 /// <summary>
-/// Which step of the phase on the strip the player is on. The phase comes from <see cref="PhaseSelector"/> (the
-/// authority); this only follows inside it, and starts over when the phase changes. It runs whenever the strip
+/// The steps of the phase on the strip, lit up as they are seen used (owner, 2026-10-24: "skip over is bad ... a
+/// rotation is fixed order but in reality it can be played in different orders ... define a finish condition for the
+/// rotation similar to entry condition"). The phase comes from <see cref="PhaseSelector"/> (the authority); this only
+/// follows inside it, and every light goes out when the phase changes or the fight ends. It runs whenever the strip
 /// does, from what the screen shows: battle skills cast (<see cref="ScreenCastJudge"/>: skill points spent and the
-/// flash on a button, the player's presses as an assist), the combo bar emptying for a combo, the ultimate going
-/// from ready to spent.
-/// <list type="number">
-/// <item><b>A use in the current group</b> marks that step done (steps used together in either order). Basic, heavy
-/// and plunge attacks (display-only: never seen) never hold the marker, and neither does a condition step whose
-/// conditions can't be told: the next use of a later step passes them, as done.</item>
-/// <item><b>A certain use elsewhere jumps</b> (owner, 2026-10-24: "if somehow we didnt track battle skill but observe
-/// combo, we should jump to the combo"): a combo seen used, an ultimate seen spent, a battle skill whose skill point
-/// was seen spent and whose slot is known. The nearest later step of this round with the same operator and action is
-/// done, every step passed on the way is <see cref="StepMark.Skipped"/> (display-only ones done). A jump does not pass
-/// a condition step seen not holding (owner): that later match isn't taken. Other uses (a cast with no point seen
-/// spent) only mark the current group.</item>
-/// <item>A use matching nothing later in the round but the phase's first group starts a new round there, once a step
-/// of this round is done.</item>
-/// <item>A use told late (the flash names a cast after a later use already jumped past its step) fills in that skipped
-/// step as done.</item>
-/// <item>Skill points spent with nobody named marks the current step, if it is a battle skill whose operator could
-/// cast (the button wasn't cooling).</item>
+/// flash on a button, the player's presses as an assist), the combo bar emptying for a combo, the ultimate going from
+/// ready to spent.
+/// <list type="bullet">
+/// <item><b>A use lights the first unlit step of the phase with the same operator and action</b>, wherever it is in the
+/// phase: in any order, nothing is ever skipped, and a step not seen stays unlit.</item>
+/// <item>Skill points spent with nobody named light the step under the chevron, if it is a battle skill whose
+/// operator could cast (the button wasn't cooling).</item>
+/// <item>A condition step lights the reading its conditions hold, wherever it is, and stays lit for the round; while
+/// they don't hold or can't be told, it stays unlit.</item>
+/// <item>Basic, heavy and plunge attacks are never seen: they are <see cref="StepMark.Neutral"/>, never lit, never
+/// waited on and never counted.</item>
+/// <item>The chevron is on the first unlit step in written order that isn't neutral (with the rest of its group).</item>
 /// </list>
-/// A condition step is done the reading its conditions hold. A phase whose every step is done or skipped starts
-/// again at its first step.
-/// <para>It counts, per phase, the rounds <b>played through</b> this fight (<see cref="TimesPlayed"/>, for "phase
-/// played"): a round counts once, when every step that can be seen used is done or skipped, its last cast step is
-/// done, and at most one cast step was skipped (owner: one missed cast a round is allowed); or when a new round
-/// starts on its first group and all but one of its cast steps were done. A phase left half way doesn't count; a
-/// phase of nothing but basic or heavy attacks never does.</para>
+/// <para><b>Finishing.</b> The round is over when every step that isn't neutral is lit (at least one). It then counts
+/// as played through once more (<see cref="TimesPlayed"/>, for "phase played"; <see cref="PlayedThroughThisShowing"/>,
+/// for "the current phase, played through this showing"), and every light goes out for a new round. A phase of
+/// nothing but attacks never finishes.</para>
 /// </summary>
 public sealed class StepFollower(Rotation rotation)
 {
-    /// <summary>A step used: by slot (0-3; null for skill points spent by nobody named), and whether it may jump.</summary>
-    private readonly record struct Use(int? Slot, StepAction Action, bool Certain, TimeSpan At);
+    /// <summary>A step used: by slot (0-3; null for skill points spent by nobody named).</summary>
+    private readonly record struct Use(int? Slot, StepAction Action, TimeSpan At);
 
     private readonly IReadOnlyList<PlayedStep> _played = rotation.Played();
     private int _phase = -1;
 
-    /// <summary>Each step this round: <see cref="StepMark.Lit"/>, <see cref="StepMark.Skipped"/>, or <see cref="StepMark.Unlit"/> (not yet).</summary>
-    private StepMark[] _marks = [];
-
-    /// <summary>For a skipped step, the time of the use that jumped past it (a use from before then fills it in).</summary>
-    private TimeSpan[] _skippedAt = [];
+    /// <summary>Each step of the phase this round: lit or not.</summary>
+    private bool[] _lit = [];
 
     private readonly int[] _timesPlayed = new int[rotation.Phases.Count];
-
-    /// <summary>This round of the phase has been counted as played through.</summary>
-    private bool _counted;
 
     /// <summary>The phase followed has been played through since it came onto the strip (<see cref="PhaseCurrentCondition"/>).</summary>
     private bool _playedThisShowing;
@@ -104,7 +88,7 @@ public sealed class StepFollower(Rotation rotation)
         return null;
     }
 
-    /// <summary>The fight ended: the next one starts at the first step, every phase played 0 times.</summary>
+    /// <summary>The fight ended: the next one starts with every light out, every phase played 0 times.</summary>
     public void EndFight()
     {
         _phase = -1;
@@ -119,195 +103,89 @@ public sealed class StepFollower(Rotation rotation)
     public StepPosition Update(int phase, PartyState? before, PartyState now, IReadOnlyList<SkillCast> casts, IPhaseHistory history)
     {
         var steps = _played.Where(p => p.PhaseIndex == phase).ToList();
-        if (phase != _phase || _marks.Length != steps.Count)
+        if (phase != _phase || _lit.Length != steps.Count)
         {
             if (phase != _phase) _playedThisShowing = false; // it came onto the strip
             _phase = phase;
-            _marks = Enumerable.Repeat(StepMark.Unlit, steps.Count).ToArray();
-            _skippedAt = new TimeSpan[steps.Count];
-            _counted = false;
+            _lit = new bool[steps.Count];
         }
         var slots = RotationTracker.SlotsByOperator(now);
-        // A condition step's conditions in this reading: true, false, or unknown (null). Null for any other step.
-        bool? Holds(RotationStep step) => step.Action == StepAction.Condition
-            ? RotationTracker.Holds(new AllCondition(step.Expect), now, slots, history)
-            : null;
-        PassConditions(steps, Holds);
-        var uses = casts.Select(c => new Use(c.Slot - 1, StepAction.BattleSkill, c.Certain, c.At)).ToList();
+        LightConditions(steps, now, slots, history);
+        FinishIfOver(steps);
+        var uses = casts.Select(c => new Use(c.Slot - 1, StepAction.BattleSkill, c.At)).ToList();
         if (before is not null) uses.AddRange(VisionUses(before, now));
         foreach (var use in uses.OrderBy(u => u.At))
         {
-            Apply(use, steps, slots, Holds, before);
-            CountIfPlayedThrough(steps);
-            PassConditions(steps, Holds);
+            Light(use, steps, slots, before);
+            FinishIfOver(steps);
         }
-        if (_marks.Length > 0 && _marks.All(m => m != StepMark.Unlit)) NewRound();
         return Position(phase, steps, now, slots, history);
     }
 
-    /// <summary>Combos and ultimates seen used between two readings (<see cref="RotationTracker"/>'s rules): certain.</summary>
+    /// <summary>Combos and ultimates seen used between two readings (<see cref="RotationTracker"/>'s rules).</summary>
     private static IEnumerable<Use> VisionUses(PartyState before, PartyState now)
     {
         var at = now.ReadAt ?? TimeSpan.Zero;
         for (int i = 0; i < Math.Min(before.Slots.Count, now.Slots.Count); i++)
         {
-            if (RotationTracker.ComboUsed(before.Slots[i], now.Slots[i])) yield return new Use(i, StepAction.Combo, true, at);
-            if (before.Slots[i].Ultimate?.Ready == true && now.Slots[i].Ultimate is { Ready: false }) yield return new Use(i, StepAction.Ultimate, true, at);
+            if (RotationTracker.ComboUsed(before.Slots[i], now.Slots[i])) yield return new Use(i, StepAction.Combo, at);
+            if (before.Slots[i].Ultimate?.Ready == true && now.Slots[i].Ultimate is { Ready: false }) yield return new Use(i, StepAction.Ultimate, at);
         }
     }
 
-    private void Apply(Use use, List<PlayedStep> steps, IReadOnlyDictionary<string, int> slots, Func<RotationStep, bool?> holds, PartyState? before)
+    /// <summary>A step that lights up and counts for finishing: a skill, or a condition step (not a basic, heavy or plunge attack).</summary>
+    internal static bool Countable(RotationStep step) => !step.Action.IsDisplayOnly();
+
+    /// <summary>The first unlit step of the phase with the use's operator and action; for points spent by nobody named, the chevron's battle skill if its operator could cast.</summary>
+    private void Light(Use use, List<PlayedStep> steps, IReadOnlyDictionary<string, int> slots, PartyState? before)
     {
-        bool Matches(RotationStep step) => use.Slot is { } slot
-            ? step.Action == use.Action && slots.TryGetValue(step.OperatorId, out int s) && s == slot
-            // Points spent with nobody named: a battle skill whose operator could cast.
-            : step.Action == StepAction.BattleSkill && slots.TryGetValue(step.OperatorId, out int who)
-              && before?.Slots.ElementAtOrDefault(who)?.BattleSkill != BattleSkillState.Cooling;
-
-        // Told late: a step already jumped past by a use from after this one.
-        if (use.Slot is not null)
-            for (int i = 0; i < steps.Count; i++)
-                if (_marks[i] == StepMark.Skipped && use.At < _skippedAt[i] && Matches(steps[i].Step))
-                {
-                    _marks[i] = StepMark.Lit;
-                    return;
-                }
-
-        int at = Array.IndexOf(_marks, StepMark.Unlit);
-        if (at < 0) return;
-        // 1. The current group, past steps that never hold the marker.
-        int reach = at;
-        for (int start = at; start < steps.Count; start = GroupEnd(steps, start) + 1)
+        if (use.Slot is not { } slot)
         {
-            int end = GroupEnd(steps, start);
-            for (int i = start; i <= end; i++)
-            {
-                if (_marks[i] != StepMark.Unlit || !Matches(steps[i].Step)) continue;
-                for (int j = at; j < start; j++) if (_marks[j] == StepMark.Unlit) _marks[j] = StepMark.Lit; // never seen, or can't be told
-                _marks[i] = StepMark.Lit;
-                return;
-            }
-            reach = start;
-            // A skill not yet seen used holds the marker here, and so does a condition step seen not holding.
-            bool held = false;
-            for (int i = start; i <= end; i++)
-                if (_marks[i] == StepMark.Unlit && !Passable(steps[i].Step, holds)) held = true;
-            if (held) break;
-            reach = end + 1;
-        }
-        // 2. A certain use: the nearest later step of this round it is, unless a condition seen not holding is in the way.
-        for (int i = reach; use.Certain && i < steps.Count; i++)
-        {
-            var step = steps[i].Step;
-            if (_marks[i] == StepMark.Unlit && step.Action == StepAction.Condition && holds(step) == false) break;
-            if (_marks[i] != StepMark.Unlit || !Matches(step)) continue;
-            for (int j = at; j < GroupStart(steps, i); j++)
-            {
-                if (_marks[j] != StepMark.Unlit) continue;
-                if (Passable(steps[j].Step, holds)) _marks[j] = StepMark.Lit;
-                else
-                {
-                    _marks[j] = StepMark.Skipped;
-                    _skippedAt[j] = use.At;
-                }
-            }
-            _marks[i] = StepMark.Lit;
+            int at = Chevron(steps);
+            if (at >= 0 && steps[at].Step is { Action: StepAction.BattleSkill } step && slots.TryGetValue(step.OperatorId, out int who)
+                && before?.Slots.ElementAtOrDefault(who)?.BattleSkill != BattleSkillState.Cooling)
+                _lit[at] = true;
             return;
         }
-
-        // 3. Not later in this round, but the phase's first group: the player started the phase over. An uncertain use
-        // only when nothing but steps it passes was left (the round is over).
-        if ((use.Certain || reach >= steps.Count) && _marks.Contains(StepMark.Lit) && FirstGroupMatches(steps, Matches))
-        {
-            CountOnNewRound(steps);
-            NewRound();
-            int end = GroupEnd(steps, 0);
-            for (int i = 0; i <= end; i++)
-                if (Matches(steps[i].Step))
-                {
-                    _marks[i] = StepMark.Lit;
-                    return;
-                }
-        }
-    }
-
-    private static bool FirstGroupMatches(List<PlayedStep> steps, Func<RotationStep, bool> matches)
-    {
-        if (steps.Count == 0) return false;
-        int end = GroupEnd(steps, 0);
-        for (int i = 0; i <= end; i++)
-            if (matches(steps[i].Step)) return true;
-        return false;
-    }
-
-    /// <summary>A step the next real cast of a later step passes: a basic or heavy attack, or a condition step whose conditions can't be told.</summary>
-    private static bool Passable(RotationStep step, Func<RotationStep, bool?> holds) =>
-        step.Action.IsDisplayOnly() || (step.Action == StepAction.Condition && holds(step) is null);
-
-    /// <summary>
-    /// The condition steps at the marker whose conditions hold now: done, one after another, each
-    /// counting toward the phase played through (a condition step at the end finishes it).
-    /// </summary>
-    private void PassConditions(List<PlayedStep> steps, Func<RotationStep, bool?> holds)
-    {
-        for (int at = Array.IndexOf(_marks, StepMark.Unlit); at >= 0 && steps[at].Step.Action == StepAction.Condition && holds(steps[at].Step) == true; at = Array.IndexOf(_marks, StepMark.Unlit))
-        {
-            _marks[at] = StepMark.Lit;
-            CountIfPlayedThrough(steps);
-        }
-    }
-
-    private void NewRound()
-    {
-        Array.Fill(_marks, StepMark.Unlit);
-        Array.Clear(_skippedAt);
-        _counted = false;
-    }
-
-    /// <summary>A cast step: one that is seen used (not a display-only attack, not a condition).</summary>
-    private static bool IsCast(RotationStep step) => !step.Action.IsDisplayOnly() && step.Action != StepAction.Condition;
-
-    /// <summary>
-    /// Every step of this round that can be seen used is done or skipped, its last cast step is done, and at most one
-    /// cast step was skipped: the phase was played through once more. A phase of nothing but condition steps (or
-    /// attacks) never counts.
-    /// </summary>
-    private void CountIfPlayedThrough(List<PlayedStep> steps)
-    {
-        if (_counted) return;
-        int last = -1, skipped = 0;
         for (int i = 0; i < steps.Count; i++)
         {
             var step = steps[i].Step;
-            if (step.Action.IsDisplayOnly()) continue;
-            if (_marks[i] == StepMark.Unlit) return;
-            if (!IsCast(step)) continue;
-            last = i;
-            if (_marks[i] == StepMark.Skipped) skipped++;
+            if (_lit[i] || step.Action != use.Action || !slots.TryGetValue(step.OperatorId, out int s) || s != slot) continue;
+            _lit[i] = true;
+            return;
         }
-        if (last < 0 || _marks[last] != StepMark.Lit || skipped > 1) return;
-        Count();
     }
 
-    /// <summary>The player started the phase over: the round ending counts if all but one of its cast steps were done.</summary>
-    private void CountOnNewRound(List<PlayedStep> steps)
+    /// <summary>The condition steps whose conditions hold now light up, wherever they are; lit, they stay lit this round.</summary>
+    private void LightConditions(List<PlayedStep> steps, PartyState now, IReadOnlyDictionary<string, int> slots, IPhaseHistory history)
     {
-        if (_counted) return;
-        int casts = 0, done = 0;
+        for (int i = 0; i < steps.Count; i++)
+            if (!_lit[i] && steps[i].Step.Action == StepAction.Condition && RotationTracker.Holds(new AllCondition(steps[i].Step.Expect), now, slots, history) == true)
+                _lit[i] = true;
+    }
+
+    /// <summary>Every countable step lit: played through once more, and every light goes out for a new round.</summary>
+    private void FinishIfOver(List<PlayedStep> steps)
+    {
+        bool any = false;
         for (int i = 0; i < steps.Count; i++)
         {
-            if (!IsCast(steps[i].Step)) continue;
-            casts++;
-            if (_marks[i] == StepMark.Lit) done++;
+            if (!Countable(steps[i].Step)) continue;
+            if (!_lit[i]) return;
+            any = true;
         }
-        if (casts > 0 && done >= casts - 1 && done > 0) Count();
+        if (!any) return; // nothing that can be seen: never over
+        _timesPlayed[_phase]++;
+        _playedThisShowing = true;
+        Array.Clear(_lit);
     }
 
-    private void Count()
+    /// <summary>The first unlit countable step in written order; -1 when there is none.</summary>
+    private int Chevron(List<PlayedStep> steps)
     {
-        _timesPlayed[_phase]++;
-        _counted = true;
-        _playedThisShowing = true;
+        for (int i = 0; i < steps.Count; i++)
+            if (!_lit[i] && Countable(steps[i].Step)) return i;
+        return -1;
     }
 
     /// <summary>The last step of the group starting at <paramref name="at"/>: the steps after it marked WithPrevious belong to it.</summary>
@@ -325,21 +203,21 @@ public sealed class StepFollower(Rotation rotation)
         return at;
     }
 
-    /// <summary>The marks; whether the first current step is ready, and its checks.</summary>
+    /// <summary>The marks; whether the chevron's step is ready, and its checks.</summary>
     private StepPosition Position(int phase, List<PlayedStep> steps, PartyState now, IReadOnlyDictionary<string, int> slots, IPhaseHistory history)
     {
         var marks = new StepMark[steps.Count];
-        int at = Array.IndexOf(_marks, StepMark.Unlit);
-        // The current group: the one the first step not yet passed is in (it may be inside a group, after a step used out of order).
-        int groupEnd = at < 0 ? -1 : GroupEnd(steps, GroupStart(steps, at));
         for (int i = 0; i < steps.Count; i++)
-            marks[i] = _marks[i] != StepMark.Unlit ? _marks[i] : i <= groupEnd ? StepMark.Current : StepMark.Unlit;
+            marks[i] = !Countable(steps[i].Step) ? StepMark.Neutral : _lit[i] ? StepMark.Lit : StepMark.Unlit;
+        int at = Chevron(steps);
         if (at < 0) return new StepPosition(phase, marks, false, []);
+        // The chevron's group: its unlit steps are all current (steps used together, in either order).
+        for (int i = GroupStart(steps, at); i <= GroupEnd(steps, at); i++)
+            if (marks[i] == StepMark.Unlit) marks[i] = StepMark.Current;
 
         var step = steps[at].Step;
-        // A basic or heavy attack's availability can't be seen, and there's never anything to wait for; a
-        // condition step has no ability of its own, only its conditions.
-        bool? own = step.Action.IsDisplayOnly() ? true : RotationTracker.AbilityAvailable(step, now, slots);
+        // A condition step has no ability of its own, only its conditions.
+        bool? own = RotationTracker.AbilityAvailable(step, now, slots);
         var checks = new List<ConditionCheck> { new(CheckKind.OwnAbility, null, own) };
         foreach (var condition in step.Expect)
             checks.Add(new ConditionCheck(CheckKind.Expected, condition, RotationTracker.Holds(condition, now, slots, history)));

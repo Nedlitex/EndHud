@@ -55,27 +55,6 @@ public class RotationStripViewTests
         OnSta(() => RotationStrip.Build(view)); // draws
     }
 
-    /// <summary>Owner, 2026-10-24: a step jumped over is drawn faded with a slash, distinct from a done step.</summary>
-    [Fact]
-    public void A_skipped_step_is_faded_with_a_slash_and_a_done_one_has_none()
-    {
-        var played = Rotation.Played();
-        var steps = new StepPosition(0, [StepMark.Skipped, StepMark.Lit, StepMark.Current], true, [new ConditionCheck(CheckKind.OwnAbility, null, true)]);
-
-        var view = RotationStripView.Build(Rotation, new RotationPosition(played[0], true, []), null, null, (_, _) => null, _ => null, steps);
-
-        Assert.Equal([StripStepState.Skipped, StripStepState.Done, StripStepState.Ready], view.Steps.Select(s => s.State));
-        var (slashes, faded) = OnSta(() =>
-        {
-            var strip = RotationStrip.Build(view);
-            int slashes = Descendants(strip).OfType<System.Windows.Shapes.Line>().Count(l => (string?)l.Tag == RotationStrip.SkippedSlashTag);
-            int faded = Descendants(strip).OfType<System.Windows.Controls.StackPanel>().Count(p => p.Opacity == 0.45);
-            return (slashes, faded);
-        });
-        Assert.Equal(1, slashes); // only the skipped one
-        Assert.Equal(2, faded); // skipped and done both fade
-    }
-
     [Fact]
     public void A_waiting_step_shows_why()
     {

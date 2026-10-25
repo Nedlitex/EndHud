@@ -28,8 +28,8 @@ public enum CastSource
 public sealed record SkillCast(int? Slot, TimeSpan At, CastSource Source, bool Paid)
 {
     /// <summary>
-    /// Sure enough to move the strip past steps not seen done (<see cref="StepFollower"/>): points spent, and the
-    /// slot known.
+    /// Points spent, and the slot known: the surest kind of cast (the recorded check's measure). The step follower
+    /// lights a step with any cast of its slot (<see cref="StepFollower"/>).
     /// </summary>
     public bool Certain => Paid && Slot is not null;
 }
@@ -46,8 +46,8 @@ public sealed record CastJudging(IReadOnlyList<SkillCast> Casts, IReadOnlyList<J
 /// not on a button that couldn't be read in the reading before (a dimmed one shows the scene through it);</item>
 /// <item>else a press of a slot (<see cref="SkillPressJudge"/>, counted) from 0.5 s before to 0.5 s after;</item>
 /// <item>else a button that went from available to a countdown;</item>
-/// <item>else nobody: <see cref="CastSource.Unattributed"/> (<see cref="StepFollower"/> then marks the current step if
-/// it is a battle skill its operator could cast).</item>
+/// <item>else nobody: <see cref="CastSource.Unattributed"/> (<see cref="StepFollower"/> then lights the step under the
+/// chevron if it is a battle skill its operator could cast).</item>
 /// </list>
 /// The flash can come after the reading that saw the drop, so a drop the flash hasn't named yet waits up to 0.6 s.
 /// A flash with no drop counts only as an <see cref="FlashKind.EmpoweredCast"/> (the empowered glow ending in a cast;
