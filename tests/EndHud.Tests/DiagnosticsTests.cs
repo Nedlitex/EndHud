@@ -68,6 +68,32 @@ public class DiagnosticsTests : IDisposable
         Assert.DoesNotContain(profile, log, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Windows' short (8.3) form of the user's folder, C:\Users\ABCDEF~1, still carries the start of the account
+    /// name, and the temporary folder is often given in that form: it is hidden as well.
+    /// </summary>
+    [Fact]
+    public void The_short_form_of_the_users_folder_is_hidden_too()
+    {
+        var forms = DiagnosticLog.ProfileForms(@"C:\Users\Long Name Here", _ => @"C:\Users\LONGNA~1");
+
+        Assert.Equal(@"%USERPROFILE%\AppData\Local\Temp\x.msi and %USERPROFILE%\Desktop",
+            DiagnosticLog.Redact(@"C:\Users\LONGNA~1\AppData\Local\Temp\x.msi and c:\users\long name here\Desktop", forms));
+        Assert.Equal([@"C:\Users\Long Name Here"], DiagnosticLog.ProfileForms(@"C:\Users\Long Name Here", _ => null)); // no 8.3 names on the drive
+    }
+
+    [Fact]
+    public void This_PCs_own_short_profile_path_is_hidden_if_it_has_one()
+    {
+        string profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string shortForm = DiagnosticLog.ShortPath(profile) ?? profile;
+        DiagnosticLog.Error("short", new IOException($"{shortForm}\\AppData\\Local\\Temp\\EndHud-update is locked"));
+
+        string log = File.ReadAllText(DiagnosticLog.FilePath);
+        Assert.Contains("%USERPROFILE%\\AppData\\Local\\Temp\\EndHud-update is locked", log);
+        Assert.DoesNotContain(shortForm, log, StringComparison.OrdinalIgnoreCase);
+    }
+
     /// <remarks>
     /// The log is one per process, and other test classes run alongside this one: what the code they
     /// test logs lands in the same file (on CI, six lines in the middle of this test). So the key and
