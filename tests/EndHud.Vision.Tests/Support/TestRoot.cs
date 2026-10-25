@@ -36,6 +36,40 @@ internal static class TestRoot
         return full.StartsWith(root, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>What picks a folder of the player's own (their data, their temp) rather than taking one it is handed.</summary>
+    public static readonly System.Text.RegularExpressions.Regex PlayerFolder = new(
+        @"SpecialFolder\.(ApplicationData|LocalApplicationData|CommonApplicationData)|GetTempPath\s*\(|GetTempFileName\s*\(|""%?(APPDATA|LOCALAPPDATA|TEMP|TMP)%?""");
+
+    /// <summary>
+    /// The lines of the C# sources under <c>src/<paramref name="project"/></c> that pick one of the player's own
+    /// folders (<see cref="PlayerFolder"/>), as "file:line: text"; comments are not looked at.
+    /// </summary>
+    public static IReadOnlyList<string> PlayerFolderLines(string project)
+    {
+        string folder = Path.Combine(RepoRoot(), "src", project);
+        var found = new List<string>();
+        foreach (string file in Directory.EnumerateFiles(folder, "*.cs", SearchOption.AllDirectories))
+        {
+            string relative = Path.GetRelativePath(folder, file);
+            if (relative.StartsWith("bin" + Path.DirectorySeparatorChar) || relative.StartsWith("obj" + Path.DirectorySeparatorChar)) continue;
+            string[] lines = File.ReadAllLines(file);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string code = lines[i].TrimStart();
+                if (code.StartsWith("//")) continue;
+                if (PlayerFolder.IsMatch(code)) found.Add($"{relative.Replace('\\', '/')}:{i + 1}: {code}");
+            }
+        }
+        return found;
+    }
+
+    public static string RepoRoot()
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+            if (File.Exists(Path.Combine(dir.FullName, "EndHud.sln"))) return dir.FullName;
+        throw new DirectoryNotFoundException("EndHud.sln not found above " + AppContext.BaseDirectory);
+    }
+
     private static string Create()
     {
         DeleteOldRuns(Parent, DateTime.UtcNow - KeptFor);

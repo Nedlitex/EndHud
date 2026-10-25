@@ -22,7 +22,7 @@ public class SkillInputPrivacyTests : IDisposable
 
     public void Dispose()
     {
-        DiagnosticLog.UseFolder(Path.Combine(ConfigStore.Folder, "logs"));
+        DiagnosticLog.UseFolder(null); // back to the test run's own log (TestFolders), never the player's
         try { Directory.Delete(_folder, recursive: true); } catch (IOException) { }
     }
 
