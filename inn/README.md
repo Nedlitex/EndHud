@@ -4,9 +4,9 @@
 version 1.6): its 44 dishes and 11 drinks, the traits and 14 themes they're judged by, how an
 operator's hobbies and element help a kitchen, and the gourmands (老饕) with what each may ask for. The wiki EndHud takes operators from (endfield.wiki.gg) has no
 dish pages yet, so this file is kept by hand. It travels in the operator package
-(`operators/operator-library.zip`): editing it on `main` rebuilds the package
-(`.github/workflows/operator-package.yml`), and players' EndHud picks the new package up within a
-few hours. Read by [`InnData`](../src/EndHud.Vision/Inn/InnData.cs).
+(`operators/operator-library.zip`): editing it on `main` rebuilds the package and opens a pull
+request with it (`.github/workflows/operator-package.yml`); once that is merged, players' EndHud
+picks the new package up within a few hours. Read by [`InnData`](../src/EndHud.Vision/Inn/InnData.cs).
 
 The operators' own hobbies and elements aren't here: they come from the wiki with the roster.
 

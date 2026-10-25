@@ -510,9 +510,27 @@ EndHud data:
 ```
 
 It runs `EndHud.exe --self-test <folder> [--screenshot <image> --expect <ids>]` (no window), which
-unpacks the built-in operator package into `<folder>` as on first start, loads it, and names the squad in
-the screenshot; the steps are logged to `<folder>\self-test.log`, and the exit code is 0 when all
-passed. The files aren't code-signed yet, so Windows SmartScreen warns about an
+unpacks the built-in operator package into `<folder>` as on first start, loads it, checks that WPF
+draws (its native renderer loads) and that a DLL loaded by name comes from System32 only (see
+below), and names the squad in the screenshot; the steps are logged to `<folder>\self-test.log`,
+and the exit code is 0 when all passed.
+
+**What can load into EndHud.** [`Program.Main`](src/EndHud/Program.cs) (the exe's entry point) first
+tells Windows to look for DLLs loaded by name in System32 only (`SetDefaultDllDirectories`), and both
+assemblies declare `DefaultDllImportSearchPaths(System32)`: a DLL lying next to a portable EndHud.exe
+in Downloads (hid.dll, xinput1_4.dll, dwmapi.dll, d3d11.dll, dxgi.dll and msi.dll are not KnownDLLs)
+is never loaded. .NET startup hooks are off (`StartupHookSupport` false), so `DOTNET_STARTUP_HOOKS`
+runs nothing inside EndHud. The ONNX runtime and WPF's native parts are loaded by full path and are
+unaffected; the self-test's "render", "dll search" and "character model" steps prove it on every
+release build. `DllSearchTests` checks the attributes, the entry point and the runtime settings.
+
+**The pipeline.** Every action in `.github/workflows` is pinned to a full commit SHA with its tag as
+a comment (update both together); every workflow reads by default and only the publishing jobs
+write. NuGet packages are pinned by content hash in each project's `packages.lock.json`
+(`RestorePackagesWithLockFile`); on GitHub (`CI=true`) restores run in locked mode, and the release
+workflows check every package with `dotnet restore EndHud.sln --locked-mode` before they publish.
+After changing a package, run `dotnet restore` locally and commit the updated lock files.
+`WorkflowHardeningTests` checks all of this. The files aren't code-signed yet, so Windows SmartScreen warns about an
 unrecognised app the first time.
 
 ---
@@ -547,17 +565,28 @@ Right-click the tray icon for: status, show HUD, open menu, auto-show on/off, de
 - **Updating in one click.** A newer version shows a notification ("click to update now") and an
   "update now to x.y.z" tray item, plus one for the release notes. Nothing changes until the player
   clicks; then [`Updater`](src/EndHud/Updater.cs):
-  1. downloads the release's file for this install and checks its SHA-256 against the one GitHub
-     reports for it (the `digest` of each release asset); a mismatch is deleted, never run, and a
-     file without a checksum isn't downloaded at all. HTTPS only.
-  2. **Installed with the MSI** (in `%LocalAppData%\Programs\EndHud`): EndHud exits and a hidden
+  1. downloads the release's file for this install, only from where the update trust rules below
+     allow, into a new folder with a random name (`%TEMP%\EndHud-update\run-<random>`), and checks
+     its SHA-256 against the one GitHub reports for it (the `digest` of each release asset); a
+     mismatch is deleted, never run, and a file without a checksum isn't downloaded at all.
+  2. opens the checked file so that nothing else can write, replace or delete it, and checks its
+     SHA-256 again through that handle: what was checked is what runs. An MSI must also say it is
+     EndHud's ([`MsiPackage`](src/EndHud/MsiPackage.cs), read with msi.dll, nothing run): upgrade
+     code `{DE14780C-8881-4E6D-A8A7-7227CF00E8EE}`, product name `EndHud`, the release's version.
+  3. **Installed with the MSI** (in `%LocalAppData%\Programs\EndHud`): EndHud exits and a hidden
      script runs the new MSI quietly (per-user, no administrator prompt), then starts EndHud
-     again, which says "updated to x.y.z". Windows' installed-apps list stays right. If the
-     installer fails, the old version starts again and says so (the installer's log is kept in
-     `%TEMP%\EndHud-update`).
-  3. **Portable exe:** renames itself to `EndHud.exe.old` (Windows allows renaming a running
-     program), moves the new exe into its place and starts it; the next start deletes the .old
-     file. In a folder EndHud can't write to, it says so and nothing changes.
+     again, which says "updated to x.y.z". The script and the MSI stay locked as in step 2 until
+     the script ends (it inherits EndHud's handles on them). Windows' installed-apps list stays
+     right. If the installer fails, the old version starts again and says so (the installer's log
+     is kept in `%TEMP%\EndHud-update`).
+  4. **Portable exe:** renames itself to `EndHud.exe.old` (Windows allows renaming a running
+     program), moves the new exe into its place right after the second check and starts it; the
+     next start deletes the .old file. In a folder EndHud can't write to, it says so and nothing changes.
+
+  **Never as administrator.** An EndHud running elevated installs nothing (logged, and the
+  notification says to start EndHud normally): the files sit in the player's own temporary folder,
+  where any of their programs can write, and an elevated EndHud would run what it finds there with
+  full rights.
 
   Settings, learned portraits and the operator library are in `%APPDATA%\EndHud`, which neither
   touches. On any failure before the hand-over nothing has changed and the notification links to
@@ -566,6 +595,25 @@ Right-click the tray icon for: status, show HUD, open menu, auto-show on/off, de
   above without a click, but only while the game isn't running; one found while playing waits until
   the game is closed ([`AutoInstaller`](src/EndHud/AutoInstaller.cs)). Each version is tried once
   per run; a failure is notified and waits for the next start.
+- **Update trust rules** ([`UpdateTrust`](src/EndHud/UpdateTrust.cs), [`TrustedHttp`](src/EndHud.Vision/TrustedHttp.cs)).
+  Every address is checked before it is asked, and every redirect too (the HTTP client never
+  follows one by itself; `TrustedHttp` follows at most 5, each checked):
+
+  | What | Only from |
+  |---|---|
+  | Release information | `https://api.github.com/repos/Nedlitex/EndHud/releases…` (read up to 1 MB) |
+  | The MSI / portable exe | `https://github.com/Nedlitex/EndHud/releases/download/…`, redirected only to `release-assets.githubusercontent.com` or `objects.githubusercontent.com` (up to 512 MB) |
+  | Recommended rotations, the operator package | `https://api.github.com/repos/Nedlitex/EndHud/…` and `https://raw.githubusercontent.com/Nedlitex/EndHud/…` (a rotation or a listing up to 1 MB, the package up to 64 MB; unpacked at most 5000 files, 256 MB) |
+  | The release-notes link | an `https://github.com/Nedlitex/EndHud/…` page; anything else is logged, not opened |
+
+  All https, on the usual port, with no user name in the address; anything else is refused before
+  a request and logged. `EndHud.exe --update-now --from <url>` accepts only a stand-in on this
+  computer (`127.0.0.1`, `localhost`, `[::1]`, http or https), as release.yml's update test uses,
+  and then also takes that stand-in's files; any other `--from` is logged as refused and exits 2.
+  What these rules don't cover: the HTTPS connection itself trusts the Windows certificate store,
+  and the SHA-256 comes in the same answer as the file's address, so a GitHub account able to
+  publish a release, or a proxy holding a trusted certificate that forges GitHub's answer for these
+  very hosts, is not stopped by them (a release signature checked by EndHud would be; not built).
 - **New operators.** A newer operator package from the repository (see
   [Recognising operators](#recognising-operators)) is installed in the background and its new
   operators announced.
@@ -619,7 +667,7 @@ release.yml).
 | `--target "<title text>"` | Track any window whose title contains this text instead of the game. Useful to try EndHud without the game, for example over a video of gameplay. |
 | `--hide-from-capture` | Keep the HUD out of screenshots and recordings. |
 | `--self-test <folder>` | Check this build without a window (see [Releases](#releases)). |
-| `--update-now [--from <api>]` | Update in place if a newer release is out, without a window or restarting EndHud ("update now" for scripts). Exit code 0 started, 3 up to date, 1 failed; log in `%TEMP%\EndHud-update\update-now.log`. `--from` asks a stand-in for GitHub (plain HTTP only on this computer). |
+| `--update-now [--from <api>]` | Update in place if a newer release is out, without a window or restarting EndHud ("update now" for scripts). Exit code 0 started, 3 up to date, 2 `--from` refused, 1 failed; log in `%TEMP%\EndHud-update\update-now.log`. `--from` asks a stand-in for GitHub on this computer only (loopback, http or https; see [Updates](#updates)). |
 
 EndHud finds the game as a Unity window whose title contains "Endfield" or the game's Chinese title.
 
@@ -639,7 +687,12 @@ The game shows no operator names in the squad panel, so EndHud identifies each p
    - A weekly workflow ([`operator-package.yml`](.github/workflows/operator-package.yml)) rebuilds
      the package from the wiki and the inn data
      (`endhud-cli build-operator-package operators/operator-library.zip --inn inn`;
-     a change to `inn/` on `main` runs it too) and commits it only if the content changed: the package is reproducible (entries sorted, fixed
+     a change to `inn/` on `main` runs it too) and, only if the content changed, pushes it to the branch
+     `operator-package/refresh` and opens a pull request: it reaches players only once someone has
+     looked at it and merged it (the wiki can be edited by anyone; the job reading it holds no token).
+     The repository must allow GitHub Actions to create pull requests (Settings → Actions → General),
+     and a pull request opened by the workflow's token doesn't start the Tests workflow by itself
+     (close and reopen it, or push to it, to run them). The package is reproducible (entries sorted, fixed
      timestamps, its date kept when nothing changed). With `--keep-roster` it asks the wiki nothing and puts
      only the inn's data into the package already there (an inn-only edit, or the wiki down).
    - While EndHud runs (and `CheckForUpdates` is on), it looks at the repository's `operators/`
@@ -1801,6 +1854,13 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   format 2 or 3 say so about such a file or share code). A format 1 file (a fixed
   `sequence` of phases with repeat counts) is read as those phases in that order, repeats copied,
   none with `when`: it plays exactly as before.
+- Players paste share codes from strangers, so reading one (or a file) ends either in a rotation or in
+  one of the editor's refusals (not a rotation / damaged code / newer), never another exception, and
+  within [`ReadLimits`](src/EndHud.Vision/Rotations/ReadLimits.cs): text 1 MB (a code is unpacked only
+  that far), a code 256K characters, 100 phases, 200 steps in a phase, 5000 conditions, conditions
+  nested 16 deep, a format-1 repeat count of 20, 1000 alert rules; no null in a list or group. The
+  largest real rotation (6.5 KB) has 5 phases, 18 steps in a phase, 39 conditions, nested 5 deep.
+  `ShareCodeHardeningTests` covers each.
 
 The store ([`RotationStore`](src/EndHud.Vision/Rotations/RotationStore.cs)) covers every way an
 entry changes:
