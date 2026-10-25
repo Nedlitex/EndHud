@@ -31,6 +31,51 @@ public static class BattleSkillButton
     private const double IconWhiteMin = 0.12;
     private const double IconDarkMax = 0.45;
 
+    /// <summary>
+    /// Bands of white rows across the disc this many or more: lines of text drawn over the button (an on-screen
+    /// display's, such as RivaTuner's), not its icon or countdown. The icon and the countdown's digits are one band on
+    /// every button of the fixtures (two where an effect's white streak crosses it); the display's lines, three.
+    /// </summary>
+    internal const int TextLines = 3;
+
+    /// <summary>Inside this radius (4K) the white rows are counted: the disc, the button's outline left out.</summary>
+    private const double LinesRadius = 44;
+
+    /// <summary>
+    /// How many bands of rows with white (at least 2 px at 4K) the disc has, told apart by at least 3 rows (4K) with
+    /// none.
+    /// </summary>
+    internal static int WhiteLines(Frame frame, double cx, double cy, double scale)
+    {
+        double radius = LinesRadius * scale;
+        double minWhite = Math.Max(1, 2 * scale), minGap = Math.Max(1, 3 * scale);
+        int bands = 0, gap = 0;
+        bool inBand = false;
+        for (int y = (int)Math.Round(cy - radius); y <= (int)Math.Round(cy + radius); y++)
+        {
+            if ((uint)y >= (uint)frame.Height) continue;
+            int white = 0;
+            for (int x = (int)Math.Round(cx - radius); x <= (int)Math.Round(cx + radius); x++)
+            {
+                double dx = x - cx, dy = y - cy;
+                if (dx * dx + dy * dy > radius * radius || (uint)x >= (uint)frame.Width) continue;
+                var (r, g, b) = frame.GetPixel(x, y);
+                if (Math.Min(r, Math.Min(g, b)) > 200) white++;
+            }
+            if (white >= minWhite)
+            {
+                if (!inBand) bands++;
+                inBand = true;
+                gap = 0;
+            }
+            else if (++gap >= minGap)
+            {
+                inBand = false;
+            }
+        }
+        return bands;
+    }
+
     /// <param name="slot">Squad slot, 0-based.</param>
     /// <returns>The button's state, or null when it can't be told (an effect or cutscene over it).</returns>
     public static BattleSkillState? Measure(Frame frame, int slot)
@@ -54,6 +99,7 @@ public static class BattleSkillButton
             else if (min > 200) white++;
         }
         if (n == 0) return null;
+        if (WhiteLines(frame, cx, cy, ui.Scale) >= TextLines) return null;
 
         double darkShare = dark / (double)n, whiteShare = white / (double)n;
         if (darkShare >= CoolingDarkAt && whiteShare is >= CoolingWhiteMin and <= CoolingWhiteMax) return BattleSkillState.Cooling;
