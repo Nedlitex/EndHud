@@ -18,6 +18,10 @@ using EndHud;
 using EndHud.Vision;
 using EndHud.Vision.Operators;
 
+// EndHud's own code runs here (and may log, save, learn): into a folder of this tool's, never the
+// developer's real %APPDATA%\EndHud, whose log goes out in their diagnostics zips.
+AppFolders.UseRoot(Path.Combine(Path.GetTempPath(), "endhud-readme-media", "app"));
+
 if (args.Length > 0 && args[0] == "rotation") return await RotationDemo.RunAsync(args[1..]);
 
 if (args.Length < 2)
