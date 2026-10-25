@@ -45,7 +45,7 @@ public class RotationStripViewTests
     public void With_step_marks_done_steps_fade_and_the_current_has_chevrons()
     {
         var played = Rotation.Played();
-        var steps = new StepPosition(0, [StepMark.Done, StepMark.Current, StepMark.Upcoming], true, [new ConditionCheck(CheckKind.OwnAbility, null, true)]);
+        var steps = new StepPosition(0, [StepMark.Lit, StepMark.Current, StepMark.Unlit], true, [new ConditionCheck(CheckKind.OwnAbility, null, true)]);
 
         var view = RotationStripView.Build(Rotation, new RotationPosition(played[0], true, []), null, null, (_, _) => null, _ => null, steps);
 
@@ -60,7 +60,7 @@ public class RotationStripViewTests
     public void A_skipped_step_is_faded_with_a_slash_and_a_done_one_has_none()
     {
         var played = Rotation.Played();
-        var steps = new StepPosition(0, [StepMark.Skipped, StepMark.Done, StepMark.Current], true, [new ConditionCheck(CheckKind.OwnAbility, null, true)]);
+        var steps = new StepPosition(0, [StepMark.Skipped, StepMark.Lit, StepMark.Current], true, [new ConditionCheck(CheckKind.OwnAbility, null, true)]);
 
         var view = RotationStripView.Build(Rotation, new RotationPosition(played[0], true, []), null, null, (_, _) => null, _ => null, steps);
 
@@ -81,7 +81,7 @@ public class RotationStripViewTests
     {
         var played = Rotation.Played();
         var state = new Vision.PartyState([]) { SkillPoints = 0.4 };
-        var steps = new StepPosition(0, [StepMark.Current, StepMark.Upcoming, StepMark.Upcoming], false, [new ConditionCheck(CheckKind.OwnAbility, null, false)]);
+        var steps = new StepPosition(0, [StepMark.Current, StepMark.Unlit, StepMark.Unlit], false, [new ConditionCheck(CheckKind.OwnAbility, null, false)]);
 
         var view = RotationStripView.Build(Rotation, new RotationPosition(played[0], true, []), state, null, (_, _) => null, _ => null, steps);
 
@@ -295,7 +295,7 @@ public class RotationStripViewTests
     public void Done_and_holding_it_still_glows()
     {
         var rotation = WithConditionStep(CryoThree);
-        var steps = new StepPosition(0, [StepMark.Done, StepMark.Current], true, [new ConditionCheck(CheckKind.OwnAbility, null, true)]);
+        var steps = new StepPosition(0, [StepMark.Lit, StepMark.Current], true, [new ConditionCheck(CheckKind.OwnAbility, null, true)]);
 
         var view = RotationStripView.Build(rotation, new RotationPosition(rotation.Played()[0], true, []), Cryo(3), null, (_, _) => null, _ => null, steps);
 
@@ -511,11 +511,11 @@ public class RotationFollowerTests
     {
         var follower = new RotationFollower();
 
-        Assert.Equal([StepMark.Current, StepMark.Upcoming], follower.Update(At(0.75, points: 2.4), true, For(TwoSkills), presses: null).Steps!.Marks);
+        Assert.Equal([StepMark.Current, StepMark.Unlit], follower.Update(At(0.75, points: 2.4), true, For(TwoSkills), presses: null).Steps!.Marks);
         // Ardelia's button flashed and a skill point was spent.
         var follow = follower.Update(At(1.0, points: 1.4, flashes: Flash(4, 0.9)), true, For(TwoSkills), presses: null);
 
-        Assert.Equal([StepMark.Done, StepMark.Current], follow.Steps!.Marks);
+        Assert.Equal([StepMark.Lit, StepMark.Current], follow.Steps!.Marks);
         Assert.Equal(1, follower.CastTally[3, (int)CastSource.Flash]);
     }
 
@@ -529,7 +529,7 @@ public class RotationFollowerTests
         follower.Update(At(1.25, points: 1.42), true, For(TwoSkills), presses: null);
         var follow = follower.Update(At(1.75, points: 1.46), true, For(TwoSkills), presses: null); // waited for a flash
 
-        Assert.Equal([StepMark.Done, StepMark.Current], follow.Steps!.Marks);
+        Assert.Equal([StepMark.Lit, StepMark.Current], follow.Steps!.Marks);
         Assert.Equal(1, follower.CastTally[4, (int)CastSource.Unattributed]);
     }
 
@@ -539,8 +539,8 @@ public class RotationFollowerTests
         var follower = new RotationFollower();
         var presses = new Presses(Press(4, 1.0));
 
-        Assert.Equal([StepMark.Current, StepMark.Upcoming], follower.Update(At(0.75, points: 2.4), true, For(TwoSkills), presses).Steps!.Marks);
-        Assert.Equal([StepMark.Done, StepMark.Current], follower.Update(At(1.0, points: 1.4), true, For(TwoSkills), presses).Steps!.Marks);
+        Assert.Equal([StepMark.Current, StepMark.Unlit], follower.Update(At(0.75, points: 2.4), true, For(TwoSkills), presses).Steps!.Marks);
+        Assert.Equal([StepMark.Lit, StepMark.Current], follower.Update(At(1.0, points: 1.4), true, For(TwoSkills), presses).Steps!.Marks);
     }
 
     [Fact]
@@ -550,8 +550,8 @@ public class RotationFollowerTests
         var presses = new Presses(Press(4, 1.1));
         follower.Update(At(0.75, points: 2.4), true, For(TwoSkills), presses);
 
-        Assert.Equal([StepMark.Current, StepMark.Upcoming], follower.Update(At(1.0, points: 2.4), true, For(TwoSkills), presses).Steps!.Marks);
-        Assert.Equal([StepMark.Done, StepMark.Current], follower.Update(At(1.25, points: 1.4), true, For(TwoSkills), presses).Steps!.Marks);
+        Assert.Equal([StepMark.Current, StepMark.Unlit], follower.Update(At(1.0, points: 2.4), true, For(TwoSkills), presses).Steps!.Marks);
+        Assert.Equal([StepMark.Lit, StepMark.Current], follower.Update(At(1.25, points: 1.4), true, For(TwoSkills), presses).Steps!.Marks);
     }
 
     /// <summary>A press with no skill point spent (a digit in a chat, a press the game ignored) moves nothing.</summary>
@@ -563,7 +563,7 @@ public class RotationFollowerTests
         follower.Update(At(0.75), true, For(TwoSkills), presses);
         follower.Update(At(1.0), true, For(TwoSkills), presses);
 
-        Assert.Equal([StepMark.Current, StepMark.Upcoming], follower.Update(At(1.75), true, For(TwoSkills), presses).Steps!.Marks);
+        Assert.Equal([StepMark.Current, StepMark.Unlit], follower.Update(At(1.75), true, For(TwoSkills), presses).Steps!.Marks);
     }
 
     [Fact]
@@ -575,7 +575,7 @@ public class RotationFollowerTests
 
         var follow = follower.Update(Reading(inBattle: true), true, For(TwoSkills), presses);
 
-        Assert.Equal([StepMark.Current, StepMark.Upcoming], follow.Steps!.Marks);
+        Assert.Equal([StepMark.Current, StepMark.Unlit], follow.Steps!.Marks);
         Assert.Equal(1, presses.Left);
     }
 
@@ -585,13 +585,13 @@ public class RotationFollowerTests
         var follower = new RotationFollower();
         var presses = new Presses(Press(4, 1.0));
         follower.Update(At(0.75, points: 2.4), true, For(TwoSkills), presses);
-        Assert.Equal([StepMark.Done, StepMark.Current], follower.Update(At(1.0, points: 1.4), true, For(TwoSkills), presses).Steps!.Marks);
+        Assert.Equal([StepMark.Lit, StepMark.Current], follower.Update(At(1.0, points: 1.4), true, For(TwoSkills), presses).Steps!.Marks);
 
         RotationFollowing? outside = null;
         for (int i = 0; i < 20; i++) outside = follower.Update(At(2 + i * 0.25, inBattle: false), true, For(TwoSkills), presses);
         Assert.False(outside!.InBattle); // the short-gap allowance (StripVisibility) is long over
 
-        Assert.Equal([StepMark.Current, StepMark.Upcoming], follower.Update(At(10), true, For(TwoSkills), presses).Steps!.Marks);
+        Assert.Equal([StepMark.Current, StepMark.Unlit], follower.Update(At(10), true, For(TwoSkills), presses).Steps!.Marks);
     }
 
     [Fact]
@@ -633,7 +633,7 @@ public class RotationFollowerTests
         follower.Update(Ready(0.75), true, For(CamilleFirst), presses);
         var follow = follower.Update(Ready(1.0), true, For(CamilleFirst), presses);
 
-        Assert.Equal(StepMark.Done, follow.Steps!.Marks[0]);
+        Assert.Equal(StepMark.Lit, follow.Steps!.Marks[0]);
         Assert.Equal(1, follower.CastTally[1, (int)CastSource.Press]);
         Assert.Equal(0, reader.Left);
     }

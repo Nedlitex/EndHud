@@ -100,7 +100,7 @@ internal static class RotationStripView
     /// <summary>How the <paramref name="index"/>th step of the phase is drawn.</summary>
     private static StripStepState State(StepPosition? steps, int index) => steps is null ? StripStepState.Upcoming : steps.Marks[index] switch
     {
-        StepMark.Done => StripStepState.Done,
+        StepMark.Lit => StripStepState.Done,
         StepMark.Skipped => StripStepState.Skipped,
         StepMark.Current => steps.Ready ? StripStepState.Ready : StripStepState.Waiting,
         _ => StripStepState.Upcoming,

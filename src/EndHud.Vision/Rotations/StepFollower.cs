@@ -3,14 +3,17 @@ namespace EndHud.Vision.Rotations;
 /// <summary>How the strip draws a step of the phase it shows.</summary>
 public enum StepMark
 {
-    /// <summary>Seen used this round of the phase: drawn faded.</summary>
-    Done,
+    /// <summary>Seen used this round of the phase.</summary>
+    Lit,
 
     /// <summary>The step to use next (several, for steps used together): drawn with chevrons.</summary>
     Current,
 
-    /// <summary>Later in the phase: drawn as always.</summary>
-    Upcoming,
+    /// <summary>Not seen used yet this round.</summary>
+    Unlit,
+
+    /// <summary>A step EndHud can never see used (a basic, heavy or plunge attack).</summary>
+    Neutral,
 
     /// <summary>
     /// Passed without being seen used: a later step was seen used for certain, so the player moved on past it.
@@ -65,7 +68,7 @@ public sealed class StepFollower(Rotation rotation)
     private readonly IReadOnlyList<PlayedStep> _played = rotation.Played();
     private int _phase = -1;
 
-    /// <summary>Each step this round: <see cref="StepMark.Done"/>, <see cref="StepMark.Skipped"/>, or <see cref="StepMark.Upcoming"/> (not yet).</summary>
+    /// <summary>Each step this round: <see cref="StepMark.Lit"/>, <see cref="StepMark.Skipped"/>, or <see cref="StepMark.Unlit"/> (not yet).</summary>
     private StepMark[] _marks = [];
 
     /// <summary>For a skipped step, the time of the use that jumped past it (a use from before then fills it in).</summary>
@@ -120,7 +123,7 @@ public sealed class StepFollower(Rotation rotation)
         {
             if (phase != _phase) _playedThisShowing = false; // it came onto the strip
             _phase = phase;
-            _marks = Enumerable.Repeat(StepMark.Upcoming, steps.Count).ToArray();
+            _marks = Enumerable.Repeat(StepMark.Unlit, steps.Count).ToArray();
             _skippedAt = new TimeSpan[steps.Count];
             _counted = false;
         }
@@ -138,7 +141,7 @@ public sealed class StepFollower(Rotation rotation)
             CountIfPlayedThrough(steps);
             PassConditions(steps, Holds);
         }
-        if (_marks.Length > 0 && _marks.All(m => m != StepMark.Upcoming)) NewRound();
+        if (_marks.Length > 0 && _marks.All(m => m != StepMark.Unlit)) NewRound();
         return Position(phase, steps, now, slots, history);
     }
 
@@ -166,11 +169,11 @@ public sealed class StepFollower(Rotation rotation)
             for (int i = 0; i < steps.Count; i++)
                 if (_marks[i] == StepMark.Skipped && use.At < _skippedAt[i] && Matches(steps[i].Step))
                 {
-                    _marks[i] = StepMark.Done;
+                    _marks[i] = StepMark.Lit;
                     return;
                 }
 
-        int at = Array.IndexOf(_marks, StepMark.Upcoming);
+        int at = Array.IndexOf(_marks, StepMark.Unlit);
         if (at < 0) return;
         // 1. The current group, past steps that never hold the marker.
         int reach = at;
@@ -179,16 +182,16 @@ public sealed class StepFollower(Rotation rotation)
             int end = GroupEnd(steps, start);
             for (int i = start; i <= end; i++)
             {
-                if (_marks[i] != StepMark.Upcoming || !Matches(steps[i].Step)) continue;
-                for (int j = at; j < start; j++) if (_marks[j] == StepMark.Upcoming) _marks[j] = StepMark.Done; // never seen, or can't be told
-                _marks[i] = StepMark.Done;
+                if (_marks[i] != StepMark.Unlit || !Matches(steps[i].Step)) continue;
+                for (int j = at; j < start; j++) if (_marks[j] == StepMark.Unlit) _marks[j] = StepMark.Lit; // never seen, or can't be told
+                _marks[i] = StepMark.Lit;
                 return;
             }
             reach = start;
             // A skill not yet seen used holds the marker here, and so does a condition step seen not holding.
             bool held = false;
             for (int i = start; i <= end; i++)
-                if (_marks[i] == StepMark.Upcoming && !Passable(steps[i].Step, holds)) held = true;
+                if (_marks[i] == StepMark.Unlit && !Passable(steps[i].Step, holds)) held = true;
             if (held) break;
             reach = end + 1;
         }
@@ -196,25 +199,25 @@ public sealed class StepFollower(Rotation rotation)
         for (int i = reach; use.Certain && i < steps.Count; i++)
         {
             var step = steps[i].Step;
-            if (_marks[i] == StepMark.Upcoming && step.Action == StepAction.Condition && holds(step) == false) break;
-            if (_marks[i] != StepMark.Upcoming || !Matches(step)) continue;
+            if (_marks[i] == StepMark.Unlit && step.Action == StepAction.Condition && holds(step) == false) break;
+            if (_marks[i] != StepMark.Unlit || !Matches(step)) continue;
             for (int j = at; j < GroupStart(steps, i); j++)
             {
-                if (_marks[j] != StepMark.Upcoming) continue;
-                if (Passable(steps[j].Step, holds)) _marks[j] = StepMark.Done;
+                if (_marks[j] != StepMark.Unlit) continue;
+                if (Passable(steps[j].Step, holds)) _marks[j] = StepMark.Lit;
                 else
                 {
                     _marks[j] = StepMark.Skipped;
                     _skippedAt[j] = use.At;
                 }
             }
-            _marks[i] = StepMark.Done;
+            _marks[i] = StepMark.Lit;
             return;
         }
 
         // 3. Not later in this round, but the phase's first group: the player started the phase over. An uncertain use
         // only when nothing but steps it passes was left (the round is over).
-        if ((use.Certain || reach >= steps.Count) && _marks.Contains(StepMark.Done) && FirstGroupMatches(steps, Matches))
+        if ((use.Certain || reach >= steps.Count) && _marks.Contains(StepMark.Lit) && FirstGroupMatches(steps, Matches))
         {
             CountOnNewRound(steps);
             NewRound();
@@ -222,7 +225,7 @@ public sealed class StepFollower(Rotation rotation)
             for (int i = 0; i <= end; i++)
                 if (Matches(steps[i].Step))
                 {
-                    _marks[i] = StepMark.Done;
+                    _marks[i] = StepMark.Lit;
                     return;
                 }
         }
@@ -247,16 +250,16 @@ public sealed class StepFollower(Rotation rotation)
     /// </summary>
     private void PassConditions(List<PlayedStep> steps, Func<RotationStep, bool?> holds)
     {
-        for (int at = Array.IndexOf(_marks, StepMark.Upcoming); at >= 0 && steps[at].Step.Action == StepAction.Condition && holds(steps[at].Step) == true; at = Array.IndexOf(_marks, StepMark.Upcoming))
+        for (int at = Array.IndexOf(_marks, StepMark.Unlit); at >= 0 && steps[at].Step.Action == StepAction.Condition && holds(steps[at].Step) == true; at = Array.IndexOf(_marks, StepMark.Unlit))
         {
-            _marks[at] = StepMark.Done;
+            _marks[at] = StepMark.Lit;
             CountIfPlayedThrough(steps);
         }
     }
 
     private void NewRound()
     {
-        Array.Fill(_marks, StepMark.Upcoming);
+        Array.Fill(_marks, StepMark.Unlit);
         Array.Clear(_skippedAt);
         _counted = false;
     }
@@ -277,12 +280,12 @@ public sealed class StepFollower(Rotation rotation)
         {
             var step = steps[i].Step;
             if (step.Action.IsDisplayOnly()) continue;
-            if (_marks[i] == StepMark.Upcoming) return;
+            if (_marks[i] == StepMark.Unlit) return;
             if (!IsCast(step)) continue;
             last = i;
             if (_marks[i] == StepMark.Skipped) skipped++;
         }
-        if (last < 0 || _marks[last] != StepMark.Done || skipped > 1) return;
+        if (last < 0 || _marks[last] != StepMark.Lit || skipped > 1) return;
         Count();
     }
 
@@ -295,7 +298,7 @@ public sealed class StepFollower(Rotation rotation)
         {
             if (!IsCast(steps[i].Step)) continue;
             casts++;
-            if (_marks[i] == StepMark.Done) done++;
+            if (_marks[i] == StepMark.Lit) done++;
         }
         if (casts > 0 && done >= casts - 1 && done > 0) Count();
     }
@@ -326,11 +329,11 @@ public sealed class StepFollower(Rotation rotation)
     private StepPosition Position(int phase, List<PlayedStep> steps, PartyState now, IReadOnlyDictionary<string, int> slots, IPhaseHistory history)
     {
         var marks = new StepMark[steps.Count];
-        int at = Array.IndexOf(_marks, StepMark.Upcoming);
+        int at = Array.IndexOf(_marks, StepMark.Unlit);
         // The current group: the one the first step not yet passed is in (it may be inside a group, after a step used out of order).
         int groupEnd = at < 0 ? -1 : GroupEnd(steps, GroupStart(steps, at));
         for (int i = 0; i < steps.Count; i++)
-            marks[i] = _marks[i] != StepMark.Upcoming ? _marks[i] : i <= groupEnd ? StepMark.Current : StepMark.Upcoming;
+            marks[i] = _marks[i] != StepMark.Unlit ? _marks[i] : i <= groupEnd ? StepMark.Current : StepMark.Unlit;
         if (at < 0) return new StepPosition(phase, marks, false, []);
 
         var step = steps[at].Step;

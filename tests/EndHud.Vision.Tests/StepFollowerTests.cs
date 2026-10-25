@@ -75,7 +75,7 @@ public sealed class StepFollowerTests
         }
     }
 
-    private const StepMark D = StepMark.Done, C = StepMark.Current, U = StepMark.Upcoming, S = StepMark.Skipped;
+    private const StepMark D = StepMark.Lit, C = StepMark.Current, U = StepMark.Unlit, S = StepMark.Skipped;
 
     private static SkillCast Certain(int slot, double at = 0) => new(slot, TimeSpan.FromSeconds(at), CastSource.Flash, Paid: true);
 

@@ -58,11 +58,11 @@ public class ConditionStepTests
     {
         var fight = new Fight(Of(Wait(CryoThree), new RotationStep("Ardelia", StepAction.BattleSkill), new RotationStep("Laevatain", StepAction.BattleSkill)));
 
-        Assert.Equal([StepMark.Current, StepMark.Upcoming, StepMark.Upcoming], fight.Read(Reading(1)));
-        Assert.Equal([StepMark.Current, StepMark.Upcoming, StepMark.Upcoming], fight.Read(Reading(2)));
-        Assert.Equal([StepMark.Done, StepMark.Current, StepMark.Upcoming], fight.Read(Reading(3)));
+        Assert.Equal([StepMark.Current, StepMark.Unlit, StepMark.Unlit], fight.Read(Reading(1)));
+        Assert.Equal([StepMark.Current, StepMark.Unlit, StepMark.Unlit], fight.Read(Reading(2)));
+        Assert.Equal([StepMark.Lit, StepMark.Current, StepMark.Unlit], fight.Read(Reading(3)));
         // Done stays done when it stops holding: the step was reached.
-        Assert.Equal([StepMark.Done, StepMark.Current, StepMark.Upcoming], fight.Read(Reading(0)));
+        Assert.Equal([StepMark.Lit, StepMark.Current, StepMark.Unlit], fight.Read(Reading(0)));
     }
 
     /// <summary>Its conditions seen not holding: a cast of a later step doesn't pass it (it is what the player waits for).</summary>
@@ -73,7 +73,7 @@ public class ConditionStepTests
 
         fight.Read(Reading(1));
 
-        Assert.Equal([StepMark.Current, StepMark.Upcoming, StepMark.Upcoming], fight.Read(Reading(1), Ardelia));
+        Assert.Equal([StepMark.Current, StepMark.Unlit, StepMark.Unlit], fight.Read(Reading(1), Ardelia));
     }
 
     /// <summary>Owner, 2026-10-24: if its condition is unknown, a later real cast passes it.</summary>
@@ -82,8 +82,8 @@ public class ConditionStepTests
     {
         var fight = new Fight(Of(Wait(CryoThree), new RotationStep("Ardelia", StepAction.BattleSkill), new RotationStep("Laevatain", StepAction.BattleSkill)));
 
-        Assert.Equal([StepMark.Current, StepMark.Upcoming, StepMark.Upcoming], fight.Read(Reading(null)));
-        Assert.Equal([StepMark.Done, StepMark.Done, StepMark.Current], fight.Read(Reading(null), Ardelia));
+        Assert.Equal([StepMark.Current, StepMark.Unlit, StepMark.Unlit], fight.Read(Reading(null)));
+        Assert.Equal([StepMark.Lit, StepMark.Lit, StepMark.Current], fight.Read(Reading(null), Ardelia));
     }
 
     /// <summary>The step waited on doesn't make a phase "played" by itself, but a phase isn't played through until it is done.</summary>
