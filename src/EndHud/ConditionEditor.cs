@@ -185,9 +185,10 @@ internal sealed class ConditionEditor(
             case SkillPointsCondition c:
             {
                 var compare = ComparePicker(c.Is);
-                // 0.0 to 3.0 by 0.1: the bar is read to about ±0.05 (CombatHudTests), so a tenth is meaningful.
-                // A finer value from a file (1.85) is kept, in its place in the list.
-                var points = Enumerable.Range(0, 31).Select(i => Math.Round(i * 0.1, 1)).ToList();
+                // 0.0 to 20.0 by 0.1: the bar is read to about ±0.05 (CombatHudTests), so a tenth is meaningful, and it
+                // has up to SkillPointBar.MaxSegments segments (three in most fights, seven seen). One list for every
+                // fight: a rotation isn't tied to a bar size. A finer value from a file (1.85) is kept, in its place.
+                var points = Enumerable.Range(0, SkillPointBar.MaxSegments * 10 + 1).Select(i => Math.Round(i * 0.1, 1)).ToList();
                 if (!points.Contains(c.Value)) points = [.. points.Append(c.Value).Order()];
                 var value = Picker(points, v => v.ToString("0.0#", CultureInfo.InvariantCulture), c.Value);
                 row.Children.Add(compare);
