@@ -298,6 +298,7 @@ public sealed partial class PartyReader(TextRecognizer ocr)
             UltimateTimeLeft = timeBar?.Left,
             UltimateTimeColour = timeBar?.Colour,
             ModePill = Vision.ModePill.Read(frame, ui),
+            EvacuateBar = Vision.EvacuateBar.Read(frame, ui),
         };
     }
 

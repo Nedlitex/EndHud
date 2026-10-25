@@ -36,6 +36,9 @@ namespace EndHud.Vision;
 /// <see cref="ModePillCoveredReadings"/> readings (2 s), and only that long: then the squad panel's
 /// battle signs decide alone, so something left over the corner can never keep the battle HUD down
 /// in a battle.
+/// The battle kind (<see cref="BattleKind"/>): the evacuate bar (an instance) or the mode switch (the
+/// open world), whichever was seen last, a new one after <see cref="BattleKindReadings"/> in a row.
+/// Neither seen keeps it for good (see <see cref="TrackBattleKind"/>).
 /// One tracker follows one game window; use a new one for another window.
 /// </summary>
 public sealed class PartyTracker
@@ -53,6 +56,9 @@ public sealed class PartyTracker
     public const int ModePillReadings = 2;
     public const int ModePillCoveredReadings = PresenceMemory.ReadingsToLeave;
 
+    /// <summary>Readings in a row a new battle kind (<see cref="PartyState.BattleKind"/>) needs.</summary>
+    public const int BattleKindReadings = 2;
+
     private readonly bool[] _dead = new bool[PartyLayout.SlotCount];
     private readonly Queue<double>[] _charge = Enumerable.Range(0, PartyLayout.SlotCount).Select(_ => new Queue<double>()).ToArray();
     private readonly PartySlot?[] _lastSlots = new PartySlot?[PartyLayout.SlotCount];
@@ -65,17 +71,48 @@ public sealed class PartyTracker
     public PartyState Track(PartyState state)
     {
         var modePill = TrackModePill(state.ModePill);
+        var kind = TrackBattleKind(state);
         if (!state.PanelVisible || !SizeSettled(state.SquadSize))
         {
-            if (_lastVisible is null) return state with { ModePill = modePill };
-            _lastVisible = _lastVisible with { ReadingsSinceSeen = _lastVisible.ReadingsSinceSeen + 1, ModePill = modePill };
+            if (_lastVisible is null) return state with { ModePill = modePill, BattleKind = kind };
+            _lastVisible = _lastVisible with { ReadingsSinceSeen = _lastVisible.ReadingsSinceSeen + 1, ModePill = modePill, BattleKind = kind };
             return _lastVisible;
         }
 
         var slots = state.Slots.Select(Track).ToList();
         var (timeLeft, timeColour) = TrackUltimateTime(state);
-        _lastVisible = state with { Slots = slots, ReadingsSinceSeen = 0, UltimateTimeLeft = timeLeft, UltimateTimeColour = timeColour, ModePill = modePill };
+        _lastVisible = state with { Slots = slots, ReadingsSinceSeen = 0, UltimateTimeLeft = timeLeft, UltimateTimeColour = timeColour, ModePill = modePill, BattleKind = kind };
         return _lastVisible;
+    }
+
+    private BattleKind _battleKind;
+    private (BattleKind Kind, int Readings)? _newBattleKind;
+
+    /// <summary>
+    /// The battle kind by the top left's last sign: the evacuate bar an instance, the mode switch (either reading) the open
+    /// world, taken once read <see cref="BattleKindReadings"/> times in a row. Neither seen keeps it, however long: the
+    /// sign is gone in an ultimate's cutscene, under an on-screen display, and in an open-world event that draws its own
+    /// buttons there, and the kind can change only through a loading screen into the other, which shows its own sign.
+    /// </summary>
+    private BattleKind TrackBattleKind(PartyState state)
+    {
+        BattleKind? seen = state.EvacuateBar && state.ModePill == ModePillReading.NotSeen ? BattleKind.Instance
+            : !state.EvacuateBar && state.ModePill != ModePillReading.NotSeen ? BattleKind.OpenWorld
+            : null;
+        if (seen is not { } kind || kind == _battleKind)
+        {
+            // Nothing seen (or both at once, which isn't a screen the game draws) breaks a run of new readings.
+            _newBattleKind = null;
+            return _battleKind;
+        }
+        int readings = _newBattleKind is { } pending && pending.Kind == kind ? pending.Readings + 1 : 1;
+        if (readings < BattleKindReadings)
+        {
+            _newBattleKind = (kind, readings);
+            return _battleKind;
+        }
+        _newBattleKind = null;
+        return _battleKind = kind;
     }
 
     /// <summary>The mode switch's reading, a new one taken once read <see cref="ModePillReadings"/> times in a
