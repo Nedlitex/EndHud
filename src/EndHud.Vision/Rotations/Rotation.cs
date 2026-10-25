@@ -125,7 +125,7 @@ public sealed record StepsLitCondition(
     public override int GetHashCode() => HashCode.Combine(Which, Count, Steps?.Count ?? 0);
 }
 
-/// <summary>The team's skill points (技力), 0–3; a part-filled segment counts as a fraction.</summary>
+/// <summary>The team's skill points (技力), 0 to the bar's segment count (usually 3, up to 20); a part-filled segment counts as a fraction.</summary>
 public sealed record SkillPointsCondition(Comparison Is, double Value) : StateCondition;
 
 /// <summary>An operator's combo skill is ready (or cooling, when <paramref name="Ready"/> is false).</summary>

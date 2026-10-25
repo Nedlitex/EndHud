@@ -107,7 +107,9 @@ rotation charts.
   with four badges each, and every phase of the two rotations in `rotations/next-release`), `StripBadgesTests` (every
   kind) and `RotationStripViewTests`. The redraw key (`RotationStripView.Key`) carries each badge's look and whether
   it holds, so a condition coming true brightens its badge on that reading.
-- **Shown in battle only** ([`StripVisibility`](src/EndHud.Vision/StripVisibility.cs)). A reading that
+- **Shown in battle only** ([`StripVisibility`](src/EndHud.Vision/StripVisibility.cs), `PartyState.InCombat`: the
+  squad panel with a combo bar and the skill-point bar, whose segments seen count even when an effect leaves their
+  fill unread; never while the mode switch says exploring or building). A reading that
   misses the battle signs, or the panel covered by an ultimate animation (up to 3 s), doesn't take
   it down; it goes 2 s after the battle signs are gone (exploration, menus, loading). The gauges
   follow the same rule. A screen in the squad panel's place where every HP bar is empty, nobody has
@@ -1720,7 +1722,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
 
   | `kind` | Fields | Holds when |
   |---|---|---|
-  | `skillPoints` | `is` (`AtLeast`, `AtMost`, `Exactly`, and from format 4 `Below`, `Above`), `value` (0–3; the editor offers tenths) | the skill point bar compares so |
+  | `skillPoints` | `is` (`AtLeast`, `AtMost`, `Exactly`, and from format 4 `Below`, `Above`), `value` (0–20; the editor offers tenths: the bar has up to 20 segments, see [Skill-point bar size](#skill-point-bar-size)) | the skill point bar compares so |
   | `combo` | `operatorId`, `ready` | that operator's combo is ready (`true`) or cooling (`false`) |
   | `comboCharge` | `operatorId`, `is`, `percent` (0–100) | that operator's combo cooldown bar has refilled so far (ready is 100) |
   | `battleSkill` | `operatorId`, `ready` | that operator's battle skill button is available (`true`) or cooling (its countdown seconds aren't read) |
@@ -1864,7 +1866,7 @@ like everything else.
 
 | Reading | Where | How |
 |---|---|---|
-| Skill points ([`SkillPointBar`](src/EndHud.Vision/SkillPointBar.cs)) | the segmented bar above the battle skill buttons, bottom centre | yellow segments are full; the white fill of the next one gives the fraction (e.g. 1.4) |
+| Skill points ([`SkillPointBar`](src/EndHud.Vision/SkillPointBar.cs)) | the segmented bar above the battle skill buttons, bottom centre | yellow segments are full; the white fill of the next one gives the fraction (e.g. 1.4). The segment count is read from the bar (`PartyState.SkillPointMax`, 2–20): three in most fights, seven seen in a boss fight (2026-10-25). See [Skill-point bar size](#skill-point-bar-size) |
 | Lasting ultimate ([`UltimateTimeBar`](src/EndHud.Vision/UltimateTimeBar.cs)) | the thin line right above the skill points, while a lasting ultimate runs (Laevatain's, Zhuang Fangyi's, Yvonne's): the controlled operator's own if she has one running, else one running in the background | one colour from the left over a grey track; its length is the time left, its colour (`PartyState.UltimateTimeColour`, the mean of the fill's columns) whose it is (see [Lasting ultimates](#lasting-ultimates)). Taken as the bar only with that shape and a line's edges (bright sky there read as a full bar before). Kept, with its colour, through gaps of up to 4 s (PartyTracker). |
 | Controlled operator ([`ActiveSlot`](src/EndHud.Vision/ActiveSlot.cs)) | the chevron over the controlled operator's portrait | shape match against the chevron |
 | Battle skill ([`BattleSkillButton`](src/EndHud.Vision/BattleSkillButton.cs)) | each battle skill button, bottom right | a dark disc with white digits is cooling; the white icon is available |
@@ -1879,6 +1881,32 @@ like everything else.
 Status icons come from the wiki's glossary module along with the operators (`statuses.json` in the
 operator library), so new statuses need no release. Chinese names are in
 [`StatusNames`](src/EndHud.Vision/Operators/StatusInfo.cs).
+
+### Skill-point bar size
+
+The skill-point bar usually has three segments; some fights draw more (seven in the owner's boss fight,
+2026-10-25, `Fixtures/skill-points/seven-segments-full.jpg`), and the owner says it can reach 10 or more.
+[`SkillPointBar`](src/EndHud.Vision/SkillPointBar.cs) reads the count from the bar each reading:
+
+- **Geometry** (measured on the three- and seven-segment screenshots): the row keeps its width, x 1598–2241 at
+  4K (rows 1952–1970), and the gap between segments stays about 15 px, so n segments have a pitch of 658/n
+  (three: 205 px boxes; seven: 79 px).
+- **Count**: each segment is a box with a rim, so at a gap the brightness steps twice whatever is behind it, full
+  or empty. For each count 2–20 the steps at its gaps (the weaker edge of each gap) are scored against the
+  steps inside its segments (the median); below 10 there's no bar (every bar in the fixtures scores 13 or more
+  at 4K, 1080p and 720p, frames without one 7.4 at most). A divisor of the real count scores as well (three's
+  gaps are among six's), so a multiple is taken when the median of its own extra gaps shows too.
+- **Points**: per segment as before (yellow full, white fill from the left). `PartyState.SkillPoints` 0 to
+  `SkillPointMax`; `SkillPoints` null with `SkillPointMax` set is the bar seen with its fill unread (an
+  effect over it), still a battle.
+- **Limit**: 20 segments (the owner: "if we need a max, use 20"); a segment must keep 6 screen columns, which
+  twenty do from 1920x1080 up and seventeen at 1280x720. Narrower, the points are unknown, never a guess. A
+  single segment can't be told apart (no gap), and a bar wider than the three-segment row isn't looked for:
+  none has been seen.
+- **Casts** ([`ScreenCastJudge`](src/EndHud.Vision/Rotations/ScreenCastJudge.cs)): a cast is still a drop of
+  about 1 whatever the size; a drop between readings of different sizes isn't counted.
+- **Conditions**: `skillPoints` values 0–20 in tenths in both editors, one list for every fight.
+- **Diagnostics** write `7.00/7` (`?/3` for a bar seen but unread, `-` for none).
 
 ### Si's battle-skill timer
 
