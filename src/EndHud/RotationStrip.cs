@@ -103,7 +103,9 @@ internal sealed record StripNext(string Phase, IReadOnlyList<StripStep> Steps);
 /// The rotation strip (排轴), drawn like the community's rotation charts: a see-through grey band that
 /// fades out at both ends, a line through the skill icons, the phase's name large on the left. The
 /// current step has stacked chevrons above it: cyan when it's time to use it, white when it isn't
-/// yet (the reasons, in words, under the band). Steps seen used are lit (an amber ring on a filled disc),
+/// yet. A step's conditions are small badges right under its circle (a picture and "≥1"-style signs, never words;
+/// amber-edged and bright while they hold, dim while not), kept inside the step's own column so they never reach a
+/// neighbour's; the finish condition's, once every step is lit, follow the last step. Steps seen used are lit (an amber ring on a filled disc),
 /// the others dim, attacks (never seen) half dim with a dashed ring. Text has a dark outline so it reads
 /// over any scene. Drawn at the size for a 1080p game window and scaled with the window (see
 /// ComboHintLayout).
@@ -171,20 +173,31 @@ internal static class RotationStrip
 
     public static UIElement Build(StripView view)
     {
-        var steps = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        foreach (var step in view.Steps)
+        var steps = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top };
+        // With any badge in the phase every step keeps a row for them, so the notes stay in line.
+        bool badgeRow = view.Steps.Any(s => s.Badges.Count > 0);
+        for (int i = 0; i < view.Steps.Count; i++)
         {
-            var element = Step(step);
+            var step = view.Steps[i];
+            var element = Step(step, Column(view.Steps, i), badgeRow);
             // The current step on top of a step overlapping it.
             if (step.State is StripStepState.Ready or StripStepState.Waiting) Panel.SetZIndex(element, 1);
             steps.Children.Add(element);
         }
+        if (view.Finish.Count > 0)
+        {
+            // What the round still waits for, after the last step, on the line: badges only.
+            var finish = new WrapPanel { MaxWidth = StepWidth, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(10, LineY - BadgeHeight / 2, 0, 0) };
+            foreach (var badge in view.Finish) finish.Children.Add(Badge(badge, StepWidth));
+            steps.Children.Add(finish);
+        }
         if (view.Next is { Steps.Count: > 0 } next)
         {
             steps.Children.Add(NextDivider(next.Phase));
-            foreach (var step in next.Steps)
+            bool nextRow = next.Steps.Any(s => s.Badges.Count > 0);
+            for (int i = 0; i < next.Steps.Count; i++)
             {
-                var element = Step(step);
+                var element = Step(next.Steps[i], Column(next.Steps, i), nextRow);
                 element.Opacity = NextOpacity;
                 steps.Children.Add(element);
             }
@@ -196,8 +209,9 @@ internal static class RotationStrip
             Text = view.Phase,
             Foreground = Text,
             FontSize = 40,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 28, 0),
+            // Centred on the line through the icons, wherever the badges and notes under them end.
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, LineY - 27, 28, 0),
             Effect = Outline(),
         });
         row.Children.Add(steps);
@@ -250,19 +264,33 @@ internal static class RotationStrip
         return area;
     }
 
-    private static UIElement Step(StripStep step)
+    /// <summary>
+    /// The width under a step its badges may use: the whole step, or, beside a step drawn overlapping it (used together),
+    /// only up to halfway to that step's circle, so a step's badges never reach its neighbour's.
+    /// </summary>
+    private static double Column(IReadOnlyList<StripStep> steps, int i) =>
+        steps[i].WithPrevious || (i + 1 < steps.Count && steps[i + 1].WithPrevious) ? StepWidth - Overlap : StepWidth;
+
+    private static FrameworkElement Step(StripStep step, double column, bool badgeRow)
     {
         bool current = step.State is StripStepState.Ready or StripStepState.Waiting;
         bool lit = step.State == StripStepState.Lit;
         var accent = step.State == StripStepState.Ready ? Cyan : Text;
-        var panel = new StackPanel
+        // Lit and current bright; not seen yet dim; an attack (never seen) in between (owner, 2026-10-24). The badges
+        // aren't dimmed with the step: theirs is their condition's own (a later step's condition is live too).
+        double opacity = step.State switch { StripStepState.Unlit => UnlitOpacity, StripStepState.Neutral => NeutralOpacity, _ => 1 };
+        var outer = new StackPanel
         {
             Width = StepWidth,
             Margin = new Thickness(step.WithPrevious ? -Overlap : 0, 0, 0, 0),
-            // Lit and current bright; not seen yet dim; an attack (never seen) in between (owner, 2026-10-24).
-            Opacity = step.State switch { StripStepState.Unlit => UnlitOpacity, StripStepState.Neutral => NeutralOpacity, _ => 1 },
+            Tag = step, // found by it in tests
+        };
+        var panel = new StackPanel
+        {
+            Opacity = opacity,
             Tag = step.State, // found by it in tests
         };
+        outer.Children.Add(panel);
         panel.Children.Add(Chevrons(current ? accent : null));
         panel.Children.Add(new TextBlock
         {
@@ -323,26 +351,119 @@ internal static class RotationStrip
             });
         }
         panel.Children.Add(icon);
-        var note = new TextBlock
+
+        if (badgeRow)
+        {
+            // Right under the circle, inside the step's column: they wrap to another row, and one too wide shrinks.
+            var badges = new WrapPanel { MaxWidth = column, MinHeight = BadgeHeight + 2 * BadgeMargin, HorizontalAlignment = HorizontalAlignment.Center };
+            foreach (var badge in step.Badges) badges.Children.Add(Badge(badge, column));
+            outer.Children.Add(badges);
+        }
+        outer.Children.Add(new TextBlock
         {
             Text = step.Note ?? " ",
             Foreground = Text,
             FontSize = 20,
             FontWeight = FontWeights.Bold,
             HorizontalAlignment = HorizontalAlignment.Center,
+            Opacity = opacity,
             Effect = Outline(),
-        };
-        if (step.Condition is not null)
+        });
+        return outer;
+    }
+
+    /// <summary>A badge's height at 1080p, and its picture's.</summary>
+    private const double BadgeHeight = 26, BadgePicture = 22, BadgeMargin = 1.5;
+
+    private static readonly Brush BadgeFill = Frozen(Color.FromArgb(0xD0, 0x18, 0x1A, 0x1E));
+
+    /// <summary>
+    /// One condition's badge: a dark pill with its picture (the shared icon rule: <see cref="AlertPopUp.Icon"/>'s picture,
+    /// skill-point glyph or "!"; an amber ring for steps lit), a slash across it for "not", a small triangle (running) or
+    /// star (empowered), and the comparison with its number. Amber-edged and bright while it holds, grey-edged and dim
+    /// while not. After a "/" when it is one of several where any is enough.
+    /// </summary>
+    private static FrameworkElement Badge(StripBadge badge, double column)
+    {
+        var picture = new Grid { Width = BadgePicture, Height = BadgePicture, VerticalAlignment = VerticalAlignment.Center };
+        picture.Children.Add(badge.Glyph switch
         {
-            // The conditions in words can be long: smaller, two lines at most under the circle, then "…".
-            note.FontSize = 15;
-            note.TextWrapping = TextWrapping.Wrap;
-            note.TextTrimming = TextTrimming.CharacterEllipsis;
-            note.TextAlignment = TextAlignment.Center;
-            note.MaxWidth = StepWidth;
-            note.MaxHeight = 42;
+            BadgeGlyph.Steps when badge.Picture is null => new Ellipse { Width = 16, Height = 16, Stroke = Lit, StrokeThickness = 3 },
+            _ => new Viewbox
+            {
+                Child = AlertPopUp.Icon(badge.Picture, badge.Glyph == BadgeGlyph.SkillPoints),
+                Width = BadgePicture,
+                Height = BadgePicture,
+            },
+        });
+        if (badge.Not)
+        {
+            picture.Children.Add(new Line
+            {
+                X1 = BadgePicture - 2, Y1 = 2, X2 = 2, Y2 = BadgePicture - 2,
+                Stroke = Warning,
+                StrokeThickness = 3,
+                StrokeStartLineCap = PenLineCap.Round,
+                StrokeEndLineCap = PenLineCap.Round,
+            });
         }
-        panel.Children.Add(note);
-        return panel;
+        var content = new StackPanel { Orientation = Orientation.Horizontal };
+        content.Children.Add(picture);
+        if (badge.Sign != BadgeSign.None) content.Children.Add(Sign(badge.Sign));
+        if (badge.Value is { } value)
+        {
+            content.Children.Add(new TextBlock
+            {
+                Text = value,
+                Foreground = Text,
+                FontSize = 15,
+                FontWeight = FontWeights.Bold,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(2, 0, 0, 1),
+                Effect = Outline(),
+            });
+        }
+        var pill = new Border
+        {
+            Height = BadgeHeight,
+            CornerRadius = new CornerRadius(BadgeHeight / 2),
+            Background = BadgeFill,
+            BorderBrush = badge.Holds ? Lit : Ring,
+            BorderThickness = new Thickness(1.5),
+            Padding = new Thickness(1, 0, badge.Value is null && badge.Sign == BadgeSign.None ? 1 : 6, 0),
+            Child = content,
+        };
+        var item = new StackPanel { Orientation = Orientation.Horizontal };
+        if (badge.Or)
+            item.Children.Add(new TextBlock { Text = "/", Foreground = Text, FontSize = 17, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(1, 0, 2, 0), Effect = Outline() });
+        item.Children.Add(pill);
+        return new Viewbox
+        {
+            // Too wide for the step's column (a long number, an "or"): smaller, never past it.
+            Stretch = Stretch.Uniform,
+            StretchDirection = StretchDirection.DownOnly,
+            MaxWidth = column - 2 * BadgeMargin,
+            Margin = new Thickness(BadgeMargin),
+            Child = item,
+            Opacity = badge.Holds ? 1 : DimBadgeOpacity,
+            Tag = badge, // found by it in tests
+        };
+    }
+
+    /// <summary>Running: a small triangle, as a play sign. Empowered: a small four-pointed star.</summary>
+    private static UIElement Sign(BadgeSign sign)
+    {
+        var shape = new Polygon
+        {
+            Fill = sign == BadgeSign.Empowered ? Lit : Text,
+            Points = sign == BadgeSign.Empowered
+                ? [new Point(6, 0), new Point(7.6, 4.4), new Point(12, 6), new Point(7.6, 7.6), new Point(6, 12), new Point(4.4, 7.6), new Point(0, 6), new Point(4.4, 4.4)]
+                : [new Point(1, 1), new Point(10, 6), new Point(1, 11)],
+            Width = 12,
+            Height = 12,
+            Margin = new Thickness(2, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        return shape;
     }
 }

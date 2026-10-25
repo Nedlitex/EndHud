@@ -141,9 +141,9 @@ public class RotationStripViewTests
             .. steps.SelectMany(s => s.Badges).Concat(view.Finish).Select(b => b.Value).OfType<string>()];
     }
 
-    /// <summary>Every text drawn on the strip, but a badge's "/" between conditions where any one is enough.</summary>
+    /// <summary>Every text drawn on the strip, but the glyphs: a badge's "/" between conditions where any one is enough, and "!" for one with no picture.</summary>
     private static HashSet<string> Words(StripView view) => OnSta(() =>
-        Descendants(RotationStrip.Build(view)).OfType<System.Windows.Controls.TextBlock>().Select(t => t.Text).Where(t => t != "/").ToHashSet());
+        Descendants(RotationStrip.Build(view)).OfType<System.Windows.Controls.TextBlock>().Select(t => t.Text).Where(t => t is not ("/" or "!")).ToHashSet());
 
     [Fact]
     public void A_phase_entered_by_its_condition_is_the_one_shown()
