@@ -306,6 +306,36 @@ letterboxed picture would put it. The inn is told without its top-left title and
 [`SyntheticOsd`](tests/EndHud.Vision.Tests/Support/SyntheticOsd.cs) (multi-colour text, shadow, frametime graph,
 optional background, five positions): every value read under it is the clean one or unknown, never another.
 
+**On-screen displays over the combat HUD.** Moved to the bottom corners or the top centre, the display covers HUD
+readers, and being static it wins every filter that waits for readings to agree. Each reader tells a display from
+what it reads, and reads unknown then:
+- [`HpBar`](src/EndHud.Vision/HpBar.cs): the bar is fill from its left end, then the dark track to its end. Light,
+  then black, then light again right of the fill (text outlined in black), the fill starting only after something
+  light at the left end, a fill dimmer than the game ever dims it (under 125; the game's dimmed squad is 137-146, a
+  55 % black backdrop makes cyan 111), or an empty bar dimly coloured, 70-125, or darker than its track (5-20; the
+  track is 23-37) is unknown. A slot whose HP bar is unknown is [`PartySlot.Covered`](src/EndHud.Vision/PartyReader.cs):
+  whether the operator has fallen is unknown, its combo bar and level aren't read, its portrait isn't named
+  ([`SquadIdentifier`](src/EndHud.Vision/Operators/SquadIdentifier.cs) keeps the last name, as for a fallen
+  operator), it doesn't make slot 1 "absent" for the squad size, and it shows no HP for the "another screen" test.
+- [`ComboBar`](src/EndHud.Vision/ComboBar.cs): the fill's middle column is 151-175 grey or up to 255 white; under 125
+  it is the bar seen through a backdrop (a ready bar read 0.92-0.99). An empty track must be darker, by 8, than the
+  rows 4-8 above or 2-4 below it (a flat dark backdrop read as an empty bar, and exploration as combat).
+- [`BattleSkillButton`](src/EndHud.Vision/BattleSkillButton.cs): three or more bands of white rows across the dark
+  disc (inside 56 px at 4K), or beside the icon (42 px out), are lines of text; vivid colour over 0.15 of the disc
+  (0.06 at most on icons) is coloured text. Either: unknown, so Si's button isn't Cooling either.
+- [`OperatorCounters`](src/EndHud.Vision/Operators/OperatorCounters.cs), on the squad portraits: an unlit petal of
+  Laevatain's flower is grey (40-80; 54-67 measured), and Typhoeus's dots are read only while his arrow bars are.
+- [`BossStatusReader`](src/EndHud.Vision/BossStatusReader.cs): a square whose brightest fifth starts under 140 (171
+  or more on every accepted icon) is too dim to match: an unknown icon under a backdrop matched Amp.
+- The cast flash ([`BattleSkillFlash`](src/EndHud.Vision/BattleSkillFlash.cs)) needed nothing: the text's ink is
+  brighter than the fill measure takes, and a backdrop darkens the disc rather than filling it.
+
+The gate is [`OnScreenDisplayCombatGateTests`](tests/EndHud.Vision.Tests/OnScreenDisplayCombatGateTests.cs): every
+combat reading over 196 combat, exploration and HUD fixtures (both layouts) at 4K and 1080p, the display at five
+positions with and without its backdrop (702 wrong values before, 0 after), and the cast flash with the display
+coming, redrawing its numbers and going; [`OnScreenDisplayCombatTests`](tests/EndHud.Vision.Tests/OnScreenDisplayCombatTests.cs)
+names each fixed case, and checks naming over twelve readings.
+
 **Network.** Every GitHub request (EndHud updates, recommended rotations, the operator package)
 goes through [`GitHubHttp`](src/EndHud/GitHubHttp.cs), which logs the host and path, the status and
 time, or the failure with its whole chain of causes down to the socket error (a reset connection
