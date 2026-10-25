@@ -88,6 +88,7 @@ public class OnScreenDisplayCombatTests
     [InlineData("battle-hud/battle-47s.jpg")]
     [InlineData("battle-hud/battle-50s.jpg")]
     [InlineData("lasting-ultimate-background/zl-53_5s.jpg")]
+    [InlineData("lasting-ultimate-background/zh-63s.jpg")]
     [InlineData("battle-low-hp.jpg")]
     [InlineData("portrait-counters/laevatain-35s.jpg")]
     public async Task A_battle_skill_button_under_a_display_reads_its_state_or_unknown(string file)
