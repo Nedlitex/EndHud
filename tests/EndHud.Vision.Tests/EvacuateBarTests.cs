@@ -78,6 +78,34 @@ public class EvacuateBarTests
         Assert.True(pillFirst < EvacuateBar.CharacterInkMin, $"first {pillFirst:F2}");
     }
 
+    /// <summary>
+    /// White where the bar would be but no word in it is not the bar: a flash or a white sky filling the corner, a plain white
+    /// box. The word's two characters (ink in each, not a dark patch) are what make it the bar.
+    /// </summary>
+    [Theory]
+    [InlineData(255, false)] // plain white over the bar's place and around it
+    [InlineData(255, true)]  // white, with a dark block where the word would be (a dark patch is not two characters)
+    [InlineData(230, false)] // a bright grey-white sky
+    public async Task A_white_corner_without_the_word_is_not_the_bar(byte white, bool darkWordPlace)
+    {
+        var frame = await Load(Path.Combine("mode-switch", "keyboard-open-world-event-fight.jpg"));
+        var ui = new UiScaler(frame.Width, frame.Height);
+        Paint(frame, ui.TopLeft(new PixelRect(0, 40, 420, 140)), white);
+        if (darkWordPlace) Paint(frame, ui.TopLeft(new PixelRect(180, 80, 96, 46)), 20);
+
+        Assert.False(Read(frame));
+    }
+
+    private static void Paint(Frame frame, PixelRect rect, byte value)
+    {
+        for (int y = rect.Y; y < rect.Bottom; y++)
+        for (int x = rect.X; x < rect.Right; x++)
+        {
+            int i = (y * frame.Width + x) * 4;
+            frame.Bgra[i] = frame.Bgra[i + 1] = frame.Bgra[i + 2] = value;
+        }
+    }
+
     public static TheoryData<string, string> Screens()
     {
         var data = new TheoryData<string, string>();
