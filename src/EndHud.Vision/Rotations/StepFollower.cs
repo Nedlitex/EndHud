@@ -128,13 +128,13 @@ public sealed class StepFollower(Rotation rotation)
         }
         var slots = RotationTracker.SlotsByOperator(now);
         LightConditions(steps, now, slots, history);
-        FinishIfOver(now, slots, history);
+        FinishIfOver(steps, now, slots, history);
         var uses = casts.Select(c => new Use(c.Slot - 1, StepAction.BattleSkill, c.At)).ToList();
         if (before is not null) uses.AddRange(VisionUses(before, now));
         foreach (var use in uses.OrderBy(u => u.At))
         {
             Light(use, steps, slots, before);
-            FinishIfOver(now, slots, history);
+            FinishIfOver(steps, now, slots, history);
         }
         return Position(phase, steps, now, slots, history);
     }
@@ -184,9 +184,11 @@ public sealed class StepFollower(Rotation rotation)
     /// <summary>
     /// The phase's finish condition came true (none: every countable step lit, at least one): played through once more,
     /// and every light goes out for a new round. It counts on the reading it comes true; one that keeps holding counts
-    /// again only after it was seen not holding; one that can't be told changes nothing.
+    /// again only after it was seen not holding; one that can't be told changes nothing. A finish already holding when
+    /// the phase comes onto the strip counts on that reading, as an entry condition would. In the new round, the
+    /// condition steps still met light again at once.
     /// </summary>
-    private void FinishIfOver(PartyState now, IReadOnlyDictionary<string, int> slots, IPhaseHistory history)
+    private void FinishIfOver(List<PlayedStep> steps, PartyState now, IReadOnlyDictionary<string, int> slots, IPhaseHistory history)
     {
         var finish = rotation.Phases[_phase].Finish;
         bool? held = finish.Count == 0
@@ -199,6 +201,7 @@ public sealed class StepFollower(Rotation rotation)
         _timesPlayed[_phase]++;
         _playedThisShowing = true;
         Array.Clear(_lit);
+        LightConditions(steps, now, slots, history);
     }
 
     /// <summary>The phase history, with this round's lights for "the phase's steps lit".</summary>
@@ -245,7 +248,15 @@ public sealed class StepFollower(Rotation rotation)
         for (int i = 0; i < steps.Count; i++)
             marks[i] = !Countable(steps[i].Step) ? StepMark.Neutral : _lit[i] ? StepMark.Lit : StepMark.Unlit;
         int at = Chevron(steps);
-        if (at < 0) return new StepPosition(phase, marks, false, []);
+        if (at < 0)
+        {
+            // Every step lit and the finish condition not holding: nothing to point at, so what the phase waits for
+            // is its finish condition (the strip's reasons), never a silent strip.
+            var finish = rotation.Phases[phase].Finish;
+            var lights = new WithLights(history, StepsLit!);
+            return new StepPosition(phase, marks, false,
+                finish.Select(c => new ConditionCheck(CheckKind.Expected, c, RotationTracker.Holds(c, now, slots, lights))).ToList());
+        }
         // The chevron's group: its unlit steps are all current (steps used together, in either order).
         for (int i = GroupStart(steps, at); i <= GroupEnd(steps, at); i++)
             if (marks[i] == StepMark.Unlit) marks[i] = StepMark.Current;

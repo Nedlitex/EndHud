@@ -1872,12 +1872,13 @@ one is already set there (so it can be put back to 0).
 Then **完成条件（可选）**, the phase's finish condition (`finish`), on the same pickers (host
 `PhaseFinish`, the full set plus 本轴段步骤已点亮), with a line saying what happens when it holds and
 the default when there is none (every step but basic, heavy and plunge attacks lit, in any order). Its
-添加条件 starts at 本轴段步骤已点亮 · 至少 N 步 with N every step that lights up (the default written
-out, to lower from; 技力 in a phase with no such step, where the kind is greyed out saying why). 本轴段步骤已点亮
+添加条件 starts at 本轴段步骤已点亮 · 全部 (the default written out, following the steps as they are added
+or removed; 技力 in a phase with no such step, where the kind is greyed out saying why). 本轴段步骤已点亮
 offers 全部, 至少 N 步 (N picked from 1 to the steps that light up) and 指定步骤已点亮: a tick per step
 that lights up, named as the step list names it ("2. 别礼 战技"); a number from a file that isn't such a
 step stays ticked as 第 n 步（已不存在或不会点亮）and saving is refused saying so. Adding, moving and
-deleting steps keep the ticks on their steps (`PhaseDraft.RenumberFinishSteps`). Copying a phase copies
+deleting steps keep the ticks on their steps (`PhaseDraft.RenumberFinishSteps`), and a ticked step turned
+into an attack is unticked. Copying a phase copies
 its finish condition.
 
 Conditions are evaluated by `RotationTracker.Evaluate`, which takes an `IPhaseHistory`: the
@@ -2015,7 +2016,11 @@ condition"):
 
 **Finishing** (`phasePlayed`, `phaseCurrent playedThrough`): after the condition steps and after each use, the phase's
 `finish` condition is checked (absent: every step that isn't neutral lit, at least one). When it comes true the round
-counts once (played +1, played through this showing) and every light goes out. "Steps lit" in it is told from this
+counts once (played +1, played through this showing) and every light goes out; the condition steps still met light
+again at once in the new round. One already holding when the phase comes onto the strip counts on that reading, as an
+entry condition would. With every step lit and the finish condition not holding there is no chevron, and the reasons
+under the strip are the finish condition's needs (the follower's checks are its conditions), never a silent strip. "Steps
+lit" naming nothing (no step picked, at least 0: refused, but a hand-written file is followed) never holds. "Steps lit" in it is told from this
 round's lights (`IPhaseHistory.StepsLit`; the selector passes the follower's on). Measured by `StepFollowerTests`,
 `FinishConditionTests`, `ConditionStepTests`, `PhasePlayedTests` and the 祀 rotation's
 `NextReleaseRotationsTests.The_burst_played_in_another_order_is_not_over_until_every_step_is_lit`.

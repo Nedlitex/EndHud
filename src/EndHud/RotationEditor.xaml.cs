@@ -448,6 +448,9 @@ public partial class RotationEditor : Window
         {
             // 当前操控 is offered for an attack only: a skill left on it moves to the first squad operator.
             if (!_step.Action.IsDisplayOnly() && _step.OperatorId == RotationStep.Controlled) _step.OperatorId = SquadOperators().FirstOrDefault()?.Id ?? "";
+            // An attack never lights: it leaves "these steps lit" (numbered from 1).
+            int number = _phase!.Steps.IndexOf(_step) + 1;
+            if (_step.Action.IsDisplayOnly()) _phase.RenumberFinishSteps(n => n == number ? null : n);
             _loading = true;
             FillStepOperators();
             Select(StepOperator, _step.OperatorId);
@@ -532,7 +535,7 @@ public partial class RotationEditor : Window
     private void AddFinishCondition_Click(object sender, RoutedEventArgs e)
     {
         if (_phase is null) return;
-        // The owner's own: the phase's steps lit (at least all of them, to lower from), unless the phase has none that light.
+        // The owner's own: the phase's steps lit, all of them (the default written out), unless the phase has none that light.
         _phase.Finish.Add(_finishConditions.Default(FinishStepChoices().Count > 0 ? "StepsLit" : "SkillPoints"));
         FinishConditionsChanged(rebuild: true);
     }

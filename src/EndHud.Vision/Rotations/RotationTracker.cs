@@ -409,13 +409,14 @@ public sealed class RotationTracker(Rotation rotation)
     /// <summary>
     /// "The phase's steps lit" against this round's lights (true lit, false not yet, null a step that never lights): all
     /// that light up (at least one), at least N, or the steps numbered (from 1) lit; a step number the phase doesn't
-    /// have, or one that never lights, isn't lit.
+    /// have, or one that never lights, isn't lit. Naming nothing (no step picked, at least 0; refused by the checks, but
+    /// a hand-written file is followed anyway) never holds, rather than always.
     /// </summary>
     private static bool StepsLit(StepsLitCondition c, IReadOnlyList<bool?> lit) => c.Which switch
     {
         StepsLitWhich.All => lit.Any(l => l is not null) && lit.All(l => l is not false),
-        StepsLitWhich.AtLeast => lit.Count(l => l == true) >= c.Count,
-        _ => (c.Steps ?? []).All(n => n >= 1 && n <= lit.Count && lit[n - 1] == true),
+        StepsLitWhich.AtLeast => c.Count >= 1 && lit.Count(l => l == true) >= c.Count,
+        _ => c.Steps is { Count: > 0 } steps && steps.All(n => n >= 1 && n <= lit.Count && lit[n - 1] == true),
     };
 
     /// <summary>

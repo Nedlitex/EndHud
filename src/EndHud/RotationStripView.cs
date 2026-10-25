@@ -43,8 +43,8 @@ internal static class RotationStripView
         var view = ForPhase(rotation, position.Step.PhaseIndex, library, skillIcon, avatar, steps, statusIcon, controlled);
         if (steps is not { Ready: false } || steps.Phase != position.Step.PhaseIndex) return view;
         int current = steps.Marks.ToList().IndexOf(StepMark.Current);
-        if (current < 0) return view;
-        var step = rotation.Played().Where(p => p.PhaseIndex == steps.Phase).ElementAt(current).Step;
+        // No step left under the chevron (every one lit): the checks are the phase's finish condition's, about no step.
+        var step = current >= 0 ? rotation.Played().Where(p => p.PhaseIndex == steps.Phase).ElementAt(current).Step : new RotationStep("", StepAction.Condition);
         var reasons = steps.Checks.Where(c => c.Holds == false).Select(c => Reason(c, step, state, library, history, PhaseName(rotation))).OfType<string>().ToList();
         return view with { Reasons = reasons };
     }

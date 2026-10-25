@@ -69,8 +69,8 @@ internal sealed class ConditionEditor(
             // Another phase's count by default: a phase's entry condition can't use its own (Rotation.Problems).
             "PhaseShown" => new PhaseShownCondition(defaultPhaseId?.Invoke() ?? phases().FirstOrDefault().Id ?? "", Comparison.AtLeast, 1),
             "PhasePlayed" => new PhasePlayedCondition(defaultPhaseId?.Invoke() ?? phases().FirstOrDefault().Id ?? "", Comparison.AtLeast, 1),
-            // Every step that lights up: the default finish written out, to lower from there.
-            "StepsLit" => new StepsLitCondition(StepsLitWhich.AtLeast, Count: Math.Max(1, PhaseSteps().Count)),
+            // Every step that lights up: the default finish written out, following the steps as they are added or removed.
+            "StepsLit" => new StepsLitCondition(StepsLitWhich.All),
             // A group is made to say "or": it starts as "any of" with one condition in it.
             "Group" => new AnyCondition([new UltimateCondition(first, true)]),
             _ => new SkillPointsCondition(Comparison.AtLeast, 2),
