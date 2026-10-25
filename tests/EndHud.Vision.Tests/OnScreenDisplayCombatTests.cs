@@ -195,6 +195,29 @@ public class OnScreenDisplayCombatTests
     }
 
     /// <summary>
+    /// A fallen operator under the display's backdrop: the death mark dimmed out of sight and the empty bar still read
+    /// empty, so the operator read as alive at 0 HP. Fallen stays fallen, or the slot is unknown (its HP bar unread).
+    /// </summary>
+    [Theory]
+    [InlineData("battle-three-fallen.jpg")]
+    [InlineData("battle-squad-wiped.jpg")]
+    public async Task A_fallen_operator_under_a_display_is_fallen_or_unknown(string file)
+    {
+        var reader = new PartyReader(new TextRecognizer());
+        foreach (var (size, frame) in await Sizes(file))
+        {
+            var clean = await reader.ReadAsync(frame);
+            foreach (var (name, covered) in Covered(frame, OsdPosition.BottomLeft))
+            {
+                var read = await reader.ReadAsync(covered);
+                for (int i = 0; i < clean.Slots.Count; i++)
+                    if (clean.Slots[i].Dead)
+                        Assert.True(read.Slots[i].Dead || read.Slots[i].Hp is null, $"{size} {name}: slot {i + 1} read alive at HP {read.Slots[i].Hp:F2}");
+            }
+        }
+    }
+
+    /// <summary>
     /// A squad of three with the display over slot 1: slot 1 showing nothing readable was taken for a screen without
     /// the squad panel, so the squad was read as four.
     /// </summary>
