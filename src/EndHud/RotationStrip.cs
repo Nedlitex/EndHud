@@ -14,7 +14,55 @@ namespace EndHud;
 /// <param name="Note">Below the icon, e.g. "飞天".</param>
 /// <param name="WithPrevious">Drawn overlapping the step before: used right after it.</param>
 /// <param name="Condition">A condition step's own look; null for a skill or an attack.</param>
-internal sealed record StripStep(BitmapSource? Icon, BitmapSource? Avatar, string Action, string? Note, StripStepState State, bool WithPrevious, StripCondition? Condition = null);
+/// <param name="Badges">Its expected conditions as badges under the circle (<see cref="StripBadge"/>); none for a step without any.</param>
+internal sealed record StripStep(BitmapSource? Icon, BitmapSource? Avatar, string Action, string? Note, StripStepState State, bool WithPrevious, StripCondition? Condition = null,
+    IReadOnlyList<StripBadge>? Badges = null)
+{
+    public IReadOnlyList<StripBadge> Badges { get; init; } = Badges ?? [];
+}
+
+/// <summary>
+/// One condition as the strip shows it: a small badge of the condition's picture and a compact sign, never words
+/// (owner, 2026-10-25: "show some condition hint in the rotation? like 连击 icon >= 1, fire icon >= 1, etc? not text,
+/// this will make user confuse"). Built by <see cref="StripBadges"/>.
+/// </summary>
+/// <param name="Picture">The condition's picture (<see cref="ConditionIcon"/>): a status's or buff's icon, a skill's icon, an
+/// operator's avatar, a step's icon; null while not loaded or for none: <paramref name="Glyph"/> is drawn instead.</param>
+/// <param name="Glyph">What is drawn without a picture.</param>
+/// <param name="Value">The comparison and the number, e.g. "≥1", "=4", "&lt;2", "≥90%"; null for a yes/no condition.</param>
+/// <param name="Sign">A small mark for conditions that share a skill's icon: running, empowered.</param>
+/// <param name="Not">The opposite is asked for (not ready, absent, not running): a slash across the picture.</param>
+/// <param name="Holds">It holds in the current reading: bright. Not holding, or unknown: dim.</param>
+/// <param name="Or">One of several where any one is enough, after the first: a "/" before it.</param>
+internal sealed record StripBadge(BitmapSource? Picture, BadgeGlyph Glyph, string? Value, BadgeSign Sign, bool Not, bool Holds, bool Or = false);
+
+/// <summary>What a badge draws when it has no picture.</summary>
+internal enum BadgeGlyph
+{
+    /// <summary>Its picture (none loaded yet: "!").</summary>
+    Picture,
+
+    /// <summary>The skill points: three slanted yellow segments.</summary>
+    SkillPoints,
+
+    /// <summary>The phase's steps lit: an amber ring, a lit step's.</summary>
+    Steps,
+
+    /// <summary>Nothing to picture (a phase's showings or plays): "!".</summary>
+    Other,
+}
+
+/// <summary>A mark beside a skill's icon, telling apart conditions that share it.</summary>
+internal enum BadgeSign
+{
+    None,
+
+    /// <summary>The skill is running (a lasting ultimate or battle skill; its time left): a small triangle.</summary>
+    Running,
+
+    /// <summary>The battle skill is empowered (战技已强化): a small four-pointed star.</summary>
+    Empowered,
+}
 
 /// <summary>A condition step on the strip (lit like any step once met: <see cref="StripStepState.Lit"/>).</summary>
 /// <param name="SkillPoints">Its first condition is about the skill points: their glyph in the circle (when <see cref="StripStep.Icon"/> is null).</param>
@@ -42,10 +90,11 @@ internal enum StripStepState
 }
 
 /// <summary>
-/// What the strip shows: the phase ("充能轴 II"), its steps, a look at the phase played after it,
-/// and why the current step isn't ready.
+/// What the strip shows: the phase ("充能轴 II"), its steps (with their conditions as badges), a look at the phase
+/// played after it, and, with every step lit and the phase not finished yet, its finish condition as badges at the end.
 /// </summary>
-internal sealed record StripView(string Phase, IReadOnlyList<StripStep> Steps, StripNext? Next, IReadOnlyList<string> Reasons);
+/// <param name="Finish">The finish condition's badges, shown after the last step while the phase waits for it alone; empty otherwise.</param>
+internal sealed record StripView(string Phase, IReadOnlyList<StripStep> Steps, StripNext? Next, IReadOnlyList<StripBadge> Finish);
 
 /// <summary>The first steps of the phase played next, drawn after a divider that names it, dimmed.</summary>
 internal sealed record StripNext(string Phase, IReadOnlyList<StripStep> Steps);
@@ -89,6 +138,9 @@ internal static class RotationStrip
 
     /// <summary>A step not seen used yet this round: dimmed, so the lit ones stand out.</summary>
     internal const double UnlitOpacity = 0.45;
+
+    /// <summary>A badge whose condition doesn't hold now, or can't be told: dim, so the ones holding stand out.</summary>
+    internal const double DimBadgeOpacity = 0.4;
 
     /// <summary>A basic, heavy or plunge attack (never seen used): between unlit and lit, its ring dashed.</summary>
     internal const double NeutralOpacity = 0.75;
@@ -155,21 +207,7 @@ internal static class RotationStrip
         grid.Children.Add(new Rectangle { Height = 1, Fill = Line, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, LineY, 0, 0) });
         grid.Children.Add(row);
 
-        var body = new StackPanel { Children = { grid } };
-        if (view.Reasons.Count > 0)
-        {
-            body.Children.Add(new TextBlock
-            {
-                Text = string.Join("　", view.Reasons),
-                Foreground = Warning,
-                FontSize = 19,
-                FontWeight = FontWeights.SemiBold,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Margin = new Thickness(0, 2, 0, 0),
-                Effect = Outline(),
-            });
-        }
-        return new Border { Background = Band, Padding = new Thickness(FadeWidth, 6, FadeWidth, 6), Child = body };
+        return new Border { Background = Band, Padding = new Thickness(FadeWidth, 6, FadeWidth, 6), Child = grid };
     }
 
     // Chevrons (26) + label (24) + the icon's top margin (2) + half the icon.

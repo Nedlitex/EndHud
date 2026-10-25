@@ -24,7 +24,7 @@ internal static class RotationStripView
         if (view is null) return null;
         static string Keys(IEnumerable<StripStep> steps) =>
             string.Join(",", steps.Select(s => $"{s.Action}{s.State}{s.Icon is not null}{s.Avatar is not null}{s.Note}{s.Condition?.SkillPoints}"));
-        return $"{view.Phase}|{Keys(view.Steps)}|{view.Next?.Phase}|{Keys(view.Next?.Steps ?? [])}|{string.Join(",", view.Reasons)}";
+        return $"{view.Phase}|{Keys(view.Steps)}|{view.Next?.Phase}|{Keys(view.Next?.Steps ?? [])}|";
     }
 
     /// <summary>How many of the next phase's steps the strip shows after the current phase.</summary>
@@ -40,13 +40,7 @@ internal static class RotationStripView
         // An attack by whoever is controlled shows them: the operator under the chevron in this reading.
         var controlled = state?.ActiveSlot is int active && active >= 1 && active <= state.Slots.Count && state.Slots[active - 1].Operator?.Operator.Id is { } id
             ? library?.Find(id) : null;
-        var view = ForPhase(rotation, position.Step.PhaseIndex, library, skillIcon, avatar, steps, statusIcon, controlled);
-        if (steps is not { Ready: false } || steps.Phase != position.Step.PhaseIndex) return view;
-        int current = steps.Marks.ToList().IndexOf(StepMark.Current);
-        // No step left under the chevron (every one lit): the checks are the phase's finish condition's, about no step.
-        var step = current >= 0 ? rotation.Played().Where(p => p.PhaseIndex == steps.Phase).ElementAt(current).Step : new RotationStep("", StepAction.Condition);
-        var reasons = steps.Checks.Where(c => c.Holds == false).Select(c => Reason(c, step, state, library, history, PhaseName(rotation))).OfType<string>().ToList();
-        return view with { Reasons = reasons };
+        return ForPhase(rotation, position.Step.PhaseIndex, library, skillIcon, avatar, steps, statusIcon, controlled);
     }
 
     /// <summary>
@@ -127,45 +121,4 @@ internal static class RotationStripView
     /// <summary>A rotation's phases by the strip's names ("充能轴 II"), by id; null for one it doesn't have.</summary>
     internal static Func<string, string?> PhaseName(Rotation rotation) => id =>
         rotation.Phases.Select((p, i) => (p.Id, i)).Where(p => p.Id == id).Select(p => rotation.PhaseLabel(p.i)).FirstOrDefault();
-
-    /// <summary>
-    /// Why the current step isn't ready, in words. Its own ability: skill points short, cooling,
-    /// charging. A condition: what it needs, in the same words as everywhere else
-    /// (<see cref="ConditionWords.Need"/>: "需要：寒冷附着 ≥ 3 层（当前 1）"); an unmet "all" gives the
-    /// needs of its parts that don't hold.
-    /// </summary>
-    /// <param name="history">The phases shown and played this fight, for "phase shown/played" (their current count, and an "all" telling its unmet parts).</param>
-    /// <param name="phaseName">The phases by the strip's names; null: ids as they are.</param>
-    public static string? Reason(ConditionCheck check, RotationStep step, PartyState? state, OperatorLibrary? library, IPhaseHistory? history = null, Func<string, string?>? phaseName = null)
-    {
-        string Name(string id) => library?.Find(id)?.NameZh ?? id;
-        if (check.Kind == CheckKind.OwnAbility)
-        {
-            return step.Action switch
-            {
-                StepAction.BattleSkill => state?.SkillPoints is < 1 ? Loc.Format("Rotation.Reason.SkillPoints", Points(state.SkillPoints), 1)
-                    : Loc.Format("Rotation.Reason.Cooling", Name(step.OperatorId), Loc.Get("Rotation.Action.BattleSkill")),
-                StepAction.Combo => Loc.Format("Rotation.Reason.Cooling", Name(step.OperatorId), Loc.Get("Rotation.Action.Combo")),
-                StepAction.Ultimate => Loc.Format("Rotation.Reason.UltimateCharging", Name(step.OperatorId)),
-                _ => null, // display-only: nothing to wait for
-            };
-        }
-        if (check.Condition is not { } condition) return null;
-        phaseName ??= id => id;
-        // An unmet "all": the needs of its parts that don't hold (a part that can't be told isn't listed).
-        if (condition is AllCondition all)
-        {
-            var unmet = all.Of.Where(part => state is null || RotationTracker.Evaluate(part, state, history ?? PhaseHistory.None) == false)
-                .Select(part => Reason(new ConditionCheck(CheckKind.Expected, part, false), step, state, library, history, phaseName)).OfType<string>().ToList();
-            return unmet.Count == 0 ? null : string.Join("　", unmet);
-        }
-        return ConditionWords.Need(condition, state, history, library, phaseName);
-    }
-
-    /// <summary>
-    /// Skill points as the reason shows them: rounded down, so 0.96 of the 1 needed reads "0.9/1",
-    /// never a "1/1" that looks enough.
-    /// </summary>
-    internal static string Points(double? points) =>
-        points is { } p ? (Math.Floor(p * 10 + 1e-9) / 10).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) : "?";
 }

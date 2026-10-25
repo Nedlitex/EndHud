@@ -9,8 +9,8 @@ namespace EndHud.Tests;
 /// <summary>
 /// What the strip shows: the current phase's steps, then the first two of the phase played next,
 /// kept apart from them. Without step marks (the editor's preview, the menu's sample) every step
-/// looks the same; with them done steps fade, skipped ones fade with a slash, and the current one is
-/// ready or waiting, with why.
+/// looks the same; with them lit steps are bright, unlit ones dim, and the current one is ready or waiting.
+/// Conditions are badges under their steps, never words (owner, 2026-10-25).
 /// </summary>
 [Collection(WpfCollection.Name)]
 public class RotationStripViewTests
@@ -38,7 +38,7 @@ public class RotationStripViewTests
         Assert.Equal("充能轴 I", view.Next!.Phase);
         Assert.Equal(2, view.Next.Steps.Count);
         Assert.All(view.Steps.Concat(view.Next.Steps), s => Assert.Equal(StripStepState.Plain, s.State));
-        Assert.Empty(view.Reasons);
+        Assert.Empty(view.Finish);
     }
 
     /// <summary>The step panels of a drawn strip, by the state each was drawn for: its opacity, its circle's ring colour, whether the ring is dashed.</summary>
@@ -61,7 +61,7 @@ public class RotationStripViewTests
 
         Assert.Equal([StripStepState.Lit, StripStepState.Ready, StripStepState.Unlit], view.Steps.Select(s => s.State));
         Assert.All(view.Next!.Steps, s => Assert.Equal(StripStepState.Plain, s.State)); // the next phase's preview is never marked
-        Assert.Empty(view.Reasons);
+        Assert.Empty(view.Finish);
         var drawn = Drawn(view).Take(3).ToList();
         Assert.Equal([1.0, 1.0, RotationStrip.UnlitOpacity], drawn.Select(d => d.Opacity));
         Assert.True(RotationStrip.UnlitOpacity < 1);
@@ -86,9 +86,12 @@ public class RotationStripViewTests
         Assert.True(neutral.Dashed);
     }
 
-    /// <summary>Every step lit and the phase's finish condition not holding yet: the strip says what it waits for.</summary>
+    /// <summary>
+    /// Every step lit and the phase's finish condition not holding yet: its conditions are badges at the end of the
+    /// strip (before: "需要：…" in words under it), and the steps have none of their own.
+    /// </summary>
     [Fact]
-    public void Every_step_lit_and_not_finished_the_strip_says_what_the_finish_waits_for()
+    public void Every_step_lit_and_not_finished_the_finish_conditions_are_badges_at_the_end()
     {
         var played = Rotation.Played();
         var state = new Vision.PartyState([]) { SkillPoints = 1 };
@@ -97,23 +100,50 @@ public class RotationStripViewTests
 
         var view = RotationStripView.Build(Rotation, new RotationPosition(played[0], true, []), state, null, (_, _) => null, _ => null, steps);
 
-        Assert.Equal([RotationStripView.Reason(three, new RotationStep("", StepAction.Condition), state, null)], view.Reasons);
-        Assert.NotEmpty(view.Reasons[0]!);
+        Assert.Equal([new StripBadge(null, BadgeGlyph.SkillPoints, "≥3", BadgeSign.None, Not: false, Holds: false)], view.Finish);
+        Assert.All(view.Steps, s => Assert.Empty(s.Badges));
+        Assert.Equal(AllowedWords(view), Words(view).ToHashSet());
     }
 
+    /// <summary>
+    /// The current battle skill short of a skill point: a dim skill-point badge "≥1" under it, and no words (before:
+    /// "技力 0.4/1" under the strip). Cooling with points enough, or a combo not ready: nothing, the white chevron says
+    /// "not yet".
+    /// </summary>
     [Fact]
-    public void A_waiting_step_shows_why()
+    public void A_battle_skill_short_of_skill_points_shows_a_dim_skill_point_badge_and_nothing_else()
     {
         var played = Rotation.Played();
-        var state = new Vision.PartyState([]) { SkillPoints = 0.4 };
-        var steps = new StepPosition(0, [StepMark.Current, StepMark.Unlit, StepMark.Unlit], false, [new ConditionCheck(CheckKind.OwnAbility, null, false)]);
+        StripView Waiting(double points, int at)
+        {
+            var marks = new[] { StepMark.Unlit, StepMark.Unlit, StepMark.Unlit };
+            marks[at] = StepMark.Current;
+            var steps = new StepPosition(0, marks, false, [new ConditionCheck(CheckKind.OwnAbility, null, false)]);
+            return RotationStripView.Build(Rotation, new RotationPosition(played[0], true, []), new Vision.PartyState([]) { SkillPoints = points }, null,
+                (_, _) => null, _ => null, steps);
+        }
 
-        var view = RotationStripView.Build(Rotation, new RotationPosition(played[0], true, []), state, null, (_, _) => null, _ => null, steps);
-
-        Assert.Equal([StripStepState.Waiting, StripStepState.Unlit, StripStepState.Unlit], view.Steps.Select(s => s.State));
-        // Ardelia's battle skill, the current step: 0.4 of the 1 skill point it needs.
-        Assert.Equal([Loc.Format("Rotation.Reason.SkillPoints", "0.4", 1)], view.Reasons);
+        var shortOfPoints = Waiting(0.4, at: 0);
+        Assert.Equal([StripStepState.Waiting, StripStepState.Unlit, StripStepState.Unlit], shortOfPoints.Steps.Select(s => s.State));
+        Assert.Equal([new StripBadge(null, BadgeGlyph.SkillPoints, "≥1", BadgeSign.None, Not: false, Holds: false)], shortOfPoints.Steps[0].Badges);
+        Assert.Empty(Waiting(2, at: 0).Steps[0].Badges); // cooling
+        Assert.Empty(Waiting(0.4, at: 1).Steps[1].Badges); // Camille's combo not ready
+        Assert.Empty(shortOfPoints.Finish);
+        Assert.Equal(AllowedWords(shortOfPoints), Words(shortOfPoints).ToHashSet());
     }
+
+    /// <summary>The words a strip may carry: the phase's and steps' names, their own notes, the next phase's, the badges' numbers. No condition in words.</summary>
+    private static HashSet<string> AllowedWords(StripView view)
+    {
+        var steps = view.Steps.Concat(view.Next?.Steps ?? []).ToList();
+        return [view.Phase, .. steps.Select(s => s.Action), .. steps.Select(s => s.Note ?? " "),
+            .. (view.Next is { } next ? new[] { next.Phase, Loc.Get("Rotation.Next") } : []),
+            .. steps.SelectMany(s => s.Badges).Concat(view.Finish).Select(b => b.Value).OfType<string>()];
+    }
+
+    /// <summary>Every text drawn on the strip, but a badge's "/" between conditions where any one is enough.</summary>
+    private static HashSet<string> Words(StripView view) => OnSta(() =>
+        Descendants(RotationStrip.Build(view)).OfType<System.Windows.Controls.TextBlock>().Select(t => t.Text).Where(t => t != "/").ToHashSet());
 
     [Fact]
     public void A_phase_entered_by_its_condition_is_the_one_shown()
@@ -254,7 +284,7 @@ public class RotationStripViewTests
         Assert.Same(face, heavy.Icon);
         Assert.Null(heavy.Avatar);
         Assert.Equal(Loc.Get("Rotation.Action.HeavyAttack"), heavy.Action);
-        Assert.Null(RotationStripView.Reason(new ConditionCheck(CheckKind.OwnAbility, null, null), step, null, library));
+        Assert.Empty(heavy.Badges);
         OnSta(() => RotationStrip.Build(view)); // draws
     }
 
@@ -268,11 +298,12 @@ public class RotationStripViewTests
     private static Vision.PartyState Cryo(int stacks) => new([]) { SkillPoints = 2, BossStatuses = [new Vision.BossStatusReading("Cryo Infliction", 0, 1, stacks)] };
 
     /// <summary>
-    /// The circle holds the first condition's icon (the alert pop-up's rule: a status's icon here), and the
-    /// caption under it is the conditions in words. How it is lit is its mark's, as any step's (below).
+    /// The circle holds the first condition's icon (the alert pop-up's rule: a status's icon here), and under it its
+    /// conditions as badges, bright while they hold, no words (owner, 2026-10-25; before: the conditions in words). How
+    /// it is lit is its mark's, as any step's (below).
     /// </summary>
     [Fact]
-    public void A_condition_step_shows_its_icon_and_words()
+    public void A_condition_step_shows_its_icon_and_badges_and_no_words()
     {
         var status = OnSta(() =>
         {
@@ -290,7 +321,10 @@ public class RotationStripViewTests
         Assert.Same(status, step.Icon);
         Assert.Null(step.Avatar);
         Assert.Equal(Loc.Get("Rotation.Action.Condition"), step.Action);
-        Assert.Equal(ConditionWords.Statements([CryoThree], null, _ => null), step.Note);
+        Assert.Null(step.Note);
+        Assert.Equal([new StripBadge(status, BadgeGlyph.Picture, "≥3", BadgeSign.None, Not: false, Holds: true)], step.Badges);
+        Assert.Equal([new StripBadge(status, BadgeGlyph.Picture, "≥3", BadgeSign.None, Not: false, Holds: false)], waiting.Steps[0].Badges);
+        Assert.Equal(AllowedWords(holding), Words(holding));
         Assert.Equal(new StripCondition(false), step.Condition);
         Assert.Equal(new StripCondition(false), waiting.Steps[0].Condition);
         Assert.Null(holding.Steps[1].Condition); // a skill step isn't one
@@ -298,7 +332,7 @@ public class RotationStripViewTests
         OnSta(() => RotationStrip.Build(waiting));
     }
 
-    /// <summary>A note written on the step is its caption; skill points draw their glyph; the preview draws it plain.</summary>
+    /// <summary>A note written on the step is its caption, under the badges; skill points draw their glyph; the preview draws it plain.</summary>
     [Fact]
     public void A_condition_step_keeps_its_note_and_draws_the_skill_points_glyph()
     {
@@ -308,6 +342,8 @@ public class RotationStripViewTests
         var preview = RotationStripView.ForPhase(rotation, 0, null, (_, _) => null, _ => null);
 
         Assert.Equal("等技力", preview.Steps[0].Note);
+        // Nothing read (the editor's preview): the badge is there, dim.
+        Assert.Equal([new StripBadge(null, BadgeGlyph.SkillPoints, "≥2", BadgeSign.None, Not: false, Holds: false)], preview.Steps[0].Badges);
         Assert.Equal(new StripCondition(true), preview.Steps[0].Condition);
         Assert.Null(preview.Steps[0].Icon);
         OnSta(() => RotationStrip.Build(preview));
@@ -360,6 +396,77 @@ public class RotationStripViewTests
         Assert.Null(preview.Icon);
         Assert.Equal(Loc.Get("Rotation.Action.PlungeAttack"), preview.Action);
         OnSta(() => RotationStrip.Build(RotationStripView.ForPhase(rotation, 0, library, (_, _) => null, op => faces[op.Id])));
+    }
+
+    // ---- Condition badges (owner, 2026-10-25) ----
+
+    private static System.Windows.Media.Imaging.BitmapSource Bitmap(int size) => OnSta(() =>
+    {
+        var bitmap = new System.Windows.Media.Imaging.WriteableBitmap(size, size, 96, 96, PixelFormats.Bgra32, null);
+        bitmap.Freeze();
+        return (System.Windows.Media.Imaging.BitmapSource)bitmap;
+    });
+
+    /// <summary>Ardelia's battle skill wants 2 skill points and 3 Cryo stacks; Camille's combo nothing; Arcane's battle skill at most 1 skill point.</summary>
+    private static readonly Rotation Badged = new(Rotation.CurrentFormat, "r", "r", ["Laevatain", "Camille", "Arcane", "Ardelia"],
+    [
+        new RotationPhase("p", "P",
+        [
+            new RotationStep("Ardelia", StepAction.BattleSkill, [new SkillPointsCondition(Comparison.AtLeast, 2), CryoThree]),
+            new RotationStep("Camille", StepAction.Combo),
+            new RotationStep("Arcane", StepAction.BattleSkill, [new SkillPointsCondition(Comparison.AtMost, 1)], Note: "飞天"),
+        ]),
+    ]);
+
+    private static StripView BadgedView(Vision.PartyState state, System.Windows.Media.Imaging.BitmapSource? status = null)
+    {
+        // Ardelia's step is current: its checks as the follower makes them.
+        var checks = new List<ConditionCheck> { new(CheckKind.OwnAbility, null, true) };
+        checks.AddRange(Badged.Phases[0].Steps[0].Expect.Select(c => new ConditionCheck(CheckKind.Expected, c, RotationTracker.Evaluate(c, state, PhaseHistory.None))));
+        var steps = new StepPosition(0, [StepMark.Current, StepMark.Unlit, StepMark.Unlit], false, checks);
+        return RotationStripView.Build(Badged, new RotationPosition(Badged.Played()[0], false, []), state, null, (_, _) => null, _ => null, steps,
+            statusIcon: id => id == "Cryo Infliction" ? status : null);
+    }
+
+    /// <summary>
+    /// Owner, 2026-10-25: "can we show some condition hint in the rotation? like 连击 icon >= 1, fire icon >= 1, etc? not
+    /// text". Every step with conditions has a badge per condition (its picture and the comparison), bright while it
+    /// holds now and dim while it doesn't, for the steps after the current one as well (they're live); a step without
+    /// any has none, and a note stays.
+    /// </summary>
+    [Fact]
+    public void Every_step_with_conditions_shows_them_as_badges_bright_where_they_hold_now()
+    {
+        var status = Bitmap(2);
+
+        var view = BadgedView(Cryo(1), status); // 2 skill points, 1 Cryo stack
+
+        Assert.Equal(
+        [
+            new StripBadge(null, BadgeGlyph.SkillPoints, "≥2", BadgeSign.None, Not: false, Holds: true),
+            new StripBadge(status, BadgeGlyph.Picture, "≥3", BadgeSign.None, Not: false, Holds: false),
+        ], view.Steps[0].Badges);
+        Assert.Empty(view.Steps[1].Badges);
+        Assert.Equal([new StripBadge(null, BadgeGlyph.SkillPoints, "≤1", BadgeSign.None, Not: false, Holds: false)], view.Steps[2].Badges);
+        Assert.Equal("飞天", view.Steps[2].Note);
+
+        var later = BadgedView(Cryo(3) with { SkillPoints = 0.5 }, status);
+        Assert.Equal([false, true], later.Steps[0].Badges.Select(b => b.Holds));
+        Assert.True(later.Steps[2].Badges[0].Holds); // at most 1 skill point: a step not current, judged on this reading too
+        Assert.Equal(AllowedWords(view), Words(view));
+    }
+
+    /// <summary>The strip is drawn again when a badge turns bright or dim, everything else alike; not when nothing it shows changed.</summary>
+    [Fact]
+    public void The_redraw_key_changes_when_a_condition_starts_or_stops_holding()
+    {
+        var holding = BadgedView(Cryo(1) with { SkillPoints = 0.5 });
+        var same = BadgedView(Cryo(1) with { SkillPoints = 0.8 });
+        var lacking = BadgedView(Cryo(1) with { SkillPoints = 1.5 }); // Arcane's "≤1" now dim
+
+        Assert.Equal(holding.Steps.Select(s => s.State), lacking.Steps.Select(s => s.State));
+        Assert.Equal(RotationStripView.Key(holding), RotationStripView.Key(same));
+        Assert.NotEqual(RotationStripView.Key(holding), RotationStripView.Key(lacking));
     }
 
     /// <summary>A library of these operators, without any art: enough to find them by id.</summary>

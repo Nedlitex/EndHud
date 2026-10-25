@@ -57,7 +57,7 @@ internal static class ConditionWords
         switch (condition)
         {
             case SkillPointsCondition:
-                return state?.SkillPoints is { } points ? RotationStripView.Points(points) : null;
+                return state?.SkillPoints is { } points ? Points(points) : null;
             case ComboChargeCondition c:
                 return Slot(c.OperatorId)?.Combo is { } combo ? Percent(combo.Ready ? 1 : combo.Progress) : null;
             case UltimateChargeCondition c:
@@ -88,7 +88,15 @@ internal static class ConditionWords
         }
     }
 
-    private static readonly string[] Roman = ["I", "II", "III", "IV"];
+    /// <summary>The game's numerals for a reaction's level (I–IV).</summary>
+    internal static readonly string[] Roman = ["I", "II", "III", "IV"];
+
+    /// <summary>
+    /// Skill points as they are read out: rounded down, so 0.96 of the 1 needed reads "0.9", never a "1" that looks
+    /// enough.
+    /// </summary>
+    internal static string Points(double points) =>
+        (Math.Floor(points * 10 + 1e-9) / 10).ToString("0.#", CultureInfo.InvariantCulture);
 
     private static string One(StateCondition condition, OperatorLibrary? library, Func<string, string?> phaseName, Func<string, string> text, bool nested)
     {

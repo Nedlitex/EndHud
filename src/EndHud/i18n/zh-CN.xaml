@@ -41,9 +41,6 @@
     <sys:String x:Key="Editor.ControlledOperator">当前操控</sys:String>
     <sys:String x:Key="Rotation.Problem.ControlledOperatorOnlyForAttacks">轴段“{0}”第 {1} 步选了“当前操控”：只有普攻、重击和下落攻击可以由当前操控的干员来打，技能请选具体的干员。</sys:String>
     <sys:String x:Key="Rotation.Next">接下来</sys:String>
-    <sys:String x:Key="Rotation.Reason.SkillPoints">技力 {0}/{1}</sys:String>
-    <sys:String x:Key="Rotation.Reason.Cooling">{0} {1}冷却中</sys:String>
-    <sys:String x:Key="Rotation.Reason.UltimateCharging">{0} 终结技未就绪</sys:String>
     <sys:String x:Key="Rotation.Reason.Need">需要：{0}</sys:String>
     <sys:String x:Key="Rotation.Reason.NeedNow">需要：{0}（当前 {1}）</sys:String>
     <sys:String x:Key="Rotation.Problem.NoName">请给排轴起个名字。</sys:String>

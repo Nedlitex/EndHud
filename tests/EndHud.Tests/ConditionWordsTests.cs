@@ -9,8 +9,9 @@ namespace EndHud.Tests;
 /// <summary>
 /// One wording for conditions (owner, 2026-10-24: "everything that supports condition use the same
 /// language"): every kind has one plain statement (<see cref="ConditionWords.Statement"/>: the alert's
-/// words, the condition step's caption), and the strip's "需要：…（当前 x）" is made from the same words
-/// (<see cref="ConditionWords.Need"/>), the current value where one is read. Built from the zh-CN strings
+/// words, the editor's lists), and a need "需要：…（当前 x）" is made from the same words
+/// (<see cref="ConditionWords.Need"/>), the current value where one is read. (The strip shows conditions as badges, no
+/// words: <see cref="StripBadgesTests"/>.) Built from the zh-CN strings
 /// read from the file, as <see cref="AlertTextTests"/> does.
 /// </summary>
 public class ConditionWordsTests
@@ -117,7 +118,7 @@ public class ConditionWordsTests
         Assert.Equal(ConditionCatalogue.Kinds.Select(k => k.Type).ToHashSet(), EveryKind.Select(c => c.GetType()).ToHashSet());
     }
 
-    /// <summary>Every kind reads as a plain statement, and the strip's need is that statement after "需要：".</summary>
+    /// <summary>Every kind reads as a plain statement, and its need is that statement after "需要：".</summary>
     [Fact]
     public void Every_kind_has_a_statement_and_a_need_made_of_it()
     {
@@ -134,14 +135,13 @@ public class ConditionWordsTests
         }
     }
 
-    /// <summary>The strip gives a reason for every kind (before: nothing for combo or ultimate %, battle skill ready, phase shown or played).</summary>
-    [Fact]
-    public void The_strip_gives_a_reason_for_every_kind()
-    {
-        var step = new RotationStep("Si", StepAction.BattleSkill);
-        foreach (var condition in EveryKind)
-            Assert.NotNull(RotationStripView.Reason(new ConditionCheck(CheckKind.Expected, condition, false), step, Reading(), null, new History(1, 1)));
-    }
+    [Theory]
+    [InlineData(0.96, "0.9")]
+    [InlineData(1.4, "1.4")]
+    [InlineData(2.0, "2")]
+    [InlineData(0.0, "0")]
+    public void Skill_points_short_of_what_is_needed_never_read_as_enough(double points, string shown) =>
+        Assert.Equal(shown, ConditionWords.Points(points));
 
     [Fact]
     public void A_need_says_the_current_value_where_one_is_read()

@@ -220,7 +220,7 @@ static class RotationDemo
             StripView? view = reading?.Position is { } position
                 ? RotationStripView.Build(rotation, position, reading.State, library, Icon, Avatar)
                 : null;
-            string key = view is null ? "" : $"{view.Phase}|{string.Join(",", view.Steps.Select(s => $"{s.Action}{s.State}"))}|{string.Join(",", view.Reasons)}";
+            string key = RotationStripView.Key(view) ?? "";
             if (key != lastKey)
             {
                 host.Content = view is null ? null : RotationStrip.Build(view);
