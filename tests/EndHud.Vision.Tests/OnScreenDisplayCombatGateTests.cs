@@ -14,7 +14,7 @@ namespace EndHud.Vision.Tests;
 /// shown to the player and, the display being static, kept by every filter that waits for readings to agree.
 /// <para>
 /// Read at 4K and at 1080p over the combat, exploration and HUD fixtures (both layouts): the squad panel (seen, in
-/// combat, squad size, the controlled slot, skill points, the time bar; per slot fallen, HP, level, combo, ultimate,
+/// combat, squad size, the controlled slot, skill points and the bar's segment count, the time bar; per slot fallen, HP, level, combo, ultimate,
 /// battle skill), the mode switch, team buffs, the boss's statuses, the squad's counters and Si's button with the squad
 /// known. What the app keeps from a reading follows <see cref="PartyTracker"/>: a reading without the squad panel is not
 /// taken, so its slot values count as unknown. Each variant's verdicts are written to the test output ("GATE" lines).
@@ -35,7 +35,7 @@ public class OnScreenDisplayCombatGateTests(ITestOutputHelper output)
     [
         "battle-hud", "controller", "infliction", "vulnerable", "vulnerable-and-infliction", "reactions", "buffs",
         "portrait-counters", "si-timer-second-cast", "ultimate-time", "lasting-ultimate-background", "panel-or-not",
-        "small-squads", "counters", "faded-squad",
+        "small-squads", "counters", "faded-squad", "skill-points",
     ];
 
     public static TheoryData<string> CombatFrames()
@@ -186,6 +186,7 @@ public class OnScreenDisplayCombatGateTests(ITestOutputHelper output)
         r["squad size"] = state.SquadSize.ToString(CultureInfo.InvariantCulture);
         r["active"] = state.ActiveSlot?.ToString(CultureInfo.InvariantCulture);
         r["skill points"] = state.SkillPoints is { } sp ? F(sp) : null;
+        r["skill point segments"] = state.SkillPointMax?.ToString(CultureInfo.InvariantCulture);
         r["time bar"] = state.UltimateTimeLeft is { } t ? F(t) : null;
         foreach (var s in state.Slots)
         {
