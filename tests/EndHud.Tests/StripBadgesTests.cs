@@ -31,7 +31,7 @@ public class StripBadgesTests
     private static List<StripBadge> Of(StateCondition condition, Func<StateCondition, bool?>? holds = null) =>
         [.. StripBadges.Of([condition], holds ?? (_ => true), Pictures.Value)];
 
-    private static StripBadge B(BitmapSource? picture, string? value = null, BadgeSign sign = BadgeSign.None, bool not = false, bool or = false, BadgeGlyph? glyph = null) =>
+    private static StripBadge B(ImageSource? picture, string? value = null, BadgeSign sign = BadgeSign.None, bool not = false, bool or = false, BadgeGlyph? glyph = null) =>
         new(picture, glyph ?? BadgeGlyph.Picture, value, sign, not, Holds: true, or);
 
     /// <summary>What each kind of <see cref="ConditionWordsTests.EveryKind"/> looks like, in its order.</summary>
@@ -47,7 +47,7 @@ public class StripBadgesTests
         [B(BattleSkill, sign: BadgeSign.Running, not: true)], // Si's battle skill not running
         [B(BattleSkill, sign: BadgeSign.Empowered)], // her battle skill empowered
         [B(Status, "≥1")], // Link at least 1
-        [B(Face, "<3")], // Si's damage stacks below 3
+        [B(CounterGlyphs.For("damage-stacks"), "<3")], // Si's damage stacks below 3: their drawn glyph, not her face
         [B(Status, "≥3")], // 3 Cryo stacks
         [B(Face)], // Last Rite controlled
         [B(null, "≥2", glyph: BadgeGlyph.Other)], // a phase shown at least twice

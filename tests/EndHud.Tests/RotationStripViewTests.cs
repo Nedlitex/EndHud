@@ -332,6 +332,31 @@ public class RotationStripViewTests
         OnSta(() => RotationStrip.Build(waiting));
     }
 
+    /// <summary>
+    /// Owner, 2026-10-25: a counter in a condition is "the actual counter icon, not the character icon". A condition
+    /// step waiting on Laevatain's 熔火 shows the flower's glyph in its circle and on its badge, not her face; it draws.
+    /// </summary>
+    [Fact]
+    public void A_condition_step_on_a_counter_shows_the_counters_glyph()
+    {
+        var face = OnSta(() =>
+        {
+            var bitmap = new System.Windows.Media.Imaging.WriteableBitmap(2, 2, 96, 96, PixelFormats.Bgra32, null);
+            bitmap.Freeze();
+            return (System.Windows.Media.Imaging.BitmapSource)bitmap;
+        });
+        var rotation = WithConditionStep(new CounterCondition("Laevatain", "melting-flame", Comparison.Exactly, 4));
+        var library = Operators(["Laevatain", "Camille", "Arcane", "Ardelia"]);
+
+        var view = RotationStripView.ForPhase(rotation, 0, library, (_, _) => null, _ => face);
+
+        var flower = CounterGlyphs.For("melting-flame");
+        Assert.NotNull(flower);
+        Assert.Same(flower, view.Steps[0].Icon);
+        Assert.Equal([new StripBadge(flower, BadgeGlyph.Picture, "=4", BadgeSign.None, Not: false, Holds: false)], view.Steps[0].Badges);
+        OnSta(() => RotationStrip.Build(view));
+    }
+
     /// <summary>A note written on the step is its caption, under the badges; skill points draw their glyph; the preview draws it plain.</summary>
     [Fact]
     public void A_condition_step_keeps_its_note_and_draws_the_skill_points_glyph()

@@ -28,11 +28,18 @@ internal enum AlertSubjectKind
     /// skill; the alert pop-up keeps the operator's avatar for those.
     /// </summary>
     Skill,
+
+    /// <summary>
+    /// An operator's counter (<see cref="AlertSubject.Counter"/>): its drawn glyph (<see cref="CounterGlyphs"/>), as the game
+    /// draws it beside the HP bar; the operator's avatar for a counter without one.
+    /// </summary>
+    Counter,
 }
 
 /// <param name="Id">The status id or operator id; null for <see cref="AlertSubjectKind.SkillPoints"/> and <see cref="AlertSubjectKind.None"/>.</param>
 /// <param name="Action">Which skill, for <see cref="AlertSubjectKind.Skill"/>.</param>
-internal sealed record AlertSubject(AlertSubjectKind Kind, string? Id = null, StepAction? Action = null);
+/// <param name="Counter">Which counter (its id, e.g. "melting-flame"), for <see cref="AlertSubjectKind.Counter"/>.</param>
+internal sealed record AlertSubject(AlertSubjectKind Kind, string? Id = null, StepAction? Action = null, string? Counter = null);
 
 /// <summary>
 /// The icon of a list of conditions, one rule wherever conditions get one (owner, 2026-10-22, for the

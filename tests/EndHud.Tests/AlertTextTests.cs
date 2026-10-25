@@ -93,7 +93,8 @@ public class AlertTextTests
     {
         Assert.Equal(new AlertSubject(AlertSubjectKind.SkillPoints), AlertText.Subject([new SkillPointsCondition(Comparison.AtLeast, 1.8), new BossStatusCondition("Cryo Infliction", true)]));
         Assert.Equal(new AlertSubject(AlertSubjectKind.Status, "Cryo Infliction"), AlertText.Subject([new BossStatusCondition("Cryo Infliction", true, 3)]));
-        Assert.Equal(new AlertSubject(AlertSubjectKind.Operator, "Si"), AlertText.Subject([new CounterCondition("Si", "damage-stacks", Comparison.AtLeast, 40)]));
+        // A counter: its drawn glyph (CounterGlyphs), not the operator's face.
+        Assert.Equal(new AlertSubject(AlertSubjectKind.Counter, "Si", Counter: "damage-stacks"), AlertText.Subject([new CounterCondition("Si", "damage-stacks", Comparison.AtLeast, 40)]));
         Assert.Equal(new AlertSubject(AlertSubjectKind.Operator, "Laevatain"), AlertText.Subject([new NotCondition(new UltimateChargeCondition("Laevatain", Comparison.AtMost, 50))]));
         Assert.Equal(new AlertSubject(AlertSubjectKind.Status, "Corrosion"), AlertText.Subject([new AnyCondition([new BossStatusCondition("Corrosion", true, 2), new SkillPointsCondition(Comparison.AtLeast, 3)])]));
         Assert.Equal(new AlertSubject(AlertSubjectKind.Operator, "Si"), AlertText.Subject([new BattleSkillActiveCondition("Si", true)]));
