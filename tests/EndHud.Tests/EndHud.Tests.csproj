@@ -44,6 +44,19 @@
          submodule (tests/data); without it only those tests can't run. -->
     <None Include="..\data\Fixtures\combat-combos-nearly-refilled.jpg" Link="Fixtures\combat-combos-nearly-refilled.jpg"
           CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\combat-combos-nearly-refilled.jpg')" />
+    <!-- The counters as the game draws them, which the drawn counter glyphs are compared with (CounterGlyphsTests). -->
+    <None Include="..\data\Fixtures\battle-hud\battle-47s.jpg" Link="Fixtures\battle-hud\battle-47s.jpg"
+          CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\battle-hud\battle-47s.jpg')" />
+    <None Include="..\data\Fixtures\counters\native-20s.jpg" Link="Fixtures\counters\native-20s.jpg"
+          CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\counters\native-20s.jpg')" />
+    <None Include="..\data\Fixtures\counters\native-33s.jpg" Link="Fixtures\counters\native-33s.jpg"
+          CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\counters\native-33s.jpg')" />
+    <None Include="..\data\Fixtures\counters\zhuang-96s.jpg" Link="Fixtures\counters\zhuang-96s.jpg"
+          CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\counters\zhuang-96s.jpg')" />
+    <None Include="..\data\Fixtures\si\stacks-14s.jpg" Link="Fixtures\si\stacks-14s.jpg"
+          CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\si\stacks-14s.jpg')" />
+    <None Include="..\data\Fixtures\si\stacks-50_75s.jpg" Link="Fixtures\si\stacks-50_75s.jpg"
+          CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\si\stacks-50_75s.jpg')" />
     <!-- Inn frames for the inn wire-up's tests: the real readers end to end. -->
     <None Include="..\data\Fixtures\inn\session-gourmand-order.jpg" Link="Fixtures\inn\session-gourmand-order.jpg"
           CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\inn\session-gourmand-order.jpg')" />
