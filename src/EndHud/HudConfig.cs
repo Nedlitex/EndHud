@@ -75,6 +75,16 @@ internal sealed class HudConfig
     /// <summary>Show the rotation strip (排轴) when the recognised squad has a rotation.</summary>
     public bool RotationEnabled { get; set; } = true;
 
+    public bool ShowRotationInOpenWorld { get; set; }
+
+    public bool ShowGaugesInOpenWorld { get; set; }
+
+    public bool ShowComboHintsInOpenWorld { get; set; }
+
+    public bool ShowAlertsInOpenWorld { get; set; }
+
+    public bool OpenWorldRotationNoticeShown { get; set; }
+
     /// <summary>
     /// Read the player's battle-skill keys and controller chords, so the rotation strip can mark the
     /// current step. The player's consent: off until they turn it on (owner, 2026-10-23), and with it
