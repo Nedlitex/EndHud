@@ -45,10 +45,13 @@ public sealed record StepPosition(int Phase, IReadOnlyList<StepMark> Marks, bool
 /// waited on and never counted.</item>
 /// <item>The chevron is on the first unlit step in written order that isn't neutral (with the rest of its group).</item>
 /// </list>
-/// <para><b>Finishing.</b> The round is over when every step that isn't neutral is lit (at least one). It then counts
-/// as played through once more (<see cref="TimesPlayed"/>, for "phase played"; <see cref="PlayedThroughThisShowing"/>,
-/// for "the current phase, played through this showing"), and every light goes out for a new round. A phase of
-/// nothing but attacks never finishes.</para>
+/// <para><b>Finishing.</b> The round is over when the phase's finish condition comes true
+/// (<see cref="RotationPhase.Finish"/>; any condition, and "the phase's steps lit": all, at least N, these); without
+/// one, when every step that isn't neutral is lit (at least one, so a phase of nothing but attacks never finishes by
+/// itself). It then counts as played through once more (<see cref="TimesPlayed"/>, for "phase played";
+/// <see cref="PlayedThroughThisShowing"/>, for "the current phase, played through this showing"), and every light
+/// goes out for a new round. A finish condition that keeps holding counts again only after it was seen not holding;
+/// one that can't be told changes nothing.</para>
 /// </summary>
 public sealed class StepFollower(Rotation rotation)
 {
@@ -60,6 +63,18 @@ public sealed class StepFollower(Rotation rotation)
 
     /// <summary>Each step of the phase this round: lit or not.</summary>
     private bool[] _lit = [];
+
+    /// <summary>Each step of the phase: lights up (not a basic, heavy or plunge attack).</summary>
+    private bool[] _countable = [];
+
+    /// <summary>The finish condition held when last told this showing: it counts again only after it was seen not holding.</summary>
+    private bool _finishHeld;
+
+    /// <summary>
+    /// The phase's steps this round, in written order (for "the phase's steps lit"): true lit, false not yet, null a
+    /// step that never lights. Null before the first reading of a fight.
+    /// </summary>
+    public IReadOnlyList<bool?>? StepsLit => _phase < 0 ? null : _lit.Select((lit, i) => _countable[i] ? lit : (bool?)null).ToList();
 
     private readonly int[] _timesPlayed = new int[rotation.Phases.Count];
 
@@ -108,16 +123,18 @@ public sealed class StepFollower(Rotation rotation)
             if (phase != _phase) _playedThisShowing = false; // it came onto the strip
             _phase = phase;
             _lit = new bool[steps.Count];
+            _countable = steps.Select(p => Countable(p.Step)).ToArray();
+            _finishHeld = false;
         }
         var slots = RotationTracker.SlotsByOperator(now);
         LightConditions(steps, now, slots, history);
-        FinishIfOver(steps);
+        FinishIfOver(now, slots, history);
         var uses = casts.Select(c => new Use(c.Slot - 1, StepAction.BattleSkill, c.At)).ToList();
         if (before is not null) uses.AddRange(VisionUses(before, now));
         foreach (var use in uses.OrderBy(u => u.At))
         {
             Light(use, steps, slots, before);
-            FinishIfOver(steps);
+            FinishIfOver(now, slots, history);
         }
         return Position(phase, steps, now, slots, history);
     }
@@ -164,20 +181,38 @@ public sealed class StepFollower(Rotation rotation)
                 _lit[i] = true;
     }
 
-    /// <summary>Every countable step lit: played through once more, and every light goes out for a new round.</summary>
-    private void FinishIfOver(List<PlayedStep> steps)
+    /// <summary>
+    /// The phase's finish condition came true (none: every countable step lit, at least one): played through once more,
+    /// and every light goes out for a new round. It counts on the reading it comes true; one that keeps holding counts
+    /// again only after it was seen not holding; one that can't be told changes nothing.
+    /// </summary>
+    private void FinishIfOver(PartyState now, IReadOnlyDictionary<string, int> slots, IPhaseHistory history)
     {
-        bool any = false;
-        for (int i = 0; i < steps.Count; i++)
-        {
-            if (!Countable(steps[i].Step)) continue;
-            if (!_lit[i]) return;
-            any = true;
-        }
-        if (!any) return; // nothing that can be seen: never over
+        var finish = rotation.Phases[_phase].Finish;
+        bool? held = finish.Count == 0
+            ? _countable.Contains(true) && _lit.Where((_, i) => _countable[i]).All(lit => lit)
+            : RotationTracker.Holds(new AllCondition(finish), now, slots, new WithLights(history, StepsLit!));
+        if (held is not { } holds) return;
+        bool cameTrue = holds && !_finishHeld;
+        _finishHeld = holds;
+        if (!cameTrue) return;
         _timesPlayed[_phase]++;
         _playedThisShowing = true;
         Array.Clear(_lit);
+    }
+
+    /// <summary>The phase history, with this round's lights for "the phase's steps lit".</summary>
+    private sealed class WithLights(IPhaseHistory history, IReadOnlyList<bool?> lights) : IPhaseHistory
+    {
+        public int? TimesShown(string phaseId) => history.TimesShown(phaseId);
+
+        public int? TimesPlayed(string phaseId) => history.TimesPlayed(phaseId);
+
+        public string? CurrentPhase => history.CurrentPhase;
+
+        public bool? PlayedThroughThisShowing(string phaseId) => history.PlayedThroughThisShowing(phaseId);
+
+        public IReadOnlyList<bool?>? StepsLit => lights;
     }
 
     /// <summary>The first unlit countable step in written order; -1 when there is none.</summary>

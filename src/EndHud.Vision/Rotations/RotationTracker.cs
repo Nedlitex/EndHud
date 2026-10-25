@@ -396,6 +396,8 @@ public sealed class RotationTracker(Rotation rotation)
                 if (match is null) return !c.Present;            // not there: 0 stacks
                 if (match.Stacks is not { } stacks) return null; // there, but its count isn't read (covered, or not a counted status)
                 return (stacks >= c.MinStacks) == c.Present;
+            case StepsLitCondition c:
+                return history.StepsLit is { } lit ? StepsLit(c, lit) : null;
             case ControllingCondition c:
                 if (state.ActiveSlot is not { } active) return null;
                 return slots.TryGetValue(c.OperatorId, out int controlled) ? controlled == active - 1 : false;
@@ -403,6 +405,18 @@ public sealed class RotationTracker(Rotation rotation)
                 return null;
         }
     }
+
+    /// <summary>
+    /// "The phase's steps lit" against this round's lights (true lit, false not yet, null a step that never lights): all
+    /// that light up (at least one), at least N, or the steps numbered (from 1) lit; a step number the phase doesn't
+    /// have, or one that never lights, isn't lit.
+    /// </summary>
+    private static bool StepsLit(StepsLitCondition c, IReadOnlyList<bool?> lit) => c.Which switch
+    {
+        StepsLitWhich.All => lit.Any(l => l is not null) && lit.All(l => l is not false),
+        StepsLitWhich.AtLeast => lit.Count(l => l == true) >= c.Count,
+        _ => (c.Steps ?? []).All(n => n >= 1 && n <= lit.Count && lit[n - 1] == true),
+    };
 
     /// <summary>
     /// Is this operator's lasting ultimate running? The time bar isn't the controlled operator's (an

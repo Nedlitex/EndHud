@@ -43,6 +43,7 @@ public sealed record AlertRule(string Id, IReadOnlyList<StateCondition> When, st
                 ConditionProblemKind.EmptyGroup => AlertProblem.EmptyConditionGroup,
                 ConditionProblemKind.SkillTimeNotRead => AlertProblem.SkillTimeNotRead,
                 ConditionProblemKind.UltimateTimeNotRead => AlertProblem.UltimateTimeNotRead,
+                ConditionProblemKind.NotOfferedHere => AlertProblem.NotForAlerts,
                 _ => (AlertProblem?)null,
             };
             if (kind is { } k && !problems.Contains(k)) problems.Add(k);

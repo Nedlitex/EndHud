@@ -371,6 +371,8 @@ public sealed record Rotation(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool LastMatchWins = false)
 {
     /// <summary>
+    /// 10: phases' finish conditions (<see cref="RotationPhase.Finish"/>) and "the phase's steps lit" in them
+    /// (<see cref="StepsLitCondition"/>).
     /// 9: "time left of the ultimate" and "the current phase is" conditions
     /// (<see cref="UltimateTimeLeftCondition"/>, <see cref="PhaseCurrentCondition"/>), condition steps
     /// (<see cref="StepAction.Condition"/>), plunge-attack steps (<see cref="StepAction.PlungeAttack"/>), and
@@ -384,7 +386,7 @@ public sealed record Rotation(
     /// holds it (<see cref="FormatNeeded"/>), so one that uses nothing new stays readable by builds
     /// from before format 3.
     /// </summary>
-    public const int CurrentFormat = 9;
+    public const int CurrentFormat = 10;
 
     /// <summary>The lowest format that holds these phases and options.</summary>
     public static int FormatNeeded(IEnumerable<RotationPhase> phases, bool lastMatchWins)
@@ -394,6 +396,7 @@ public sealed record Rotation(
         // Each condition's kind says which format holds it (ConditionCatalogue).
         foreach (var condition in ConditionWalk.Of(list)) format = Math.Max(format, ConditionCatalogue.RotationFormat(condition));
         if (list.Any(p => p.Prioritised)) format = Math.Max(format, 6);
+        if (list.Any(p => p.Finish.Count > 0)) format = Math.Max(format, 10);
         foreach (var step in list.SelectMany(p => p.Steps)) format = Math.Max(format, StepActions.FormatNeeded(step));
         return format;
     }
@@ -476,6 +479,7 @@ public sealed record Rotation(
                     problems.Add(new RotationProblem(RotationProblemKind.PriorityRuleWithoutCondition, phase.Name, null, r + 1));
                 CheckConditions(rule.When, ConditionHostKind.PriorityRule, phase, null, r + 1, problems);
             }
+            CheckConditions(phase.Finish, ConditionHostKind.PhaseFinish, phase, null, null, problems, finish: true);
             for (int i = 0; i < phase.Steps.Count; i++)
             {
                 var step = phase.Steps[i];
@@ -499,9 +503,10 @@ public sealed record Rotation(
     /// <summary>The shared check (<see cref="ConditionRules"/>), with this rotation as the host's context, as rotation problems.</summary>
     /// <param name="step">From 1; null for the phase's entry condition or a priority rule.</param>
     /// <param name="rule">From 1, for a priority rule's condition; null otherwise.</param>
-    private void CheckConditions(IEnumerable<StateCondition> conditions, ConditionHostKind host, RotationPhase owner, int? step, int? rule, List<RotationProblem> problems)
+    /// <param name="finish">The phase's finish condition.</param>
+    private void CheckConditions(IEnumerable<StateCondition> conditions, ConditionHostKind host, RotationPhase owner, int? step, int? rule, List<RotationProblem> problems, bool finish = false)
     {
-        var context = new ConditionHost(host, Squad, owner.Id, id => Phase(id) is not null);
+        var context = new ConditionHost(host, Squad, owner.Id, id => Phase(id) is not null, owner.Steps);
         foreach (var problem in ConditionRules.Check(conditions, context))
         {
             var kind = problem.Kind switch
@@ -514,9 +519,14 @@ public sealed record Rotation(
                 ConditionProblemKind.MissingPhase => RotationProblemKind.PhaseShownMissingPhase,
                 ConditionProblemKind.PhaseShownOwnGate => RotationProblemKind.PhaseShownOwnGate,
                 ConditionProblemKind.PhasePlayedOwnGateNeverOpens => RotationProblemKind.PhasePlayedOwnGateNeverOpens,
+                // The only kind not offered somewhere: "the phase's steps lit", for a finish condition only.
+                ConditionProblemKind.NotOfferedHere => RotationProblemKind.StepsLitOutsideFinish,
+                ConditionProblemKind.StepsLitNoSteps => RotationProblemKind.StepsLitNoSteps,
+                ConditionProblemKind.StepsLitNotCountable => RotationProblemKind.StepsLitNotCountable,
+                ConditionProblemKind.StepsLitCountOutOfRange => RotationProblemKind.StepsLitCountOutOfRange,
                 _ => RotationProblemKind.SkillTimeNotRead,
             };
-            problems.Add(new RotationProblem(kind, owner.Name, step, rule));
+            problems.Add(new RotationProblem(kind, owner.Name, step, rule, finish));
         }
     }
 

@@ -26,7 +26,9 @@ public enum ConditionHostKind
 /// <param name="Squad">The rotation's squad: an operator outside it is a problem. Null (alerts): no squad; an operator not in the fight is unknown at run time.</param>
 /// <param name="OwnerPhaseId">The phase the conditions belong to, if any.</param>
 /// <param name="PhaseExists">Does the rotation have this phase. Null (alerts): any rotation's phase may be named, so it isn't checked.</param>
-public sealed record ConditionHost(ConditionHostKind Kind, IReadOnlyCollection<string>? Squad = null, string? OwnerPhaseId = null, Func<string, bool>? PhaseExists = null)
+/// <param name="OwnerSteps">The steps of the phase the conditions belong to, for "the phase's steps lit"; null: not checked.</param>
+public sealed record ConditionHost(ConditionHostKind Kind, IReadOnlyCollection<string>? Squad = null, string? OwnerPhaseId = null, Func<string, bool>? PhaseExists = null,
+    IReadOnlyList<RotationStep>? OwnerSteps = null)
 {
     /// <summary>An alert rule's conditions.</summary>
     public static ConditionHost Alert { get; } = new(ConditionHostKind.Alert);
@@ -93,10 +95,18 @@ public static class ConditionCatalogue
     /// <summary>Every host: the owner's "the same full set everywhere" (2026-10-24).</summary>
     private static readonly IReadOnlySet<ConditionHostKind> Everywhere = Enum.GetValues<ConditionHostKind>().ToHashSet();
 
+    /// <summary>
+    /// A phase's finish condition only: "the phase's steps lit" is about that phase's own round. In an entry condition or
+    /// a priority rule it would read whichever phase is on the strip (step numbers naming another phase's steps); in a
+    /// condition step, its own light; in an alert, no phase at all ("the current phase, played through this showing"
+    /// says "finished" there).
+    /// </summary>
+    private static readonly IReadOnlySet<ConditionHostKind> FinishOnly = new HashSet<ConditionHostKind> { ConditionHostKind.PhaseFinish };
+
     private static ConditionKind Kind<T>(string id, string json, string? editor, int rotationFormat, int alertFormat, ConditionNeeds needs = ConditionNeeds.None,
-        Func<T, string?>? who = null, Func<T, Comparison?>? comparison = null, Func<T, string?>? phase = null) where T : StateCondition =>
+        Func<T, string?>? who = null, Func<T, Comparison?>? comparison = null, Func<T, string?>? phase = null, IReadOnlySet<ConditionHostKind>? hosts = null) where T : StateCondition =>
         new(id, typeof(T), json, editor, rotationFormat, alertFormat, needs,
-            c => who?.Invoke((T)c), c => comparison?.Invoke((T)c), c => phase?.Invoke((T)c), Everywhere);
+            c => who?.Invoke((T)c), c => comparison?.Invoke((T)c), c => phase?.Invoke((T)c), hosts ?? Everywhere);
 
     /// <summary>In the order the editor's kind picker lists them.</summary>
     public static IReadOnlyList<ConditionKind> Kinds { get; } =
@@ -117,7 +127,8 @@ public static class ConditionCatalogue
         Kind<PhaseShownCondition>("PhaseShown", "phaseShown", "PhaseShown", 4, 4, ConditionNeeds.Phase, comparison: c => c.Is, phase: c => c.PhaseId),
         Kind<PhasePlayedCondition>("PhasePlayed", "phasePlayed", "PhasePlayed", 5, 2, ConditionNeeds.Phase, comparison: c => c.Is, phase: c => c.PhaseId),
         Kind<PhaseCurrentCondition>("PhaseCurrent", "phaseCurrent", "PhaseCurrent", 9, 4, ConditionNeeds.Phase, phase: c => c.PhaseId),
-        Kind<StepsLitCondition>("StepsLit", "stepsLit", "StepsLit", 10, 4),
+        // Alert format: never written there (refused), so the current one.
+        Kind<StepsLitCondition>("StepsLit", "stepsLit", "StepsLit", 10, 4, hosts: FinishOnly),
         Kind<AllCondition>("All", "all", "Group", 2, 1),
         Kind<AnyCondition>("Any", "any", "Group", 2, 1),
         Kind<NotCondition>("Not", "not", null, 3, 1),
@@ -238,6 +249,8 @@ public static class ConditionRules
     private static ConditionProblemKind? One(StateCondition condition, ConditionHost host)
     {
         var kind = ConditionCatalogue.Of(condition);
+        if (!kind.Hosts.Contains(host.Kind)) return ConditionProblemKind.NotOfferedHere;
+        if (condition is StepsLitCondition lit && host.OwnerSteps is { } steps && StepsLitProblem(lit, steps) is { } stepsProblem) return stepsProblem;
         if (kind.PhaseOf(condition) is { } phase && host.PhaseExists is { } exists && !exists(phase))
             return ConditionProblemKind.MissingPhase;
         // Counted when it comes onto the strip, a phase's own count changes the moment it shows: its
@@ -251,6 +264,22 @@ public static class ConditionRules
         if (who is not null && host.Squad is { } squad && !squad.Contains(who))
             return ConditionProblemKind.OperatorNotInSquad;
         return null;
+    }
+
+    /// <summary>
+    /// "The phase's steps lit" against the phase's steps: these steps must be picked, each one of the phase's that lights
+    /// up (not a basic, heavy or plunge attack); "at least N" must be 1 to the number that light up.
+    /// </summary>
+    private static ConditionProblemKind? StepsLitProblem(StepsLitCondition lit, IReadOnlyList<RotationStep> steps)
+    {
+        int countable = steps.Count(StepFollower.Countable);
+        return lit.Which switch
+        {
+            StepsLitWhich.These when lit.Steps is not { Count: > 0 } => ConditionProblemKind.StepsLitNoSteps,
+            StepsLitWhich.These when lit.Steps.Any(n => n < 1 || n > steps.Count || !StepFollower.Countable(steps[n - 1])) => ConditionProblemKind.StepsLitNotCountable,
+            StepsLitWhich.AtLeast when lit.Count < 1 || lit.Count > countable => ConditionProblemKind.StepsLitCountOutOfRange,
+            _ => null,
+        };
     }
 
     /// <summary>The conditions that must all hold: the list's, and inside "all" groups (not inside an "or" or a "not").</summary>

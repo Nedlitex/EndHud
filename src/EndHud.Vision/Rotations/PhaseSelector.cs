@@ -47,6 +47,9 @@ public sealed class PhaseSelector(Rotation rotation) : IPhaseHistory
     /// <summary>Played through since it last came onto the strip, from the step follower of the last <see cref="Update"/>; null before the first.</summary>
     public bool? PlayedThroughThisShowing(string phaseId) => _plays?.PlayedThroughThisShowing(phaseId);
 
+    /// <summary>The lights of the phase on the strip this round, from the step follower of the last <see cref="Update"/>; null before the first.</summary>
+    public IReadOnlyList<bool?>? StepsLit => _plays?.StepsLit;
+
     /// <summary>Times the phase has come onto the strip this fight (the one on it now included); null for a phase not in the rotation.</summary>
     public int? TimesShown(string phaseId)
     {
