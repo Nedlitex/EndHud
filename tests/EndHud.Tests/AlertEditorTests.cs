@@ -241,7 +241,9 @@ public sealed class AlertEditorTests : IDisposable
             kinds = Pickers(editor)[0].Items.Cast<ComboBoxItem>().Select(i => i.Tag).ToList();
         });
 
-        Assert.Equal(ConditionCatalogue.EditorKinds, kinds.Cast<string>());
+        // Every kind but the phase's steps lit, which is a rotation phase's finish condition only.
+        Assert.Equal(ConditionCatalogue.EditorKinds.Where(k => k != "StepsLit"), kinds.Cast<string>());
+        Assert.DoesNotContain("StepsLit", kinds);
         Assert.Contains("PhaseShown", kinds);
         Assert.Contains("BossStatus", kinds);
         Assert.Contains("Counter", kinds);

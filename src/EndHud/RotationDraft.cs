@@ -37,6 +37,7 @@ internal sealed class RotationDraft
                 When = [.. phase.When],
                 Priority = phase.Priority,
                 PriorityRules = phase.PriorityRules.Select(r => new PriorityRuleDraft { When = [.. r.When], Priority = r.Priority }).ToList(),
+                Finish = [.. phase.Finish],
                 Steps = phase.Steps.Select(s => new StepDraft
                 {
                     OperatorId = s.OperatorId,
@@ -59,6 +60,7 @@ internal sealed class RotationDraft
         {
             Priority = p.Priority,
             PriorityRules = p.PriorityRules.Select(r => new PriorityRule([.. r.When], r.Priority)).ToList(),
+            Finish = [.. p.Finish],
         }).ToList();
         return new Rotation(Rotation.FormatNeeded(phases, LastMatchWins), Id, Name.Trim(),
             Squad.Where(id => id is not null).Select(id => id!).ToList(), phases, LastMatchWins);
@@ -80,6 +82,15 @@ internal sealed class RotationDraft
         {
             string? message = problem.Kind switch
             {
+                // The finish condition's: the same problems as an entry condition's, naming the finish condition.
+                RotationProblemKind.ConditionOperatorNotInSquad when problem.Finish => Loc.Format("Rotation.Problem.FinishOperator", problem.Phase ?? ""),
+                RotationProblemKind.EmptyConditionGroup when problem.Finish => Loc.Format("Rotation.Problem.FinishEmptyGroup", problem.Phase ?? ""),
+                RotationProblemKind.PhaseShownMissingPhase or RotationProblemKind.PhasePlayedMissingPhase or RotationProblemKind.PhaseCurrentMissingPhase when problem.Finish =>
+                    Loc.Format("Rotation.Problem.FinishMissingPhase", problem.Phase ?? ""),
+                RotationProblemKind.StepsLitOutsideFinish => Loc.Format("Rotation.Problem.StepsLitOutsideFinish", problem.Phase ?? ""),
+                RotationProblemKind.StepsLitNoSteps => Loc.Format("Rotation.Problem.StepsLitNoSteps", problem.Phase ?? ""),
+                RotationProblemKind.StepsLitNotCountable => Loc.Format("Rotation.Problem.StepsLitNotCountable", problem.Phase ?? ""),
+                RotationProblemKind.StepsLitCountOutOfRange => Loc.Format("Rotation.Problem.StepsLitCountOutOfRange", problem.Phase ?? ""),
                 // A priority rule's condition: the same problems as an entry condition's, naming the rule.
                 RotationProblemKind.ConditionOperatorNotInSquad when problem.Rule is { } rule => Loc.Format("Rotation.Problem.RuleOperator", problem.Phase ?? "", rule),
                 RotationProblemKind.EmptyConditionGroup when problem.Rule is { } rule => Loc.Format("Rotation.Problem.EmptyRuleGroup", problem.Phase ?? "", rule),
@@ -134,11 +145,35 @@ internal sealed class PhaseDraft
     /// <summary>"If this holds, the priority is that", in order (see <see cref="RotationPhase.PriorityRules"/>).</summary>
     public List<PriorityRuleDraft> PriorityRules { get; set; } = [];
 
-    /// <summary>A copy under a new id: its own steps (changing one doesn't change the original), the same entry condition and priorities.</summary>
+    /// <summary>The finish condition (all must hold); empty: every step that lights up lit (see <see cref="RotationPhase.Finish"/>).</summary>
+    public List<StateCondition> Finish { get; set; } = [];
+
+    /// <summary>
+    /// The steps were renumbered (one added, moved or deleted): "these steps lit" in the finish condition follows
+    /// its steps to their new numbers (<paramref name="renumber"/>: old number to new, null for a step deleted).
+    /// </summary>
+    public void RenumberFinishSteps(Func<int, int?> renumber)
+    {
+        StateCondition Renumbered(StateCondition condition) => condition switch
+        {
+            StepsLitCondition { Which: StepsLitWhich.These } lit => lit with
+            {
+                Steps = (lit.Steps ?? []).Select(renumber).OfType<int>().Order().ToList(),
+            },
+            AllCondition all => new AllCondition(all.Of.Select(Renumbered).ToList()),
+            AnyCondition any => new AnyCondition(any.Of.Select(Renumbered).ToList()),
+            NotCondition not => new NotCondition(Renumbered(not.Of)),
+            _ => condition,
+        };
+        for (int i = 0; i < Finish.Count; i++) Finish[i] = Renumbered(Finish[i]);
+    }
+
+    /// <summary>A copy under a new id: its own steps (changing one doesn't change the original), the same entry and finish conditions and priorities.</summary>
     public PhaseDraft Copy(string name) => new()
     {
         Name = name,
         When = [.. When],
+        Finish = [.. Finish],
         Priority = Priority,
         PriorityTyped = PriorityTyped,
         PriorityRules = PriorityRules.Select(r => new PriorityRuleDraft { When = [.. r.When], Priority = r.Priority, PriorityTyped = r.PriorityTyped }).ToList(),

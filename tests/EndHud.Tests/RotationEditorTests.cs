@@ -754,6 +754,167 @@ public sealed class RotationEditorTests : IDisposable
     /// <summary>The row of pickers of a condition (a row with a grey hint under it is wrapped in a panel).</summary>
     private static Panel RowOf(UIElement shown) => shown as WrapPanel ?? ((Panel)shown).Children.OfType<WrapPanel>().First();
 
+    // ---- Finish condition (owner, 2026-10-24: "define a finish condition for the rotation similar to entry condition") ----
+
+    /// <summary>Ardelia's battle skill, Laevatain's battle skill, an Arcane basic attack, Camille's combo: steps 1, 2 and 4 light up.</summary>
+    private RotationLibrary FourSteps(params StateCondition[] finish)
+    {
+        var library = new RotationLibrary(_folder);
+        library.Own.Save(Published() with
+        {
+            Id = "mine",
+            Phases =
+            [
+                new RotationPhase("p", "充能轴",
+                [
+                    new RotationStep("Ardelia", StepAction.BattleSkill),
+                    new RotationStep("Laevatain", StepAction.BattleSkill),
+                    new RotationStep("Arcane", StepAction.BasicAttack),
+                    new RotationStep("Camille", StepAction.Combo),
+                ]) { Finish = finish },
+            ],
+        });
+        return library;
+    }
+
+    /// <summary>The phase's finish condition rows, the first one's pickers, and the steps it offers to tick.</summary>
+    private static (List<ComboBox> Pickers, List<CheckBox> Ticks) FinishRow(RotationEditor editor)
+    {
+        var row = RowOf(((StackPanel)editor.FindName("FinishRows")).Children[0]);
+        var ticks = row.Children.OfType<WrapPanel>().SelectMany(p => p.Children.OfType<CheckBox>()).ToList();
+        return (row.Children.OfType<ComboBox>().ToList(), ticks);
+    }
+
+    /// <summary>
+    /// Under the entry condition, 完成条件: "add condition" starts with 本轴段步骤已点亮 at least every step that lights up
+    /// (the default written out); the count is picked from 1 to those steps (the basic attack doesn't light), and saved.
+    /// </summary>
+    [Fact]
+    public void A_finish_condition_of_at_least_n_steps_lit_is_built_with_the_pickers_and_saved()
+    {
+        var library = FourSteps();
+
+        string said = "";
+        object? kind = null, which = null;
+        List<object> counts = [];
+        bool hint = false;
+        OnEditor(library, _ => { }, editor =>
+        {
+            Click(editor, "AddFinishButton");
+            var (pickers, _) = FinishRow(editor); // kind, which, count
+            kind = ((ComboBoxItem)pickers[0].SelectedItem).Tag;
+            which = ((ComboBoxItem)pickers[1].SelectedItem).Tag;
+            counts = pickers[2].Items.Cast<ComboBoxItem>().Select(i => i.Tag).ToList();
+            Pick(pickers[2], 2);
+            hint = ((StackPanel)editor.FindName("FinishRows")).Children[0] is StackPanel { Children: [_, TextBlock { Text: "Editor.StepsLitHint" }] };
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        });
+
+        Assert.Equal(("StepsLit", (object)StepsLitWhich.AtLeast), (kind, which));
+        Assert.Equal([1, 2, 3], counts.Cast<int>());
+        Assert.True(hint);
+        var saved = Assert.Single(library.Own.Load().Rotations);
+        Assert.True(saved.Phases[0].Finish.Count == 1, $"editor said: {said}");
+        Assert.Equal(new StepsLitCondition(StepsLitWhich.AtLeast, Count: 2), saved.Phases[0].Finish[0]);
+        Assert.Equal(10, saved.Format);
+    }
+
+    /// <summary>指定步骤已点亮: the phase's own steps that light up are ticked (all at first); untick one and save.</summary>
+    [Fact]
+    public void These_steps_lit_are_ticked_from_the_phases_own_steps()
+    {
+        var library = FourSteps();
+
+        List<string> offered = [];
+        OnEditor(library, _ => { }, editor =>
+        {
+            Click(editor, "AddFinishButton");
+            Pick(FinishRow(editor).Pickers[1], StepsLitWhich.These);
+            var ticks = FinishRow(editor).Ticks;
+            offered = ticks.Select(t => $"{t.Content}{(t.IsChecked == true ? "+" : "-")}").ToList();
+            ticks.Single(t => ((string)t.Content).StartsWith("2.", StringComparison.Ordinal)).IsChecked = false;
+            Click(editor, "SaveButton");
+        });
+
+        Assert.Equal(["1. Ardelia Rotation.Action.BattleSkill+", "2. Laevatain Rotation.Action.BattleSkill+", "4. Camille Rotation.Action.Combo+"], offered);
+        Assert.Equal(new StepsLitCondition(StepsLitWhich.These, Steps: [1, 4]), Assert.Single(Assert.Single(library.Own.Load().Rotations).Phases[0].Finish));
+    }
+
+    /// <summary>Moving or deleting a step keeps "these steps lit" on the same steps, not on the same numbers.</summary>
+    [Fact]
+    public void Moving_or_deleting_a_step_keeps_these_steps_on_their_steps()
+    {
+        var library = FourSteps(new StepsLitCondition(StepsLitWhich.These, Steps: [1, 4]));
+
+        OnEditor(library, _ => { }, editor =>
+        {
+            var steps = (ListBox)editor.FindName("StepList");
+            steps.SelectedIndex = 0;              // Ardelia's battle skill, step 1 …
+            Click(editor, "StepDownButton");      // … is step 2 now
+            steps.SelectedIndex = 0;              // Laevatain's battle skill, step 1 now
+            Click(editor, "DeleteStepButton");    // gone: Ardelia step 1, Camille step 3
+            Click(editor, "SaveButton");
+        });
+
+        var phase = Assert.Single(Assert.Single(library.Own.Load().Rotations).Phases);
+        Assert.Equal([("Ardelia", StepAction.BattleSkill), ("Arcane", StepAction.BasicAttack), ("Camille", StepAction.Combo)], phase.Steps.Select(s => (s.OperatorId, s.Action)));
+        Assert.Equal(new StepsLitCondition(StepsLitWhich.These, Steps: [1, 3]), Assert.Single(phase.Finish));
+    }
+
+    /// <summary>A step that never lights (a basic attack) ticked in a file is kept and shown, and saving is refused in words.</summary>
+    [Fact]
+    public void These_steps_naming_a_step_that_never_lights_is_refused_in_words()
+    {
+        var library = FourSteps(new StepsLitCondition(StepsLitWhich.These, Steps: [1, 3]));
+
+        string said = "";
+        List<string> offered = [];
+        OnEditor(library, _ => { }, editor =>
+        {
+            offered = FinishRow(editor).Ticks.Where(t => t.IsChecked == true).Select(t => (string)t.Content).ToList();
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        });
+
+        Assert.Equal(["1. Ardelia Rotation.Action.BattleSkill", "Editor.StepsLit.Missing"], offered);
+        Assert.Contains("Rotation.Problem.StepsLitNotCountable", said);
+        Assert.True(Translated("Rotation.Problem.StepsLitNotCountable") && Translated("Rotation.Problem.StepsLitNoSteps")
+            && Translated("Rotation.Problem.StepsLitCountOutOfRange") && Translated("Rotation.Problem.FinishOperator"));
+    }
+
+    /// <summary>The entry condition and priority rules don't offer 本轴段步骤已点亮: it is about the phase's own round.</summary>
+    [Fact]
+    public void Steps_lit_is_offered_in_the_finish_condition_only()
+    {
+        var library = FourSteps();
+
+        List<object> gate = [], finish = [];
+        OnEditor(library, _ => { }, editor =>
+        {
+            Click(editor, "AddGateButton");
+            gate = RowOf(((StackPanel)editor.FindName("GateRows")).Children[0]).Children.OfType<ComboBox>().First().Items.Cast<ComboBoxItem>().Select(i => i.Tag).ToList();
+            Click(editor, "AddFinishButton");
+            finish = FinishRow(editor).Pickers[0].Items.Cast<ComboBoxItem>().Select(i => i.Tag).ToList();
+        });
+
+        Assert.DoesNotContain("StepsLit", gate);
+        Assert.Contains("StepsLit", finish);
+        Assert.Equal(gate, finish.Where(k => !Equals(k, "StepsLit")));
+    }
+
+    [Fact]
+    public void Copying_a_phase_keeps_its_finish_condition()
+    {
+        var draft = new PhaseDraft { Name = "p", Finish = [new StepsLitCondition(StepsLitWhich.AtLeast, Count: 2)] };
+
+        var copy = draft.Copy("p 副本");
+        Assert.Equal(draft.Finish, copy.Finish);
+        copy.Finish.Clear(); // its own list
+
+        Assert.Single(draft.Finish);
+    }
+
     [Fact]
     public void The_skill_point_picker_offers_0_to_3_by_tenths()
     {

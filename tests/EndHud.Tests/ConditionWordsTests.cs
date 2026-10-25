@@ -84,7 +84,30 @@ public class ConditionWordsTests
         new NotCondition(new ControllingCondition("Si")),
         new UltimateTimeLeftCondition("Laevatain", Comparison.AtMost, 30),
         new PhaseCurrentCondition("charge", PlayedThrough: true),
+        new StepsLitCondition(StepsLitWhich.All),
+        new StepsLitCondition(StepsLitWhich.AtLeast, Count: 3),
+        new StepsLitCondition(StepsLitWhich.These, Steps: [1, 3]),
     ];
+
+    /// <summary>本轴段步骤已点亮 in words, each of its three choices; "at least" with how many are lit now.</summary>
+    [Fact]
+    public void The_phases_steps_lit_reads_as_its_choice()
+    {
+        Assert.Equal(S("Alert.Describe.StepsLit.All"), Statement(new StepsLitCondition(StepsLitWhich.All)));
+        Assert.Equal(F("Alert.Describe.StepsLit.AtLeast", "≥", 3), Statement(new StepsLitCondition(StepsLitWhich.AtLeast, Count: 3)));
+        Assert.Equal(F("Alert.Describe.StepsLit.These", "1、3"), Statement(new StepsLitCondition(StepsLitWhich.These, Steps: [1, 3])));
+        Assert.Equal(F("Rotation.Reason.NeedNow", F("Alert.Describe.StepsLit.AtLeast", "≥", 3), "2"),
+            Need(new StepsLitCondition(StepsLitWhich.AtLeast, Count: 3), Reading(), new Lights([true, null, true, false])));
+    }
+
+    private sealed class Lights(IReadOnlyList<bool?> lit) : IPhaseHistory
+    {
+        public int? TimesShown(string phaseId) => null;
+
+        public int? TimesPlayed(string phaseId) => null;
+
+        public IReadOnlyList<bool?>? StepsLit => lit;
+    }
 
     [Fact]
     public void The_samples_cover_every_kind_in_the_catalogue()
