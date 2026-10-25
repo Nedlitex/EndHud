@@ -32,7 +32,9 @@ internal sealed class HudConfig
     /// </summary>
     public int? SettingsVersion { get; set; }
 
-    public const int CurrentSettingsVersion = 6;
+    /// <summary>Version 7 adds the show-in-open-world settings and the notice's mark: a file without them reads their
+    /// defaults (the rotation strip held back in open-world fights, the notice not shown yet), so nothing is rewritten.</summary>
+    public const int CurrentSettingsVersion = 7;
 
     /// <summary>UI language; picks the file i18n/&lt;Language&gt;.xaml.</summary>
     public string Language { get; set; } = "zh-CN";
@@ -75,14 +77,24 @@ internal sealed class HudConfig
     /// <summary>Show the rotation strip (排轴) when the recognised squad has a rotation.</summary>
     public bool RotationEnabled { get; set; } = true;
 
+    /// <summary>
+    /// Show the rotation strip in a fight in the open world too (the menu's "在大世界战斗中也显示排轴"). Off by default: the
+    /// owner's explicit choice (2026-10-25: "we should by default not show the rotation in open world battle, make this a
+    /// choice that user can flip otherwise"). An instance's battle shows it either way (<see cref="BattleOverlays"/>).
+    /// </summary>
     public bool ShowRotationInOpenWorld { get; set; }
 
-    public bool ShowGaugesInOpenWorld { get; set; }
+    /// <summary>Show the gauges in a fight in the open world too. On by default, as before the setting.</summary>
+    public bool ShowGaugesInOpenWorld { get; set; } = true;
 
-    public bool ShowComboHintsInOpenWorld { get; set; }
+    /// <summary>Show the combo-ready hints in a fight in the open world too. On by default, as before the setting.</summary>
+    public bool ShowComboHintsInOpenWorld { get; set; } = true;
 
-    public bool ShowAlertsInOpenWorld { get; set; }
+    /// <summary>Pop up the alert rules in a fight in the open world too. On by default, as before the setting.</summary>
+    public bool ShowAlertsInOpenWorld { get; set; } = true;
 
+    /// <summary>The one-time notice that the rotation strip is hidden in open-world fights has been shown
+    /// (<see cref="OpenWorldNotice"/>): it never comes again.</summary>
     public bool OpenWorldRotationNoticeShown { get; set; }
 
     /// <summary>
