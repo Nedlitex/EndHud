@@ -70,6 +70,9 @@ public static class HpBar
         // No fill, yet the bar lighter than its dark empty track (23-37 on the fixtures, fallen or not):
         // a light fill dimmed below the fill colours (a pale orange bar under a display's backdrop, 114).
         if (end == 0 && Median(columnLevels) is >= EmptyTrackBelow and < DimmestFill) return null;
+        // ...or darker than it, yet not black: the empty track itself under a display's backdrop (9-16),
+        // where whether the operator has fallen can't be told either (its death mark is dimmed too).
+        if (end == 0 && Median(columnLevels) is >= BlackBelow and < EmptyTrackFrom) return null;
         // A fill dimmer than the game ever dims it (its squad dimmed: teal 146, dull pink 137): seen
         // through something dark, a display's backdrop (cyan at 45 % is 111). The portrait above it is too.
         if (blockColumns > 0 && blockBrightness / blockColumns < DimmestFill) return null;
@@ -81,6 +84,11 @@ public static class HpBar
 
     /// <summary>An empty bar's columns (brightest channel, the middle one) are darker than this.</summary>
     private const int EmptyTrackBelow = 70;
+
+    /// <summary>...and at least this bright (23 on the fixtures); under <see cref="BlackBelow"/> it is black (a frame's masked or unlit part).</summary>
+    private const int EmptyTrackFrom = 20;
+
+    private const int BlackBelow = 5;
 
     private static int Median(List<int> values)
     {
