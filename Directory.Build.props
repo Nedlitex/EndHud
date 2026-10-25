@@ -8,5 +8,12 @@
       build and the CI/release build (which takes the newest 8.0.x SDK) ship the same projection.
     -->
     <WindowsSdkPackageVersion>10.0.22621.57</WindowsSdkPackageVersion>
+    <!--
+      Every NuGet package is pinned with its content hash in each project's packages.lock.json. On GitHub Actions
+      (CI=true) a restore that would differ from the lock file fails instead of taking whatever the feed serves.
+      After changing a package: dotnet restore (locally), and commit the updated lock files.
+    -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestoreLockedMode Condition="'$(CI)' == 'true'">true</RestoreLockedMode>
   </PropertyGroup>
 </Project>

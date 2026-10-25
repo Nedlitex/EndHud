@@ -123,7 +123,7 @@ public class FastReleaseWorkflowTests(ITestOutputHelper output)
 
 /// <summary>
 /// The YAML GitHub's workflows use here, read into mappings (key order kept), lists and strings: block mappings and lists by
-/// indentation, "|" and ">" block text, quoted and plain values, comments. Anything else (tabs, flow collections, a key twice,
+/// indentation, "|" and ">" block text, quoted and plain values, one-line lists of them ([main]), comments. Anything else (tabs, flow collections, a key twice,
 /// a line that is none of these) is an error, so a broken workflow fails the test instead of passing unread.
 /// </summary>
 internal static class MiniYaml
@@ -220,7 +220,7 @@ internal static class MiniYaml
             }
             if (rest.Length > 0)
             {
-                map[key] = Value(rest) ?? throw new FormatException($"line {number}: \"{rest}\" isn't a value this reader knows");
+                map[key] = (object?)FlowList(rest) ?? Value(rest) ?? throw new FormatException($"line {number}: \"{rest}\" isn't a value this reader knows");
                 continue;
             }
             Skip(lines, ref at);
@@ -256,6 +256,17 @@ internal static class MiniYaml
             else if (value[i] == '#' && !single && !@double && (i == 0 || value[i - 1] == ' ')) return value[..i];
         }
         return value;
+    }
+
+    /// <summary>A one-line list of scalars, <c>[main]</c> or <c>["inn/**", x]</c>; null for anything else (nested or unclosed).</summary>
+    private static List<object>? FlowList(string text)
+    {
+        text = StripComment(text).Trim();
+        if (!text.StartsWith('[') || !text.EndsWith(']') || text.Count(c => c is '[' or ']' or '{' or '}') != 2) return null;
+        string inside = text[1..^1].Trim();
+        if (inside.Length == 0) return [];
+        var items = inside.Split(',').Select(i => Value(i.Trim())).ToList();
+        return items.Any(i => i is null or "") ? null : items.Select(i => (object)i!).ToList();
     }
 
     /// <summary>A plain or quoted scalar; null for what this reader doesn't take (a flow collection, an unclosed quote).</summary>

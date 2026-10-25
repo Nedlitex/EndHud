@@ -7,6 +7,10 @@ on:
   workflow_dispatch:
   workflow_call: # run before every release (release.yml)
 
+# The tests only read the repository.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: windows-2022
@@ -16,7 +20,7 @@ jobs:
       # Large files are in Git LFS: the character model here (38 MB), the recordings there
       # (about 160 MB). Downloading counts against the LFS bandwidth quota, so LFS objects are
       # cached and only fetched when they change; checkout skips them.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           submodules: true
         env:
@@ -26,7 +30,7 @@ jobs:
         run: |
           { git lfs ls-files --long; git -C tests/data lfs ls-files --long; } | cut -d ' ' -f1 | sort > .lfs-assets-id
       - name: Restore cached LFS files
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             .git/lfs/objects
@@ -41,7 +45,7 @@ jobs:
       # The operator roster, avatars and skill icons come from the repository's operator package
       # (operators/operator-library.zip), which the tests unpack: nothing to download.
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           dotnet-version: 8.0.x
 
@@ -83,7 +87,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: test-results
           path: TestResults
