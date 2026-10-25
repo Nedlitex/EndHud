@@ -48,7 +48,7 @@ public static class BattleSkillButton
     /// Inside this radius (4K) the white rows are counted: the dark disc (to 58), the outline left out. At 44 (the icon's
     /// reach) the text's lines over a dimmed button joined through its light parts into two bands.
     /// </summary>
-    private const double LinesRadius = 56;
+    internal const double LinesRadius = 56;
 
     /// <summary>
     /// How many bands of rows with white (at least 2 px at 4K) the disc has, told apart by at least 3 rows (4K) with
@@ -57,12 +57,15 @@ public static class BattleSkillButton
     internal static int WhiteLines(Frame frame, double cx, double cy, double scale, double besideIcon = 0)
     {
         double radius = LinesRadius * scale;
-        double minWhite = Math.Max(1, 2 * scale), minGap = Math.Max(1, 3 * scale);
-        int bands = 0, gap = 0;
-        bool inBand = false;
-        for (int y = (int)Math.Round(cy - radius); y <= (int)Math.Round(cy + radius); y++)
+        int top = (int)Math.Round(cy - radius);
+        Span<int> rows = stackalloc int[(int)Math.Round(cy + radius) - top + 1];
+        for (int y = top; y < top + rows.Length; y++)
         {
-            if ((uint)y >= (uint)frame.Height) continue;
+            if ((uint)y >= (uint)frame.Height)
+            {
+                rows[y - top] = -1;
+                continue;
+            }
             int white = 0;
             for (int x = (int)Math.Round(cx - radius); x <= (int)Math.Round(cx + radius); x++)
             {
@@ -71,6 +74,20 @@ public static class BattleSkillButton
                 var (r, g, b) = frame.GetPixel(x, y);
                 if (Math.Min(r, Math.Min(g, b)) > 200) white++;
             }
+            rows[y - top] = white;
+        }
+        return Bands(rows, scale);
+    }
+
+    /// <summary>The bands of <see cref="WhiteLines"/> from each row's count of white pixels, top down (-1: a row off the picture, passed over).</summary>
+    internal static int Bands(ReadOnlySpan<int> whitePerRow, double scale)
+    {
+        double minWhite = Math.Max(1, 2 * scale), minGap = Math.Max(1, 3 * scale);
+        int bands = 0, gap = 0;
+        bool inBand = false;
+        foreach (int white in whitePerRow)
+        {
+            if (white < 0) continue;
             if (white >= minWhite)
             {
                 if (!inBand) bands++;

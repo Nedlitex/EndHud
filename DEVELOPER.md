@@ -1996,7 +1996,9 @@ while the last reading in combat was at most 3 s ago, and never while the top-le
 (exploring or building: it stops at once; `SamplesFlashes`); each reading takes the flashes told since the
 one before (`PartyState.Flashes`) and the empowered verdict as of then (`PartyState.Empowered`). Cost, measured: 0.74 ms of CPU per sample at 4K (four discs and their scene rings,
 the rings sampled every other pixel; 0.23 ms at 1080p), about 2 % of one core at 30 a second, plus a 1.2 MB read
-back from the GPU per sample. The diagnostics line `battle-skill flash: N samples, X ms each; Fill …` counts them.
+back from the GPU per sample. With the glow's measures (the rim in twelve sectors, text lines counted in the same pass)
+0.90 ms with keyboard and mouse and 1.41 ms with a controller (both diamonds' badges looked for, a 710x680 corner, 1.9 MB
+read back), Release, 300 samples of a fixture corner: about 3-4 % of one core at 30 a second. The diagnostics line `battle-skill flash: N samples, X ms each; Fill …` counts them.
 
 **Whose cast** ([`ScreenCastJudge`](src/EndHud.Vision/Rotations/ScreenCastJudge.cs)), each reading:
 

@@ -267,6 +267,11 @@ public static class BattleSkillFlash
         Span<int> fill = stackalloc int[256], spread = stackalloc int[256], scene = stackalloc int[256];
         Span<int> sector = stackalloc int[RimSectors], sectorWhite = stackalloc int[RimSectors];
         int fills = 0, scenes = 0, sceneBright = 0, rim = 0, rimWhite = 0, icon = 0, iconLight = 0;
+        // White pixels per row of the disc, for lines of text over it (BattleSkillButton.WhiteLines, counted in this pass).
+        double linesRadius = BattleSkillButton.LinesRadius * scale, linesOut = Sq(linesRadius), beside = BattleSkillButton.BesideIcon * scale;
+        int linesTop = (int)Math.Round(cy - linesRadius);
+        Span<int> lines = stackalloc int[(int)Math.Round(cy + linesRadius) - linesTop + 1], linesBeside = stackalloc int[lines.Length];
+        for (int k = 0; k < lines.Length; k++) lines[k] = linesBeside[k] = (uint)(linesTop + k) < (uint)image.Height ? 0 : -1;
         double fillIn = Sq(FillInner * scale), fillOut = Sq(FillOuter * scale), rimIn = Sq(RimInner * scale), rimOut = Sq(RimOuter * scale);
         double sceneIn = Sq(SceneInner * scale), sceneOut = Sq(SceneOuter * scale), below = FillBelowCentre * scale, iconOut = Sq(IconOuter * scale);
         // The scene ring is the big one: every other pixel of it is plenty for a median.
@@ -310,6 +315,11 @@ public static class BattleSkillFlash
                     }
                     continue;
                 }
+                if (d2 <= linesOut && min > 200)
+                {
+                    lines[y - linesTop]++;
+                    if (Math.Abs(dx) >= beside) linesBeside[y - linesTop]++;
+                }
                 if (d2 <= iconOut)
                 {
                     icon++;
@@ -324,8 +334,7 @@ public static class BattleSkillFlash
             }
         }
         // Lines of text over the button (an on-screen display's): its look is the display's, not the button's.
-        bool text = Math.Max(BattleSkillButton.WhiteLines(image, cx, cy, scale), BattleSkillButton.WhiteLines(image, cx, cy, scale, BattleSkillButton.BesideIcon))
-                    >= BattleSkillButton.TextLines;
+        bool text = Math.Max(BattleSkillButton.Bands(lines, scale), BattleSkillButton.Bands(linesBeside, scale)) >= BattleSkillButton.TextLines;
         // All round the rim: the share in the sector that is the RimSectorsSpared+1-th least lit.
         Span<double> shares = stackalloc double[RimSectors];
         for (int s = 0; s < RimSectors; s++) shares[s] = sector[s] == 0 ? 0 : sectorWhite[s] / (double)sector[s];
