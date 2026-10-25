@@ -786,8 +786,9 @@ public sealed class RotationEditorTests : IDisposable
     }
 
     /// <summary>
-    /// Under the entry condition, 完成条件: "add condition" starts with 本轴段步骤已点亮 at least every step that lights up
-    /// (the default written out); the count is picked from 1 to those steps (the basic attack doesn't light), and saved.
+    /// Under the entry condition, 完成条件: "add condition" starts with 本轴段步骤已点亮 · 全部 (the default written out:
+    /// it follows the steps as they are added or removed); 至少 N 步 offers 1 to the steps that light up (the basic attack
+    /// doesn't light), and is saved.
     /// </summary>
     [Fact]
     public void A_finish_condition_of_at_least_n_steps_lit_is_built_with_the_pickers_and_saved()
@@ -801,9 +802,11 @@ public sealed class RotationEditorTests : IDisposable
         OnEditor(library, _ => { }, editor =>
         {
             Click(editor, "AddFinishButton");
-            var (pickers, _) = FinishRow(editor); // kind, which, count
+            var (pickers, _) = FinishRow(editor); // kind, which
             kind = ((ComboBoxItem)pickers[0].SelectedItem).Tag;
             which = ((ComboBoxItem)pickers[1].SelectedItem).Tag;
+            Pick(pickers[1], StepsLitWhich.AtLeast);
+            pickers = FinishRow(editor).Pickers; // kind, which, count
             counts = pickers[2].Items.Cast<ComboBoxItem>().Select(i => i.Tag).ToList();
             Pick(pickers[2], 2);
             hint = ((StackPanel)editor.FindName("FinishRows")).Children[0] is StackPanel { Children: [_, TextBlock { Text: "Editor.StepsLitHint" }] };
@@ -811,7 +814,7 @@ public sealed class RotationEditorTests : IDisposable
             said = ((TextBlock)editor.FindName("ProblemsText")).Text;
         });
 
-        Assert.Equal(("StepsLit", (object)StepsLitWhich.AtLeast), (kind, which));
+        Assert.Equal(("StepsLit", (object)StepsLitWhich.All), (kind, which));
         Assert.Equal([1, 2, 3], counts.Cast<int>());
         Assert.True(hint);
         var saved = Assert.Single(library.Own.Load().Rotations);
@@ -860,6 +863,22 @@ public sealed class RotationEditorTests : IDisposable
         var phase = Assert.Single(Assert.Single(library.Own.Load().Rotations).Phases);
         Assert.Equal([("Ardelia", StepAction.BattleSkill), ("Arcane", StepAction.BasicAttack), ("Camille", StepAction.Combo)], phase.Steps.Select(s => (s.OperatorId, s.Action)));
         Assert.Equal(new StepsLitCondition(StepsLitWhich.These, Steps: [1, 3]), Assert.Single(phase.Finish));
+    }
+
+    /// <summary>A ticked step turned into a basic attack (which never lights) leaves "these steps lit".</summary>
+    [Fact]
+    public void A_ticked_step_turned_into_an_attack_is_unticked()
+    {
+        var library = FourSteps(new StepsLitCondition(StepsLitWhich.These, Steps: [1, 2]));
+
+        OnEditor(library, _ => { }, editor =>
+        {
+            ((ListBox)editor.FindName("StepList")).SelectedIndex = 1; // Laevatain's battle skill
+            Pick((ComboBox)editor.FindName("StepActionPicker"), StepAction.HeavyAttack);
+            Click(editor, "SaveButton");
+        });
+
+        Assert.Equal(new StepsLitCondition(StepsLitWhich.These, Steps: [1]), Assert.Single(Assert.Single(library.Own.Load().Rotations).Phases[0].Finish));
     }
 
     /// <summary>A step that never lights (a basic attack) ticked in a file is kept and shown, and saving is refused in words.</summary>

@@ -188,6 +188,77 @@ public sealed class FinishConditionTests
         Assert.Null(RotationTracker.Evaluate(new StepsLitCondition(StepsLitWhich.All), Reading(), PhaseHistory.None));
     }
 
+    private sealed class Lights(params bool?[] lit) : IPhaseHistory
+    {
+        public int? TimesShown(string phaseId) => null;
+
+        public int? TimesPlayed(string phaseId) => null;
+
+        public IReadOnlyList<bool?>? StepsLit => lit;
+    }
+
+    /// <summary>A hand-written file's "these steps" with none picked, or "at least 0", is refused; followed anyway, it never holds.</summary>
+    [Fact]
+    public void Steps_lit_naming_nothing_never_holds()
+    {
+        var lit = new Lights(true, null, true);
+
+        Assert.Equal(false, RotationTracker.Evaluate(new StepsLitCondition(StepsLitWhich.These, Steps: []), Reading(), lit));
+        Assert.Equal(false, RotationTracker.Evaluate(new StepsLitCondition(StepsLitWhich.These), Reading(), lit));
+        Assert.Equal(false, RotationTracker.Evaluate(new StepsLitCondition(StepsLitWhich.AtLeast, Count: 0), Reading(), lit));
+        Assert.Equal(true, RotationTracker.Evaluate(new StepsLitCondition(StepsLitWhich.These, Steps: [1, 3]), Reading(), lit));
+        Assert.Equal(true, RotationTracker.Evaluate(new StepsLitCondition(StepsLitWhich.All), Reading(), lit));
+    }
+
+    /// <summary>
+    /// Like an entry condition, a finish condition already holding when the phase comes onto the strip counts on that
+    /// reading (nothing was seen before it this showing); it counts again only after it was seen not holding.
+    /// </summary>
+    [Fact]
+    public void A_finish_already_holding_when_the_phase_comes_on_counts_on_that_reading()
+    {
+        var fight = new Fight(Three(new SkillPointsCondition(Comparison.AtLeast, 3)));
+
+        fight.Read(Reading(3));
+        Assert.Equal(1, fight.Played);
+        fight.Read(Reading(3));
+        Assert.Equal(1, fight.Played);
+    }
+
+    /// <summary>
+    /// Every step lit and the finish condition not holding: no step left to point at, so the strip says what the phase
+    /// waits for, the finish condition's needs (never a silent strip).
+    /// </summary>
+    [Fact]
+    public void Every_step_lit_and_the_finish_not_holding_the_checks_are_the_finish_conditions()
+    {
+        StateCondition three = new SkillPointsCondition(Comparison.AtLeast, 3);
+        var fight = new Fight(Three(three));
+        fight.Read(Reading(1));
+        fight.Press(Ardelia, Laevatain, Camille);
+
+        var position = fight.Follower.Update(0, Reading(1), Reading(1), [], PhaseHistory.None);
+
+        Assert.Equal([L, L, L, N], position.Marks);
+        Assert.False(position.Ready);
+        Assert.Equal([new ConditionCheck(CheckKind.Expected, three, false)], position.Checks);
+    }
+
+    /// <summary>A condition step still met when a round ends lights again in the new round, on that same reading.</summary>
+    [Fact]
+    public void A_condition_step_still_met_is_lit_again_in_the_new_round()
+    {
+        var rotation = new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
+            [new RotationPhase("p", "P", [new RotationStep("Ardelia", StepAction.BattleSkill), new RotationStep("", StepAction.Condition, [new SkillPointsCondition(Comparison.AtLeast, 1)])])]);
+        var fight = new Fight(rotation);
+
+        Assert.Equal([C, L], fight.Read(Reading(2)));
+        Assert.Equal([C, L], fight.Read(Reading(2), Ardelia)); // played through; the condition still holds
+        Assert.Equal(1, fight.Played);
+        Assert.Equal([C, L], fight.Read(Reading(2)));
+        Assert.Equal(1, fight.Played); // not again: Ardelia's step isn't lit in this round
+    }
+
     // ---- The file ----
 
     [Fact]

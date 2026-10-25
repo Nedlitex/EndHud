@@ -86,6 +86,21 @@ public class RotationStripViewTests
         Assert.True(neutral.Dashed);
     }
 
+    /// <summary>Every step lit and the phase's finish condition not holding yet: the strip says what it waits for.</summary>
+    [Fact]
+    public void Every_step_lit_and_not_finished_the_strip_says_what_the_finish_waits_for()
+    {
+        var played = Rotation.Played();
+        var state = new Vision.PartyState([]) { SkillPoints = 1 };
+        var three = new ConditionCheck(CheckKind.Expected, new SkillPointsCondition(Comparison.AtLeast, 3), false);
+        var steps = new StepPosition(0, [StepMark.Lit, StepMark.Lit, StepMark.Lit], false, [three]);
+
+        var view = RotationStripView.Build(Rotation, new RotationPosition(played[0], true, []), state, null, (_, _) => null, _ => null, steps);
+
+        Assert.Equal([RotationStripView.Reason(three, new RotationStep("", StepAction.Condition), state, null)], view.Reasons);
+        Assert.NotEmpty(view.Reasons[0]!);
+    }
+
     [Fact]
     public void A_waiting_step_shows_why()
     {
