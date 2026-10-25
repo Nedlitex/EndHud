@@ -307,6 +307,23 @@ public sealed class StepFollowerTests
         Assert.Contains(position.Checks, c => c.Kind == CheckKind.Expected && c.Holds == false);
     }
 
+    /// <summary>
+    /// An expected state that can't be read now (the boss's statuses unread: no boss in sight, a cutscene) keeps the step
+    /// waiting, with no reason given for it (owner 2026-10-25: "not ready, dont say why"). Before, an unknown counted as
+    /// holding: 诀's burst ultimate, waiting on the enemy's 灼热附着, showed ready with nothing under it.
+    /// </summary>
+    [Fact]
+    public void An_expected_state_that_cant_be_read_keeps_the_step_waiting_without_a_reason()
+    {
+        var rotation = new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
+            [new RotationPhase("p", "P", [new RotationStep("Ardelia", StepAction.BattleSkill, [new BossStatusCondition("Heat Infliction", true)])])]);
+        var position = new Fight(rotation).Read(Plain);   // no boss statuses in the reading
+
+        Assert.False(position.Ready);
+        Assert.Contains(position.Checks, c => c.Kind == CheckKind.Expected && c.Holds == null);
+        Assert.DoesNotContain(position.Checks, c => c.Holds == false);   // nothing to say why
+    }
+
     [Fact]
     public void Ending_the_fight_puts_every_light_out()
     {
