@@ -89,7 +89,39 @@ public enum Comparison
 [JsonDerivedType(typeof(BattleSkillActiveCondition), "battleSkillActive")]
 [JsonDerivedType(typeof(UltimateTimeLeftCondition), "ultimateTimeLeft")]
 [JsonDerivedType(typeof(PhaseCurrentCondition), "phaseCurrent")]
+[JsonDerivedType(typeof(StepsLitCondition), "stepsLit")]
 public abstract record StateCondition;
+
+/// <summary>Which steps a <see cref="StepsLitCondition"/> asks to be lit.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum StepsLitWhich
+{
+    /// <summary>Every step of the phase that lights up (全部): not a basic, heavy or plunge attack.</summary>
+    All,
+
+    /// <summary>At least <see cref="StepsLitCondition.Count"/> of them (至少 N 步).</summary>
+    AtLeast,
+
+    /// <summary>These steps (指定步骤): <see cref="StepsLitCondition.Steps"/>.</summary>
+    These,
+}
+
+/// <summary>
+/// The phase's steps lit this round (本轴段步骤已点亮, <see cref="StepFollower"/>): all of them, at least
+/// <paramref name="Count"/>, or the steps numbered <paramref name="Steps"/> (from 1, in the phase's written order).
+/// Only in a phase's finish condition (<see cref="RotationPhase.Finish"/>): it is about that phase's own round.
+/// Format 10.
+/// </summary>
+public sealed record StepsLitCondition(
+    StepsLitWhich Which,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] int Count = 0,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<int>? Steps = null) : StateCondition
+{
+    public bool Equals(StepsLitCondition? other) =>
+        other is not null && Which == other.Which && Count == other.Count && (Steps ?? []).SequenceEqual(other.Steps ?? []);
+
+    public override int GetHashCode() => HashCode.Combine(Which, Count, Steps?.Count ?? 0);
+}
 
 /// <summary>The team's skill points (技力), 0–3; a part-filled segment counts as a fraction.</summary>
 public sealed record SkillPointsCondition(Comparison Is, double Value) : StateCondition;
@@ -196,6 +228,12 @@ public interface IPhaseHistory
     /// phase not on the strip; null when it can't be told (no rotation followed).
     /// </summary>
     bool? PlayedThroughThisShowing(string phaseId) => null;
+
+    /// <summary>
+    /// The steps of the phase on the strip this round, in written order (<see cref="StepsLitCondition"/>): true lit,
+    /// false not yet, null a step that never lights (a basic, heavy or plunge attack). Null when it can't be told.
+    /// </summary>
+    IReadOnlyList<bool?>? StepsLit => null;
 }
 
 public static class PhaseHistory
@@ -276,6 +314,25 @@ public sealed record RotationPhase(string Id, string Name, IReadOnlyList<Rotatio
     /// <summary>The priority set: a base other than 0, or a rule.</summary>
     [JsonIgnore]
     public bool Prioritised => Priority != 0 || PriorityRules.Count > 0;
+
+    /// <summary>
+    /// The finish condition (完成条件, all must hold): when it comes true, the round is played through (phase played
+    /// +1, "played through this showing") and every step's light goes out for a new round (<see cref="StepFollower"/>).
+    /// Empty: every step that lights up is lit, in any order. Any kind of condition, and only here
+    /// <see cref="StepsLitCondition"/>. Format 10 when there is one.
+    /// </summary>
+    [JsonIgnore]
+    public IReadOnlyList<StateCondition> Finish { get; init; } = [];
+
+    /// <summary>The finish condition as written in the file: left out when there is none.</summary>
+    [JsonInclude]
+    [JsonPropertyName("finish")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    private IReadOnlyList<StateCondition>? FinishInFile
+    {
+        get => Finish.Count > 0 ? Finish : null;
+        init => Finish = value ?? [];
+    }
 }
 
 /// <summary>"If <paramref name="When"/> holds (all of it), the phase's priority is <paramref name="Priority"/>."</summary>
@@ -532,9 +589,22 @@ public enum RotationProblemKind
     /// only a basic, heavy or plunge attack can; a skill is followed by whose it is.
     /// </summary>
     ControlledOperatorOnlyForAttacks,
+
+    /// <summary>"The phase's steps lit" outside a finish condition: it is about a phase's own round, so it is only for its finish.</summary>
+    StepsLitOutsideFinish,
+
+    /// <summary>"These steps lit" with no step picked: it would always hold.</summary>
+    StepsLitNoSteps,
+
+    /// <summary>"These steps lit" names a step the phase doesn't have, or one that never lights (a basic, heavy or plunge attack).</summary>
+    StepsLitNotCountable,
+
+    /// <summary>"At least N steps lit" with N below 1 or above the steps that light up: always or never holds.</summary>
+    StepsLitCountOutOfRange,
 }
 
 /// <param name="Phase">The phase concerned (its name), if any.</param>
 /// <param name="Step">The step concerned, from 1, if any (null: the phase's entry condition, or the phase itself).</param>
 /// <param name="Rule">The phase's priority rule concerned, from 1, if any (then <paramref name="Step"/> is null).</param>
-public sealed record RotationProblem(RotationProblemKind Kind, string? Phase = null, int? Step = null, int? Rule = null);
+/// <param name="Finish">In the phase's finish condition (then <paramref name="Step"/> and <paramref name="Rule"/> are null).</param>
+public sealed record RotationProblem(RotationProblemKind Kind, string? Phase = null, int? Step = null, int? Rule = null, bool Finish = false);

@@ -33,16 +33,21 @@ public class ConditionCatalogueTests
         Assert.Equal(ConditionCatalogue.Kinds.Count, ConditionCatalogue.Kinds.Select(k => k.Id).Distinct().Count());
     }
 
-    /// <summary>The same full set is offered wherever conditions are written ("phase shown" in alerts included).</summary>
+    /// <summary>
+    /// The same full set is offered wherever conditions are written ("phase shown" in alerts included). One kind is
+    /// about a phase's own round, so it is offered in a finish condition only: "the phase's steps lit" (2026-10-24;
+    /// elsewhere it would name another phase's steps, or a condition step's own light).
+    /// </summary>
     [Fact]
-    public void Every_host_offers_the_same_full_set()
+    public void Every_host_offers_the_same_full_set_and_steps_lit_only_in_a_finish_condition()
     {
         var everything = ConditionCatalogue.EditorKinds;
 
         Assert.Contains("PhaseShown", everything);
         Assert.Contains("Group", everything);
-        foreach (var host in Enum.GetValues<ConditionHostKind>())
-            Assert.Equal(everything, ConditionCatalogue.OfferedIn(host));
+        Assert.Equal(everything, ConditionCatalogue.OfferedIn(ConditionHostKind.PhaseFinish));
+        foreach (var host in Enum.GetValues<ConditionHostKind>().Where(h => h != ConditionHostKind.PhaseFinish))
+            Assert.Equal(everything.Where(k => k != "StepsLit"), ConditionCatalogue.OfferedIn(host));
     }
 
     /// <summary>The catalogue knows whom each kind is about and its comparison, for every kind that has one.</summary>

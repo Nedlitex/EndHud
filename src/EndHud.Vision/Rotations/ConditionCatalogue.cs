@@ -17,6 +17,9 @@ public enum ConditionHostKind
 
     /// <summary>An alert rule (战斗提示): no squad of its own, any rotation's phase.</summary>
     Alert,
+
+    /// <summary>A phase's finish condition (完成条件): when it comes true the round is played through.</summary>
+    PhaseFinish,
 }
 
 /// <summary>Where conditions are used, as context for checking them (<see cref="ConditionRules"/>).</summary>
@@ -114,6 +117,7 @@ public static class ConditionCatalogue
         Kind<PhaseShownCondition>("PhaseShown", "phaseShown", "PhaseShown", 4, 4, ConditionNeeds.Phase, comparison: c => c.Is, phase: c => c.PhaseId),
         Kind<PhasePlayedCondition>("PhasePlayed", "phasePlayed", "PhasePlayed", 5, 2, ConditionNeeds.Phase, comparison: c => c.Is, phase: c => c.PhaseId),
         Kind<PhaseCurrentCondition>("PhaseCurrent", "phaseCurrent", "PhaseCurrent", 9, 4, ConditionNeeds.Phase, phase: c => c.PhaseId),
+        Kind<StepsLitCondition>("StepsLit", "stepsLit", "StepsLit", 10, 4),
         Kind<AllCondition>("All", "all", "Group", 2, 1),
         Kind<AnyCondition>("Any", "any", "Group", 2, 1),
         Kind<NotCondition>("Not", "not", null, 3, 1),
@@ -167,6 +171,18 @@ public enum ConditionProblemKind
 
     /// <summary>"Time left of the ultimate" for an operator whose lasting ultimate isn't read: it could never be told.</summary>
     UltimateTimeNotRead,
+
+    /// <summary>A kind not offered in this host (<see cref="ConditionKind.Hosts"/>): "the phase's steps lit" outside a finish condition.</summary>
+    NotOfferedHere,
+
+    /// <summary>"These steps lit" with no step picked.</summary>
+    StepsLitNoSteps,
+
+    /// <summary>"These steps lit" names a step the phase doesn't have, or one that never lights.</summary>
+    StepsLitNotCountable,
+
+    /// <summary>"At least N steps lit" with N below 1 or above the steps that light up.</summary>
+    StepsLitCountOutOfRange,
 }
 
 /// <param name="Kind">What is wrong.</param>

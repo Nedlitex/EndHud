@@ -64,6 +64,12 @@ public enum AlertProblem
 
     /// <summary>"Time left of the ultimate" for an operator whose lasting ultimate isn't read: it could never be told.</summary>
     UltimateTimeNotRead,
+
+    /// <summary>
+    /// A kind that isn't for alerts ("the phase's steps lit": it is about a phase's own round, so it is only for a
+    /// phase's finish condition). Only a hand-written file can hold one; the editor doesn't offer it.
+    /// </summary>
+    NotForAlerts,
 }
 
 /// <summary>The alerts file: every rule, in the player's order.</summary>
