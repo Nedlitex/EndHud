@@ -59,8 +59,7 @@ public sealed class TextRecognizer
             var prepared = Prepare(source, sourceRect, targetHeight, edgeBlobsAreBackground);
             if (prepared is null) yield break;
             using var bitmap = prepared.ToSoftwareBitmap();
-            // The engine has answered null (no result at all) with several recognizers busy at once.
-            yield return (await _engine.RecognizeAsync(bitmap))?.Text ?? "";
+            yield return (await _engine.RecognizeAsync(bitmap)).Text;
         }
     }
 
