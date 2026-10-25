@@ -64,6 +64,8 @@ internal static class ConditionWords
                 return Slot(c.OperatorId)?.Ultimate is { } ultimate ? Percent(ultimate.Ready ? 1 : ultimate.Progress) : null;
             case CounterCondition c:
                 return state?.Counters.FirstOrDefault(r => r.OperatorId == c.OperatorId && r.CounterId == c.CounterId)?.Value is { } value ? Number(value) : null;
+            case TeamBuffCondition c:
+                return state?.BuffStacks(c.BuffId) is { } buffStacks ? Number(buffStacks) : null;
             case BossStatusCondition { MinStacks: > 1 } c:
                 if (state?.BossStatuses is not { } statuses) return null;
                 if (statuses.FirstOrDefault(s => s.StatusId == c.StatusId) is not { } status) return Number(0);
@@ -116,6 +118,7 @@ internal static class ConditionWords
                 OperatorCounters.Definitions.FirstOrDefault(d => d.OperatorId == c.OperatorId && d.Id == c.CounterId)?.NameZh ?? c.CounterId,
                 Symbol(c.Is), c.Value),
             BossStatusCondition c => Status(c, F),
+            TeamBuffCondition c => F("Alert.Describe.TeamBuff", StatusNames.Zh(c.BuffId) ?? c.BuffId, Symbol(c.Is), c.Value),
             ControllingCondition c => F("Alert.Describe.Controlling", Who(c.OperatorId)),
             NotCondition c => F("Alert.Describe.Not", One(c.Of, library, phaseName, text, nested: false)),
             AnyCondition c => Group(c.Of, "Alert.Describe.Or"),

@@ -122,6 +122,8 @@
     <sys:String x:Key="Editor.NotEmpowered">未强化</sys:String>
     <sys:String x:Key="Editor.EmpoweredHint">按该干员战技按钮外圈持续亮着的白色光环判断：光环亮着算已强化。键鼠和手柄布局都能读；按钮被特效或遮挡物盖住、或者背后画面很亮时无法判断。</sys:String>
     <sys:String x:Key="Editor.Condition.Counter">干员资源</sys:String>
+    <sys:String x:Key="Editor.Condition.TeamBuff">队伍增益层数</sys:String>
+    <sys:String x:Key="Editor.TeamBuffHint">按血条左侧的增益图标判断（目前识别连击）：图标右下角的数字是层数，没有数字算 1 层，图标不在算 0 层。只在战斗中读取；数字被特效挡住时无法判断。</sys:String>
     <sys:String x:Key="Editor.Condition.BossStatus">敌人状态</sys:String>
     <sys:String x:Key="Editor.Condition.Controlling">当前操控</sys:String>
     <sys:String x:Key="Editor.Compare.AtLeast">至少</sys:String>
@@ -477,6 +479,7 @@
     <sys:String x:Key="Alert.Describe.BattleSkillEmpowered">{0} 战技已强化</sys:String>
     <sys:String x:Key="Alert.Describe.BattleSkillNotEmpowered">{0} 战技未强化</sys:String>
     <sys:String x:Key="Alert.Describe.Counter">{0} {1} {2} {3}</sys:String>
+    <sys:String x:Key="Alert.Describe.TeamBuff">{0}层数 {1} {2}</sys:String>
     <sys:String x:Key="Alert.Describe.Status.Has">敌人有 {0}</sys:String>
     <sys:String x:Key="Alert.Describe.Status.HasNot">敌人没有 {0}</sys:String>
     <sys:String x:Key="Alert.Describe.Status.Stacks">{0} {1} {2} 层</sys:String>

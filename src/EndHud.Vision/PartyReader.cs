@@ -133,6 +133,18 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
     /// <see cref="TeamBuffReader"/>); empty when none, or out of combat (not read then).</summary>
     public IReadOnlyList<TeamBuff> Buffs { get; init; } = [];
 
+    /// <summary>
+    /// How many stacks of this team buff are shown (<see cref="Buffs"/>): 0 when it isn't shown, its stacks when it is.
+    /// Null when that can't be told: out of combat or with the squad panel out of sight (buffs are read in combat only),
+    /// or when its number is there but couldn't be read.
+    /// </summary>
+    public int? BuffStacks(string buffId)
+    {
+        if (!InCombat) return null;
+        var buff = Buffs.FirstOrDefault(b => b.Id == buffId);
+        return buff is null ? 0 : buff.Stacks;
+    }
+
     /// <summary>The boss's statuses recognised under its bars (see <see cref="BossStatusReader"/>);
     /// null when not read this time (it's read less often than the rest).</summary>
     public IReadOnlyList<BossStatusReading>? BossStatuses { get; init; }

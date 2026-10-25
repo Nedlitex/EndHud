@@ -380,6 +380,8 @@ public sealed class RotationTracker(Rotation rotation)
                 return SkillRunning(c.OperatorId, state) is { } skillRunning ? skillRunning == c.Active : null;
             case BattleSkillEmpoweredCondition c:
                 return slots.TryGetValue(c.OperatorId, out int es) && state.EmpoweredOf(es) is { } empowered ? empowered == c.Empowered : null;
+            case TeamBuffCondition c:
+                return state.BuffStacks(c.BuffId) is { } buffStacks ? Compare(buffStacks, c.Is, c.Value) : null;
             case ComboChargeCondition c:
                 return slots.TryGetValue(c.OperatorId, out int ccs) && state.Slots[ccs].Combo is { } bar
                     ? Compare(bar.Ready ? 100 : bar.Progress * 100, c.Is, c.Percent)

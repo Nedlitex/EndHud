@@ -43,6 +43,8 @@ internal static class ConditionIcon
         {
             SkillPointsCondition => new AlertSubject(AlertSubjectKind.SkillPoints),
             BossStatusCondition s => new AlertSubject(AlertSubjectKind.Status, s.StatusId),
+            // A team buff's icon is the wiki's status icon (Link's), as the gauge row draws it.
+            TeamBuffCondition b => new AlertSubject(AlertSubjectKind.Status, b.BuffId),
             BattleSkillEmpoweredCondition e => new AlertSubject(AlertSubjectKind.BattleSkill, e.OperatorId),
             NotCondition n => SubjectOf(n.Of),
             AllCondition { Of.Count: > 0 } all => SubjectOf(all.Of[0]),

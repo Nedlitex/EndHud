@@ -123,6 +123,8 @@ public static class ConditionCatalogue
         // Anyone: whose battle skill the game empowers isn't EndHud's to say; the glow is read on every slot's button.
         Kind<BattleSkillEmpoweredCondition>("BattleSkillEmpowered", "battleSkillEmpowered", "BattleSkillEmpowered", 11, 5, who: c => c.OperatorId),
         Kind<CounterCondition>("Counter", "counter", "Counter", 2, 1, who: c => c.OperatorId, comparison: c => c.Is),
+        // The team's, not an operator's: read left of whoever is controlled's HP bar.
+        Kind<TeamBuffCondition>("TeamBuff", "teamBuff", "TeamBuff", 12, 6, comparison: c => c.Is),
         Kind<BossStatusCondition>("BossStatus", "bossStatus", "BossStatus", 2, 1, ConditionNeeds.BossStatuses),
         Kind<ControllingCondition>("Controlling", "controlling", "Controlling", 2, 1, who: c => c.OperatorId),
         // An alert names a phase of any of the player's rotations, told while that rotation is followed.

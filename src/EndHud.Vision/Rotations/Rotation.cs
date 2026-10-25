@@ -91,6 +91,7 @@ public enum Comparison
 [JsonDerivedType(typeof(PhaseCurrentCondition), "phaseCurrent")]
 [JsonDerivedType(typeof(StepsLitCondition), "stepsLit")]
 [JsonDerivedType(typeof(BattleSkillEmpoweredCondition), "battleSkillEmpowered")]
+[JsonDerivedType(typeof(TeamBuffCondition), "teamBuff")]
 public abstract record StateCondition;
 
 /// <summary>Which steps a <see cref="StepsLitCondition"/> asks to be lit.</summary>
@@ -188,6 +189,13 @@ public sealed record BattleSkillActiveCondition(string OperatorId, bool Active) 
 /// is the game's to say, not EndHud's. Format 11.
 /// </summary>
 public sealed record BattleSkillEmpoweredCondition(string OperatorId, bool Empowered) : StateCondition;
+
+/// <summary>
+/// How many stacks of a team buff the game shows left of the HP bar (<see cref="TeamBuffReader"/>), by the wiki's name, e.g.
+/// Link (连击) at least 1: "连击层数 ≥ 1". A buff not shown in combat counts as 0; out of combat, or with its number not
+/// read, it is unknown (<see cref="PartyState.BuffStacks"/>). Format 12.
+/// </summary>
+public sealed record TeamBuffCondition(string BuffId, Comparison Is, int Value) : StateCondition;
 
 /// <summary>
 /// How much of an operator's lasting ultimate is left to run, as a percentage of its time bar
@@ -382,6 +390,7 @@ public sealed record Rotation(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool LastMatchWins = false)
 {
     /// <summary>
+    /// 12: "team buff stacks" conditions (<see cref="TeamBuffCondition"/>).
     /// 11: "battle skill empowered" conditions (<see cref="BattleSkillEmpoweredCondition"/>).
     /// 10: phases' finish conditions (<see cref="RotationPhase.Finish"/>) and "the phase's steps lit" in them
     /// (<see cref="StepsLitCondition"/>).
@@ -398,7 +407,7 @@ public sealed record Rotation(
     /// holds it (<see cref="FormatNeeded"/>), so one that uses nothing new stays readable by builds
     /// from before format 3.
     /// </summary>
-    public const int CurrentFormat = 11;
+    public const int CurrentFormat = 12;
 
     /// <summary>The lowest format that holds these phases and options.</summary>
     public static int FormatNeeded(IEnumerable<RotationPhase> phases, bool lastMatchWins)

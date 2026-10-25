@@ -66,6 +66,7 @@ internal sealed class ConditionEditor(
             "BattleSkill" => new BattleSkillCondition(first, true),
             "Counter" => counters().FirstOrDefault() is { } c ? new CounterCondition(c.OperatorId, c.Id, Comparison.AtLeast, c.Max ?? 1) : new SkillPointsCondition(Comparison.AtLeast, 2),
             "BossStatus" => new BossStatusCondition(library.Statuses.FirstOrDefault()?.Id ?? "", true),
+            "TeamBuff" => new TeamBuffCondition(TeamBuffReader.Buffs[0], Comparison.AtLeast, 1),
             "Controlling" => new ControllingCondition(first),
             // Another phase's count by default: a phase's entry condition can't use its own (Rotation.Problems).
             "PhaseShown" => new PhaseShownCondition(defaultPhaseId?.Invoke() ?? phases().FirstOrDefault().Id ?? "", Comparison.AtLeast, 1),
@@ -367,6 +368,22 @@ internal sealed class ConditionEditor(
                     return new CounterCondition(d.OperatorId, d.Id, (Comparison)Picked(compare), d.Max is { } cap ? Math.Min(picked, cap) : picked);
                 };
                 rebuildOnPick = true; // the value range follows the counter
+                break;
+            }
+            case TeamBuffCondition c:
+            {
+                // The buffs EndHud reads (Link, 连击), by their Chinese names; one from a file it doesn't read stays as it is.
+                var buffs = TeamBuffReader.Buffs.ToList();
+                if (!buffs.Contains(c.BuffId)) buffs.Insert(0, c.BuffId);
+                var which = Picker(buffs, b => StatusNames.Zh(b) ?? b, c.BuffId);
+                var compare = ComparePicker(c.Is);
+                // 0 to the most stacks shown (Link's 4); a file's value off the list is kept.
+                var value = Picker(Enumerable.Range(0, TeamBuffReader.MaxStacks + 1).ToList(), v => v.ToString(CultureInfo.InvariantCulture), c.Value);
+                row.Children.Add(which);
+                row.Children.Add(compare);
+                row.Children.Add(value);
+                read = () => new TeamBuffCondition((string)Picked(which), (Comparison)Picked(compare), (int)Picked(value));
+                hint = Loc.Get("Editor.TeamBuffHint");
                 break;
             }
             case BossStatusCondition c:
