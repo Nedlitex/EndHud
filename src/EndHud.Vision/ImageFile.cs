@@ -9,8 +9,11 @@ public static class ImageFile
 {
     public static async Task<Frame> LoadAsync(string path)
     {
-        var file = await StorageFile.GetFileFromPathAsync(Path.GetFullPath(path));
-        using var stream = await file.OpenReadAsync();
+        // A plain file stream, not StorageFile.OpenReadAsync: BitmapDecoder.CreateAsync refused StorageFile's stream
+        // now and then ("Value does not fall within the expected range") while other pictures were decoding and the
+        // garbage collector ran: measured with 12 loads side by side, 3 to 24 refusals in about 5,700 loads through
+        // StorageFile, none in about 15,500 through a file stream.
+        using var stream = await FileRandomAccessStream.OpenAsync(Path.GetFullPath(path), FileAccessMode.Read);
         var decoder = await BitmapDecoder.CreateAsync(stream);
         using var bitmap = await decoder.GetSoftwareBitmapAsync(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
         return Frame.FromSoftwareBitmap(bitmap);
