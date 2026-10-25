@@ -37,7 +37,7 @@ public sealed class UpdateTrustTests : IDisposable
     private string Exe => Path.Combine(_root, "app", "EndHud.exe");
 
     private Updater NewUpdater(UpdateFeed feed) =>
-        new(() => new HttpClient(_web, disposeHandler: false), Exe, Path.Combine(_root, "work"), InstallKind.Portable, _ => true, feed);
+        new(() => new HttpClient(_web, disposeHandler: false), Exe, Path.Combine(_root, "work"), InstallKind.Portable, _ => true, feed, elevated: false);
 
     private static ReleaseInfo Release(string url) => new(new Version(1, 4, 0), "https://github.com/Nedlitex/EndHud/releases/tag/v1.4.0",
         [new ReleaseAsset("EndHud-1.4.0-portable.exe", url, Convert.ToHexString(SHA256.HashData(NewExe)).ToLowerInvariant())]);

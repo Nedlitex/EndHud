@@ -379,6 +379,7 @@
     <sys:String x:Key="Update.Failed.Checksum">下载的 EndHud {0} 文件校验不一致，已删除，没有安装。点击这里打开下载页面手动更新。</sys:String>
     <sys:String x:Key="Update.Failed.Replace">无法替换 EndHud 程序文件（{1}），请把 EndHud 放到可写入的文件夹，或手动更新到 {0}。点击这里打开下载页面。</sys:String>
     <sys:String x:Key="Update.Failed.NoPackage">EndHud {0} 没有可自动安装的文件。点击这里打开下载页面手动更新。</sys:String>
+    <sys:String x:Key="Update.Failed.Elevated">EndHud 正以管理员身份运行，为了安全不会自动下载安装更新 {0}。请正常打开 EndHud（不要选“以管理员身份运行”）后再更新，或点击这里打开下载页面手动更新。</sys:String>
     <sys:String x:Key="Update.Failed.Install">安装 EndHud {0} 失败，仍在使用 {1}。点击这里打开下载页面手动更新。</sys:String>
     <sys:String x:Key="Update.UpToDate">EndHud 已是最新版本（{0}）。</sys:String>
     <sys:String x:Key="Update.DevelopmentBuild">这是开发版本，不检查 EndHud 新版本。</sys:String>

@@ -154,7 +154,8 @@ internal sealed class TrayIcon : IDisposable
         Notify(Loc.Format("Update.Downloading", version), null);
         try
         {
-            var outcome = await new Updater(UpdateFeed.GitHub).InstallAsync(release, restart: true);
+            using var updater = new Updater(UpdateFeed.GitHub);
+            var outcome = await updater.InstallAsync(release, restart: true);
             if (outcome.Started)
             {
                 System.Windows.Application.Current.Shutdown();
@@ -165,6 +166,7 @@ internal sealed class TrayIcon : IDisposable
                 UpdateFailure.Download => Loc.Format("Update.Failed.Download", version),
                 UpdateFailure.Checksum => Loc.Format("Update.Failed.Checksum", version),
                 UpdateFailure.Replace => Loc.Format("Update.Failed.Replace", version, outcome.Detail ?? ""),
+                UpdateFailure.Elevated => Loc.Format("Update.Failed.Elevated", version),
                 _ => Loc.Format("Update.Failed.NoPackage", version),
             };
             Notify(reason, () => OpenLink(release.PageUrl));

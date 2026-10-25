@@ -24,7 +24,7 @@ public sealed class UpdateNowTests : IDisposable
 
     private Task<int> Run(params string[] args) => UpdateNow.RunAsync(args, _work,
         feed => new UpdateService(() => new HttpClient(_http, disposeHandler: false), new Version(1, 0, 0), feed),
-        feed => new Updater(() => new HttpClient(_http, disposeHandler: false), Path.Combine(_work, "EndHud.exe"), _work, InstallKind.Portable, _ => true, feed));
+        feed => new Updater(() => new HttpClient(_http, disposeHandler: false), Path.Combine(_work, "EndHud.exe"), _work, InstallKind.Portable, _ => true, feed, elevated: false));
 
     private string Log => File.ReadAllText(Path.Combine(_work, "update-now.log"));
 

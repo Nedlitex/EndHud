@@ -28,17 +28,24 @@ public sealed class UpdaterTests : IDisposable
         File.WriteAllBytes(Exe, OldExe);
     }
 
+    private readonly List<Updater> _updaters = [];
+
     public void Dispose()
     {
+        foreach (var updater in _updaters) updater.Dispose();
         try { Directory.Delete(_root, recursive: true); } catch (IOException) { }
     }
 
-    private Updater NewUpdater(InstallKind kind, HttpMessageHandler downloads, UpdateFeed? feed = null) =>
-        new(() => new HttpClient(downloads, disposeHandler: false), Exe, Work, kind, info =>
+    private Updater NewUpdater(InstallKind kind, HttpMessageHandler downloads, bool elevated = false, Action<string>? beforeLock = null)
+    {
+        var updater = new Updater(() => new HttpClient(downloads, disposeHandler: false), Exe, Work, kind, info =>
         {
             _started.Add(info);
             return true;
-        }, feed ?? UpdateFeed.GitHub);
+        }, UpdateFeed.GitHub, elevated) { BeforeLock = beforeLock };
+        _updaters.Add(updater);
+        return updater;
+    }
 
     private static string Sha256(byte[] data) => Convert.ToHexString(SHA256.HashData(data)).ToLowerInvariant();
 
@@ -133,7 +140,7 @@ public sealed class UpdaterTests : IDisposable
     [Fact]
     public async Task An_MSI_install_hands_over_to_a_hidden_script_that_installs_quietly_and_restarts()
     {
-        byte[] msi = "MSI 1.4.0"u8.ToArray();
+        byte[] msi = TestMsi.Create(_root);
         var updater = NewUpdater(InstallKind.Msi, new FakeDownloads(msi));
 
         var outcome = await updater.InstallAsync(Release(msi, Sha256(msi)), restart: true);
@@ -149,7 +156,7 @@ public sealed class UpdaterTests : IDisposable
         Assert.Equal("1.4.0", start.Environment["ENDHUD_VERSION"]);
         Assert.Equal("1", start.Environment["ENDHUD_RESTART"]);
 
-        string script = File.ReadAllText(Path.Combine(Work, "install.cmd"));
+        string script = File.ReadAllText(Path.Combine(start.WorkingDirectory, "install.cmd"));
         Assert.Contains("msiexec /i \"%ENDHUD_MSI%\" /qn /norestart", script);
         Assert.Contains("--updated %ENDHUD_VERSION%", script);
         Assert.Contains("--update-failed %ENDHUD_VERSION%", script);

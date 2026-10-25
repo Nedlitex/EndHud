@@ -42,7 +42,7 @@ internal static class UpdateNow
             feed = local;
         }
         using var updates = service(feed);
-        var install = updater(feed);
+        using var install = updater(feed);
         Log($"EndHud {ReleaseChecker.Current?.ToString(3) ?? "dev"} ({install.Kind}) at {Environment.ProcessPath}; asking {feed.Api}");
 
         var check = await updates.CheckAsync();
