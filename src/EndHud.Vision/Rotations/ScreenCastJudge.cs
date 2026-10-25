@@ -118,7 +118,10 @@ public sealed class ScreenCastJudge
         // Points spent since the last reading that read them (a cutscene or an effect over the bar in between).
         if (now.SkillPoints is { } points && now.InCombat)
         {
-            if (_pointsRead is { SkillPoints: { } was } last && was - points >= DropAt && at - (last.ReadAt ?? at) <= TimeSpan.FromSeconds(1.5))
+            // Only on a bar of the same size: points read against a bar of another segment count (7 of 7, then 3 of
+            // 3) aren't spent. Either count unknown (not told) is taken as the same bar.
+            bool sameBar = _pointsRead?.SkillPointMax is not { } wasMax || now.SkillPointMax is not { } max || wasMax == max;
+            if (sameBar && _pointsRead is { SkillPoints: { } was } last && was - points >= DropAt && at - (last.ReadAt ?? at) <= TimeSpan.FromSeconds(1.5))
                 for (int n = Math.Max(1, (int)Math.Round(was - points)); n > 0; n--) _drops.Add(new Drop(last, now));
             _pointsRead = now;
         }
