@@ -97,6 +97,16 @@ public static class SkillPointBar
         return value;
     }
 
+    /// <summary>
+    /// The reading for diagnostics: "1.40/3" (points of the bar's segments), "?/3" when the bar is seen but its fill
+    /// isn't read, "-" when no bar is seen.
+    /// </summary>
+    public static string Describe(PartyState state)
+    {
+        string points = state.SkillPoints?.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) ?? (state.SkillPointMax is null ? "-" : "?");
+        return state.SkillPointMax is { } max ? $"{points}/{max}" : points;
+    }
+
     private static double Pitch(int segments) => (RowRight - RowLeft + Gap) / segments;
 
     /// <summary>Segment <paramref name="s"/>'s inner rows at 4K (its box, less the rim), anchored to the bottom centre.</summary>

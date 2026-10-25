@@ -27,6 +27,19 @@ public class SkillPointBarTests
         Assert.True(state.InCombat);
     }
 
+    /// <summary>
+    /// How the diagnostics (the player's diagnostics zip, the debug panel, endhud-cli analyze) write the reading: the
+    /// points of the bar's size, so a bar of another size shows, and a bar seen with its fill unread isn't "no bar".
+    /// </summary>
+    [Theory]
+    [InlineData(7.0, 7, "7.00/7")]
+    [InlineData(1.4, 3, "1.40/3")]
+    [InlineData(null, 3, "?/3")]
+    [InlineData(null, null, "-")]
+    [InlineData(2.0, null, "2.00")]
+    public void Diagnostics_write_the_points_of_the_bars_size(double? points, int? segments, string text) =>
+        Assert.Equal(text, SkillPointBar.Describe(new PartyState([]) { SkillPoints = points, SkillPointMax = segments }));
+
     public static TheoryData<int, double> Bars()
     {
         var data = new TheoryData<int, double>();

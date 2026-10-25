@@ -371,7 +371,7 @@ internal sealed class PartyMonitor : IDisposable
             $"combo {(s.Combo is { } c ? (c.Ready ? "ready" : c.Progress.ToString("F2")) : "-")}, " +
             $"ultimate {(s.Ultimate is { } u ? (u.Ready ? "ready" : u.Progress.ToString("F2")) : "-")}"));
         return $"picture {frame.Width}x{frame.Height}, mean brightness {(samples == 0 ? 0 : sum / samples)}, {(samples == 0 ? 0 : black * 100 / samples)}% black; " +
-               $"{DescribeLayout(raw)}, controlled slot {raw.ActiveSlot?.ToString() ?? "-"}, skill points {raw.SkillPoints?.ToString("F2") ?? "-"}; {slots}";
+               $"{DescribeLayout(raw)}, controlled slot {raw.ActiveSlot?.ToString() ?? "-"}, skill points {SkillPointBar.Describe(raw)}; {slots}";
     }
 
     /// <summary>

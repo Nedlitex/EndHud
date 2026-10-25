@@ -350,7 +350,7 @@ static async Task<int> AnalyzeAsync(string imagePath, string? debugDir)
         Console.WriteLine($"slot {slot.Number}: level={slot.Level?.ToString() ?? "-",-3} hp={hp,-5} combo={combo,-6} ult={ult,-10} skill={slot.BattleSkill?.ToString() ?? "-",-9} ocr=\"{slot.LevelText}\"");
     }
     Console.WriteLine($"layout: {state.Layout}; panel visible: {state.PanelVisible} (HP-bar marks found: {state.PanelMarks}/8, keyboard-and-mouse layout only)");
-    Console.WriteLine($"skill points: {state.SkillPoints?.ToString("F2") ?? "-"}   controlled slot: {state.ActiveSlot?.ToString() ?? "-"}");
+    Console.WriteLine($"skill points: {SkillPointBar.Describe(state)}   controlled slot: {state.ActiveSlot?.ToString() ?? "-"}");
 
     if (debugDir is not null)
     {
