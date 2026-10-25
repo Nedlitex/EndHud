@@ -93,18 +93,23 @@ rotation charts.
   **Counter glyphs** (owner, 2026-10-25: a counter in a condition should be "the actual counter icon, not the character
   icon, or otherwise it is unclear what it means"). The community wiki has no picture of any counter (checked
   2026-10-25: none of the 6,312 files on endfield.wiki.gg is one, and the talents that grant them carry generic talent
-  icons), so EndHud draws each one ([`CounterGlyphs`](src/EndHud/CounterGlyphs.cs), owner's choice): a simple vector
-  copy of the counter as the game draws it full beside the HP bar, sharp at any size, on a transparent square. Shapes
-  come from where `OperatorCounters` reads them and the drawings measured round them on the fixtures; colours are the
-  medians measured there. Numbers the game prints on or beside a counter are left out (the badge has its own).
+  icons), so EndHud draws each one ([`CounterGlyphs`](src/EndHud/CounterGlyphs.cs), owner's choice): clean vector
+  art of the counter as the game draws it full beside the HP bar (owner, 2026-10-25: "make the counter look more like
+  what the game shows ... use a more vector style"), the lit shapes in their colour over the game's own dark outline or
+  backing, sharp at any size, on a transparent square. Shapes and colours are measured on the fixtures below, in the
+  game's 4K pixels, and `CounterGlyphsTests` lays each glyph over its fixture and compares it point by point (lit, the
+  dark outline, nothing outside; within 50 a channel). Numbers the game prints on or beside a counter (Laevatain's
+  Roman numeral, Zhuang Fangyi's count, Si's stacks) are left out (the badge has its own). A review sheet (the game's
+  counter beside the glyph, at badge size and 4x): `dotnet run --project tools/EndHud.ReadmeMedia -- glyphs
+  tests/data/Fixtures <out.png>`.
 
   | Counter | Glyph | Measured on |
   |---|---|---|
-  | Laevatain's 熔火 (`melting-flame`) | four pink petals (214, 76, 107) | `battle-hud/battle-47s` (4 stacks) |
-  | Typhoeus's 猎矢 (`hunting-arrow`) | four slanted cyan bars, each with its small end triangle (63, 255, 250) | `counters/native-9_5s` (4 arrows) |
-  | Typhoeus's 启示 (`sign`) | eight white dots in two columns (237, 237, 239) | `counters/native-33s` (8 signs) |
-  | Zhuang Fangyi's 青霆剑 (`sunderblade`) | nine cyan diamonds in rows of 1, 2, 3, 2, 1 (174, 251, 230) | `counters/zhuang-96s` (9 swords) |
-  | Si's 伤害层数 (`damage-stacks`) | her green badge, four lobes round a hollow middle (150, 254, 163) | `si/stacks-14s` (0, no number) |
+  | Laevatain's 熔火 (`melting-flame`) | an X of four pink petals (208, 75, 104) in one dark outline (38, 28, 30) that parts them with a dark cross; the same X shows grey petals unlit and white ones lit below 4 | `battle-hud/battle-47s` (4 stacks) |
+  | Typhoeus's 猎矢 (`hunting-arrow`) | four slanted cyan bars, each with its small end triangle (63, 255, 250), outlined dark teal (34, 110, 100: their glow between them) | `counters/native-20s` (4 arrows) |
+  | Typhoeus's 启示 (`sign`) | eight white dots in two columns (237, 237, 239) on one dark block (36, 36, 38) | `counters/native-33s` (8 signs) |
+  | Zhuang Fangyi's 青霆剑 (`sunderblade`) | nine mint diamonds in rows of 1, 2, 3, 2, 1 (174, 251, 230) on a dark diamond plate (30, 42, 42) | `counters/zhuang-96s` (9 swords) |
+  | Si's 伤害层数 (`damage-stacks`) | her green badge, four lobes round a hollow middle (151, 254, 164), on its dark stepped backing (28, 34, 28) | `si/stacks-14s` (0, no number); the backing on `si/stacks-50_75s` |
 
   The same glyph is the condition step's circle and the alert pop-up's icon (drawn whole there, not cut round like an
   avatar). A counter id with no glyph (one from a newer file) keeps the operator's avatar. The gauge row's counter

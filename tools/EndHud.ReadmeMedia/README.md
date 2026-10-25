@@ -64,3 +64,13 @@ only, since in the controller layout slot 4's HP bar sits just above it:
 ffmpeg -ss 79.5 -t 6 -i battle_controller_test_fullbattle2.mp4 -an   -vf "drawbox=x=205:y=2100:w=285:h=30:color=black:t=fill,fps=15,scale=1280:-2:flags=lanczos"   -c:v libwebp_anim -lossless 0 -q:v 62 -compression_level 6 -loop 0 docs/images/controller-battle.webp
 ```
 
+## The counter glyphs beside the game's counters
+
+```powershell
+dotnet run --project tools/EndHud.ReadmeMedia -- glyphs tests/data/Fixtures out/counter-glyphs.png
+```
+
+A review sheet of `CounterGlyphs`: for each counter, the game's counter cut from the fixture its glyph was measured
+on, then the glyph, at the strip's badge size and at 4x the game's 4K pixels (the two line up), and Laevatain's
+melting-flame at 0-4 stacks for reference. Off-screen; no window is opened.
+
