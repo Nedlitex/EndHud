@@ -79,6 +79,20 @@ public class RotationStripTests
         Assert.True(waiting.Height > Render(Guide(StripStepState.Waiting)).Height); // the reasons' line
     }
 
+    private static bool Amber(byte r, byte g, byte b) => r > 230 && g is > 165 and < 220 && b < 120;
+
+    /// <summary>A step seen used is lit: its amber ring shows; with it unlit, no amber anywhere.</summary>
+    [Fact]
+    public void A_lit_step_shows_amber_and_an_unlit_one_does_not()
+    {
+        var lit = Render(Guide(StripStepState.Ready));
+        var unlit = Render(new StripView("充能轴 I",
+            [new StripStep(null, null, "战技", null, StripStepState.Unlit, false), new StripStep(null, null, "连携技", null, StripStepState.Ready, false)], null, []));
+
+        Assert.True(lit.Count(Amber) > 100, $"{lit.Count(Amber)} amber pixels");
+        Assert.Equal(0, unlit.Count(Amber));
+    }
+
     private static bool White(byte r, byte g, byte b) => r > 225 && g > 225 && b > 225;
 
     [Fact]

@@ -80,6 +80,15 @@ internal static class RotationStrip
     private static readonly Brush CurrentFill = Frozen(Color.FromArgb(0xE0, 0x18, 0x1A, 0x1E));
     private static readonly Brush Band = FrozenBand();
 
+    /// <summary>A lit step's ring and glow: amber, apart from the cyan of "use it now" and the red of the reasons.</summary>
+    internal static readonly Color LitColor = Color.FromRgb(0xFF, 0xC2, 0x4A);
+
+    /// <summary>A step not seen used yet this round: dimmed, so the lit ones stand out.</summary>
+    internal const double UnlitOpacity = 0.45;
+
+    /// <summary>A basic, heavy or plunge attack (never seen used): between unlit and lit, its ring dashed.</summary>
+    internal const double NeutralOpacity = 0.75;
+
     private static Brush Frozen(Color color)
     {
         var brush = new SolidColorBrush(color);
@@ -210,6 +219,7 @@ internal static class RotationStrip
             Width = StepWidth,
             Margin = new Thickness(step.WithPrevious ? -Overlap : 0, 0, 0, 0),
             Opacity = glows switch { true => 1, false => 0.45, null => step.State is StripStepState.Lit ? 0.45 : 1 },
+            Tag = step.State, // found by it in tests
         };
         panel.Children.Add(Chevrons(current ? accent : null));
         panel.Children.Add(new TextBlock

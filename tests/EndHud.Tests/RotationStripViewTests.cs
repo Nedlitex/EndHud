@@ -41,8 +41,18 @@ public class RotationStripViewTests
         Assert.Empty(view.Reasons);
     }
 
+    /// <summary>The step panels of a drawn strip, by the state each was drawn for: its opacity, its circle's ring colour, whether the ring is dashed.</summary>
+    private static List<(StripStepState State, double Opacity, Color Ring, bool Dashed)> Drawn(StripView view) => OnSta(() =>
+        Descendants(RotationStrip.Build(view)).OfType<System.Windows.Controls.StackPanel>().Where(p => p.Tag is StripStepState)
+            .Select(p => (State: (StripStepState)p.Tag, p.Opacity, Ring: Descendants(p).OfType<System.Windows.Shapes.Ellipse>().First()))
+            .Select(d => (d.State, d.Opacity, ((SolidColorBrush)d.Ring.Stroke).Color, d.Ring.StrokeDashArray is { Count: > 0 })).ToList());
+
+    /// <summary>
+    /// Owner, 2026-10-24: "lit steps drawn as done (filled/bright), unlit dim, chevron on the first unlit". A lit
+    /// step is bright with an amber ring; an unlit one is dimmed; the current one is bright with its chevrons.
+    /// </summary>
     [Fact]
-    public void With_step_marks_done_steps_fade_and_the_current_has_chevrons()
+    public void With_step_marks_lit_steps_are_bright_unlit_ones_dim_and_the_current_has_chevrons()
     {
         var played = Rotation.Played();
         var steps = new StepPosition(0, [StepMark.Lit, StepMark.Current, StepMark.Unlit], true, [new ConditionCheck(CheckKind.OwnAbility, null, true)]);
@@ -52,7 +62,28 @@ public class RotationStripViewTests
         Assert.Equal([StripStepState.Lit, StripStepState.Ready, StripStepState.Unlit], view.Steps.Select(s => s.State));
         Assert.All(view.Next!.Steps, s => Assert.Equal(StripStepState.Plain, s.State)); // the next phase's preview is never marked
         Assert.Empty(view.Reasons);
-        OnSta(() => RotationStrip.Build(view)); // draws
+        var drawn = Drawn(view).Take(3).ToList();
+        Assert.Equal([1.0, 1.0, RotationStrip.UnlitOpacity], drawn.Select(d => d.Opacity));
+        Assert.True(RotationStrip.UnlitOpacity < 1);
+        Assert.Equal(RotationStrip.LitColor, drawn[0].Ring);
+        Assert.NotEqual(RotationStrip.LitColor, drawn[2].Ring);
+    }
+
+    /// <summary>A basic, heavy or plunge attack can't be seen: neutral, in its place, between unlit and lit, its ring dashed.</summary>
+    [Fact]
+    public void A_step_never_seen_is_drawn_neutral_in_its_place()
+    {
+        var rotation = new Rotation(Rotation.CurrentFormat, "r", "r", ["Laevatain", "Camille", "Arcane", "Ardelia"],
+            [new RotationPhase("p", "P", [new RotationStep("Arcane", StepAction.BasicAttack), new RotationStep("Ardelia", StepAction.BattleSkill)])]);
+        var steps = new StepPosition(0, [StepMark.Neutral, StepMark.Current], true, [new ConditionCheck(CheckKind.OwnAbility, null, true)]);
+
+        var view = RotationStripView.Build(rotation, new RotationPosition(rotation.Played()[0], true, []), null, null, (_, _) => null, _ => null, steps);
+
+        Assert.Equal([StripStepState.Neutral, StripStepState.Ready], view.Steps.Select(s => s.State));
+        var neutral = Drawn(view)[0];
+        Assert.Equal(RotationStrip.NeutralOpacity, neutral.Opacity);
+        Assert.True(RotationStrip.NeutralOpacity > RotationStrip.UnlitOpacity && RotationStrip.NeutralOpacity < 1);
+        Assert.True(neutral.Dashed);
     }
 
     [Fact]
@@ -280,6 +311,22 @@ public class RotationStripViewTests
 
         Assert.Equal(StripStepState.Lit, view.Steps[0].State);
         Assert.Equal(true, view.Steps[0].Condition?.Holds);
+    }
+
+    /// <summary>
+    /// Owner, 2026-10-24: "condition met should also light up to indicate". Met, a condition step is lit like a skill
+    /// seen used, and stays lit for the round when it stops holding.
+    /// </summary>
+    [Fact]
+    public void A_condition_step_met_is_drawn_lit_and_stays_lit_when_it_stops_holding()
+    {
+        var rotation = WithConditionStep(CryoThree);
+        var steps = new StepPosition(0, [StepMark.Lit, StepMark.Current], true, [new ConditionCheck(CheckKind.OwnAbility, null, true)]);
+
+        var view = RotationStripView.Build(rotation, new RotationPosition(rotation.Played()[0], true, []), Cryo(0), null, (_, _) => null, _ => null, steps);
+
+        var condition = Drawn(view)[0];
+        Assert.Equal((StripStepState.Lit, 1.0, RotationStrip.LitColor), (condition.State, condition.Opacity, condition.Ring));
     }
 
     /// <summary>
