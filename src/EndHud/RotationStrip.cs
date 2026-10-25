@@ -15,7 +15,7 @@ namespace EndHud;
 /// <param name="WithPrevious">Drawn overlapping the step before: used right after it.</param>
 /// <param name="Condition">A condition step's own look; null for a skill or an attack.</param>
 /// <param name="Badges">Its expected conditions as badges under the circle (<see cref="StripBadge"/>); none for a step without any.</param>
-internal sealed record StripStep(BitmapSource? Icon, BitmapSource? Avatar, string Action, string? Note, StripStepState State, bool WithPrevious, StripCondition? Condition = null,
+internal sealed record StripStep(ImageSource? Icon, BitmapSource? Avatar, string Action, string? Note, StripStepState State, bool WithPrevious, StripCondition? Condition = null,
     IReadOnlyList<StripBadge>? Badges = null)
 {
     public IReadOnlyList<StripBadge> Badges { get; init; } = Badges ?? [];
@@ -34,7 +34,7 @@ internal sealed record StripStep(BitmapSource? Icon, BitmapSource? Avatar, strin
 /// <param name="Not">The opposite is asked for (not ready, absent, not running): a slash across the picture.</param>
 /// <param name="Holds">It holds in the current reading: bright. Not holding, or unknown: dim.</param>
 /// <param name="Or">One of several where any one is enough, after the first: a "/" before it.</param>
-internal sealed record StripBadge(BitmapSource? Picture, BadgeGlyph Glyph, string? Value, BadgeSign Sign, bool Not, bool Holds, bool Or = false);
+internal sealed record StripBadge(ImageSource? Picture, BadgeGlyph Glyph, string? Value, BadgeSign Sign, bool Not, bool Holds, bool Or = false);
 
 /// <summary>What a badge draws when it has no picture.</summary>
 internal enum BadgeGlyph

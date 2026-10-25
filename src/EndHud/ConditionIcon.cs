@@ -1,3 +1,4 @@
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using EndHud.Vision.Operators;
 using EndHud.Vision.Rotations;
@@ -86,7 +87,7 @@ internal static class ConditionIcon
     /// The picture for the subject: a status's icon, an operator's avatar, or an operator's battle skill icon (their avatar
     /// while it isn't loaded, or when the wiki has none); null for skill points, nothing in particular, or one not loaded yet.
     /// </summary>
-    public static BitmapSource? Picture(AlertSubject subject, OperatorLibrary? library, Func<string, BitmapSource?> statusIcon, Func<OperatorInfo, BitmapSource?> avatar,
+    public static ImageSource? Picture(AlertSubject subject, OperatorLibrary? library, Func<string, BitmapSource?> statusIcon, Func<OperatorInfo, BitmapSource?> avatar,
         Func<OperatorInfo, StepAction, BitmapSource?> skillIcon) => subject switch
     {
         { Kind: AlertSubjectKind.Status, Id: { } status } => statusIcon(status),

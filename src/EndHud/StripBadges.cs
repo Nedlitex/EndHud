@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using EndHud.Vision;
 using EndHud.Vision.Operators;
@@ -19,7 +20,7 @@ internal static class StripBadges
     /// <summary>Where the badges' pictures come from.</summary>
     /// <param name="StepPicture">The picture of the phase's step numbered so (from 1), for "these steps lit".</param>
     internal sealed record Pictures(OperatorLibrary? Library, Func<OperatorInfo, StepAction, BitmapSource?> SkillIcon, Func<OperatorInfo, BitmapSource?> Avatar,
-        Func<string, BitmapSource?> StatusIcon, Func<int, BitmapSource?> StepPicture);
+        Func<string, BitmapSource?> StatusIcon, Func<int, ImageSource?> StepPicture);
 
     /// <param name="holds">Whether a condition holds now (null: can't be told); asked of each badge's own condition, a
     /// "not" as a <see cref="NotCondition"/> of it.</param>

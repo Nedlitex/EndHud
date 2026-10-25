@@ -35,7 +35,7 @@ internal static class AlertPopUp
     private static readonly Brush CircleFill = Frozen(new SolidColorBrush(Color.FromArgb(0xE6, 0x10, 0x14, 0x18)));
 
     /// <summary>What goes in the circle.</summary>
-    public static UIElement Icon(BitmapSource? picture, bool skillPoints)
+    public static UIElement Icon(ImageSource? picture, bool skillPoints)
     {
         if (picture is not null)
             return new Image { Source = picture, Width = IconSize, Height = IconSize, Clip = new EllipseGeometry(new Point(IconSize / 2, IconSize / 2), IconSize / 2, IconSize / 2) };
