@@ -83,6 +83,54 @@ public class OnScreenDisplayCombatGateTests(ITestOutputHelper output)
         Assert.True(wrong.Count == 0, $"{fixture}: {string.Join("; ", wrong)}");
     }
 
+    /// <summary>
+    /// The battle-skill buttons' cast flash (<see cref="BattleSkillFlash"/>, <see cref="CastFlashTracker"/>), sampled 30
+    /// times a second from the corner as the app does: three seconds of the frame, with the display appearing at 0.5 s,
+    /// its numbers redrawn every 0.5 s (RivaTuner updates them about once a second), and gone at 2.5 s. A display
+    /// coming, changing and going over the buttons must tell no flash the frame alone doesn't, at any position.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(CombatFrames))]
+    public async Task A_display_over_the_buttons_makes_no_cast_flash(string fixture)
+    {
+        var source = await ImageFile.LoadAsync(CombatFrameTests.Fixture(fixture));
+        var wrong = new List<string>();
+        foreach (var (size, frame) in new[] { ("4K", source), ("1080p", SimulatedScreen.FullHd.Render(source)) })
+        {
+            var region = BattleSkillFlash.Region(frame.Width, frame.Height);
+            var corner = frame.Crop(region);
+            double scale = new UiScaler(frame.Width, frame.Height).Scale;
+            var still = BattleSkillFlash.MeasureAll(corner, scale);
+            var clean = Flashes(_ => still);
+            int px = SyntheticOsd.PixelFor(frame.Height);
+            foreach (var position in SyntheticOsd.Positions)
+            foreach (bool background in new[] { true, false })
+            {
+                var (x, y) = SyntheticOsd.Place(position, frame.Width, frame.Height, px);
+                // The corner measured once per update of the display (the frame doesn't move).
+                var measured = Enumerable.Range(0, 4).Select(refresh =>
+                    BattleSkillFlash.MeasureAll(SyntheticOsd.Draw(corner, x - region.X, y - region.Y, px, background, refresh: refresh), scale)).ToList();
+                var told = Flashes(t => t < 0.5 || t >= 2.5 ? still : measured[(int)((t - 0.5) / 0.5)]);
+                var extra = told.Where(f => !clean.Contains(f)).ToList();
+                if (extra.Count > 0) wrong.Add($"{size} {position}{(background ? " bg" : "")}: {string.Join(", ", extra)}");
+            }
+        }
+        Assert.True(wrong.Count == 0, $"{fixture}: {string.Join("; ", wrong)}");
+    }
+
+    /// <summary>The flashes told over three seconds of corners sampled 30 times a second, as (button, kind).</summary>
+    private static List<(int Button, FlashKind Kind)> Flashes(Func<double, FlashSample[]> samplesAt)
+    {
+        var tracker = new CastFlashTracker();
+        var told = new List<(int, FlashKind)>();
+        for (int n = 0; n < 90; n++)
+        {
+            double t = n / 30.0;
+            told.AddRange(tracker.Add(TimeSpan.FromSeconds(t), samplesAt(t)).Select(f => (f.Button, f.Kind)));
+        }
+        return told;
+    }
+
     /// <summary>Fields that are counts of what was seen rather than values shown: compared as unknown when lost.</summary>
     private static readonly HashSet<string> Signs = ["panel", "combat"];
 
