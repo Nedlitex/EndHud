@@ -1686,6 +1686,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   | `ultimateCharge` | `operatorId`, `is`, `percent` (0–100) | that operator's ultimate is charged so far (ready is 100; at most 0 is just used) |
   | `battleSkillActive` | `operatorId`, `active` (format 7) | that operator's lasting battle skill is running (`true`) or not: Si's, from the swirl on her battle-skill button until the butterfly is back (the purple countdown round her stacks' circle, see [Si's battle-skill timer](#sis-battle-skill-timer)). This reading's button decides (swirl or crossed-out butterfly: running; butterfly: not); a reading that can't tell it (an effect, a countdown look) goes by the overlay's timer (`PartyState.RunningSkills`, the estimate while it lasts): running while it shows one, else unknown. Unknown with a controller (the buttons aren't read). Only Si's is read (`SkillRing.Operators`); naming anyone else is refused (`SkillTimeNotRead`), and the editors offer only Si, greyed out without her |
   | `battleSkillEmpowered` | `operatorId`, `empowered` (format 11) | that operator's battle skill is empowered (战技已强化, `true`) or not: the steady near-white glow on the rim of their battle-skill button, judged over the last 0.5 s of the corner sampled 30 times a second (see [Following battle skills from the screen](#following-battle-skills-from-the-screen); `PartyState.Empowered`, `PartyState.EmpoweredOf`). Keyboard and mouse and controller alike (either diamond: LB held or not). Unknown when the corner isn't sampled (no window capture), the squad panel is out of sight or out of battle, with keyboard and mouse when that reading couldn't read the slot's button, and whenever the glow can't be told (below). Any operator may be named: whose battle skill the game empowers is not EndHud's to say |
+  | `teamBuff` | `buffId` (the wiki's name: `Link`, 连击), `is`, `value` (0–4 in the editor) (format 12) | how many stacks of a team buff the game shows left of the controlled operator's HP bar (连击层数, e.g. `Link` `AtLeast` 1 before Laevatain's empowered battle skill), compared: the number on the icon's bottom right, 1 when it has none ([`TeamBuffReader`](src/EndHud.Vision/TeamBuffReader.cs), `PartyState.Buffs`); **0 when it isn't shown in combat** (`PartyState.BuffStacks`). Unknown out of combat or with the squad panel out of sight (buffs are read in combat only), and when the number is there but can't be read. The editor offers the buffs EndHud reads (`TeamBuffReader.Buffs`: Link) by their Chinese names. Its reading is in the on-screen display combat gate (`buffs`, compared exactly), so a display over it gives the same stacks or none read; tests: `TeamBuffConditionTests` |
   | `ultimateActive` | `operatorId`, `active` (format 3) | that operator's lasting ultimate is running (`true`) or not, whoever is controlled: one of the running ones from [Lasting ultimates](#lasting-ultimates) (`PartyState.RunningUltimates`), on the time bar or carried on in the background. Unknown while the skill points can't be read, and, for an operator whose ultimate isn't one of the known lasting ones, while a bar shows (it could be hers); with no bar, false |
   | `ultimateTimeLeft` | `operatorId`, `is`, `percent` (0–100) (format 9) | how much of that operator's lasting ultimate is left to run, as a % of its time bar (`LastingUltimateView.LeftShare` of the running ones from [Lasting ultimates](#lasting-ultimates), on the bar or carried on in the background); 0 while it isn't running (as a ready ultimate's charge is 100). Unknown while the skill points can't be read. Only Laevatain, Zhuang Fangyi and Yvonne (`LastingUltimates.Operators`); anyone else is refused (`UltimateTimeNotRead`), and the editors offer only them, greyed out without any. No seconds: no ultimate's length has been measured |
   | `counter` | `operatorId`, `counterId`, `is`, `value` | an operator's own resource compares so (see below) |
@@ -1748,7 +1749,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   that machinery (`PhaseHistory.KeysNotRead`, `IPhaseHistory.PlayedIgnored`,
   `RotationTracker.Ignored`, `ConditionWalk.OnlyPlayed`, `ConditionNeeds.KeysRead`) is gone.
 
-- `format`: 11 when it uses `battleSkillEmpowered`; else 10 when a phase has a `finish` condition (and so for `stepsLit`); else 9 when it uses `ultimateTimeLeft`, `phaseCurrent`, a `Condition` or `PlungeAttack` step, or the `"controlled"` operator; else 8 when it uses a `HeavyAttack` step; else 7 when it uses `battleSkillActive`; else 6 when a phase sets `priority` (other than 0) or `priorityRules`; else 5 when it uses `phasePlayed`; else 4 when it uses a `BasicAttack` step, `Below`/`Above` or `phaseShown`; else 3 when it
+- `format`: 12 when it uses `teamBuff`; else 11 when it uses `battleSkillEmpowered`; else 10 when a phase has a `finish` condition (and so for `stepsLit`); else 9 when it uses `ultimateTimeLeft`, `phaseCurrent`, a `Condition` or `PlungeAttack` step, or the `"controlled"` operator; else 8 when it uses a `HeavyAttack` step; else 7 when it uses `battleSkillActive`; else 6 when a phase sets `priority` (other than 0) or `priorityRules`; else 5 when it uses `phasePlayed`; else 4 when it uses a `BasicAttack` step, `Below`/`Above` or `phaseShown`; else 3 when it
   uses `not`, `ultimateActive` or `lastMatchWins`; else 2. A rotation is saved in the lowest
   format that holds it (`Rotation.FormatNeeded`), so one using nothing new stays readable by older
   builds, and the published `rotations/*.json` stay at format 3 or lower (a test checks). A
@@ -1805,7 +1806,13 @@ plays the 祀 别礼 诀 汤汤 one through (charge I → 普攻 while Si's skil
 played through → 普攻 → charge I; the burst when every ultimate is charged, held until played
 through, its ultimates in any order: playing the last written first doesn't end it; with Tangtang's battle
 skill not seen it stays until she casts it). Its phases keep the default finish (every step that lights
-up lit), so it stays at format 9. After a release that reads its format, raise the published-format limit and move the file
+up lit), so it stays at format 9. The 卡缪 莱万汀 祀 诀 one (owner, 2026-10-25: "this rotation can be used to test
+empowered skills") is played through too: 充能轴 I (莱万汀's battle skill first, 卡缪's at 技力 ≥ 2) → 普攻 while 技力 < 2
+and 祀's skill is over → 充能轴 II until played through → 普攻 → 充能轴 I, or I straight to II when the 普攻 doesn't hold;
+after each charge phase's 重击 a condition step lights at 莱万汀 熔火 = 4, and her 强化战技 waits for 战技已强化 and
+连击层数 ≥ 1; the burst comes when 卡缪's, 莱万汀's and 诀's ultimates are ready (祀's optional), held until played
+through in any order. Its finish condition leaves out the 祀 + 诀 ultimates pair late in the burst, so an optional
+ultimate can't hold the burst; it is at format 12 (`teamBuff`). After a release that reads its format, raise the published-format limit and move the file
 up (see [`rotations/README.md`](rotations/README.md)).
 
 ### What's read for it
@@ -2237,7 +2244,7 @@ One file for every rule, global (every fight, every squad): `%APPDATA%\EndHud\al
   no rotation of its own, so they name a phase of any of the player's rotations (listed as
   "rotation · phase", `AlertEditor.PhaseChoices`), and are known while that rotation is the one the
   strip follows (else unknown: the rule neither fires nor re-arms).
-- `format`: 5 when a rule uses `battleSkillEmpowered`, else 4 when one uses `phaseShown` (before, the editor refused it), `ultimateTimeLeft` or `phaseCurrent`, else 3 when one uses `battleSkillActive`, else 2 when one uses `phasePlayed`, else 1, the lowest that holds the rules
+- `format`: 6 when a rule uses `teamBuff`, else 5 when one uses `battleSkillEmpowered`, else 4 when one uses `phaseShown` (before, the editor refused it), `ultimateTimeLeft` or `phaseCurrent`, else 3 when one uses `battleSkillActive`, else 2 when one uses `phasePlayed`, else 1, the lowest that holds the rules
   (`AlertFile.FormatNeeded`): rules using nothing new stay readable by builds from before format 2,
   which refuse the rest as newer (left as it is, never renamed as unreadable). The share code keeps
   its `EHA1:` prefix (the code's own version).
@@ -2429,7 +2436,7 @@ exception: hosted runners can't capture windows, so they only run on a developer
   crops, `BattleSkillFlashTests`; runs of samples, `CastFlashTrackerTests`; the corner tap, `WindowCaptureTests`; the
   judge, `ScreenCastJudgeTests`; resync and skipped steps, `StepFollowerTests`; the 30 fps recordings,
   `FlashSamplerTests`, `RecordedCastsTests` and `RecordedControllerCastsTests`; the controller's diamonds on 4K crops of full battle 3,
-  `BattleSkillFlashTests`; "battle skill empowered", `BattleSkillEmpoweredConditionTests` and `OnScreenDisplayEmpoweredGateTests`), alerts at format 2 only when needed;
+  `BattleSkillFlashTests`; "battle skill empowered", `BattleSkillEmpoweredConditionTests` and `OnScreenDisplayEmpoweredGateTests`), "team buff stacks" (`TeamBuffConditionTests`), alerts at format 2 only when needed;
   the tracker (picking a step with no reset, moving only on seen use, steps used together, going
   off-script, looping, nothing on screen, stacks and levels in status conditions); the phase
   selector's counts and their reset at the end of a fight; the editor's working copy and the

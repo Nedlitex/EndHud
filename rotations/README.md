@@ -31,3 +31,4 @@ needs, operators known). Once a release that reads its format is out, raise the 
 | File | Squad | Format | Source |
 |---|---|---|---|
 | `next-release/si-last-rite-arcane-tangtang.json` | 祀, 别礼, 诀 (李织烟), 汤汤 | 9 (current phase, plunge attack by the controlled operator; also 7: Si's battle skill running, 6: priority) | the owner's rotation charts (充能轴 I, 充能轴 II, 爆发轴 IV), phases approved by the owner on 2026-10-24 |
+| `next-release/camille-laevatain-si-arcane.json` | 卡缪, 莱万汀, 祀, 诀 (李织烟) | 12 (连击层数; also 11: 战技已强化, 10: a finish condition, 9: condition steps, the current phase, attacks by the controlled operator) | the owner's rotation charts (充能轴 I, 充能轴 II, 爆发轴 III) and the owner's notes of 2026-10-25 (技力, 熔火 = 4, 强化战技 with 连击 ≥ 1, the burst's ultimate order) |
