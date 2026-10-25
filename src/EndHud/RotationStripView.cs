@@ -59,7 +59,7 @@ internal static class RotationStripView
     {
         if (rotation?.Played() is [var first, ..]) return ForPhase(rotation, first.PhaseIndex, library, skillIcon, avatar);
         StripStep Step(StepAction action) =>
-            new(null, null, Loc.Get($"Rotation.Action.{action}"), null, StripStepState.Upcoming, false);
+            new(null, null, Loc.Get($"Rotation.Action.{action}"), null, StripStepState.Plain, false);
         return new StripView(Loc.Get("Rotation.Sample"), [Step(StepAction.BattleSkill), Step(StepAction.Combo), Step(StepAction.Ultimate)], null, []);
     }
 
@@ -87,7 +87,7 @@ internal static class RotationStripView
             var upcoming = played.Where(p => p.PhaseIndex == n).Take(NextStepsShown).ToList();
             // The first of them starts a new phase: never drawn overlapping the step before.
             // The next phase's preview: its conditions aren't asked (null: dim).
-            next = new StripNext(upcoming[0].PhaseLabel, upcoming.Select((p, i) => Step(p, look, i > 0, StripStepState.Upcoming, null)).ToList());
+            next = new StripNext(upcoming[0].PhaseLabel, upcoming.Select((p, i) => Step(p, look, i > 0, StripStepState.Plain, null)).ToList());
         }
         return new StripView(rotation.PhaseLabel(phase),
             current.Select((p, i) => Step(p, look, i > 0, State(steps, i), holds?.Invoke(p.Step))).ToList(), next, []);
@@ -98,11 +98,12 @@ internal static class RotationStripView
         Func<string, BitmapSource?> StatusIcon, Func<string, string?> PhaseName, OperatorInfo? Controlled);
 
     /// <summary>How the <paramref name="index"/>th step of the phase is drawn.</summary>
-    private static StripStepState State(StepPosition? steps, int index) => steps is null ? StripStepState.Upcoming : steps.Marks[index] switch
+    private static StripStepState State(StepPosition? steps, int index) => steps is null ? StripStepState.Plain : steps.Marks[index] switch
     {
-        StepMark.Lit => StripStepState.Done,
+        StepMark.Lit => StripStepState.Lit,
         StepMark.Current => steps.Ready ? StripStepState.Ready : StripStepState.Waiting,
-        _ => StripStepState.Upcoming,
+        StepMark.Neutral => StripStepState.Neutral,
+        _ => StripStepState.Unlit,
     };
 
     private static StripStep Step(PlayedStep p, Look look, bool mayOverlap, StripStepState state, bool? holds)

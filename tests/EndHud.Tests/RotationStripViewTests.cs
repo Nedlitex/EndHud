@@ -37,7 +37,7 @@ public class RotationStripViewTests
         // Then the first two of the next one in the flow (itself again), apart.
         Assert.Equal("充能轴 I", view.Next!.Phase);
         Assert.Equal(2, view.Next.Steps.Count);
-        Assert.All(view.Steps.Concat(view.Next.Steps), s => Assert.Equal(StripStepState.Upcoming, s.State));
+        Assert.All(view.Steps.Concat(view.Next.Steps), s => Assert.Equal(StripStepState.Plain, s.State));
         Assert.Empty(view.Reasons);
     }
 
@@ -49,8 +49,8 @@ public class RotationStripViewTests
 
         var view = RotationStripView.Build(Rotation, new RotationPosition(played[0], true, []), null, null, (_, _) => null, _ => null, steps);
 
-        Assert.Equal([StripStepState.Done, StripStepState.Ready, StripStepState.Upcoming], view.Steps.Select(s => s.State));
-        Assert.All(view.Next!.Steps, s => Assert.Equal(StripStepState.Upcoming, s.State)); // the next phase's preview is never marked
+        Assert.Equal([StripStepState.Lit, StripStepState.Ready, StripStepState.Unlit], view.Steps.Select(s => s.State));
+        Assert.All(view.Next!.Steps, s => Assert.Equal(StripStepState.Plain, s.State)); // the next phase's preview is never marked
         Assert.Empty(view.Reasons);
         OnSta(() => RotationStrip.Build(view)); // draws
     }
@@ -64,7 +64,7 @@ public class RotationStripViewTests
 
         var view = RotationStripView.Build(Rotation, new RotationPosition(played[0], true, []), state, null, (_, _) => null, _ => null, steps);
 
-        Assert.Equal([StripStepState.Waiting, StripStepState.Upcoming, StripStepState.Upcoming], view.Steps.Select(s => s.State));
+        Assert.Equal([StripStepState.Waiting, StripStepState.Unlit, StripStepState.Unlit], view.Steps.Select(s => s.State));
         // Ardelia's battle skill, the current step: 0.4 of the 1 skill point it needs.
         Assert.Equal([Loc.Format("Rotation.Reason.SkillPoints", "0.4", 1)], view.Reasons);
     }
@@ -76,7 +76,7 @@ public class RotationStripViewTests
         var view = RotationStripView.Build(Rotation, new RotationPosition(played[3], true, []), null, null, (_, _) => null, _ => null, steps: null);
 
         Assert.Equal("爆发轴 II", view.Phase);
-        Assert.All(view.Steps, s => Assert.Equal(StripStepState.Upcoming, s.State));
+        Assert.All(view.Steps, s => Assert.Equal(StripStepState.Plain, s.State));
     }
 
     /// <summary>
@@ -278,7 +278,7 @@ public class RotationStripViewTests
 
         var view = RotationStripView.Build(rotation, new RotationPosition(rotation.Played()[0], true, []), Cryo(3), null, (_, _) => null, _ => null, steps);
 
-        Assert.Equal(StripStepState.Done, view.Steps[0].State);
+        Assert.Equal(StripStepState.Lit, view.Steps[0].State);
         Assert.Equal(true, view.Steps[0].Condition?.Holds);
     }
 

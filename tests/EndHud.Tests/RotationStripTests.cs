@@ -14,10 +14,10 @@ public class RotationStripTests
 {
     private static StripView Guide(StripStepState current, IReadOnlyList<string>? reasons = null, bool together = true) => new("充能轴 I",
     [
-        new StripStep(null, null, "战技", null, StripStepState.Done, false),
+        new StripStep(null, null, "战技", null, StripStepState.Lit, false),
         new StripStep(null, null, "连携技", null, current, false),
-        new StripStep(null, null, "连携技", null, StripStepState.Upcoming, together),
-        new StripStep(null, null, "战技·意", "飞天", StripStepState.Upcoming, false),
+        new StripStep(null, null, "连携技", null, StripStepState.Unlit, together),
+        new StripStep(null, null, "战技·意", "飞天", StripStepState.Unlit, false),
     ], null, reasons ?? []);
 
     private sealed record Rendered(int Width, int Height, byte[] Bgra)
@@ -85,7 +85,7 @@ public class RotationStripTests
     public void The_step_the_player_is_on_stands_out_even_when_not_ready()
     {
         var waiting = Render(Guide(StripStepState.Waiting));
-        var later = Render(Guide(StripStepState.Upcoming));
+        var later = Render(Guide(StripStepState.Unlit));
 
         // Its white ring, on top of the white text both have.
         Assert.True(waiting.Count(White) > later.Count(White) + 100, $"{waiting.Count(White)} vs {later.Count(White)} white pixels");
