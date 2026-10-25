@@ -107,6 +107,25 @@ public class OnScreenDisplayCombatTests
     }
 
     /// <summary>
+    /// The display at the top centre over the boss's status row: an icon the wiki doesn't have, seen through the
+    /// display's backdrop, matched Amp (position 7, 1080p). Every status read under it is one the clean frame reads.
+    /// </summary>
+    [Theory]
+    [InlineData("battle-hud/battle-96s.jpg")]
+    [InlineData("infliction/ring-96_75s.jpg")]
+    public async Task The_boss_statuses_under_a_display_are_the_clean_ones_or_unread(string file)
+    {
+        var reader = new BossStatusReader(await OperatorCache.LoadAsync(Path.Combine(Path.GetTempPath(), "endhud-osd-boss-" + Environment.ProcessId)));
+        foreach (var (size, frame) in await Sizes(file))
+        {
+            var clean = reader.Read(frame).Select(s => (s.StatusId, s.Position)).ToList();
+            foreach (var (name, covered) in Covered(frame, OsdPosition.TopCentre))
+                foreach (var status in reader.Read(covered))
+                    Assert.True(clean.Contains((status.StatusId, status.Position)), $"{size} {name}: {status.StatusId} at position {status.Position}");
+        }
+    }
+
+    /// <summary>
     /// A squad of three with the display over slot 1: slot 1 showing nothing readable was taken for a screen without
     /// the squad panel, so the squad was read as four.
     /// </summary>
