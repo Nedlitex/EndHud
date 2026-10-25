@@ -26,13 +26,14 @@ internal static class DiagnosticLog
 
     private static readonly object Lock = new();
     private static readonly ConcurrentDictionary<string, (DateTime At, int Skipped)> Recent = new();
-    private static string _folder = Path.Combine(ConfigStore.Folder, "logs");
+    private static string? _folder;
 
-    public static string Folder => _folder;
-    public static string FilePath => Path.Combine(_folder, "endhud.log");
+    /// <summary>The logs' folder: <see cref="AppFolders.Logs"/>, unless a test moved it (<see cref="UseFolder"/>).</summary>
+    public static string Folder { get { lock (Lock) return _folder ?? AppFolders.Logs; } }
+    public static string FilePath => Path.Combine(Folder, "endhud.log");
 
-    /// <summary>Log into another folder (tests).</summary>
-    internal static void UseFolder(string folder)
+    /// <summary>Tests: log into <paramref name="folder"/>; null goes back to <see cref="AppFolders.Logs"/> (the test run's own folder in tests).</summary>
+    internal static void UseFolder(string? folder)
     {
         lock (Lock) _folder = folder;
         Recent.Clear();
@@ -102,10 +103,12 @@ internal static class DiagnosticLog
         {
             try
             {
-                Directory.CreateDirectory(_folder);
-                var file = new FileInfo(FilePath);
-                if (file.Exists && file.Length + line.Length > MaxBytes) Roll();
-                File.AppendAllText(FilePath, line, Encoding.UTF8);
+                string folder = Folder;
+                string path = Path.Combine(folder, "endhud.log");
+                Directory.CreateDirectory(folder);
+                var file = new FileInfo(path);
+                if (file.Exists && file.Length + line.Length > MaxBytes) Roll(folder);
+                File.AppendAllText(path, line, Encoding.UTF8);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -114,12 +117,12 @@ internal static class DiagnosticLog
         }
     }
 
-    private static void Roll()
+    private static void Roll(string folder)
     {
         for (int i = KeptFiles - 1; i >= 1; i--)
         {
-            string from = i == 1 ? FilePath : Path.Combine(_folder, $"endhud.{i - 1}.log");
-            string to = Path.Combine(_folder, $"endhud.{i}.log");
+            string from = Path.Combine(folder, i == 1 ? "endhud.log" : $"endhud.{i - 1}.log");
+            string to = Path.Combine(folder, $"endhud.{i}.log");
             if (File.Exists(from)) File.Move(from, to, overwrite: true);
         }
     }

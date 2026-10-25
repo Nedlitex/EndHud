@@ -51,7 +51,7 @@ internal static class DiagnosticExport
             await WriteFullAsync(zipPath, summary, gamePicture, configFile, recent);
             return;
         }
-        string staging = Path.Combine(Path.GetTempPath(), "endhud-diagnostics-" + Guid.NewGuid().ToString("N")[..8]);
+        string staging = Path.Combine(AppFolders.Temp, "endhud-diagnostics-" + Guid.NewGuid().ToString("N")[..8]);
         try
         {
             Directory.CreateDirectory(staging);
@@ -101,7 +101,7 @@ internal static class DiagnosticExport
     private static async Task WriteFullAsync(string zipPath, string summary, Frame? gamePicture, string configFile,
         IReadOnlyList<RecentFrame> recent)
     {
-        string staging = Path.Combine(Path.GetTempPath(), "endhud-diagnostics-" + Guid.NewGuid().ToString("N")[..8]);
+        string staging = Path.Combine(AppFolders.Temp, "endhud-diagnostics-" + Guid.NewGuid().ToString("N")[..8]);
         try
         {
             Directory.CreateDirectory(staging);

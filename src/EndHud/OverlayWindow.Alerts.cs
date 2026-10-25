@@ -17,7 +17,7 @@ namespace EndHud;
 public partial class OverlayWindow
 {
     private readonly AlertFollower _alertFollower = new();
-    private readonly AlertStore _alertStore = new(Path.Combine(ConfigStore.Folder, "alerts.json"));
+    private readonly AlertStore _alertStore = new(AppFolders.AlertsFile);
     private readonly Dictionary<string, (Grid Holder, Grid PopUp)> _alertPopUps = [];
     private IReadOnlyList<AlertRule> _alertRules = [];
     private (Grid Holder, Grid PopUp)? _alertSample;

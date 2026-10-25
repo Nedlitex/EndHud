@@ -73,7 +73,7 @@ public partial class OverlayWindow : Window
         AutoInstallUpdatesCheckBox.IsEnabled = config.CheckForUpdates;
         DebugRoot.Visibility = Visibility.Collapsed;
         InitComboHintSettings();
-        _rotationLibrary = new RotationLibrary(Path.Combine(ConfigStore.Folder, "rotations"));
+        _rotationLibrary = new RotationLibrary(AppFolders.Rotations);
         _publishedRotations = new PublishedRotationService(_rotationLibrary);
         ReloadRotations();
         InitRotationSettings();

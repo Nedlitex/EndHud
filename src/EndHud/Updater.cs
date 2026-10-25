@@ -68,7 +68,7 @@ internal sealed class Updater : IDisposable
     public const string UpdateFailedFlag = "--update-failed";
 
     /// <summary>Where downloads and the install script go (each update in its own random subfolder); deleted by <see cref="CleanUp"/>.</summary>
-    public static string WorkFolder { get; } = Path.Combine(Path.GetTempPath(), "EndHud-update");
+    public static string WorkFolder => AppFolders.UpdateWork;
 
     private readonly Func<HttpClient> _http;
     private readonly string _exe;

@@ -21,7 +21,7 @@ internal sealed class PartyMonitor : IDisposable
     /// the operator package EndHud carries and updates from GitHub: see OperatorPackage), and the
     /// user's learned portraits and calibration.
     /// </summary>
-    public static string LibraryFolder { get; } = Path.Combine(ConfigStore.Folder, "operators");
+    public static string LibraryFolder => AppFolders.Operators;
 
     /// <summary>The operator package's folder: the roster, avatars, and the inn's data and pictures.</summary>
     internal static string ReferenceFolder => Path.Combine(LibraryFolder, OperatorLibrary.ReferenceFolderName);

@@ -212,10 +212,9 @@ internal sealed class HudConfig
 /// </summary>
 internal static partial class ConfigStore
 {
-    public static string Folder { get; } =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EndHud");
+    public static string Folder => AppFolders.Data;
 
-    public static string FilePath { get; } = Path.Combine(Folder, "config.json");
+    public static string FilePath => AppFolders.ConfigFile;
 
     private static readonly JsonSerializerOptions Json = new()
     {
