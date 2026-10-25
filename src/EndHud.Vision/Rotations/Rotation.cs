@@ -189,9 +189,9 @@ public sealed record UltimateTimeLeftCondition(string OperatorId, Comparison Is,
 
 /// <summary>
 /// The phase on the strip now is <paramref name="PhaseId"/> (as of the reading before this one, as
-/// the phase selector sees its own showings). With <paramref name="PlayedThrough"/>, also whether the
-/// step follower has played it through since it last came onto the strip (true: played through this
-/// showing; false: not yet). Format 9.
+/// the phase selector sees its own showings). With <paramref name="PlayedThrough"/>, also whether its
+/// finish condition has held since it last came onto the strip (<see cref="RotationPhase.Finish"/>; true:
+/// played through this showing, 本次已打完; false: not yet). Format 9.
 /// </summary>
 public sealed record PhaseCurrentCondition(string PhaseId, bool? PlayedThrough = null) : StateCondition;
 
@@ -207,8 +207,9 @@ public sealed record PhaseShownCondition(string PhaseId, Comparison Is, int Time
 
 /// <summary>
 /// The phase <paramref name="PhaseId"/> has been played through <paramref name="Is"/>
-/// <paramref name="Times"/> times in this fight: every step of it seen done, as the step follower
-/// follows them from the screen (<see cref="StepFollower"/>; back to 0 when the fight ends). Format 5.
+/// <paramref name="Times"/> times in this fight: its finish condition came true (none: every step that lights up
+/// lit, in any order), as the step follower lights them from the screen (<see cref="StepFollower"/>; back to 0 when
+/// the fight ends). Format 5.
 /// </summary>
 public sealed record PhasePlayedCondition(string PhaseId, Comparison Is, int Times) : StateCondition;
 

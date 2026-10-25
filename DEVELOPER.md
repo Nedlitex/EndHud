@@ -57,13 +57,16 @@ rotation charts.
   爆发轴), each with a condition for when it applies ("4 arrows and no ultimate ready"). The strip
   shows the first phase whose condition holds; in between, the one it showed. See
   [Rotations](#rotations).
-- **The current step, always, from the screen.** The strip marks where the player is in the phase:
-  finished steps fade, steps jumped past fade with a slash, the current one has two chevrons, cyan
-  when it can be used now, white when not yet, with the reason under the strip (skill points short,
-  the battle skill cooling down). Battle skills are seen by the flash on their button and the skill
-  point spent; the player's keys (`ReadSkillPresses`, off until turned on) only assist. See
-  [Following battle skills from the screen](#following-battle-skills-from-the-screen). The editor's
-  preview and the menu's sample draw every step alike.
+- **Steps light up as they are played, in any order, from the screen** (owner, 2026-10-24: "skip
+  over is bad"). A step seen used this round is lit (an amber ring on a filled disc), the others are
+  dim; basic, heavy and plunge attacks, which can't be seen, are neutral (half dim, a dashed ring) and
+  stay in place. The first unlit step in written order has two chevrons, cyan when it can be used
+  now, white when not yet, with the reason under the strip (skill points short, the battle skill
+  cooling down). Nothing is ever skipped. When the phase's finish condition holds (by default:
+  every step that lights up lit) the lights go out for a new round. Battle skills are seen by the
+  flash on their button and the skill point spent; the player's keys (`ReadSkillPresses`, off until
+  turned on) only assist. See [Following battle skills from the screen](#following-battle-skills-from-the-screen).
+  The editor's preview and the menu's sample draw every step alike.
 - **Shown in battle only** ([`StripVisibility`](src/EndHud.Vision/StripVisibility.cs)). A reading that
   misses the battle signs, or the panel covered by an ultimate animation (up to 3 s), doesn't take
   it down; it goes 2 s after the battle signs are gone (exploration, menus, loading). The gauges
@@ -87,7 +90,7 @@ rotation charts.
 - **Recommended rotations** come from the repository's [`rotations/`](rotations) folder and are
   kept up to date daily, without a release (see [Recommended rotations](#recommended-rotations)).
 - **Edit and share** in the rotation editor (menu → 排轴 → 编辑排轴…, or the tray): phases and
-  their conditions picked from lists, steps, a live preview, and import/export as a file or a share
+  their entry and finish conditions picked from lists, steps, a live preview, and import/export as a file or a share
   code (`EHR1:` + compressed JSON, short enough for a chat message). Skill points are picked from
   0.0 to 3.0 by 0.1 and charge percentages from 0 to 100 by 1 (with a hint that the bars are read
   to about ±4 %); a value from a file that isn't on the list is kept as it is (before, editing its
@@ -1578,6 +1581,36 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
     "priorityRules": [ { "when": [ { "kind": "ultimate", "operatorId": "Laevatain", "ready": true } ], "priority": 10 } ],
     "steps": [ … ] }
   ```
+- `finish` (optional, format 10): the phase's **finish condition** (完成条件; owner, 2026-10-24: "define a
+  finish condition for the rotation similar to entry condition"), a list that must all hold, any kind
+  of condition, plus `stepsLit` (below). When it comes true the round is **played through**: the
+  phase's played count goes up by 1 (`phasePlayed`), it is played through this showing
+  (`phaseCurrent` `playedThrough`, 当前轴段 本次已打完), and every step's light goes out for a new
+  round. Absent: **every step that lights up is lit** (cast steps and condition steps, in any order;
+  basic, heavy and plunge attacks never light and never count), and a phase with no such step never
+  finishes by itself. It counts on the reading it comes true; one that keeps holding counts again
+  only after it was seen not holding; one that can't be told changes nothing. Example, a burst
+  played through once the four ultimates are lit, whatever else was:
+
+  ```json
+  { "id": "burst", "name": "爆发轴", "when": [ … ],
+    "finish": [ { "kind": "stepsLit", "which": "These", "steps": [3, 4, 5, 6] } ],
+    "steps": [ … ] }
+  ```
+
+  `stepsLit` (本轴段步骤已点亮, format 10): `which` `All` (全部: every step that lights up), `AtLeast`
+  with `count` (至少 N 步), or `These` with `steps` (指定步骤已点亮: the step numbers, from 1 in the
+  phase's written order). **Only in a finish condition** (`ConditionHostKind.PhaseFinish`, the one
+  kind not offered everywhere): it is about the phase's own round. In an entry condition or a
+  priority rule it would read whichever phase is on the strip, with step numbers naming that
+  phase's steps; in a condition step, its own light; an alert has no phase at all (`phaseCurrent`
+  `playedThrough` says "finished" there). Refused elsewhere (`StepsLitOutsideFinish`; in alerts
+  `AlertProblem.NotForAlerts`), and checked against the phase's steps: `These` with no step
+  (`StepsLitNoSteps`) or naming a step the phase doesn't have or one that never lights
+  (`StepsLitNotCountable`), `AtLeast` below 1 or above the steps that light up
+  (`StepsLitCountOutOfRange`). A finish condition is checked like an entry condition (an operator
+  outside the squad, an empty group, a deleted phase), and its problems carry
+  `RotationProblem.Finish` so the sentence names the finish condition.
 - `action`: `BattleSkill`, `Combo`, `Ultimate`, `BasicAttack` (format 4), `HeavyAttack`
   (format 8), `PlungeAttack` (下落攻击, format 9) or `Condition` (format 9, below). The skill being
   available (a skill point for a battle skill, the combo or ultimate ready) is implied; `expect`
@@ -1592,17 +1625,14 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   (`ConditionHostKind.ConditionStep`). On the strip its circle holds the first condition's icon by the
   alert pop-up's rule ([`ConditionIcon`](src/EndHud/ConditionIcon.cs): a status's icon, an
   operator's avatar, the skill-points glyph, else "!"), labelled 条件 (or its `label`), with the
-  conditions in words under it (or its `note`; two lines at most). It **glows cyan while its
-  conditions hold and is dim otherwise**, done or not (`StripCondition.Holds`,
-  evaluated on every reading with the phase selector as history; part of the strip's redraw key,
-  `RotationStripView.Key`, or the glow would never change). The next phase's preview and the
-  editor's preview draw it dim. On the strip
-  ([`StepFollower`](src/EndHud.Vision/Rotations/StepFollower.cs)) it is the current step until its
-  conditions hold, then done on that reading (and stays done if they stop holding); seen not
-  holding, a cast of a later step doesn't pass it, not even a jump; when they can't be told (unknown), the next real
-  cast of a later step passes it, as a basic attack is passed. Waiting on it, the reasons under the
-  strip are its conditions' needs. A phase isn't played through until its condition steps are done,
-  but a phase of nothing but condition steps never counts. Refused: one with no condition
+  conditions in words under it (or its `note`; two lines at most). On the strip
+  ([`StepFollower`](src/EndHud.Vision/Rotations/StepFollower.cs)) it **lights up on the reading its
+  conditions hold** (owner, 2026-10-24: "condition met should also light up to indicate"), wherever it
+  is in the phase and whatever came before, and stays lit for the round when they stop holding.
+  Not holding, or unknown (the statuses not read), it stays unlit and nothing passes it; with the
+  chevron on it, the reasons under the strip are its conditions' needs. It counts for the default
+  finish like a cast step. (Until the light-up model it glowed cyan while its conditions held,
+  `StripCondition.Holds`; that is gone: the lit look says it.) Refused: one with no condition
   (`ConditionStepEmpty`) and one in a group (`ConditionStepWithPrevious`: it, or the step after it,
   marked `withPrevious`).
 - `operatorId` `"controlled"` (`RotationStep.Controlled`, format 9): an attack step done by whoever
@@ -1631,8 +1661,9 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   | `bossStatus` | `statusId` (the wiki's English name), `present`, `minStacks` | the enemy shows (or doesn't show) that status; with `minStacks` above 1, with at least that many stacks (inflictions) or that level (Corrosion, Electrification: I–IV as 1–4). An absent status counts as 0; a present one whose count isn't read (covered, a dark scene, or a status whose count EndHud doesn't read: `BossStatusReader.CountsRead`) is unknown |
   | `controlling` | `operatorId` | that operator is the one being controlled |
   | `phaseShown` | `phaseId`, `is`, `times` (format 4) | that phase has come onto the strip so many times this fight (see [Choosing the phase](#choosing-the-phase)); unknown outside a phase selector (step `expect`, alerts) |
-  | `phaseCurrent` | `phaseId`, `playedThrough` (optional) (format 9) | that phase is the one on the strip (as of the reading before, as the phase selector sees its own counts). With `playedThrough` `true`: and the step follower has played it through since it last came onto the strip (`StepFollower.PlayedThroughThisShowing`, set when its round is counted, cleared when another phase comes on); `false`: not yet. A round with one cast step missed still counts as played through (see [Following battle skills from the screen](#following-battle-skills-from-the-screen)): one missed flash held the Si burst's "the phase is 爆发轴, not played through" for the rest of the fight. Unknown before the first reading of a fight and when the rotation naming it isn't the one followed (alerts: it names a phase of the rotation followed, like `phasePlayed`). A gate on "the phase is me (not played through)" holds the phase until it is played through; see the 祀 rotation |
-  | `phasePlayed` | `phaseId`, `is`, `times` (format 5) | that phase has been **played through** so many times this fight: every step of it seen done by the step follower, at most one cast step missed (see [Following battle skills from the screen](#following-battle-skills-from-the-screen)). Unknown when the rotation naming it isn't the one followed |
+  | `phaseCurrent` | `phaseId`, `playedThrough` (optional) (format 9) | that phase is the one on the strip (as of the reading before, as the phase selector sees its own counts). With `playedThrough` `true`: and its finish condition has held since it last came onto the strip (本次已打完; `StepFollower.PlayedThroughThisShowing`, set when its round is counted, cleared when another phase comes on); `false`: not yet. Without a finish condition that is every step that lights up lit, in any order; no missed cast is allowed for (before the light-up model one was, see [Following battle skills from the screen](#following-battle-skills-from-the-screen)). Unknown before the first reading of a fight and when the rotation naming it isn't the one followed (alerts: it names a phase of the rotation followed, like `phasePlayed`). A gate on "the phase is me (not played through)" holds the phase until it is played through; see the 祀 rotation |
+  | `phasePlayed` | `phaseId`, `is`, `times` (format 5) | that phase has been **played through** so many times this fight: its finish condition came true (`finish`; absent: every step that lights up lit, in any order; see [Following battle skills from the screen](#following-battle-skills-from-the-screen)). Unknown when the rotation naming it isn't the one followed |
+  | `stepsLit` | `which` (`All`, `AtLeast`, `These`), `count`, `steps` (format 10) | the phase's steps lit this round: all that light up, at least `count`, or the numbered `steps` (from 1). Only in a phase's `finish` (above) |
   | `all` | `of`: a list of conditions | every one holds (and) |
   | `any` | `of`: a list of conditions | at least one holds (or) |
   | `not` | `of`: one condition (format 3) | it doesn't hold; unknown stays unknown |
@@ -1651,9 +1682,10 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   [`ConditionCatalogue`](src/EndHud.Vision/Rotations/ConditionCatalogue.cs): its `kind` in files,
   its name in the editor's kind picker, the rotation and alert formats that hold it, the operator it
   is about, its comparison, the phase it names, what it needs (a phase, boss
-  statuses, an operator whose time is read) and where it may be used (every host). Wherever
-  conditions are written (a phase's `when`, a priority rule, a step's `expect`, an alert's `when`)
-  the same full set is offered and the same checks run
+  statuses, an operator whose time is read) and where it may be used (every host, except `stepsLit`:
+  a phase's `finish` only, see above; a kind used outside its hosts is refused, `NotOfferedHere`).
+  Wherever conditions are written (a phase's `when`, a priority rule, its `finish`, a step's
+  `expect`, an alert's `when`) the same full set is offered and the same checks run
   ([`ConditionRules.Check`](src/EndHud.Vision/Rotations/ConditionCatalogue.cs), given a
   `ConditionHost`: which host, the squad if there is one, the phase the conditions belong to, the
   rotation's phases). What differs is only that context: an operator outside the squad is refused
@@ -1685,7 +1717,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   that machinery (`PhaseHistory.KeysNotRead`, `IPhaseHistory.PlayedIgnored`,
   `RotationTracker.Ignored`, `ConditionWalk.OnlyPlayed`, `ConditionNeeds.KeysRead`) is gone.
 
-- `format`: 9 when it uses `ultimateTimeLeft`, `phaseCurrent`, a `Condition` or `PlungeAttack` step, or the `"controlled"` operator; else 8 when it uses a `HeavyAttack` step; else 7 when it uses `battleSkillActive`; else 6 when a phase sets `priority` (other than 0) or `priorityRules`; else 5 when it uses `phasePlayed`; else 4 when it uses a `BasicAttack` step, `Below`/`Above` or `phaseShown`; else 3 when it
+- `format`: 10 when a phase has a `finish` condition (and so for `stepsLit`); else 9 when it uses `ultimateTimeLeft`, `phaseCurrent`, a `Condition` or `PlungeAttack` step, or the `"controlled"` operator; else 8 when it uses a `HeavyAttack` step; else 7 when it uses `battleSkillActive`; else 6 when a phase sets `priority` (other than 0) or `priorityRules`; else 5 when it uses `phasePlayed`; else 4 when it uses a `BasicAttack` step, `Below`/`Above` or `phaseShown`; else 3 when it
   uses `not`, `ultimateActive` or `lastMatchWins`; else 2. A rotation is saved in the lowest
   format that holds it (`Rotation.FormatNeeded`), so one using nothing new stays readable by older
   builds, and the published `rotations/*.json` stay at format 3 or lower (a test checks). A
@@ -1740,7 +1772,9 @@ A recommended rotation needing a newer format than released builds read waits in
 build downloads it): `NextReleaseRotationsTests` checks each is valid for the current build and
 plays the 祀 别礼 诀 汤汤 one through (charge I → 普攻 while Si's skill runs → charge II until
 played through → 普攻 → charge I; the burst when every ultimate is charged, held until played
-through). After a release that reads its format, raise the published-format limit and move the file
+through, its ultimates in any order: playing the last written first doesn't end it; with Tangtang's battle
+skill not seen it stays until she casts it). Its phases keep the default finish (every step that lights
+up lit), so it stays at format 9. After a release that reads its format, raise the published-format limit and move the file
 up (see [`rotations/README.md`](rotations/README.md)).
 
 ### What's read for it
@@ -1834,6 +1868,17 @@ and 删除这条, its conditions as the same pickers as an entry condition's (`C
 添加条件. No rules: only the number. A new rule starts one above the phase's number, with one
 condition to change. On a phase without an entry condition both are greyed out, saying why, unless
 one is already set there (so it can be put back to 0).
+
+Then **完成条件（可选）**, the phase's finish condition (`finish`), on the same pickers (host
+`PhaseFinish`, the full set plus 本轴段步骤已点亮), with a line saying what happens when it holds and
+the default when there is none (every step but basic, heavy and plunge attacks lit, in any order). Its
+添加条件 starts at 本轴段步骤已点亮 · 至少 N 步 with N every step that lights up (the default written
+out, to lower from; 技力 in a phase with no such step, where the kind is greyed out saying why). 本轴段步骤已点亮
+offers 全部, 至少 N 步 (N picked from 1 to the steps that light up) and 指定步骤已点亮: a tick per step
+that lights up, named as the step list names it ("2. 别礼 战技"); a number from a file that isn't such a
+step stays ticked as 第 n 步（已不存在或不会点亮）and saving is refused saying so. Adding, moving and
+deleting steps keep the ticks on their steps (`PhaseDraft.RenumberFinishSteps`). Copying a phase copies
+its finish condition.
 
 Conditions are evaluated by `RotationTracker.Evaluate`, which takes an `IPhaseHistory`: the
 selector passes itself, anything else (`RotationTracker`'s step following, the strip's reasons)
@@ -1932,8 +1977,9 @@ back from the GPU per sample. The diagnostics line `battle-skill flash: N sample
    the mode switch nothing is a cast (no drop is measured there, presses are refused as not in battle, and flashes
    are dropped).
 
-A cast is **certain** (`SkillCast.Certain`) when a point was spent and the slot is known: only certain uses may make
-the strip jump (below).
+A cast is **certain** (`SkillCast.Certain`) when a point was spent and the slot is known (the recorded check's
+measure). Until the light-up model only certain uses could make the strip jump; now any cast of a slot lights its
+step (below), and nothing jumps.
 
 **Controller layout.** Casting is LB held, and the flash is in the LB-held diamond, which sits elsewhere (4K centres
 L 3262,1774, T 3412,1608, R 3558,1774, B 3412,~1902), with a grey "pressed" disc before the flash; a quick pass matched
@@ -1949,25 +1995,37 @@ by nobody (fills against bright or blue scenes), 0 wrong slots on the 16 checked
 right slot, 0 wrong, 0 cast that wasn't, the 13th (85.6 s, a bright blue scene) unattributed; each decided 0.3-0.9 s
 after the cast (the fill is told after it ends, and a drop waits for it).
 
-**Resync** ([`StepFollower`](src/EndHud.Vision/Rotations/StepFollower.cs); owner, 2026-10-24: "if somehow we didnt
-track battle skill but observe combo, we should jump to the combo"):
+**Lighting the steps** ([`StepFollower`](src/EndHud.Vision/Rotations/StepFollower.cs); owner, 2026-10-24: "skip over
+is bad - this really mess up the play. a rotation is fixed order but in reality it can be played in different orders
+(for example in many burst rotations, you play 4 ults, the rotation says an order but in reality it can be arbitrary,
+but if user happens to play the last one first, then the rotation is immediately over) ... instead of a "light up"
+model, that each node lights up when played. and define a finish condition for the rotation similar to entry
+condition"):
 
-1. A use in the current group: that step done (either order in a group); basic, heavy and plunge attacks, and
-   condition steps that can't be told, never hold the marker (done when passed).
-2. A **certain** use elsewhere (a combo seen used, an ultimate seen spent, a battle skill with a point spent and its
-   slot known): the nearest later step of this round with the same operator and action is done; every step passed is
-   **skipped** (`StepMark.Skipped`: drawn faded with a slash, `RotationStrip.SkippedSlashTag`), display-only ones done.
-   **A jump doesn't pass a condition step seen not holding** (owner): that later match isn't taken.
-3. Not later in the round but the phase's first group, with a step of this round done: a new round there (an
-   uncertain use only when nothing but passable steps was left).
-4. A use told late (the flash named after a later use already jumped past its step) fills that step in as done.
-5. Points spent with nobody named: the current step, if it is a battle skill whose operator's button wasn't cooling.
+1. **A use lights the first unlit step of the phase with the same operator and action** (a battle skill cast, a combo
+   seen used, an ultimate seen spent), wherever it is in the phase. Nothing is ever skipped: a step not seen stays
+   unlit, under the chevron if it is the first. Every cast of a slot counts, certain or not (`StepMark.Lit`).
+2. **Points spent with nobody named** light the step under the chevron, if it is a battle skill whose operator's button
+   wasn't cooling.
+3. **A condition step** lights on the reading its conditions hold, and stays lit for the round.
+4. **Basic, heavy and plunge attacks** are `StepMark.Neutral`: never lit, never under the chevron (it passes over
+   them), never counted; drawn in place.
+5. **The chevron** (`StepMark.Current`) is on the first unlit step in written order that isn't neutral, with the
+   other unlit steps of its group (`withPrevious`: used together, in either order).
 
-**Played through** (`phasePlayed`, `phaseCurrent playedThrough`): a round counts once, when every step that can be seen
-used is done or skipped, its last cast step done, and **at most one cast step skipped** (owner: one missed cast a
-round is allowed); or, on starting the phase over, when all but one of its cast steps were done. Without this, one
-missed flash held the Si burst gate ("爆发轴, not played through") for the rest of the fight
-(`NextReleaseRotationsTests.The_burst_with_its_first_battle_skill_missed_is_still_played_through`).
+**Finishing** (`phasePlayed`, `phaseCurrent playedThrough`): after the condition steps and after each use, the phase's
+`finish` condition is checked (absent: every step that isn't neutral lit, at least one). When it comes true the round
+counts once (played +1, played through this showing) and every light goes out. "Steps lit" in it is told from this
+round's lights (`IPhaseHistory.StepsLit`; the selector passes the follower's on). Measured by `StepFollowerTests`,
+`FinishConditionTests`, `ConditionStepTests`, `PhasePlayedTests` and the 祀 rotation's
+`NextReleaseRotationsTests.The_burst_played_in_another_order_is_not_over_until_every_step_is_lit`.
+
+**What went** with the light-up model (2026-10-24): the jump to a later step on a certain use, `StepMark.Skipped` and
+its slash on the strip (`RotationStrip.SkippedSlashTag`), the told-late fill-in, starting a phase over on its first
+group, and the allowance of one missed cast step a round. That allowance existed because one missed flash held the Si
+burst gate ("爆发轴, not played through") for the rest of the fight. Now a step not seen is lit as soon as it is
+seen later in the round (the player casts it again), and a phase that can't be lit through, a cast the screen never
+tells, can say what is enough with its finish condition (e.g. `stepsLit` `AtLeast`).
 
 **The bug that started it** (test_battle_track_bug1, 2026-10-24): with the key reading on, Tangtang's battle skill (the
 burst's first step) never moved the strip: the elevated game's keys never reached EndHud's Raw Input (now hotkeys,
@@ -2046,8 +2104,8 @@ between two readings (a mashed key casts once). With a controller the button's c
 so the skill points decide.
 
 **Following the steps** ([`StepFollower`](src/EndHud.Vision/Rotations/StepFollower.cs)). The phase
-still comes from `PhaseSelector`; the follower only follows inside it and starts at the first step
-when the phase changes or the fight ends. Its rules are in
+still comes from `PhaseSelector`; the follower only lights the steps inside it, and every light goes
+out when the phase changes or the fight ends. Its rules are in
 [Following battle skills from the screen](#following-battle-skills-from-the-screen).
 [`RotationFollower`](src/EndHud/OverlayWindow.Rotation.cs) runs it on every reading in battle, the
 presses (`OverlayWindow.PressesFor`: the reader with the switch on, none with it off) judged with the
@@ -2094,7 +2152,7 @@ reading. The counts are since EndHud started.
 | A replay test over a recorded clip with a presses file | No clip with a presses file exists yet; `trace-video --presses` is what makes one usable (the screen's casts have their own: `RecordedCastsTests`) | A recording with its `seconds,slot` lines |
 | The cast flash in the controller layout | The LB-held diamond sits elsewhere and shows a grey "pressed" disc first; a quick pass matched 12 of 29 drops | Measuring the diamond on the owner's controller recordings |
 | An "empowered" condition | Readable (the rim lit at least 0.2 for 0.5 s), but what each operator's empowered state means is game knowledge | The owner names it |
-| Moving on to the next phase of the flow when a phase is finished | `PhaseSelector` stays the phase authority; a finished phase starts over at its first step | The owner asks for it |
+| Moving on to the next phase of the flow when a phase is finished | `PhaseSelector` stays the phase authority (owner, 2026-10-24); a finished phase starts a new round with every light out, and entry conditions such as "the phase is me, not finished yet" hand over | The owner asks for it |
 | A test with a real PlayStation pad's presses | No PlayStation pad on the development machine: the device listing and asking are tested on its other HID devices, the parsing on recorded usages | A fight with a PlayStation pad and the diagnostics' "PlayStation pads 1" and per-slot tally |
 | Mashing the same slot across readings on a controller | The controller layout's battle-skill cooldown isn't read, so a second press one reading later is refused only by the skill points | Battle-skill button reading in the controller layout |
 
@@ -2117,7 +2175,9 @@ One file for every rule, global (every fight, every squad): `%APPDATA%\EndHud\al
 ```
 
 - `id`: kept for the rule's whole life. `when`: every condition must hold; the same condition
-  kinds as rotations, groups and `not` included, with the same checks (see
+  kinds as rotations, groups and `not` included (all but `stepsLit`, which is a rotation phase's finish
+  condition only: not offered, and refused in a file, `AlertProblem.NotForAlerts`; "the phase I follow
+  is finished" is `phaseCurrent` with `playedThrough`), with the same checks (see
   [One condition language](#the-file)). `phaseShown` and `phasePlayed` are offered: an alert has
   no rotation of its own, so they name a phase of any of the player's rotations (listed as
   "rotation · phase", `AlertEditor.PhaseChoices`), and are known while that rotation is the one the
