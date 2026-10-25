@@ -13,6 +13,7 @@ namespace EndHud.Vision.Tests;
 /// every cast judged, against the casts labelled by eye (Recordings/battle-casts-30fps.casts.txt).
 /// </summary>
 [Collection(Recordings.ThirtyFps)]
+[Trait("Category", "Slow")] // replays a 30 fps recording: left out of the fast lane (scripts/test.ps1 -Fast)
 public sealed class RecordedCastsTests
 {
     private static readonly string[] Squad = ["Si", "Last_Rite", "Tangtang", "Arcane"];

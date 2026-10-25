@@ -11,6 +11,7 @@ namespace EndHud.Vision.Tests;
 /// stay named through them: no slot goes back to "not recognised" (the combo hint showing "2号位",
 /// the rotation strip vanishing) or to another operator.
 /// </summary>
+[Trait("Category", "Slow")] // recognises operators with the model: left out of the fast lane (scripts/test.ps1 -Fast)
 public sealed class FadedSquadTests : IDisposable
 {
     private static readonly string[] Truth = ["Typhoeus", "Arcane", "Perlica", "Liino"];

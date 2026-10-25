@@ -18,6 +18,7 @@ namespace EndHud.Vision.Tests;
 /// checked against the reference from the other one only.</item>
 /// </list>
 /// </summary>
+[Trait("Category", "Slow")] // recognises operators with the model on many screens: left out of the fast lane (scripts/test.ps1 -Fast)
 public sealed class OutOfTheBoxRecognitionTests : IDisposable
 {
     private static readonly string[] Truth = ["Laevatain", "Camille", "Arcane", "Ardelia"];

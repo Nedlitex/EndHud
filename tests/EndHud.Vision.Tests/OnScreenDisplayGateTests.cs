@@ -16,6 +16,7 @@ namespace EndHud.Vision.Tests;
 /// </para>
 /// Each variant's verdicts are written to the test output ("GATE" lines) for counting.
 /// </summary>
+[Trait("Category", "Slow")] // sweeps fixtures under synthetic on-screen displays: left out of the fast lane (scripts/test.ps1 -Fast)
 public class OnScreenDisplayGateTests(ITestOutputHelper output)
 {
     private static readonly Lazy<Task<(TableCardReader Tables, TrayReader Tray)>> Readers = new(async () =>

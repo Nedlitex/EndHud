@@ -10,6 +10,7 @@ namespace EndHud.Vision.Tests;
 /// with keyboard and mouse, the ultimates were read from the wrong circles (they're drawn from the
 /// right, the squad from the left).
 /// </summary>
+[Trait("Category", "Slow")] // recognises operators with the model: left out of the fast lane (scripts/test.ps1 -Fast)
 public sealed class SmallSquadTests : IDisposable
 {
     private readonly string _userFolder = Path.Combine(Path.GetTempPath(), "endhud-tests", Guid.NewGuid().ToString("N"));

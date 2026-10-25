@@ -8,6 +8,7 @@ namespace EndHud.Vision.Tests;
 /// window capture hands it (<see cref="Capture.WindowCapture.SetCornerTap"/>), and the flashes taken by readings.
 /// </summary>
 [Collection(Recordings.ThirtyFps)]
+[Trait("Category", "Slow")] // replays a 30 fps recording: left out of the fast lane (scripts/test.ps1 -Fast)
 public sealed class FlashSamplerTests
 {
     /// <summary>Feed the corner of every <paramref name="every"/>-th frame from <paramref name="from"/> to <paramref name="to"/> seconds; take every 0.25 s.</summary>

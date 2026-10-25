@@ -51,6 +51,7 @@ public static class Recordings
 /// Whole recordings, sampled through time: values must change the way the game showed them
 /// changing, not just be right on a few hand-picked frames.
 /// </summary>
+[Trait("Category", "Slow")] // replays recordings: left out of the fast lane (scripts/test.ps1 -Fast)
 public class RecordedVideoTests
 {
     private sealed record Sample(double Time, PartyState State);

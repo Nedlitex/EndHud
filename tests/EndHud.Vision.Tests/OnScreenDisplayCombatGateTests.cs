@@ -20,6 +20,7 @@ namespace EndHud.Vision.Tests;
 /// taken, so its slot values count as unknown. Each variant's verdicts are written to the test output ("GATE" lines).
 /// </para>
 /// </summary>
+[Trait("Category", "Slow")] // sweeps fixtures under synthetic on-screen displays: left out of the fast lane (scripts/test.ps1 -Fast)
 public class OnScreenDisplayCombatGateTests(ITestOutputHelper output)
 {
     private static readonly Lazy<Task<(PartyReader Party, TeamBuffReader Buffs, BossStatusReader Boss)>> Readers = new(async () =>

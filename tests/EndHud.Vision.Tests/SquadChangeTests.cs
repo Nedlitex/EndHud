@@ -9,6 +9,7 @@ namespace EndHud.Vision.Tests;
 /// combat, every slot is named again, even where the new operator's portrait looks like the old
 /// one's in pixels.
 /// </summary>
+[Trait("Category", "Slow")] // recognises operators with the model: left out of the fast lane (scripts/test.ps1 -Fast)
 public sealed class SquadChangeTests : IDisposable
 {
     private readonly string _userFolder = Path.Combine(Path.GetTempPath(), "endhud-tests", Guid.NewGuid().ToString("N"));

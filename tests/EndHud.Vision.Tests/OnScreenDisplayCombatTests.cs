@@ -9,6 +9,7 @@ namespace EndHud.Vision.Tests;
 /// under it is the clean frame's value or unknown. <see cref="OnScreenDisplayCombatGateTests"/> runs every combat
 /// reading over every combat fixture; these name the case each fix is for.
 /// </summary>
+[Trait("Category", "Slow")] // sweeps fixtures under synthetic on-screen displays: left out of the fast lane (scripts/test.ps1 -Fast)
 public class OnScreenDisplayCombatTests
 {
     private static async Task<Frame> Load(string file) => await ImageFile.LoadAsync(CombatFrameTests.Fixture(file));

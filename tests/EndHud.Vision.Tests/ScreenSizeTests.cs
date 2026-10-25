@@ -10,6 +10,7 @@ namespace EndHud.Vision.Tests;
 /// another size must match the 4K reading — unreadable is allowed, wrong is not — and enough of
 /// them must be read for the screen to be useful.
 /// </summary>
+[Trait("Category", "Slow")] // sweeps many screen sizes: left out of the fast lane (scripts/test.ps1 -Fast)
 public class ScreenSizeTests(ITestOutputHelper output)
 {
     public static TheoryData<string> Screens() => [.. SimulatedScreen.All.Select(s => s.Name)];

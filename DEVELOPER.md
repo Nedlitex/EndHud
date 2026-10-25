@@ -2281,6 +2281,23 @@ git submodule update --init   # once: the test data (tests/data); see Build and 
 dotnet test -c Release
 ```
 
+Two lanes ([`scripts/test.ps1`](scripts/test.ps1); each project's output goes to a log file, never cut short):
+
+- **Fast** (`pwsh scripts/test.ps1`, the default; Debug): everything except the classes marked
+  `[Trait("Category", "Slow")]`: recognition with the model (out of the box, squad changes, small and faded
+  squads), recorded videos (RecordedVideo, RecordedCasts, ComboHints, FlashSampler), the on-screen-display
+  sweeps and the screen-size sweep. Measured 2026-10-24: vision 1,970 tests in 6.2 min (the full suite: 2,595
+  in about 29 min), app 1.5 min. Use it while working and after a merge.
+- **Full** (`pwsh scripts/test.ps1 -Full`; Release, as CI): everything. Once per batch of merges before a push,
+  not after each merge; CI's run on the push is the final word. Optimized code is where WinRT lifetime bugs
+  show (see `WindowsAwaitTests`), so the full lane is Release.
+
+A new git worktree has an empty `tests/data` and LFS pointer files instead of the model files: run
+`pwsh scripts/setup-worktree.ps1` in it first. It clones the main checkout's `tests/data` (shared objects,
+a real folder: never link it, `git worktree remove` would follow the link and delete the main checkout's
+data) at the recorded commit, with the main checkout's LFS store (so unpushed recordings come too), and
+checks out the model files.
+
 All tests run from what's in the repository and its test data submodule; without the submodule,
 `dotnet test` stops with a message saying how to fetch it. Changing test data is a commit in
 EndHud-test-data, then the new `tests/data` pointer committed here with the tests that use it. They also run on every push to `main`, on pull

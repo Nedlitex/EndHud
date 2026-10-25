@@ -4,6 +4,7 @@ using Xunit;
 namespace EndHud.Vision.Tests;
 
 /// <summary>When the combo-ready hint shows, from tracked readings.</summary>
+[Trait("Category", "Slow")] // replays recordings: left out of the fast lane (scripts/test.ps1 -Fast)
 public class ComboHintsTests
 {
     private static readonly Frame NoPortrait = new(1, 1, new byte[4]);
