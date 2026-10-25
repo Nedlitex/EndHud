@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http;
 using System.Reflection;
 using System.Text.Json.Nodes;
+using EndHud.Vision;
 
 namespace EndHud;
 
@@ -31,6 +32,9 @@ internal static class ReleaseChecker
     public const string Repository = "Nedlitex/EndHud";
     public const string LatestReleaseApi = $"https://api.github.com/repos/{Repository}/releases/latest";
 
+    /// <summary>The most of the release information read (a real answer is a few KB).</summary>
+    public const int MaxAnswerBytes = 1024 * 1024;
+
     /// <summary>
     /// This build's version, or null for a development build. Release builds get their version from
     /// the tag (release.yml passes -p:Version); a plain build is 0.0.0 (EndHud.csproj).
@@ -54,17 +58,22 @@ internal static class ReleaseChecker
     /// The latest release, or null if there is none yet. GitHub also answers "not found" while the
     /// repository is private. Throws <see cref="HttpRequestException"/> when GitHub can't be reached.
     /// </summary>
-    /// <param name="api">Where to ask: GitHub's latest-release API, or a stand-in (release.yml's update test).</param>
-    public static async Task<ReleaseInfo?> LatestAsync(HttpClient http, CancellationToken ct = default, string api = LatestReleaseApi)
+    /// <param name="feed">Where to ask: GitHub's latest-release API (null), or release.yml's stand-in. Asked, and
+    /// redirects followed, only where the feed trusts (<see cref="UpdateFeed.TrustsApi"/>): else an
+    /// <see cref="UntrustedSourceException"/>, which is an <see cref="HttpRequestException"/>.</param>
+    public static async Task<ReleaseInfo?> LatestAsync(HttpClient http, UpdateFeed? feed = null, CancellationToken ct = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, api);
-        request.Headers.Accept.ParseAdd("application/vnd.github+json");
-        request.Headers.UserAgent.ParseAdd(UserAgent);
-        using var response = await http.SendAsync(request, ct);
+        feed ??= UpdateFeed.GitHub;
+        using var response = await TrustedHttp.GetAsync(http, feed.Api, feed.TrustsApi, request =>
+        {
+            request.Headers.Accept.ParseAdd("application/vnd.github+json");
+            request.Headers.UserAgent.ParseAdd(UserAgent);
+        }, HttpCompletionOption.ResponseHeadersRead, ct);
         if (response.StatusCode == HttpStatusCode.NotFound) return null;
         response.EnsureSuccessStatusCode();
 
-        var json = JsonNode.Parse(await response.Content.ReadAsStringAsync(ct)) ?? throw new InvalidDataException("Empty answer from GitHub.");
+        byte[] body = await TrustedHttp.ReadCappedAsync(response, MaxAnswerBytes, ct);
+        var json = JsonNode.Parse(body) ?? throw new InvalidDataException("Empty answer from GitHub.");
         var version = ParseVersion(json["tag_name"]?.GetValue<string>());
         string? page = json["html_url"]?.GetValue<string>();
         if (version is null || page is null) return null;

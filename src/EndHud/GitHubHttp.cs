@@ -21,7 +21,11 @@ internal static class GitHubHttp
     /// </summary>
     public static readonly TimeSpan RetryAfterFailure = TimeSpan.FromMinutes(30);
 
-    public static HttpClient Create(TimeSpan timeout) => new(new LoggingHandler(new SocketsHttpHandler())) { Timeout = timeout };
+    /// <summary>
+    /// A client that never follows a redirect by itself: every caller goes through <see cref="EndHud.Vision.TrustedHttp"/>,
+    /// which follows them by hand, each checked against where that download may come from.
+    /// </summary>
+    public static HttpClient Create(TimeSpan timeout) => new(new LoggingHandler(EndHud.Vision.TrustedHttp.NoAutoRedirect())) { Timeout = timeout };
 
     /// <summary>An exception and every cause under it, one "Type: message" each, socket errors with their code.</summary>
     public static string Explain(Exception ex)

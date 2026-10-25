@@ -154,7 +154,7 @@ internal sealed class TrayIcon : IDisposable
         Notify(Loc.Format("Update.Downloading", version), null);
         try
         {
-            var outcome = await new Updater().InstallAsync(release, restart: true);
+            var outcome = await new Updater(UpdateFeed.GitHub).InstallAsync(release, restart: true);
             if (outcome.Started)
             {
                 System.Windows.Application.Current.Shutdown();

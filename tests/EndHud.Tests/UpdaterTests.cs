@@ -33,19 +33,19 @@ public sealed class UpdaterTests : IDisposable
         try { Directory.Delete(_root, recursive: true); } catch (IOException) { }
     }
 
-    private Updater NewUpdater(InstallKind kind, FakeDownloads downloads) =>
+    private Updater NewUpdater(InstallKind kind, HttpMessageHandler downloads, UpdateFeed? feed = null) =>
         new(() => new HttpClient(downloads, disposeHandler: false), Exe, Work, kind, info =>
         {
             _started.Add(info);
             return true;
-        });
+        }, feed ?? UpdateFeed.GitHub);
 
     private static string Sha256(byte[] data) => Convert.ToHexString(SHA256.HashData(data)).ToLowerInvariant();
 
     private static ReleaseInfo Release(byte[] file, string? sha256) => new(new Version(1, 4, 0), "https://github.com/Nedlitex/EndHud/releases/tag/v1.4.0",
     [
-        new ReleaseAsset("EndHud-1.4.0.msi", "https://github.com/download/EndHud-1.4.0.msi", sha256),
-        new ReleaseAsset("EndHud-1.4.0-portable.exe", "https://github.com/download/EndHud-1.4.0-portable.exe", sha256),
+        new ReleaseAsset("EndHud-1.4.0.msi", "https://github.com/Nedlitex/EndHud/releases/download/v1.4.0/EndHud-1.4.0.msi", sha256),
+        new ReleaseAsset("EndHud-1.4.0-portable.exe", "https://github.com/Nedlitex/EndHud/releases/download/v1.4.0/EndHud-1.4.0-portable.exe", sha256),
     ]);
 
     [Fact]

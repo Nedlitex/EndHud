@@ -56,7 +56,7 @@ public partial class App : Application
         var overlay = new OverlayWindow(HudOptions.Parse(e.Args), config);
         MainWindow = overlay;
         overlay.Show();
-        _updates = new UpdateService();
+        _updates = new UpdateService(UpdateFeed.GitHub);
         _tray = new TrayIcon(overlay, _updates, quiet: e.Args.Contains(AutoStart.Flag));
         if (updatedTo is not null) _tray.ShowUpdated(updatedTo);
         else if (updateFailed is not null) _tray.ShowUpdateFailed(updateFailed);

@@ -37,19 +37,20 @@ internal sealed class UpdateService : IDisposable
     private readonly CancellationTokenSource _cts = new();
     private readonly Func<HttpClient> _http;
     private readonly Version? _current;
-    private readonly string _api;
+    private readonly UpdateFeed _feed;
     private UpdateCheck? _last;
     private DateTime _lastAtUtc = DateTime.MinValue;
 
-    /// <summary>Checks for the running build (<see cref="ReleaseChecker.Current"/>) against GitHub (or <paramref name="api"/>).</summary>
-    public UpdateService(string api = ReleaseChecker.LatestReleaseApi)
-        : this(() => GitHubHttp.Create(TimeSpan.FromSeconds(20)), ReleaseChecker.Current, api)
+    /// <summary>Checks for the running build (<see cref="ReleaseChecker.Current"/>) against <paramref name="feed"/> (GitHub, or release.yml's stand-in).</summary>
+    public UpdateService(UpdateFeed feed)
+        : this(() => GitHubHttp.Create(TimeSpan.FromSeconds(20)), ReleaseChecker.Current, feed)
     {
     }
 
     /// <param name="current">This build's version; null for a development build.</param>
-    internal UpdateService(Func<HttpClient> http, Version? current, string api = ReleaseChecker.LatestReleaseApi) =>
-        (_http, _current, _api) = (http, current, api);
+    /// <param name="feed">Null: GitHub (<see cref="UpdateFeed.GitHub"/>), the only feed a player's EndHud uses.</param>
+    internal UpdateService(Func<HttpClient> http, Version? current, UpdateFeed? feed = null) =>
+        (_http, _current, _feed) = (http, current, feed ?? UpdateFeed.GitHub);
 
     /// <summary>The newer release found by the last check, if any.</summary>
     public ReleaseInfo? Available => _last is { Status: UpdateStatus.NewVersion } c ? c.Release : null;
@@ -83,7 +84,7 @@ internal sealed class UpdateService : IDisposable
         try
         {
             using var http = _http();
-            var latest = await ReleaseChecker.LatestAsync(http, _cts.Token, _api);
+            var latest = await ReleaseChecker.LatestAsync(http, _feed, _cts.Token);
             check = latest is null ? new UpdateCheck(UpdateStatus.Unavailable, null)
                 : latest.Version > current ? new UpdateCheck(UpdateStatus.NewVersion, latest)
                 : new UpdateCheck(UpdateStatus.UpToDate, latest);

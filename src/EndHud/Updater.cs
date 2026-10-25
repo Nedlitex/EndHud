@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Security.Cryptography;
+using EndHud.Vision;
 using Microsoft.Win32;
 
 namespace EndHud;
@@ -62,20 +63,25 @@ internal sealed class Updater
     private readonly string _exe;
     private readonly string _work;
     private readonly Func<ProcessStartInfo, bool> _start;
+    private readonly UpdateFeed _feed;
 
     public InstallKind Kind { get; }
 
-    /// <summary>Updates the running EndHud.</summary>
-    public Updater() : this(
+    /// <summary>The most an installer or portable exe may be (a release's are about 100 MB).</summary>
+    public const long MaxDownloadBytes = 512L * 1024 * 1024;
+
+    /// <summary>Updates the running EndHud from <paramref name="feed"/>'s files (GitHub's, or release.yml's stand-in's).</summary>
+    public Updater(UpdateFeed feed) : this(
         () => GitHubHttp.Create(TimeSpan.FromMinutes(10)),
         Environment.ProcessPath!, WorkFolder, DetectInstall(Environment.ProcessPath!),
-        info => Process.Start(info) is not null)
+        info => Process.Start(info) is not null, feed)
     {
     }
 
     /// <param name="start">Starts a process (tests record it instead).</param>
-    internal Updater(Func<HttpClient> http, string exe, string work, InstallKind kind, Func<ProcessStartInfo, bool> start) =>
-        (_http, _exe, _work, Kind, _start) = (http, exe, work, kind, start);
+    /// <param name="feed">Which addresses a release's files may come from (<see cref="UpdateFeed.TrustsDownload"/>).</param>
+    internal Updater(Func<HttpClient> http, string exe, string work, InstallKind kind, Func<ProcessStartInfo, bool> start, UpdateFeed feed) =>
+        (_http, _exe, _work, Kind, _start, _feed) = (http, exe, work, kind, start, feed);
 
     /// <summary>An MSI install: in the MSI's folder, with the MSI's registry key present.</summary>
     public static InstallKind DetectInstall(string exe)
@@ -90,8 +96,13 @@ internal sealed class Updater
     public async Task<UpdateOutcome> InstallAsync(ReleaseInfo release, bool restart, CancellationToken ct = default)
     {
         var asset = Kind == InstallKind.Msi ? release.Msi : release.Portable;
-        if (asset?.Sha256 is null || !Uri.TryCreate(asset.Url, UriKind.Absolute, out var url) || !IsAllowed(url))
+        if (asset?.Sha256 is null || !Uri.TryCreate(asset.Url, UriKind.Absolute, out var url))
             return new UpdateOutcome(false, UpdateFailure.NoPackage);
+        if (!_feed.TrustsDownloadStart(url))
+        {
+            DiagnosticLog.Warn($"EndHud update: refused to download {asset.Name} from {url.Scheme}://{url.Host}: not one of this repository's release downloads");
+            return new UpdateOutcome(false, UpdateFailure.NoPackage, url.Host);
+        }
 
         string file;
         try
@@ -110,9 +121,6 @@ internal sealed class Updater
         return Kind == InstallKind.Msi ? StartMsi(file, release.Version, restart) : SwapPortable(file, release.Version, restart);
     }
 
-    /// <summary>HTTPS only (plain HTTP just for a local stand-in, as in release.yml's update test).</summary>
-    private static bool IsAllowed(Uri url) => url.Scheme == Uri.UriSchemeHttps || (url.Scheme == Uri.UriSchemeHttp && url.IsLoopback);
-
     private async Task<string> DownloadAsync(Uri url, ReleaseAsset asset, CancellationToken ct)
     {
         Directory.CreateDirectory(_work);
@@ -121,10 +129,12 @@ internal sealed class Updater
 
         using (var http = _http())
         {
-            http.DefaultRequestHeaders.UserAgent.ParseAdd(ReleaseChecker.UserAgent);
-            using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
+            // Each redirect is checked too: GitHub sends a release download on to its asset host.
+            using var response = await TrustedHttp.GetAsync(http, url, _feed.TrustsDownloadStart,
+                request => request.Headers.UserAgent.ParseAdd(ReleaseChecker.UserAgent),
+                HttpCompletionOption.ResponseHeadersRead, ct, _feed.TrustsDownload);
             response.EnsureSuccessStatusCode();
-            await using var body = await response.Content.ReadAsStreamAsync(ct);
+            await using var body = await TrustedHttp.OpenCappedAsync(response, MaxDownloadBytes, ct);
             await using var output = File.Create(partial);
             using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
             var buffer = new byte[81920];
