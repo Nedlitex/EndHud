@@ -18,6 +18,10 @@
     <RootNamespace>EndHud</RootNamespace>
     <!-- WinForms analyzer wants DPI set via its API; this is a WPF app, where the manifest is the right place. -->
     <NoWarn>$(NoWarn);WFAC010</NoWarn>
+    <!-- Program.Main restricts where Windows looks for DLLs before anything else loads (see Program.cs). -->
+    <StartupObject>EndHud.Program</StartupObject>
+    <!-- No DOTNET_STARTUP_HOOKS: nothing outside EndHud runs code inside it at start. -->
+    <StartupHookSupport>false</StartupHookSupport>
   </PropertyGroup>
 
   <ItemGroup>
