@@ -80,6 +80,23 @@ public class InCombatTests
         Assert.True(state.InCombat);
     }
 
+    /// <summary>
+    /// Battles where the skill-point bar isn't read (an effect over it, or a bar the reader didn't know: the owner's
+    /// seven segments read as nothing, 2026-10-25, and the rotation stayed down): the squad panel with combo bars on
+    /// several operators is a battle on its own, the game drawing them in combat only.
+    /// </summary>
+    [Theory]
+    [InlineData("infliction/ring-42_5s.jpg")]
+    [InlineData("portrait-counters/si-40s.jpg")]
+    [InlineData("si-timer-second-cast/si-40s.jpg")]
+    public async Task A_battle_with_the_skill_points_unread_is_still_in_combat(string file)
+    {
+        var state = await ReadAsync(await ImageFile.LoadAsync(CombatFrameTests.Fixture(file)));
+
+        Assert.Null(state.SkillPoints); // the case this guards
+        Assert.True(state.InCombat);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(128)]
