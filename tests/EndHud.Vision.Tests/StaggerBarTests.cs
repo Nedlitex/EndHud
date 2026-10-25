@@ -5,8 +5,8 @@ using Xunit;
 namespace EndHud.Vision.Tests;
 
 /// <summary>
-/// The boss's stagger bar (失衡条, <see cref="StaggerBar"/>) under its HP bar, on the owner's two recordings of
-/// 蚀影应龙队长 (Fixtures/stagger, labelled by eye): how far it has filled, the node boxes (失衡节点) and how many the
+/// The boss's stagger bar (<see cref="StaggerBar"/>) under its HP bar, on the owner's two recordings of
+/// one boss (Fixtures/stagger, labelled by eye): how far it has filled, the node boxes and how many the
 /// fill has passed, the large stagger's yellow countdown and how much of it is left; unknown with no boss bar. At 4K
 /// and on smaller screens; and a node box drawn swollen (the game's cue as the fill reaches it) is carried by
 /// <see cref="StaggerMemory"/>, so the count of nodes reached doesn't drop for that second.
@@ -63,14 +63,14 @@ public class StaggerBarTests
         var screen = SimulatedScreen.Named(screenName);
         foreach (var label in Labels)
         {
-            var reading = StaggerBar.Read(screen.Render(await Load(label.File)));
+            var (reading, why) = StaggerBar.Measure(screen.Render(await Load(label.File)));
             try
             {
                 AssertAsLabelled(label, reading, 0.03, nodes: screen.Height >= 1080);
             }
             catch (Exception e)
             {
-                throw new InvalidOperationException($"{label.File} on {screenName}: {reading}", e);
+                throw new InvalidOperationException($"{label.File} on {screenName}: {reading} {why}", e);
             }
         }
     }
@@ -98,6 +98,7 @@ public class StaggerBarTests
     public async Task A_swollen_node_box_is_remembered()
     {
         var memory = new StaggerMemory();
+        memory.Track(StaggerBar.Read(await Load("fb-30s.jpg")));
         var before = memory.Track(StaggerBar.Read(await Load("fb-41s.jpg")));
         var swollen = memory.Track(StaggerBar.Read(await Load("fb-44_2s.jpg")));
         var after = memory.Track(StaggerBar.Read(await Load("fb-50s.jpg")));
@@ -113,10 +114,32 @@ public class StaggerBarTests
     public async Task The_memory_forgets_without_a_bar()
     {
         var memory = new StaggerMemory();
-        memory.Track(StaggerBar.Read(await Load("fb-41s.jpg")));
+        var seen = StaggerBar.Read(await Load("fb-41s.jpg"))!;
+        memory.Track(seen);
+        memory.Track(seen);
+        for (int i = 0; i < StaggerMemory.ForgetAfterReadings - 1; i++) Assert.Null(memory.Track(null));
+        Assert.Single(memory.Track(seen with { Nodes = [] })!.Nodes);
         for (int i = 0; i < StaggerMemory.ForgetAfterReadings; i++) Assert.Null(memory.Track(null));
-        var reading = StaggerBar.Read(await Load("fb-41s.jpg"))! with { Nodes = [] };
 
-        Assert.Empty(memory.Track(reading)!.Nodes);
+        Assert.Empty(memory.Track(seen with { Nodes = [] })!.Nodes);
+    }
+
+    /// <summary>
+    /// A box seen in one reading only isn't counted: a false one at the fill's end (before the clearance rule, seven over the
+    /// two recordings, each in one reading) was kept for the rest of the fight and counted as a second node reached.
+    /// </summary>
+    [Fact]
+    public async Task A_box_seen_once_is_not_counted()
+    {
+        var memory = new StaggerMemory();
+        var seen = StaggerBar.Read(await Load("fb-50s.jpg"))!;
+        memory.Track(seen);
+        memory.Track(seen);
+
+        var once = memory.Track(seen with { Nodes = [.. seen.Nodes, 0.58] });
+        var next = memory.Track(seen);
+
+        Assert.Equal(1, once!.NodesReached);
+        Assert.Equal(1, next!.NodesReached);
     }
 }
