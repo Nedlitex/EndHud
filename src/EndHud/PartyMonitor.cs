@@ -710,6 +710,7 @@ internal sealed class PartyMonitor : IDisposable
         OperatorMatch?[] lastNames = [];
         IReadOnlyList<TeamBuff> lastBuffs = []; // kept while the panel is out of sight (a cutscene over the HUD)
         var staggerMemory = new StaggerMemory(); // the stagger bar's node boxes, through the swell as the fill reaches one
+        string? staggerSeen = null; // the stagger bar's kind last logged
         var panelReadAt = DateTime.MinValue; // when a reading last saw the squad panel
         bool panelSeenLast = false; // the last squad reading saw the panel (then the inn isn't looked for)
         TimeSpan? combatAt = null; // when a reading last saw the fight (for sampling the battle-skill buttons)
@@ -961,7 +962,15 @@ internal sealed class PartyMonitor : IDisposable
                     // read on every reading in battle, whatever asks; its node boxes carried through the swell the game
                     // draws as the fill reaches one. Not in battle: unknown.
                     Enter("stagger");
-                    state = state with { Stagger = staggerMemory.Track(state.InCombat ? StaggerBar.Read(gameFrame) : null) };
+                    var (stagger, staggerWhy) = state.InCombat ? StaggerBar.Measure(gameFrame) : (null, "not in battle");
+                    state = state with { Stagger = staggerMemory.Track(stagger) };
+                    // Logged when its kind changes (building, staggered, unread), with why it's unread.
+                    string staggerKind = state.Stagger?.State.ToString() ?? "unread: " + staggerWhy;
+                    if (staggerKind != staggerSeen)
+                    {
+                        staggerSeen = staggerKind;
+                        DiagnosticLog.Throttled("stagger", TimeSpan.FromSeconds(2), $"stagger bar: {state.Stagger?.ToString() ?? staggerKind}", "INFO");
+                    }
                     if (firstReading)
                     {
                         firstReading = false;

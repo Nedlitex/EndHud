@@ -91,7 +91,7 @@ public static class StaggerBar
     public static StaggerReading? Read(Frame frame) => Measure(frame).Reading;
 
     /// <summary>The reading, or why there is none (for tests and the diagnostic log).</summary>
-    internal static (StaggerReading? Reading, string Why) Measure(Frame frame)
+    public static (StaggerReading? Reading, string Why) Measure(Frame frame)
     {
         var ui = new UiScaler(frame.Width, frame.Height);
         if (ui.Scale < 0.2) return (null, "screen too small");
