@@ -30,6 +30,9 @@ public static class BattleSkillButton
     private const double CoolingWhiteMax = 0.25;
     private const double IconWhiteMin = 0.12;
     private const double IconDarkMax = 0.45;
+    // Vivid colour (bright, one channel low) inside the disc: at most 0.06 on the icons of the fixtures (the cost's
+    // coloured part, the low half, mostly lies outside it); an on-screen display's orange and cyan text over the disc, 0.3.
+    private const double IconVividMax = 0.15;
 
     /// <summary>
     /// Bands of white rows across the disc this many or more: lines of text drawn over the button (an on-screen
@@ -90,7 +93,7 @@ public static class BattleSkillButton
         var (cx, cy) = ui.BottomRight(SkillLayout.FirstCentreX + slot * SkillLayout.Pitch, CentreY);
         double radius = SampleRadius * ui.Scale;
 
-        int n = 0, dark = 0, white = 0;
+        int n = 0, dark = 0, white = 0, vivid = 0;
         int r = (int)Math.Ceiling(radius);
         for (int dy = -r; dy <= r; dy++)
         for (int dx = -r; dx <= r; dx++)
@@ -103,13 +106,14 @@ public static class BattleSkillButton
             n++;
             if (max < 50) dark++;
             else if (min > 200) white++;
+            else if (max >= 200 && min <= 60) vivid++;
         }
         if (n == 0) return null;
         if (Math.Max(WhiteLines(frame, cx, cy, ui.Scale), WhiteLines(frame, cx, cy, ui.Scale, BesideIcon)) >= TextLines) return null;
 
         double darkShare = dark / (double)n, whiteShare = white / (double)n;
         if (darkShare >= CoolingDarkAt && whiteShare is >= CoolingWhiteMin and <= CoolingWhiteMax) return BattleSkillState.Cooling;
-        if (whiteShare >= IconWhiteMin && darkShare <= IconDarkMax) return BattleSkillState.Available;
+        if (whiteShare >= IconWhiteMin && darkShare <= IconDarkMax && vivid < n * IconVividMax) return BattleSkillState.Available;
         return null;
     }
 }
