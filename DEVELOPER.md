@@ -85,6 +85,8 @@ rotation charts.
   | `ultimateTimeLeft` | the ultimate's icon, the triangle, "≤30%" |
   | `battleSkillEmpowered` | the battle skill's icon and a small amber star; not: slashed |
   | `controlling` | the avatar |
+  | `staggerProgress` / `staggerNodes` | a drawn piece of the stagger bar (pink fill and its white cap) / a drawn node box, "≥50%" / "≥1" ([`StaggerGlyphs`](src/EndHud/StaggerGlyphs.cs)) |
+  | `staggered` / `staggerTimeLeft` | the drawn yellow countdown; not staggered: slashed / with the triangle, "≤30%" |
   | `phaseShown`, `phasePlayed` / `phaseCurrent` | "!" with "≥2" / "!" alone (nothing to picture) |
   | `stepsLit` all / at least N / these | an amber ring / the ring, "≥N" / each named step's own icon |
   | `not` | its condition's badge with the slash toggled; over a group, pushed down (not (a and b) = not a / not b) |
@@ -406,6 +408,10 @@ what it reads, and reads unknown then:
   Laevatain's flower is grey (40-80; 54-67 measured), and Typhoeus's dots are read only while his arrow bars are.
 - [`BossStatusReader`](src/EndHud.Vision/BossStatusReader.cs): a square whose brightest fifth starts under 140 (171
   or more on every accepted icon) is too dim to match: an unknown icon under a backdrop matched Amp.
+- [`StaggerBar`](src/EndHud.Vision/StaggerBar.cs), under the boss's HP bar (the top-centre display covers its middle):
+  a building fill must end in its white cap, and a yellow countdown must not end at an edge across the HP bar. Before
+  the HP bar's red required blue below red (r − b ≥ 60) and its brightness was taken by the median, the display's
+  magenta "RAM" line passed for the HP fill and a countdown of 0.56 read 0.22 at the backdrop's edge.
 - The cast flash ([`BattleSkillFlash`](src/EndHud.Vision/BattleSkillFlash.cs)) needed nothing: the text's ink is
   brighter than the fill measure takes, and a backdrop darkens the disc rather than filling it.
 
@@ -1824,6 +1830,10 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   | `battleSkillActive` | `operatorId`, `active` (format 7) | that operator's lasting battle skill is running (`true`) or not: Si's, from the swirl on her battle-skill button until the butterfly is back (the purple countdown round her stacks' circle, see [Si's battle-skill timer](#sis-battle-skill-timer)). This reading's button decides (swirl or crossed-out butterfly: running; butterfly: not); a reading that can't tell it (an effect, a countdown look) goes by the overlay's timer (`PartyState.RunningSkills`, the estimate while it lasts): running while it shows one, else unknown. Unknown with a controller (the buttons aren't read). Only Si's is read (`SkillRing.Operators`); naming anyone else is refused (`SkillTimeNotRead`), and the editors offer only Si, greyed out without her |
   | `battleSkillEmpowered` | `operatorId`, `empowered` (format 11) | that operator's battle skill is empowered (战技已强化, `true`) or not: the steady near-white glow on the rim of their battle-skill button, judged over the last 0.5 s of the corner sampled 30 times a second (see [Following battle skills from the screen](#following-battle-skills-from-the-screen); `PartyState.Empowered`, `PartyState.EmpoweredOf`). Keyboard and mouse and controller alike (either diamond: LB held or not). Unknown when the corner isn't sampled (no window capture), the squad panel is out of sight or out of battle, with keyboard and mouse when that reading couldn't read the slot's button, and whenever the glow can't be told (below). Any operator may be named: whose battle skill the game empowers is not EndHud's to say |
   | `teamBuff` | `buffId` (the wiki's name: `Link`, 连击), `is`, `value` (0–4 in the editor) (format 12) | how many stacks of a team buff the game shows left of the controlled operator's HP bar (连击层数, e.g. `Link` `AtLeast` 1 before Laevatain's empowered battle skill), compared: the number on the icon's bottom right, 1 when it has none ([`TeamBuffReader`](src/EndHud.Vision/TeamBuffReader.cs), `PartyState.Buffs`); **0 when it isn't shown in combat** (`PartyState.BuffStacks`). Unknown out of combat or with the squad panel out of sight (buffs are read in combat only), and when the number is there but can't be read. The editor offers the buffs EndHud reads (`TeamBuffReader.Buffs`: Link) by their Chinese names. Its reading is in the on-screen display combat gate (`buffs`, compared exactly), so a display over it gives the same stacks or none read; tests: `TeamBuffConditionTests` |
+  | `staggerProgress` | `is`, `percent` (0–100) (format 13) | how far the boss's stagger bar has filled, in whole percent ([Stagger bar](#the-bosss-stagger-bar), `PartyState.StaggerPercent`); 100 while staggered. Unknown when the bar isn't read: out of battle, no boss HP bar, the bar covered or unreadable |
+  | `staggerNodes` | `is`, `count` (0–9 in the editor) (format 13) | how many of the bar's node boxes the fill has passed, each a small stagger (`StaggerReading.NodesReached`); all of them while staggered. A boss without boxes has 0. Unknown as above |
+  | `staggered` | `staggered` (format 13) | the boss is in the large stagger (the bar a yellow countdown, `true`) or not. Unknown as above |
+  | `staggerTimeLeft` | `is`, `percent` (0–100) (format 13) | how much of the large stagger is left, as a percentage of the bar (`PartyState.StaggerTimeLeftPercent`); 0 while not staggered. **No seconds**: the countdown stands still in some moments, so its length can't be turned into time. Unknown as above; tests: `StaggerConditionTests` |
   | `ultimateActive` | `operatorId`, `active` (format 3) | that operator's lasting ultimate is running (`true`) or not, whoever is controlled: one of the running ones from [Lasting ultimates](#lasting-ultimates) (`PartyState.RunningUltimates`), on the time bar or carried on in the background. Unknown while the skill points can't be read, and, for an operator whose ultimate isn't one of the known lasting ones, while a bar shows (it could be hers); with no bar, false |
   | `ultimateTimeLeft` | `operatorId`, `is`, `percent` (0–100) (format 9) | how much of that operator's lasting ultimate is left to run, as a % of its time bar (`LastingUltimateView.LeftShare` of the running ones from [Lasting ultimates](#lasting-ultimates), on the bar or carried on in the background); 0 while it isn't running (as a ready ultimate's charge is 100). Unknown while the skill points can't be read. Only Laevatain, Zhuang Fangyi and Yvonne (`LastingUltimates.Operators`); anyone else is refused (`UltimateTimeNotRead`), and the editors offer only them, greyed out without any. No seconds: no ultimate's length has been measured |
   | `counter` | `operatorId`, `counterId`, `is`, `value` | an operator's own resource compares so (see below) |
@@ -1886,7 +1896,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   that machinery (`PhaseHistory.KeysNotRead`, `IPhaseHistory.PlayedIgnored`,
   `RotationTracker.Ignored`, `ConditionWalk.OnlyPlayed`, `ConditionNeeds.KeysRead`) is gone.
 
-- `format`: 12 when it uses `teamBuff` or a `Condition` step in a group (`withPrevious` on it or on the step after it); else 11 when it uses `battleSkillEmpowered`; else 10 when a phase has a `finish` condition (and so for `stepsLit`); else 9 when it uses `ultimateTimeLeft`, `phaseCurrent`, a `Condition` or `PlungeAttack` step, or the `"controlled"` operator; else 8 when it uses a `HeavyAttack` step; else 7 when it uses `battleSkillActive`; else 6 when a phase sets `priority` (other than 0) or `priorityRules`; else 5 when it uses `phasePlayed`; else 4 when it uses a `BasicAttack` step, `Below`/`Above` or `phaseShown`; else 3 when it
+- `format`: 13 when it uses a stagger condition (`staggerProgress`, `staggerNodes`, `staggered`, `staggerTimeLeft`); else 12 when it uses `teamBuff` or a `Condition` step in a group (`withPrevious` on it or on the step after it); else 11 when it uses `battleSkillEmpowered`; else 10 when a phase has a `finish` condition (and so for `stepsLit`); else 9 when it uses `ultimateTimeLeft`, `phaseCurrent`, a `Condition` or `PlungeAttack` step, or the `"controlled"` operator; else 8 when it uses a `HeavyAttack` step; else 7 when it uses `battleSkillActive`; else 6 when a phase sets `priority` (other than 0) or `priorityRules`; else 5 when it uses `phasePlayed`; else 4 when it uses a `BasicAttack` step, `Below`/`Above` or `phaseShown`; else 3 when it
   uses `not`, `ultimateActive` or `lastMatchWins`; else 2. A rotation is saved in the lowest
   format that holds it (`Rotation.FormatNeeded`), so one using nothing new stays readable by older
   builds, and the published `rotations/*.json` stay at format 3 or lower (a test checks). A
@@ -1977,6 +1987,7 @@ like everything else.
 | Vulnerable and an infliction together ([`BossStatusReader.RingIcons`](src/EndHud.Vision/BossStatusReader.cs)) | the ring's place, and 94 px (4K) right of it at the same height | the game draws both, the same size, in the order they were applied, each with its own stack arcs: in test_rossi heat then Vulnerable (20–25 s), then Vulnerable then heat (33 s) and Vulnerable then cryo (37 s). The later one arrives in the second place; when the first goes it fades where it stood (25.5 s) and the second moves into its place (25.75 s). The second place is read like the first (an infliction, else Vulnerable) and reported at `BossStatusReading.SecondRingPosition`, but only when the first is read, holds the other kind, and the second's top arc is lit (white with its dark outline). A second icon with no first is a moment of change; two inflictions side by side are one replacing another (Si 20.1–20.6 s: the new nature took the first place while the old cryo slid right and faded; Typhoeus 30 s, nature over nature), so the right one is already off the boss; and at Typhoeus 105.5 s sky with a dark branch passed the shield test in the second place but had no arc. On test_rossi every 0.5 s (79 frames): both read on 20 of the 21 frames showing two (the 21st is the first fading), 64 icons right, 0 wrong; the four arts-team recordings (1,170 frames) and the physical-team one (267) never read a second icon or a Vulnerable that isn't there. Fixtures/vulnerable-and-infliction |
 | Enemy statuses ([`BossStatusReader`](src/EndHud.Vision/BossStatusReader.cs)) | the icon row under the boss's bars, top centre | each square is matched against the wiki's status icons; read at most once a second and only when the current rotation (a phase's `when` or a step, at any depth) or an alert rule asks about statuses (about 70 ms a read at 4K). Each reading carries its count where one is read (`BossStatusReading.Stacks`): the ring's stacks (each icon's, when Vulnerable and an infliction show together), or a reaction's level |
 | Reaction level ([`ReactionLevel`](src/EndHud.Vision/ReactionLevel.cs)) | the badge on a Corrosion or Electrification icon's bottom-right corner | a dark square with the level as a Roman numeral in the reaction's colour, read in two bands between the serifs: an "I" is one upright run in both bands, a "V" two runs above that close into one below; the runs must spell I–IV. **Level I has no badge** (owner, 2026-10-22): a corner that clearly has none (no numeral, little dark, the square's own background showing, the icon's art in full colour) reads I. A dark corner (a badge, or a dark scene that could hide one), one covered by an effect, or one washed out (an icon fading in) is unknown, never I. Over the four recordings every 0.2 s, 0 of 542 badged readings read I and 329 of 599 badgeless readings did; the rest stayed unknown. Only these two reactions are read (`ReactionLevel.Measured`) |
+| Stagger bar ([`StaggerBar`](src/EndHud.Vision/StaggerBar.cs)) | the thin bar right under the boss's HP bar, top centre | the pink fill's share of the bar, ending in its white cap; the node boxes and how many the fill has passed; the yellow countdown's share while staggered. Every reading in battle (a few milliseconds). See [The boss's stagger bar](#the-bosss-stagger-bar) |
 
 Status icons come from the wiki's glossary module along with the operators (`statuses.json` in the
 operator library), so new statuses need no release. Chinese names are in
@@ -2007,6 +2018,48 @@ The skill-point bar usually has three segments; some fights draw more (seven in 
   about 1 whatever the size; a drop between readings of different sizes isn't counted.
 - **Conditions**: `skillPoints` values 0–20 in tenths in both editors, one list for every fight.
 - **Diagnostics** write `7.00/7` (`?/3` for a bar seen but unread, `-` for none).
+
+### The boss's stagger bar
+
+The thin bar right under the boss's HP bar (owner, 2026-10-25: "monitor the stagger progress and stagger remaining
+time; add these as conditions and notifications"). [`StaggerBar`](src/EndHud.Vision/StaggerBar.cs) reads it on
+every reading in battle (`PartyState.Stagger`); the four stagger conditions read that, so alerts pop up on them like
+on any condition. Measured on the owner's two recordings of one boss (`fullbattletest.mp4`, `test_battle_full2.mp4`,
+3838x2158), positions at 4K anchored top-centre:
+
+- **Where:** the track x 1441–2398, y 154–169 (the scene darkened behind it); the fill inset, x 1445–2394, rows
+  158–167. It is taken as there only when the boss's HP bar is: its left end red (about 229,62,111; x 1447–1457,
+  y 122–140). No HP bar: unknown, never 0.
+- **Building:** pink on a gradient fixed to the bar (about 235,110,128 at the left, nearly white at the right end),
+  ending in a white cap 3–4 px wide that stands out of the fill above and below. Stagger just added shows first as a
+  lighter part ahead of the fill, with the cap at its end, and the fill catches up a moment later (it counts at once).
+  A building reading must end in that cap with no fill colour past it, else it is unknown. Progress is the fill's
+  share of the bar (0–1).
+- **Node boxes (small stagger):** white brackets above and below the fill, 16 px wide (bars y 152–155 and 170–172,
+  sides 4 px beside the fill with the dark track between). This boss has one, at the middle; the other fixtures'
+  bosses (Typhoeus's fights, the sky frames of `ultimate-time/`) have none, so the boxes are read from the bar, never
+  assumed. A node is reached when the fill has passed it. The game's only cue for the small stagger on the bar is the
+  box drawn about 1.5 times its size for 0.7–1 s as the fill reaches it (fullbattletest 43.9–44.8 s,
+  test_battle_full2 67.1–68.1 s); the box isn't found then, so
+  [`StaggerMemory`](src/EndHud.Vision/StaggerBar.cs) keeps a box seen in two readings or more until no bar has been
+  read for 20 readings (another boss may have others). No box is taken within 16 px of a building fill's end: the cap
+  and a lighter part just added looked like a box's side seven times over the recordings (each one reading, and,
+  remembered, counted as a second node until the two-readings rule).
+- **Large stagger:** the bar turns into a yellow countdown (about 230,200,85; no cap) that drains to the left. On its
+  first frame it is 0.97–0.99 of the bar (the most pink seen before it, 0.98). It drained about 0.11 of the bar a
+  second in both recordings while the game ran, so about 9 s from full for this boss, but it stood still for up to
+  2.7 s at a time (fullbattletest 69.5–72.2 s from its start, 77.3–78.0 s, 80.0–81.3 s; test_battle_full2
+  105.0–106.2 s): game time stops in some skills' moments. So the time left is offered as a share of the bar, never
+  seconds. Then the fill is back at 0. A countdown with fill colour past it, or with an edge across the HP bar right
+  where it ends (something dark over the bar from there: an on-screen display's backdrop), is unknown.
+- **Measured:** every 0.5 s over both recordings (never the last 5 s; 484 readings): 146 without a boss bar
+  (cutscenes, before the fight), 12 unknown with it (flashes, the moment it turns yellow); the rest, against contact
+  sheets of the bar one frame a second, showed no wrong state and a fill or countdown that only moved with the bar. About 150 boss frames of other fixture folders: 14 checked by eye, all right.
+  [`Fixtures/stagger`](tests/data/Fixtures/stagger) (21 frames, labelled) at 4K, 1440p, 1080p and 720p (the node
+  boxes from 1080p up): `StaggerBarTests`, including the synthetic on-screen display at every position (same or
+  unknown), which `OnScreenDisplayCombatGateTests` also sweeps.
+- **Diagnostics:** the summary's last reading says `stagger Building 0.630 nodes [0.500] reached 1` (or `-`), and the
+  log says when its kind changes, with why it is unread.
 
 ### Si's battle-skill timer
 
@@ -2414,7 +2467,7 @@ One file for every rule, global (every fight, every squad): `%APPDATA%\EndHud\al
   no rotation of its own, so they name a phase of any of the player's rotations (listed as
   "rotation · phase", `AlertEditor.PhaseChoices`), and are known while that rotation is the one the
   strip follows (else unknown: the rule neither fires nor re-arms).
-- `format`: 6 when a rule uses `teamBuff`, else 5 when one uses `battleSkillEmpowered`, else 4 when one uses `phaseShown` (before, the editor refused it), `ultimateTimeLeft` or `phaseCurrent`, else 3 when one uses `battleSkillActive`, else 2 when one uses `phasePlayed`, else 1, the lowest that holds the rules
+- `format`: 7 when a rule uses a stagger condition (`staggerProgress`, `staggerNodes`, `staggered`, `staggerTimeLeft`), else 6 when a rule uses `teamBuff`, else 5 when one uses `battleSkillEmpowered`, else 4 when one uses `phaseShown` (before, the editor refused it), `ultimateTimeLeft` or `phaseCurrent`, else 3 when one uses `battleSkillActive`, else 2 when one uses `phasePlayed`, else 1, the lowest that holds the rules
   (`AlertFile.FormatNeeded`): rules using nothing new stay readable by builds from before format 2,
   which refuse the rest as newer (left as it is, never renamed as unreadable). The share code keeps
   its `EHA1:` prefix (the code's own version).
@@ -2606,7 +2659,7 @@ exception: hosted runners can't capture windows, so they only run on a developer
   crops, `BattleSkillFlashTests`; runs of samples, `CastFlashTrackerTests`; the corner tap, `WindowCaptureTests`; the
   judge, `ScreenCastJudgeTests`; resync and skipped steps, `StepFollowerTests`; the 30 fps recordings,
   `FlashSamplerTests`, `RecordedCastsTests` and `RecordedControllerCastsTests`; the controller's diamonds on 4K crops of full battle 3,
-  `BattleSkillFlashTests`; "battle skill empowered", `BattleSkillEmpoweredConditionTests` and `OnScreenDisplayEmpoweredGateTests`), "team buff stacks" (`TeamBuffConditionTests`), alerts at format 2 only when needed;
+  `BattleSkillFlashTests`; "battle skill empowered", `BattleSkillEmpoweredConditionTests` and `OnScreenDisplayEmpoweredGateTests`), "team buff stacks" (`TeamBuffConditionTests`), the boss's stagger (the bar on its fixtures, every screen size and under the synthetic on-screen display, `StaggerBarTests`; the four conditions, `StaggerConditionTests`; both in the fast lane), alerts at format 2 only when needed;
   the tracker (picking a step with no reset, moving only on seen use, steps used together, going
   off-script, looping, nothing on screen, stacks and levels in status conditions); the phase
   selector's counts and their reset at the end of a fight; the editor's working copy and the
