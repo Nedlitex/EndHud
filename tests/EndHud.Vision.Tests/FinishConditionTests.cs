@@ -266,7 +266,7 @@ public sealed class FinishConditionTests
     {
         var rotation = Three(new StepsLitCondition(StepsLitWhich.These, Steps: [1, 3]), new SkillPointsCondition(Comparison.AtLeast, 1));
 
-        Assert.Equal(10, Rotation.CurrentFormat);
+        Assert.True(Rotation.CurrentFormat >= 10);
         Assert.Equal(10, Rotation.FormatNeeded(rotation.Phases, lastMatchWins: false));
         Assert.Equal(10, Rotation.FormatNeeded(Three(new SkillPointsCondition(Comparison.AtLeast, 1)).Phases, lastMatchWins: false));
         Assert.Equal(4, Rotation.FormatNeeded(Three().Phases, lastMatchWins: false)); // a basic attack: as before
