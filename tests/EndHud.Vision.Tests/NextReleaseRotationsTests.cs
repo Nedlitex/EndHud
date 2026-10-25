@@ -257,6 +257,8 @@ public class NextReleaseRotationsTests
         public int Link { get; init; }
         public bool LaevatainEmpowered { get; init; }
         public bool Heat { get; init; }
+        /// <summary>莱万汀's lasting ultimate running (its time bar).</summary>
+        public bool LaevatainUltimateRunning { get; init; }
 
         public PartyState ToState()
         {
@@ -276,6 +278,9 @@ public class NextReleaseRotationsTests
                 Buffs = Link > 0 ? [new TeamBuff("Link", Link)] : [],
                 Empowered = [false, LaevatainEmpowered, false, false],
                 BossStatuses = Heat ? [new BossStatusReading("Heat Infliction", BossStatusReading.RingPosition, 1, 1)] : [],
+                RunningUltimates = LaevatainUltimateRunning
+                    ? new Dictionary<string, LastingUltimateView> { ["Laevatain"] = new("Laevatain", 0.5, false) }
+                    : new Dictionary<string, LastingUltimateView>(),
             };
         }
     }
@@ -475,60 +480,51 @@ public class NextReleaseRotationsTests
     }
 
     /// <summary>
-    /// 卡缪's, 莱万汀's and 诀's ultimates ready (祀's optional): 爆发轴 III at once, even mid-charge, held until played through
-    /// whatever the ultimates do meanwhile; 祀's and 诀's second ultimates aren't waited for; then 充能轴 I.
+    /// 卡缪's, 莱万汀's and 诀's ultimates ready (祀's optional): 爆发轴 III at once, even mid-charge. It ends when 莱万汀's
+    /// ultimate has run out (owner 2026-10-25: "the exit condition of the burst rotation should be when laevatine's ult is
+    /// finished"): her ultimate step lit and her ultimate no longer running; not before she casts it, and not while it
+    /// runs, however many steps are lit. Then 充能轴 I.
     /// </summary>
     [Fact]
-    public void The_camille_burst_comes_when_three_ultimates_are_ready_and_holds_until_played_through()
+    public void The_camille_burst_comes_when_three_ultimates_are_ready_and_ends_when_laevatains_ultimate_runs_out()
     {
         var fight = new CamilleFight(Camille_rotation());
-        var spent = new CamilleReading(true);
+        var running = new CamilleReading(true) { LaevatainUltimateRunning = true };
 
         Assert.Equal("充能轴 I", fight.Read(new CamilleReading(false)));
         Assert.Equal("充能轴 I", fight.Read(new CamilleReading(false) { UltimateReady = [Camille, Laevatain] }, Laevatain)); // 诀's not ready yet
         Assert.Equal("爆发轴 III", fight.Read(new CamilleReading(false) { UltimateReady = [Camille, Laevatain, ArcaneSlot] }));
-        Assert.Equal("爆发轴 III", fight.Read(spent with { UltimateReady = [Laevatain, ArcaneSlot] }));            // 卡缪 终结技
-        Assert.Equal("爆发轴 III", fight.Read(spent with { UltimateReady = [ArcaneSlot], Heat = true }));          // 莱万汀 终结技
-        Assert.Equal("爆发轴 III", fight.Read(spent with { Heat = true }));                                        // 诀 终结技, then the 重击
-        Assert.Equal("爆发轴 III", fight.Read(spent with { ComboUsed = [ArcaneSlot, Camille, SiSlot] }));         // 诀 连携技·意, 卡缪 and 祀 连携技
-        Assert.Equal("爆发轴 III", fight.Read(spent, Camille));                                                   // 卡缪 强化战技
-        Assert.Equal("爆发轴 III", fight.Read(spent with { LaevatainEmpowered = true, Link = 1 }, Laevatain));     // 莱万汀 强化战技
-        Assert.Equal("爆发轴 III", fight.Read(spent with { ComboUsed = [Laevatain] }));                            // 莱万汀 连携技 (祀 and 诀 终结技 not cast)
-        Assert.Equal("爆发轴 III", fight.Read(spent, SiSlot));                                                    // 祀 战技, then the 重击
-        Assert.Equal("爆发轴 III", fight.Read(spent with { ComboUsed = [Camille, SiSlot] }));                      // 卡缪 and 祀 连携技
-        Assert.Equal("爆发轴 III", fight.Read(spent with { LaevatainEmpowered = true }, Laevatain));              // 莱万汀 强化战技
+        Assert.Equal("爆发轴 III", fight.Read(new CamilleReading(true) { UltimateReady = [Laevatain, ArcaneSlot] })); // 卡缪 终结技; hers not cast yet
+        Assert.Equal("爆发轴 III", fight.Read(running with { UltimateReady = [ArcaneSlot], Heat = true }));          // 莱万汀 终结技: running
+        Assert.Equal("爆发轴 III", fight.Read(running with { Heat = true }));                                        // 诀 终结技
+        Assert.Equal("爆发轴 III", fight.Read(running with { ComboUsed = [ArcaneSlot, Camille, SiSlot] }));
+        Assert.Equal("爆发轴 III", fight.Read(running with { LaevatainEmpowered = true, Link = 1 }, Laevatain));     // 莱万汀 强化战技
         Assert.Equal(0, fight.Steps.TimesPlayed("burst"));
-        Assert.Equal("爆发轴 III", fight.Read(spent with { ComboUsed = [Laevatain] }));                            // 莱万汀 连携技: played through
+        Assert.Equal("爆发轴 III", fight.Read(new CamilleReading(true)));                                            // her ultimate ran out
         Assert.Equal(1, fight.Steps.TimesPlayed("burst"));
-        Assert.Equal("充能轴 I", fight.Read(spent));
+        Assert.Equal("充能轴 I", fight.Read(new CamilleReading(true)));
     }
 
     /// <summary>
-    /// The owner's example for bursts (2026-10-24): the ultimates in another order than written, and the burst's last
-    /// step early: each lights its own step, and the burst isn't over until every step it waits for is lit.
+    /// The owner's example for bursts (2026-10-24): the ultimates in another order than written. Every step lit doesn't end
+    /// it while 莱万汀's ultimate still runs; it ends when hers runs out, whatever is still unlit.
     /// </summary>
     [Fact]
-    public void The_camille_burst_played_in_another_order_is_not_over_until_every_step_is_lit()
+    public void The_camille_burst_played_in_another_order_ends_only_when_laevatains_ultimate_runs_out()
     {
         var fight = new CamilleFight(Camille_rotation());
         var charged = new CamilleReading(true) { UltimateReady = [Camille, Laevatain, ArcaneSlot] };
-        var held = new CamilleReading(true) { UltimateReady = [Camille] }; // 卡缪's ultimate kept for last
-        var spent = new CamilleReading(true);
+        var running = new CamilleReading(true) { UltimateReady = [Camille], LaevatainUltimateRunning = true }; // 卡缪's kept for last
 
         Assert.Equal("爆发轴 III", fight.Read(charged));
-        Assert.Equal("爆发轴 III", fight.Read(charged with { UltimateReady = [Camille, Laevatain] }));             // 诀 终结技 first
-        Assert.Equal("爆发轴 III", fight.Read(held));                                                              // 莱万汀 终结技
-        Assert.Equal("爆发轴 III", fight.Read(held with { ComboUsed = [Laevatain] }));                             // 莱万汀 连携技 early
-        Assert.Equal("爆发轴 III", fight.Read(held with { ComboUsed = [ArcaneSlot, Camille, SiSlot] }));
-        Assert.Equal("爆发轴 III", fight.Read(held, Laevatain, Camille));                                         // 强化战技 ×2
-        Assert.Equal("爆发轴 III", fight.Read(held, SiSlot));
-        Assert.Equal("爆发轴 III", fight.Read(held with { ComboUsed = [Camille, SiSlot] }));
-        Assert.Equal("爆发轴 III", fight.Read(held, Laevatain));
-        Assert.Equal("爆发轴 III", fight.Read(held with { ComboUsed = [Laevatain] }));
-        Assert.Equal("爆发轴 III", fight.Read(held));
-        Assert.Equal(0, fight.Steps.TimesPlayed("burst"));                                                       // 卡缪 终结技 still unlit
-        Assert.Equal("爆发轴 III", fight.Read(spent));                                                             // 卡缪 终结技 last: every step lit
+        Assert.Equal("爆发轴 III", fight.Read(charged with { UltimateReady = [Camille, Laevatain] }));   // 诀 终结技 first
+        Assert.Equal("爆发轴 III", fight.Read(running));                                                 // 莱万汀 终结技
+        Assert.Equal("爆发轴 III", fight.Read(running with { ComboUsed = [Laevatain] }));                // 莱万汀 连携技 early
+        Assert.Equal("爆发轴 III", fight.Read(running with { UltimateReady = [] }));                     // 卡缪 终结技 last
+        Assert.Equal("爆发轴 III", fight.Read(running with { UltimateReady = [] }));
+        Assert.Equal(0, fight.Steps.TimesPlayed("burst"));                                              // hers still running
+        Assert.Equal("爆发轴 III", fight.Read(new CamilleReading(true)));                                 // ran out
         Assert.Equal(1, fight.Steps.TimesPlayed("burst"));
-        Assert.Equal("充能轴 I", fight.Read(spent));
+        Assert.Equal("充能轴 I", fight.Read(new CamilleReading(true)));
     }
 }
