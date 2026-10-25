@@ -10,6 +10,7 @@ namespace EndHud.Vision.Tests;
 /// (Recordings/battle-controller-30fps.casts.txt). Every cast there is made with LB held.
 /// </summary>
 [Collection(Recordings.ThirtyFps)]
+[Trait("Category", "Slow")] // replays a 30 fps recording: left out of the fast lane (scripts/test.ps1 -Fast)
 public sealed class RecordedControllerCastsTests
 {
     private static readonly Lazy<Task<List<RecordedReading>>> Readings = new(async () =>

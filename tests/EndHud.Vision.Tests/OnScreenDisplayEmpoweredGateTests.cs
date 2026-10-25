@@ -11,6 +11,7 @@ namespace EndHud.Vision.Tests;
 /// frame's or unknown, never the other. Over the combat fixtures the display gate samples, and the cast-flash corners
 /// (the empowered glow among them) placed at the bottom right of a frame of their recording's size.
 /// </summary>
+[Trait("Category", "Slow")] // a display sweep over every combat fixture: left out of the fast lane (scripts/test.ps1 -Fast)
 public class OnScreenDisplayEmpoweredGateTests(ITestOutputHelper output)
 {
     public static TheoryData<string> Frames()
