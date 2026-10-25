@@ -58,14 +58,15 @@ public class SkillPointBarTests
             double columns = ui.BottomCenter(SkillPointBar.Segment(segments, 0)).Width;
             if (columns < SkillPointBar.MinColumns)
             {
-                Assert.Null(read);
+                Assert.Null(read?.Value);
                 continue;
             }
 
             Assert.NotNull(read);
             Assert.Equal(segments, read!.Value.Max);
             double within = Math.Max(0.05, 1.5 / columns);
-            Assert.InRange(read.Value.Value, points - within, points + within);
+            Assert.NotNull(read.Value.Value);
+            Assert.InRange(read.Value.Value!.Value, points - within, points + within);
         }
     }
 }

@@ -45,8 +45,9 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
     /// with a fraction for the filling segment (see <see cref="SkillPointBar"/>); null out of combat or when unreadable.</summary>
     public double? SkillPoints { get; init; }
 
-    /// <summary>How many segments the skill-point bar has (the most points it holds): read from the bar with
-    /// <see cref="SkillPoints"/>, usually 3, more in some fights; null when the bar wasn't read.</summary>
+    /// <summary>How many segments the skill-point bar has (the most points it holds), usually 3, more in some
+    /// fights: read from the bar itself, also when its fill can't be (<see cref="SkillPoints"/> null then); null
+    /// when no bar is seen.</summary>
     public int? SkillPointMax { get; init; }
 
     /// <summary>
@@ -206,8 +207,11 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
     /// In a battle: the squad panel is on screen with a combo bar and the skill-point bar, which the
     /// game draws in combat only. Not in exploration, menus, login or loading screens, and never
     /// while the top-left mode switch says the player is out of battle (<see cref="OutOfBattle"/>).
+    /// The bar counts when its segments are seen (<see cref="SkillPointMax"/>) even if their fill can't be
+    /// read (an effect over it): the points unread took the strip down mid-fight. As a fight ends the bar
+    /// goes first, segments and all, while the combo bars still show: then it's no longer combat.
     /// </summary>
-    public bool InCombat => PanelVisible && SkillPoints is not null && Slots.Any(s => s.Combo is not null) && !OutOfBattle;
+    public bool InCombat => PanelVisible && (SkillPoints is not null || SkillPointMax is not null) && Slots.Any(s => s.Combo is not null) && !OutOfBattle;
 
     /// <summary>The top-left mode switch (<see cref="Vision.ModePill"/>): this frame's reading from
     /// <see cref="PartyReader"/>, held through a short misread by <see cref="PartyTracker"/>.</summary>

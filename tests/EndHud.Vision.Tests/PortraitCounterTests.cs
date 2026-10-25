@@ -142,7 +142,7 @@ public class PortraitCounterTests
     /// <summary>
     /// As a fight ends the skill points go first and the level text fades in under the portraits
     /// while the combo bars still show (test_si_background1 76.5 s): no badge then isn't read as 0.
-    /// The same clear no-badge frames, the skill points taken away, read unknown.
+    /// The same clear no-badge frames, the skill-point bar taken away, read unknown.
     /// </summary>
     [Theory]
     [MemberData(nameof(SiWithoutBadge))]
@@ -151,7 +151,7 @@ public class PortraitCounterTests
         var label = LabelOf(file);
         var (frame, raw) = await ReadAsync(file);
 
-        var si = PortraitCounters.Read(frame, Named(raw, label.Squad) with { SkillPoints = null }).Single(r => r.OperatorId == "Si");
+        var si = PortraitCounters.Read(frame, Named(raw, label.Squad) with { SkillPoints = null, SkillPointMax = null }).Single(r => r.OperatorId == "Si");
 
         Assert.Null(si.Value);
     }

@@ -1,7 +1,10 @@
 namespace EndHud.Vision;
 
-/// <summary>Skill points read from the bar: <see cref="Value"/> of <see cref="Max"/> (the bar's segment count).</summary>
-public readonly record struct SkillPointReading(double Value, int Max);
+/// <summary>
+/// The skill-point bar seen: <see cref="Value"/> points of <see cref="Max"/> (its segment count); the value null when the
+/// segments are there but their fill can't be read (an effect over them).
+/// </summary>
+public readonly record struct SkillPointReading(double? Value, int Max);
 
 /// <summary>
 /// The team's skill points (技力): a row of segments above the controlled operator's HP bar, bottom centre, shown in
@@ -51,13 +54,15 @@ public static class SkillPointBar
     private const double MinPitch = 8;
 
     /// <summary>
-    /// Skill points and the bar's segment count: 2.4 of 3 = two full, the third 40%. Null when the bar doesn't look like
-    /// the bar (covered by an effect, or not on screen). Read it only in combat: out of combat the bar isn't drawn and
-    /// the empty track looks like dark ground.
+    /// Skill points and the bar's segment count: 2.4 of 3 = two full, the third 40%. Null when no bar is seen (not on
+    /// screen, or faded); the value alone null when its segments are seen but their fill doesn't look like the bar's (an
+    /// effect over it). Read it only in combat: out of combat the bar isn't drawn.
     /// </summary>
-    public static SkillPointReading? Measure(Frame frame, UiScaler ui)
+    public static SkillPointReading? Measure(Frame frame, UiScaler ui) =>
+        SegmentCount(frame, ui) is { } segments ? new SkillPointReading(Points(frame, ui, segments), segments) : null;
+
+    private static double? Points(Frame frame, UiScaler ui, int segments)
     {
-        if (SegmentCount(frame, ui) is not { } segments) return null;
         double value = 0;
         for (int s = 0; s < segments; s++)
         {
@@ -87,9 +92,9 @@ public static class SkillPointBar
                 var rest = Columns(frame, ui.BottomCenter(Segment(segments, later)));
                 if (rest is null || rest.Count(c => c != Lit.None) > rest.Length * StrayAllowed) return null;
             }
-            return new SkillPointReading(value, segments);
+            return value;
         }
-        return new SkillPointReading(value, segments);
+        return value;
     }
 
     private static double Pitch(int segments) => (RowRight - RowLeft + Gap) / segments;

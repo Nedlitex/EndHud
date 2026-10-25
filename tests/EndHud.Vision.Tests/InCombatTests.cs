@@ -81,9 +81,10 @@ public class InCombatTests
     }
 
     /// <summary>
-    /// Battles where the skill-point bar isn't read (an effect over it, or a bar the reader didn't know: the owner's
-    /// seven segments read as nothing, 2026-10-25, and the rotation stayed down): the squad panel with combo bars on
-    /// several operators is a battle on its own, the game drawing them in combat only.
+    /// Battles where the skill points aren't read (an effect over the bar; the owner's seven segments read as no bar
+    /// at all, 2026-10-25, and the rotation stayed down): the bar's segments are seen, which is the battle sign the game
+    /// draws, even when their fill can't be read. (As a fight ends the bar goes, segments and all: not combat then,
+    /// see PortraitCounterTests.No_badge_isnt_zero_once_the_skill_points_are_gone.)
     /// </summary>
     [Theory]
     [InlineData("infliction/ring-42_5s.jpg")]
@@ -94,6 +95,7 @@ public class InCombatTests
         var state = await ReadAsync(await ImageFile.LoadAsync(CombatFrameTests.Fixture(file)));
 
         Assert.Null(state.SkillPoints); // the case this guards
+        Assert.Equal(3, state.SkillPointMax);
         Assert.True(state.InCombat);
     }
 
