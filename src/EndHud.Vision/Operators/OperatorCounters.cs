@@ -113,10 +113,11 @@ public static class OperatorCounters
             else if (pink > n * PinkPetalShare) pinkPetals++;
             else if (dark > n * PetalShare)
             {
-                // An unlit petal is grey; near black, or a lit one dimmed to grey, is the flower seen through
-                // something dark (an on-screen display's backdrop read 3 stacks as 0).
+                // On a portrait an unlit petal is grey; near black, or a lit one dimmed to grey, is the flower
+                // seen through something dark (an on-screen display's backdrop read 3 stacks as 0). Beside the
+                // HP bar, on the HUD's own dark backing, unlit petals are darker (measured there: 0 stacks read).
                 levels.Sort();
-                if (levels[levels.Count / 2] is < UnlitPetalFrom or > UnlitPetalTo) return null;
+                if (place.OnPortrait && levels[levels.Count / 2] is < UnlitPetalFrom or > UnlitPetalTo) return null;
                 darkPetals++;
             }
         }
