@@ -16,24 +16,30 @@ internal static class UpdateNow
 
     public static bool Requested(string[] args) => args.Contains(Flag);
 
-    public static async Task<int> RunAsync(string[] args)
+    public static Task<int> RunAsync(string[] args) =>
+        RunAsync(args, Updater.WorkFolder, api => new UpdateService(api), () => new Updater());
+
+    /// <param name="work">Where update-now.log goes.</param>
+    /// <param name="service">The update check against this release API (tests: a stand-in).</param>
+    /// <param name="updater">The updater (tests: one that records what it would start).</param>
+    internal static async Task<int> RunAsync(string[] args, string work, Func<string, UpdateService> service, Func<Updater> updater)
     {
-        Directory.CreateDirectory(Updater.WorkFolder);
-        using var log = new StreamWriter(Path.Combine(Updater.WorkFolder, "update-now.log"), append: false) { AutoFlush = true };
+        Directory.CreateDirectory(work);
+        using var log = new StreamWriter(Path.Combine(work, "update-now.log"), append: false) { AutoFlush = true };
         void Log(string line) => log.WriteLine($"{DateTime.Now:HH:mm:ss.fff} {line}");
 
         int from = Array.IndexOf(args, "--from");
         string api = from >= 0 && from + 1 < args.Length ? args[from + 1] : ReleaseChecker.LatestReleaseApi;
-        using var updates = new UpdateService(api);
-        var updater = new Updater();
-        Log($"EndHud {ReleaseChecker.Current?.ToString(3) ?? "dev"} ({updater.Kind}) at {Environment.ProcessPath}; asking {api}");
+        using var updates = service(api);
+        var install = updater();
+        Log($"EndHud {ReleaseChecker.Current?.ToString(3) ?? "dev"} ({install.Kind}) at {Environment.ProcessPath}; asking {api}");
 
         var check = await updates.CheckAsync();
         Log($"check: {check.Status} {check.Release?.Version.ToString(3)}");
         if (check.Status == UpdateStatus.UpToDate) return 3;
         if (check.Status != UpdateStatus.NewVersion) return 1;
 
-        var outcome = await updater.InstallAsync(check.Release!, restart: false);
+        var outcome = await install.InstallAsync(check.Release!, restart: false);
         Log(outcome.Started ? "update started" : $"update failed: {outcome.Failure} {outcome.Detail}");
         return outcome.Started ? 0 : 1;
     }
