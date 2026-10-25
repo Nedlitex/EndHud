@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using EndHud.SkillInput;
 using EndHud.Vision;
 
@@ -209,7 +210,7 @@ internal sealed class HudConfig
 /// Loads and saves <see cref="HudConfig"/>. The file is created with defaults on first run.
 /// Users can edit it by hand (restart to apply) or delete it to reset everything.
 /// </summary>
-internal static class ConfigStore
+internal static partial class ConfigStore
 {
     public static string Folder { get; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EndHud");
@@ -296,6 +297,10 @@ internal static class ConfigStore
         // A place off the window would leave the banners where nobody can drag them back.
         config.InnCallX = double.IsFinite(config.InnCallX) ? Math.Clamp(config.InnCallX, 0, 1) : HudConfig.DefaultInnCallX;
         config.InnCallY = double.IsFinite(config.InnCallY) ? Math.Clamp(config.InnCallY, 0, 1) : HudConfig.DefaultInnCallY;
+        // A hand-edited null where a map or a name belongs, or a language name that isn't one (it names a resource
+        // file): the default, rather than a crash later.
+        config.ActiveRotations ??= [];
+        if (config.Language is null || !LanguageName().IsMatch(config.Language)) config.Language = Loc.DefaultLanguage;
         // A hand-edited list that isn't 4 distinct real keys would bind nothing, or two slots to one key.
         if (!SkillKeyCodes.AreValid(config.SkillKeys)) config.SkillKeys = [.. SkillKeyCodes.Defaults];
         return config;
@@ -310,4 +315,8 @@ internal static class ConfigStore
         File.WriteAllText(temp, Serialize(config));
         File.Move(temp, FilePath, overwrite: true);
     }
+
+    /// <summary>A language tag like zh-CN or en: letters, then dash-separated letters or digits.</summary>
+    [GeneratedRegex(@"^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$")]
+    private static partial Regex LanguageName();
 }
