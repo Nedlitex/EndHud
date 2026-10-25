@@ -41,27 +41,35 @@ public static class RotationFormat
 
     private static readonly JsonSerializerOptions Compact = new(Json) { WriteIndented = false };
 
+    /// <summary>
+    /// A rotation from its file's text. Anything that isn't a whole rotation within <see cref="ReadLimits"/> (a
+    /// number where a whole one belongs, a missing part, too much of anything) is refused as
+    /// <see cref="RotationReadError.NotARotation"/>; one from a newer EndHud as <see cref="RotationReadError.NewerFormat"/>.
+    /// Never another exception.
+    /// </summary>
     public static Rotation FromJson(string json)
     {
+        if (json.Length > ReadLimits.MaxTextBytes)
+            throw new RotationReadException(RotationReadError.NotARotation, $"over {ReadLimits.MaxTextBytes} characters");
         Rotation? rotation;
         try
         {
             using var document = JsonDocument.Parse(json);
             if (document.RootElement.ValueKind != JsonValueKind.Object
-                || !document.RootElement.TryGetProperty("format", out var format) || format.ValueKind != JsonValueKind.Number)
+                || !document.RootElement.TryGetProperty("format", out var format) || !format.TryGetInt32(out int version))
                 throw new RotationReadException(RotationReadError.NotARotation);
-            if (format.GetInt32() > Rotation.CurrentFormat)
-                throw new RotationReadException(RotationReadError.NewerFormat, $"format {format.GetInt32()}");
-            rotation = format.GetInt32() <= 1
+            if (version > Rotation.CurrentFormat)
+                throw new RotationReadException(RotationReadError.NewerFormat, $"format {version}");
+            rotation = version <= 1
                 ? document.RootElement.Deserialize<RotationV1>(Json)?.ToCurrent()
                 : document.RootElement.Deserialize<Rotation>(Json);
         }
-        catch (JsonException ex)
+        catch (Exception ex) when (ex is JsonException or FormatException or InvalidOperationException or NotSupportedException
+                                       or ArgumentException or OverflowException)
         {
             throw new RotationReadException(RotationReadError.NotARotation, ex.Message);
         }
-        if (rotation is null || rotation.Id is null || rotation.Phases is null || rotation.Squad is null
-            || rotation.Phases.Any(p => p is null || p.Steps is null || p.Name is null || p.Id is null || p.PriorityRules.Any(r => r is null)))
+        if (rotation is null || !ReadLimits.Fits(rotation))
             throw new RotationReadException(RotationReadError.NotARotation);
         return rotation;
     }
@@ -76,13 +84,15 @@ public static class RotationFormat
     {
         public Rotation? ToCurrent()
         {
-            if (Phases is null || Sequence is null) return null;
+            if (Phases is null || Sequence is null || Phases.Any(p => p?.Id is null) || Sequence.Any(u => u is null)) return null;
             var taken = Phases.Select(p => p.Id).ToHashSet(StringComparer.Ordinal);
             var used = new HashSet<string>(StringComparer.Ordinal);
             var phases = new List<RotationPhase>();
             foreach (var use in Sequence)
             {
                 if (Phases.FirstOrDefault(p => p.Id == use.PhaseId) is not { } phase) continue;
+                // Real ones play a phase twice; never copied past the limits (two billion copies would be made one by one).
+                if (use.Times > ReadLimits.MaxRepeats || phases.Count + Math.Max(1, use.Times) > ReadLimits.MaxPhases) return null;
                 for (int time = 0; time < Math.Max(1, use.Times); time++)
                 {
                     // The first play keeps the phase's id; copies get one no other phase has or will have.
@@ -115,7 +125,9 @@ public static class RotationFormat
 
     public static Rotation FromShareCode(string code)
     {
-        code = string.Concat(code.Where(c => !char.IsWhiteSpace(c))); // chats wrap long lines
+        // Chats wrap long lines (whitespace is dropped); no real code comes near the limit, wrapped or not.
+        if (code.Length > 2 * ReadLimits.MaxShareCodeChars) throw new RotationReadException(RotationReadError.DamagedShareCode, "too long");
+        code = string.Concat(code.Where(c => !char.IsWhiteSpace(c)));
         if (!code.StartsWith(ShareCodePrefix, StringComparison.Ordinal))
         {
             // A newer code ("EHR2:") is from a newer EndHud; anything else isn't a code at all.
@@ -123,14 +135,17 @@ public static class RotationFormat
                 ? RotationReadError.NewerFormat
                 : RotationReadError.NotARotation);
         }
+        if (code.Length - ShareCodePrefix.Length > ReadLimits.MaxShareCodeChars)
+            throw new RotationReadException(RotationReadError.DamagedShareCode, "too long");
 
         string body = code[ShareCodePrefix.Length..].Replace('-', '+').Replace('_', '/');
         body = body.PadRight(body.Length + (4 - body.Length % 4) % 4, '=');
         string json;
         try
         {
+            // Unpacked only up to the limit: a few KB of code can stand for gigabytes.
             using var deflate = new DeflateStream(new MemoryStream(Convert.FromBase64String(body)), CompressionMode.Decompress);
-            using var reader = new StreamReader(deflate, Encoding.UTF8);
+            using var reader = new StreamReader(new TrustedHttp.CappedStream(deflate, ReadLimits.MaxTextBytes), Encoding.UTF8);
             json = reader.ReadToEnd();
         }
         catch (Exception ex) when (ex is FormatException or InvalidDataException)
@@ -179,13 +194,14 @@ public sealed class RotationStore(string folder)
         {
             try
             {
+                if (new FileInfo(file).Length > ReadLimits.MaxTextBytes) throw new RotationReadException(RotationReadError.NotARotation, "too large");
                 rotations.Add(RotationFormat.FromJson(File.ReadAllText(file)));
             }
             catch (RotationReadException ex)
             {
                 unreadable.Add(new UnreadableRotation(file, ex.Error));
             }
-            catch (IOException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 unreadable.Add(new UnreadableRotation(file, RotationReadError.NotARotation));
             }

@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
+using EndHud.Vision.Rotations;
 
 namespace EndHud.Vision.Alerts;
 
@@ -45,22 +46,30 @@ public static class AlertFormat
         return JsonSerializer.Serialize(new AlertFile(AlertFile.FormatNeeded(list), list), Json);
     }
 
+    /// <summary>
+    /// The rules in an alerts file's text. Anything that isn't whole rules within <see cref="ReadLimits"/> is refused
+    /// as <see cref="AlertReadError.NotAlerts"/>, a newer file as <see cref="AlertReadError.NewerFormat"/>; never another exception.
+    /// </summary>
     public static IReadOnlyList<AlertRule> FromJson(string json)
     {
+        if (json.Length > ReadLimits.MaxTextBytes) throw new AlertReadException(AlertReadError.NotAlerts, $"over {ReadLimits.MaxTextBytes} characters");
         AlertFile? file;
         try
         {
             using var document = JsonDocument.Parse(json);
             var root = document.RootElement;
             if (root.ValueKind != JsonValueKind.Object
-                || !root.TryGetProperty("format", out var format) || format.ValueKind != JsonValueKind.Number
+                || !root.TryGetProperty("format", out var format) || !format.TryGetInt32(out int version)
                 || !root.TryGetProperty("rules", out var rules) || rules.ValueKind != JsonValueKind.Array)
                 throw new AlertReadException(AlertReadError.NotAlerts);
-            if (format.GetInt32() > AlertFile.CurrentFormat)
-                throw new AlertReadException(AlertReadError.NewerFormat, $"format {format.GetInt32()}");
+            if (version > AlertFile.CurrentFormat)
+                throw new AlertReadException(AlertReadError.NewerFormat, $"format {version}");
+            if (rules.GetArrayLength() > ReadLimits.MaxAlertRulesRead)
+                throw new AlertReadException(AlertReadError.NotAlerts, $"over {ReadLimits.MaxAlertRulesRead} rules");
             file = root.Deserialize<AlertFile>(Json);
         }
-        catch (Exception ex) when (ex is JsonException or FormatException or InvalidOperationException)
+        catch (Exception ex) when (ex is JsonException or FormatException or InvalidOperationException or NotSupportedException
+                                       or ArgumentException or OverflowException)
         {
             throw new AlertReadException(AlertReadError.NotAlerts, ex.Message);
         }
@@ -82,7 +91,9 @@ public static class AlertFormat
 
     public static IReadOnlyList<AlertRule> FromShareCode(string code)
     {
-        code = string.Concat(code.Where(c => !char.IsWhiteSpace(c))); // chats wrap long lines
+        // Chats wrap long lines (whitespace is dropped); no real code comes near the limit, wrapped or not.
+        if (code.Length > 2 * ReadLimits.MaxShareCodeChars) throw new AlertReadException(AlertReadError.DamagedShareCode, "too long");
+        code = string.Concat(code.Where(c => !char.IsWhiteSpace(c)));
         if (!code.StartsWith(ShareCodePrefix, StringComparison.Ordinal))
         {
             // A newer code ("EHA2:") is from a newer EndHud; anything else (a rotation's "EHR1:") isn't alert rules.
@@ -90,14 +101,17 @@ public static class AlertFormat
                 ? AlertReadError.NewerFormat
                 : AlertReadError.NotAlerts);
         }
+        if (code.Length - ShareCodePrefix.Length > ReadLimits.MaxShareCodeChars)
+            throw new AlertReadException(AlertReadError.DamagedShareCode, "too long");
 
         string body = code[ShareCodePrefix.Length..].Replace('-', '+').Replace('_', '/');
         body = body.PadRight(body.Length + (4 - body.Length % 4) % 4, '=');
         string json;
         try
         {
+            // Unpacked only up to the limit: a few KB of code can stand for gigabytes.
             using var deflate = new DeflateStream(new MemoryStream(Convert.FromBase64String(body)), CompressionMode.Decompress);
-            using var reader = new StreamReader(deflate, Encoding.UTF8);
+            using var reader = new StreamReader(new TrustedHttp.CappedStream(deflate, ReadLimits.MaxTextBytes), Encoding.UTF8);
             json = reader.ReadToEnd();
         }
         catch (Exception ex) when (ex is FormatException or InvalidDataException)
@@ -152,7 +166,8 @@ public sealed class AlertStore(string file)
         string text;
         try
         {
-            text = System.IO.File.ReadAllText(file);
+            // Too large to be real: kept aside as unreadable below, never read whole.
+            text = new FileInfo(file).Length > ReadLimits.MaxTextBytes ? "" : System.IO.File.ReadAllText(file);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

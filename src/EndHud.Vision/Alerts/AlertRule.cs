@@ -97,5 +97,12 @@ public sealed record AlertFile(int Format, IReadOnlyList<AlertRule> Rules)
     public const int MaxRules = 100;
 
     [JsonIgnore]
-    public bool Readable => Rules is not null && Rules.All(r => r is not null && r.Id is not null && r.When is not null);
+    public bool Readable => Rules is not null && Rules.All(r => r is not null && r.Id is not null && WithinLimits(r.When));
+
+    /// <summary>Every condition present, nested and counted within <see cref="ReadLimits"/> (per rule).</summary>
+    private static bool WithinLimits(IReadOnlyList<StateCondition>? when)
+    {
+        int budget = ReadLimits.MaxConditions;
+        return ReadLimits.ConditionsFit(when, ref budget);
+    }
 }
