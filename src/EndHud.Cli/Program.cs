@@ -25,7 +25,9 @@ using EndHud.Vision.Operators;
 //       the menu and the theme as the screens state them. --end-margin leaves out the recording's last seconds.
 //   endhud-cli trace-mode-pill <recording.mp4|frame.png|jpg>... [--every <seconds>] [--from <seconds>] [--to <seconds>] [--end-margin <seconds>]
 //       Text only: per frame (or image) the top-left mode switch (ModePill): its shape score, the red share
-//       of its icon, the reading, and whether the squad panel reads as combat. For tuning the battle-only rule.
+//       of its icon, the reading, whether the squad panel reads as combat, and the evacuate bar (EvacuateBar): its
+//       white share, the ink shares of its icon and its two characters, and whether it is read. For tuning the
+//       battle-only rule and the battle kind (instance or open world).
 //   endhud-cli identify <screenshot.png> --library <library-dir> [--debug-dir <dir>]
 //       Match each squad portrait against the library and print the top candidates.
 //   endhud-cli build-portrait-references <squads.json> <out.json>
@@ -96,7 +98,7 @@ static async Task<int> TraceModePillAsync(string[] paths, double everySeconds, d
 {
     var reader = new PartyReader(new TextRecognizer());
     var inv = System.Globalization.CultureInfo.InvariantCulture;
-    Console.WriteLine("source,t,shape,red,reading,panel,combat");
+    Console.WriteLine("source,t,shape,red,reading,panel,combat,evacuate_white,evacuate_icon,evacuate_first,evacuate_second,evacuate");
     foreach (string path in paths)
     {
         if (path.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
@@ -115,8 +117,9 @@ static async Task<int> TraceModePillAsync(string[] paths, double everySeconds, d
         if (content != new PixelRect(0, 0, frame.Width, frame.Height)) frame = frame.Crop(content);
         var ui = new UiScaler(frame.Width, frame.Height);
         var (shape, red) = ModePill.Measure(frame, ui);
+        var bar = EvacuateBar.Measure(frame, ui);
         var state = await reader.ReadAsync(frame);
-        Console.WriteLine(string.Create(inv, $"{source},{t:F1},{shape:F2},{red:F2},{ModePill.Read(frame, ui)},{state.PanelVisible},{state.InCombat}"));
+        Console.WriteLine(string.Create(inv, $"{source},{t:F1},{shape:F2},{red:F2},{ModePill.Read(frame, ui)},{state.PanelVisible},{state.InCombat},{bar.White:F2},{bar.Icon:F2},{bar.First:F2},{bar.Second:F2},{EvacuateBar.Read(frame, ui)}"));
     }
 }
 
