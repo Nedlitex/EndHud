@@ -53,7 +53,7 @@ public class ConditionStepTests
         }
     }
 
-    private const StepMark L = StepMark.Lit, C = StepMark.Current, U = StepMark.Unlit;
+    private const StepMark L = StepMark.Lit, C = StepMark.Current, U = StepMark.Unlit, N = StepMark.Neutral;
 
     [Fact]
     public void It_is_current_until_it_holds_then_lit_and_stays_lit()
@@ -129,10 +129,6 @@ public class ConditionStepTests
     {
         Assert.Empty(Of(Wait(CryoThree), new RotationStep("Ardelia", StepAction.BattleSkill)).Problems()); // no operator: fine
         Assert.Equal([new RotationProblem(RotationProblemKind.ConditionStepEmpty, "P", 1)], Of(Wait()).Problems());
-        Assert.Equal([new RotationProblem(RotationProblemKind.ConditionStepWithPrevious, "P", 2)],
-            Of(new RotationStep("Ardelia", StepAction.BattleSkill), Wait(CryoThree) with { WithPrevious = true }).Problems());
-        Assert.Equal([new RotationProblem(RotationProblemKind.ConditionStepWithPrevious, "P", 2)],
-            Of(Wait(CryoThree), new RotationStep("Ardelia", StepAction.BattleSkill, WithPrevious: true)).Problems());
         // Its conditions are checked like any others'.
         Assert.Equal([new RotationProblem(RotationProblemKind.ConditionOperatorNotInSquad, "P", 1)], Of(Wait(new ComboCondition("Si", true))).Problems());
 
@@ -143,5 +139,42 @@ public class ConditionStepTests
         Assert.Equal(rotation.Phases[0].Steps[0], RotationFormat.FromJson(json).Phases[0].Steps[0] with { Expect = rotation.Phases[0].Steps[0].Expect });
         Assert.Equal([CryoThree], RotationFormat.FromJson(json).Phases[0].Steps[0].Expect);
         Assert.True(ConditionWalk.NeedsBossStatuses(rotation)); // its statuses are read
+    }
+
+    /// <summary>
+    /// Owner, 2026-10-25: "make sure in this rotation, laevatine's check for counter condition is grouped with heavy attack
+    /// (as they are the same step)". A condition step used together with the step before it (or the step after it with
+    /// it) is a group like any other: allowed, saved in format 12 (builds before it refused it), drawn overlapping. The
+    /// chevron passes over the heavy attack (never lit) to the condition; it lights when met, as on its own.
+    /// </summary>
+    [Fact]
+    public void Grouped_with_the_heavy_attack_before_it_it_is_that_steps_check()
+    {
+        var heavy = new RotationStep(RotationStep.Controlled, StepAction.HeavyAttack);
+        var rotation = Of(new RotationStep("Ardelia", StepAction.BattleSkill), heavy, Wait(CryoThree) with { WithPrevious = true },
+            new RotationStep("Laevatain", StepAction.BattleSkill));
+        Assert.Empty(rotation.Problems());
+        Assert.Equal(12, Rotation.FormatNeeded(rotation.Phases, lastMatchWins: false));
+        var fight = new Fight(rotation);
+
+        Assert.Equal([C, N, U, U], fight.Read(Reading(1)));
+        Assert.Equal([L, N, C, U], fight.Read(Reading(1), Ardelia));
+        Assert.Equal([L, N, L, C], fight.Read(Reading(3)));
+        fight.Read(Reading(0), Laevatain); // the round's last step: played through
+        Assert.Equal(1, fight.Follower.TimesPlayed("p"));
+    }
+
+    /// <summary>A condition step with a cast grouped after it: both wait under the chevron, either may come first.</summary>
+    [Fact]
+    public void Grouped_with_a_cast_after_it_both_are_current_and_either_may_come_first()
+    {
+        var rotation = Of(Wait(CryoThree), new RotationStep("Ardelia", StepAction.BattleSkill, WithPrevious: true), new RotationStep("Laevatain", StepAction.BattleSkill));
+        Assert.Empty(rotation.Problems());
+        Assert.Equal(12, Rotation.FormatNeeded(rotation.Phases, lastMatchWins: false));
+        var fight = new Fight(rotation);
+
+        Assert.Equal([C, C, U], fight.Read(Reading(1)));
+        Assert.Equal([C, L, U], fight.Read(Reading(1), Ardelia));
+        Assert.Equal([L, L, C], fight.Read(Reading(3)));
     }
 }

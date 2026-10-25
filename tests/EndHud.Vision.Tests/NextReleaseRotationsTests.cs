@@ -366,11 +366,16 @@ public class NextReleaseRotationsTests
         Assert.Equal([new SkillPointsCondition(Comparison.AtLeast, 2)], one[1].Expect);                     // the first 卡缪 战技
         foreach (var steps in new[] { one, rotation.Phase("charge-2")!.Steps })
         {
-            // Right after the 重击: the condition step 熔火 = 4; then 莱万汀's 强化战技, empowered, with 连击 at least 1.
+            // Right after the 重击 and grouped with it (owner 2026-10-25: "laevatine's check for counter condition is grouped
+            // with heavy attack (as they are the same step)"): the condition step 熔火 = 4; then 莱万汀's 强化战技, empowered,
+            // with 连击 at least 1.
             int heavy = steps.ToList().FindIndex(s => s.Action == StepAction.HeavyAttack);
             Assert.Equal(RotationStep.Controlled, steps[heavy].OperatorId);
+            Assert.False(steps[heavy].WithPrevious);
             Assert.Equal(StepAction.Condition, steps[heavy + 1].Action);
             Assert.Equal([flame], steps[heavy + 1].Expect);
+            Assert.True(steps[heavy + 1].WithPrevious);
+            Assert.False(steps[heavy + 2].WithPrevious); // 卡缪's 连携技 comes after the pair
             var strong = steps.Single(s => s.Label == "强化战技");
             Assert.Equal(("Laevatain", StepAction.BattleSkill), (strong.OperatorId, strong.Action));
             Assert.Equal([empowered, link], strong.Expect);

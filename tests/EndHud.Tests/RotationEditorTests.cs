@@ -491,9 +491,10 @@ public sealed class RotationEditorTests : IDisposable
     }
 
     /// <summary>
-    /// A condition step from the editor (owner, 2026-10-24): picking 条件 hides the operator and "with
-    /// the previous step", seeds one condition on the shared pickers, and saves in format 9; with its
-    /// condition removed, saving is refused with a sentence.
+    /// A condition step from the editor (owner, 2026-10-24): picking 条件 hides the operator, seeds one condition on the
+    /// shared pickers, and saves in format 9; with its condition removed, saving is refused with a sentence. "With the
+    /// previous step" stays offered (owner, 2026-10-25: a counter check right after a heavy attack "is the same step"):
+    /// ticked, it saves grouped, in format 12.
     /// </summary>
     [Fact]
     public void A_condition_step_is_built_in_the_editor()
@@ -502,19 +503,25 @@ public sealed class RotationEditorTests : IDisposable
         library.Own.Save(Published() with { Id = "mine" });
 
         string said = "", refused = "";
-        bool operatorHidden = false, withPreviousHidden = false, hintShown = false;
+        bool operatorHidden = false, withPreviousShown = false, hintShown = false;
         int rows = 0;
         OnEditor(library, _ => { }, editor =>
         {
             Click(editor, "AddStepButton");
             Pick((ComboBox)editor.FindName("StepActionPicker"), StepAction.Condition);
             operatorHidden = ((FrameworkElement)editor.FindName("StepOperator")).Visibility != Visibility.Visible;
-            withPreviousHidden = ((FrameworkElement)editor.FindName("StepWithPrevious")).Visibility != Visibility.Visible;
+            var withPrevious = (CheckBox)editor.FindName("StepWithPrevious");
+            withPreviousShown = withPrevious.Visibility == Visibility.Visible && withPrevious.IsEnabled;
             hintShown = ((TextBlock)editor.FindName("ConditionStepHint")).Visibility == Visibility.Visible;
             var conditions = (StackPanel)editor.FindName("ConditionRows");
             rows = conditions.Children.Count;
             Click(editor, "SaveButton");
             said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+            Assert.Equal(9, Assert.Single(library.Own.Load().Rotations).Format);
+            withPrevious.IsChecked = true;
+            withPrevious.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            Click(editor, "SaveButton");
+            said += ((TextBlock)editor.FindName("ProblemsText")).Text;
             // Remove its one condition: nothing to wait for.
             RowOf(conditions.Children[0]).Children.OfType<Button>().Last().RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
             Click(editor, "SaveButton");
@@ -522,7 +529,7 @@ public sealed class RotationEditorTests : IDisposable
         });
 
         Assert.True(operatorHidden);
-        Assert.True(withPreviousHidden);
+        Assert.True(withPreviousShown);
         Assert.True(hintShown);
         Assert.Equal(1, rows);
         Assert.Equal("", said);
@@ -533,7 +540,8 @@ public sealed class RotationEditorTests : IDisposable
         Assert.Equal(StepAction.Condition, step.Action);
         Assert.Equal("", step.OperatorId);
         Assert.Single(step.Expect);
-        Assert.Equal(9, saved.Format);
+        Assert.True(step.WithPrevious);
+        Assert.Equal(12, saved.Format);
     }
 
     /// <summary>
