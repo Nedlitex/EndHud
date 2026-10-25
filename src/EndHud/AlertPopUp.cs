@@ -37,6 +37,10 @@ internal static class AlertPopUp
     /// <summary>What goes in the circle.</summary>
     public static UIElement Icon(ImageSource? picture, bool skillPoints)
     {
+        // A drawn counter glyph (CounterGlyphs) sits on its own transparent square and is drawn whole, like the skill-point
+        // glyph; a picture (an avatar, an icon) is cut round to fit the circle.
+        if (picture is DrawingImage)
+            return new Image { Source = picture, Width = IconSize * 0.8, Height = IconSize * 0.8 };
         if (picture is not null)
             return new Image { Source = picture, Width = IconSize, Height = IconSize, Clip = new EllipseGeometry(new Point(IconSize / 2, IconSize / 2), IconSize / 2, IconSize / 2) };
         if (skillPoints) return SkillPointGlyph();

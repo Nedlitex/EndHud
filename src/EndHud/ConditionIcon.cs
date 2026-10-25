@@ -16,7 +16,7 @@ internal enum AlertSubjectKind
     /// <summary>A boss status (an infliction, a reaction): its icon.</summary>
     Status,
 
-    /// <summary>An operator's skill, charge, counter or being controlled: their avatar.</summary>
+    /// <summary>An operator's skill, charge or being controlled: their avatar.</summary>
     Operator,
 
     /// <summary>An operator's battle skill empowered (the glow is on that button): their battle skill's icon.</summary>
@@ -45,7 +45,7 @@ internal sealed record AlertSubject(AlertSubjectKind Kind, string? Id = null, St
 /// The icon of a list of conditions, one rule wherever conditions get one (owner, 2026-10-22, for the
 /// alert pop-up; the condition step's circle on the strip uses the same): the subject of the first
 /// condition (inside a "not" or a group, its first part). Skill points draw their glyph, a boss
-/// status its icon, an operator their avatar ("battle skill empowered": their battle skill's icon); anything else (or a picture not loaded yet) "!".
+/// status its icon, a counter its drawn glyph (<see cref="CounterGlyphs"/>), an operator their avatar ("battle skill empowered": their battle skill's icon); anything else (or a picture not loaded yet) "!".
 /// The strip's badges (<see cref="StripBadges"/>) take one condition each by the same rule, with a skill's own icon for a
 /// condition about that skill (<see cref="BadgeSubject"/>).
 /// </summary>
@@ -64,6 +64,8 @@ internal static class ConditionIcon
             // A team buff's icon is the wiki's status icon (Link's), as the gauge row draws it.
             TeamBuffCondition b => new AlertSubject(AlertSubjectKind.Status, b.BuffId),
             BattleSkillEmpoweredCondition e => new AlertSubject(AlertSubjectKind.BattleSkill, e.OperatorId),
+            // A counter: its drawn glyph, not the operator's face (owner, 2026-10-25).
+            CounterCondition k => new AlertSubject(AlertSubjectKind.Counter, k.OperatorId, Counter: k.CounterId),
             NotCondition n => SubjectOf(n.Of),
             AllCondition { Of.Count: > 0 } all => SubjectOf(all.Of[0]),
             AnyCondition { Of.Count: > 0 } any => SubjectOf(any.Of[0]),
@@ -75,7 +77,7 @@ internal static class ConditionIcon
     /// What one condition's badge on the strip shows: a combo's, an ultimate's or a battle skill's condition (ready, charge,
     /// running, time left) that skill's icon, so badges about one operator's different skills tell apart; anything else
     /// the shared rule's subject (<see cref="Subject"/>): a status's or buff's icon, the battle skill for "empowered", the
-    /// skill points, the operator's avatar (a counter, controlled).
+    /// skill points, a counter's glyph, the operator's avatar (controlled).
     /// </summary>
     public static AlertSubject BadgeSubject(StateCondition condition) => condition switch
     {
@@ -91,7 +93,7 @@ internal static class ConditionIcon
     };
 
     /// <summary>
-    /// The picture for the subject: a status's icon, an operator's avatar, or an operator's battle skill icon (their avatar
+    /// The picture for the subject: a status's icon, a counter's glyph (else its operator's avatar), an operator's avatar, or an operator's battle skill icon (their avatar
     /// while it isn't loaded, or when the wiki has none); null for skill points, nothing in particular, or one not loaded yet.
     /// </summary>
     public static ImageSource? Picture(AlertSubject subject, OperatorLibrary? library, Func<string, BitmapSource?> statusIcon, Func<OperatorInfo, BitmapSource?> avatar,
@@ -99,6 +101,8 @@ internal static class ConditionIcon
     {
         { Kind: AlertSubjectKind.Status, Id: { } status } => statusIcon(status),
         { Kind: AlertSubjectKind.Operator, Id: { } op } when library?.Find(op) is { } info => avatar(info),
+        { Kind: AlertSubjectKind.Counter, Counter: { } counter } when CounterGlyphs.For(counter) is { } glyph => glyph,
+        { Kind: AlertSubjectKind.Counter, Id: { } op } when library?.Find(op) is { } info => avatar(info),
         { Kind: AlertSubjectKind.BattleSkill, Id: { } op } when library?.Find(op) is { } info => skillIcon(info, StepAction.BattleSkill) ?? avatar(info),
         { Kind: AlertSubjectKind.Skill, Id: { } op, Action: { } action } when library?.Find(op) is { } info => skillIcon(info, action) ?? avatar(info),
         _ => null,
