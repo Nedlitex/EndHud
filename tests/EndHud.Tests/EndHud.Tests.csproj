@@ -29,6 +29,8 @@
   <ItemGroup>
     <!-- The synthetic RivaTuner/Afterburner on-screen display, shared with the vision tests. -->
     <Compile Include="..\EndHud.Vision.Tests\Support\SyntheticOsd.cs" Link="Support\SyntheticOsd.cs" />
+    <!-- This run's folder for the app's data: never the player's real %APPDATA%\EndHud (TestDataFolderTests). -->
+    <Compile Include="..\EndHud.Vision.Tests\Support\TestRoot.cs" Link="Support\TestRoot.cs" />
   </ItemGroup>
 
   <ItemGroup>
