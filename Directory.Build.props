@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <!--
+      The Windows projection (C#/WinRT) every project builds against, pinned instead of taken from whichever
+      .NET SDK builds it. SDK 8.0.100 brings 10.0.22621.31 (C#/WinRT 2.0.4), whose awaited operations can
+      answer null, throw, or crash the process when the garbage collector runs while a result is taken
+      (optimized code only): see WindowsAwaitTests. 10.0.22621.57 (C#/WinRT 2.2) does not. Pinned, a local
+      build and the CI/release build (which takes the newest 8.0.x SDK) ship the same projection.
+    -->
+    <WindowsSdkPackageVersion>10.0.22621.57</WindowsSdkPackageVersion>
+  </PropertyGroup>
+</Project>
