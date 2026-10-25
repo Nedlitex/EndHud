@@ -14,6 +14,7 @@ namespace EndHud.Tests;
 /// certificate) can no longer send EndHud to a file anywhere else. No network: a stand-in handler answers by
 /// address and records what was asked.
 /// </summary>
+[Collection(ProcessStartCollection.Name)]
 public sealed class UpdateTrustTests : IDisposable
 {
     private static readonly byte[] NewExe = "new EndHud 1.4.0"u8.ToArray();

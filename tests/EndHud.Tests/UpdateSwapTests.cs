@@ -15,6 +15,7 @@ namespace EndHud.Tests;
 /// the installer inherits the handle. An installer must say it is EndHud's (<see cref="MsiPackage"/>). Nothing
 /// is installed while EndHud runs as administrator. No network; nothing is installed (the start is recorded).
 /// </summary>
+[Collection(ProcessStartCollection.Name)]
 public sealed class UpdateSwapTests : IDisposable
 {
     private static readonly byte[] NewExe = "new EndHud 1.4.0"u8.ToArray();
@@ -173,6 +174,52 @@ public sealed class UpdateSwapTests : IDisposable
         Assert.Equal(UpdateFailure.Elevated, outcome.Failure);
         Assert.Equal(0, requests);
         Assert.Empty(_started);
+    }
+
+    [Fact]
+    public async Task Release_yml_s_update_test_on_a_runner_that_is_administrator_still_updates_from_its_stand_in()
+    {
+        const string local = "http://127.0.0.1:8765/EndHud-1.4.0-portable.exe";
+        var updater = new Updater(() => new HttpClient(new Serve(NewExe)), Exe, Work, InstallKind.Portable, info =>
+        {
+            _started.Add(info);
+            return true;
+        }, UpdateFeed.Local("http://127.0.0.1:8765/latest.json", out _)!, elevated: true);
+        _updaters.Add(updater);
+        var release = new ReleaseInfo(new Version(1, 4, 0), "https://github.com/Nedlitex/EndHud/releases",
+            [new ReleaseAsset("EndHud-1.4.0-portable.exe", local, Sha256(NewExe))]);
+
+        Assert.True((await updater.InstallAsync(release, restart: false)).Started);
+        Assert.Equal(NewExe, File.ReadAllBytes(Exe));
+    }
+
+    [Fact]
+    public async Task A_process_started_while_a_portable_exe_is_locked_does_not_keep_it_from_moving_into_place()
+    {
+        Process? child = null;
+        var updater = new Updater(() => new HttpClient(new Serve(NewExe)), Exe, Work, InstallKind.Portable, info =>
+        {
+            _started.Add(info);
+            return true;
+        }, UpdateFeed.GitHub, elevated: false)
+        {
+            // Anything EndHud starts meanwhile (a browser, Explorer) inherits whatever is inheritable.
+            AfterLock = _ => child = Process.Start(new ProcessStartInfo("cmd.exe", "/d /c ping -n 30 127.0.0.1 >nul") { UseShellExecute = false, CreateNoWindow = true }),
+        };
+        _updaters.Add(updater);
+        try
+        {
+            var outcome = await updater.InstallAsync(Release(NewExe), restart: false);
+
+            Assert.True(outcome.Started, $"{outcome.Failure} {outcome.Detail}");
+            Assert.Equal(NewExe, File.ReadAllBytes(Exe));
+        }
+        finally
+        {
+            child?.Kill(entireProcessTree: true);
+            child?.WaitForExit();
+            child?.Dispose();
+        }
     }
 
     [Fact]

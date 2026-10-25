@@ -586,7 +586,8 @@ Right-click the tray icon for: status, show HUD, open menu, auto-show on/off, de
   **Never as administrator.** An EndHud running elevated installs nothing (logged, and the
   notification says to start EndHud normally): the files sit in the player's own temporary folder,
   where any of their programs can write, and an elevated EndHud would run what it finds there with
-  full rights.
+  full rights. The one exception is `--update-now --from` a stand-in on this computer: release.yml's
+  update test, on GitHub's runners, where everything runs as administrator.
 
   Settings, learned portraits and the operator library are in `%APPDATA%\EndHud`, which neither
   touches. On any failure before the hand-over nothing has changed and the notification links to

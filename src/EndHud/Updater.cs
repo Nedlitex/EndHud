@@ -88,6 +88,9 @@ internal sealed class Updater : IDisposable
     /// <summary>Tests: called with the downloaded file before it is locked and checked again, to change it as another program could.</summary>
     internal Action<string>? BeforeLock { get; init; }
 
+    /// <summary>Tests: called with the file once it is locked and checked, as other code of EndHud could run meanwhile (start a process).</summary>
+    internal Action<string>? AfterLock { get; init; }
+
     /// <summary>Updates the running EndHud from <paramref name="feed"/>'s files (GitHub's, or release.yml's stand-in's).</summary>
     public Updater(UpdateFeed feed) : this(
         () => GitHubHttp.Create(TimeSpan.FromMinutes(10)),
@@ -114,7 +117,9 @@ internal sealed class Updater : IDisposable
     /// <param name="restart">Start EndHud again afterwards (the tray app); false for <c>--update-now</c>.</param>
     public async Task<UpdateOutcome> InstallAsync(ReleaseInfo release, bool restart, CancellationToken ct = default)
     {
-        if (_elevated)
+        // release.yml's update test is the exception: GitHub's Windows runners run everything as administrator, and
+        // the stand-in on loopback is only ever named by that script (--update-now --from).
+        if (_elevated && !_feed.AllowsLocal)
         {
             DiagnosticLog.Warn("EndHud update: not installing, EndHud runs as administrator (the update's files sit where any program of the player's can change them)");
             return new UpdateOutcome(false, UpdateFailure.Elevated);
@@ -135,7 +140,8 @@ internal sealed class Updater : IDisposable
         {
             string file = await DownloadAsync(url, asset, run, ct);
             BeforeLock?.Invoke(file);
-            verified = Lock(file, asset.Sha256);
+            verified = Lock(file, asset.Sha256, inheritable: Kind == InstallKind.Msi);
+            AfterLock?.Invoke(file);
             if (Kind == InstallKind.Msi && MsiPackage.Read(file) is var identity && !identity.IsEndHud(release.Version))
             {
                 Release(verified);
@@ -197,13 +203,15 @@ internal sealed class Updater : IDisposable
 
     /// <summary>
     /// Open <paramref name="file"/> so that nothing can write, replace or delete it while it is open (reading is
-    /// allowed: the installer must read it), inheritable by the script that runs it, and check its SHA-256 through
+    /// allowed: the installer must read it), inheritable by the script that runs it when <paramref name="inheritable"/>
+    /// (an MSI and its script; not a portable exe, which is moved at once: a process started meanwhile must not
+    /// keep it from moving), and check its SHA-256 through
     /// this handle. Throws <see cref="InvalidDataException"/> (the file deleted) when it isn't
     /// <paramref name="sha256"/> any more.
     /// </summary>
-    private FileStream Lock(string file, string sha256)
+    private FileStream Lock(string file, string sha256, bool inheritable)
     {
-        var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Inheritable);
+        var stream = new FileStream(file, FileMode.Open, FileAccess.Read, inheritable ? FileShare.Read | FileShare.Inheritable : FileShare.Read);
         string actual = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
         stream.Position = 0;
         if (actual == sha256)
@@ -259,7 +267,7 @@ internal sealed class Updater : IDisposable
             File.WriteAllText(script, text);
             File.Delete(ResultFile);
             // Locked like the installer and checked through the lock: cmd.exe reads a script line by line as it runs it.
-            Lock(script, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text))).ToLowerInvariant());
+            Lock(script, Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text))).ToLowerInvariant(), inheritable: true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {

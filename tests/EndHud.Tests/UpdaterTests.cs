@@ -12,6 +12,7 @@ namespace EndHud.Tests;
 /// download server, in a temporary folder playing the install folder. Nothing is really started:
 /// the processes the updater would start are recorded.
 /// </summary>
+[Collection(ProcessStartCollection.Name)]
 public sealed class UpdaterTests : IDisposable
 {
     private static readonly byte[] OldExe = "old EndHud"u8.ToArray();

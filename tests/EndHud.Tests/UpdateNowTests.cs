@@ -12,6 +12,7 @@ namespace EndHud.Tests;
 /// other program could otherwise make EndHud download and run whatever it names. Nothing reaches the network:
 /// the requests the update check would make are counted by a stand-in handler.
 /// </summary>
+[Collection(ProcessStartCollection.Name)]
 public sealed class UpdateNowTests : IDisposable
 {
     private readonly string _work = Path.Combine(Path.GetTempPath(), "endhud-tests", Guid.NewGuid().ToString("N"));

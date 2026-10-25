@@ -11,6 +11,7 @@ namespace EndHud.Tests;
 /// started by hand only (workflow_dispatch) with a required version, and its version step, run with PowerShell as the
 /// runner would, takes "0.6.3" and "v0.6.3" and refuses anything else before anything is built or tagged.
 /// </summary>
+[Collection(ProcessStartCollection.Name)]
 public class FastReleaseWorkflowTests(ITestOutputHelper output)
 {
     private static string WorkflowPath => Path.Combine(InnTestKit.RepositoryRoot(), ".github", "workflows", "fast-release.yml");
