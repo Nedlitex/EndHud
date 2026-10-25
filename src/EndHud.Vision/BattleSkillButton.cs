@@ -38,8 +38,11 @@ public static class BattleSkillButton
     /// </summary>
     internal const int TextLines = 3;
 
-    /// <summary>Inside this radius (4K) the white rows are counted: the disc, the button's outline left out.</summary>
-    private const double LinesRadius = 44;
+    /// <summary>
+    /// Inside this radius (4K) the white rows are counted: the dark disc (to 58), the outline left out. At 44 (the icon's
+    /// reach) the text's lines over a dimmed button joined through its light parts into two bands.
+    /// </summary>
+    private const double LinesRadius = 56;
 
     /// <summary>
     /// How many bands of rows with white (at least 2 px at 4K) the disc has, told apart by at least 3 rows (4K) with
