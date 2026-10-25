@@ -74,6 +74,7 @@ public class ConditionWordsTests
         new UltimateChargeCondition("Si", Comparison.AtLeast, 90),
         new UltimateActiveCondition("Laevatain", false),
         new BattleSkillActiveCondition("Si", false),
+        new BattleSkillEmpoweredCondition("Si", true),
         new CounterCondition("Si", "damage-stacks", Comparison.Below, 3),
         new BossStatusCondition("Cryo Infliction", true, 3),
         new ControllingCondition("Last_Rite"),
@@ -159,6 +160,17 @@ public class ConditionWordsTests
         // Nothing read: the need alone.
         Assert.Equal(F("Rotation.Reason.Need", F("Alert.Describe.Combo.Ready", "Si")), Need(new ComboCondition("Si", true), Reading()));
         Assert.Equal(F("Rotation.Reason.Need", F("Alert.Describe.Counter", "Si", stacks, "<", 3)), Need(new CounterCondition("Si", "damage-stacks", Comparison.Below, 3), null));
+    }
+
+    /// <summary>战技已强化 in words: the operator's battle skill empowered, or not (未强化).</summary>
+    [Fact]
+    public void Empowered_reads_as_empowered_or_not()
+    {
+        Assert.Equal(F("Alert.Describe.BattleSkillEmpowered", "Si"), Statement(new BattleSkillEmpoweredCondition("Si", true)));
+        Assert.Equal(F("Alert.Describe.BattleSkillNotEmpowered", "Si"), Statement(new BattleSkillEmpoweredCondition("Si", false)));
+        Assert.Contains("战技已强化", S("Alert.Describe.BattleSkillEmpowered"));
+        Assert.Contains("战技未强化", S("Alert.Describe.BattleSkillNotEmpowered"));
+        Assert.Equal("战技已强化", S("Editor.Condition.BattleSkillEmpowered"));
     }
 
     /// <summary>One word per meaning (Lead, 2026-10-24): a lasting skill that stopped is 已结束 everywhere, never 未持续.</summary>

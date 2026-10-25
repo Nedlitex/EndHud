@@ -97,6 +97,9 @@ public class AlertTextTests
         Assert.Equal(new AlertSubject(AlertSubjectKind.Operator, "Laevatain"), AlertText.Subject([new NotCondition(new UltimateChargeCondition("Laevatain", Comparison.AtMost, 50))]));
         Assert.Equal(new AlertSubject(AlertSubjectKind.Status, "Corrosion"), AlertText.Subject([new AnyCondition([new BossStatusCondition("Corrosion", true, 2), new SkillPointsCondition(Comparison.AtLeast, 3)])]));
         Assert.Equal(new AlertSubject(AlertSubjectKind.Operator, "Si"), AlertText.Subject([new BattleSkillActiveCondition("Si", true)]));
+        // Empowered: the operator's battle skill icon, not their face (the glow is on that button).
+        Assert.Equal(new AlertSubject(AlertSubjectKind.BattleSkill, "Laevatain"), AlertText.Subject([new BattleSkillEmpoweredCondition("Laevatain", true)]));
+        Assert.Equal(new AlertSubject(AlertSubjectKind.BattleSkill, "Laevatain"), AlertText.Subject([new NotCondition(new BattleSkillEmpoweredCondition("Laevatain", true))]));
         Assert.Equal(new AlertSubject(AlertSubjectKind.None), AlertText.Subject([]));
         Assert.Equal(new AlertSubject(AlertSubjectKind.None), AlertText.Subject([new AnyCondition([])]));
     }
