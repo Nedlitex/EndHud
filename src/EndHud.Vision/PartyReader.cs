@@ -249,15 +249,16 @@ public sealed partial class PartyReader(TextRecognizer ocr)
         int size = PartyLayout.SlotCount;
         while (size > 1 && IsEmptyPlace(size - 1)) size--;
         // With keyboard and mouse an empty place is the absence of everything, which any screen
-        // without the squad panel has too: smaller only if slot 1 shows an operator.
-        if (size < PartyLayout.SlotCount && squad.Layout == HudLayout.KeyboardMouse && ShowsNothing(0)) return PartyLayout.SlotCount;
+        // without the squad panel has too: smaller only if slot 1 shows an operator. Slot 1's HP
+        // bar unreadable (an on-screen display drawn over it) isn't its absence.
+        if (size < PartyLayout.SlotCount && squad.Layout == HudLayout.KeyboardMouse && ShowsNothing(0, coveredIsNothing: false)) return PartyLayout.SlotCount;
         return size;
 
-        bool IsEmptyPlace(int slot) => squad.EmptyPlace(slot) is { } place ? PanelMarkers.IsEmptyPlace(frame, place) : ShowsNothing(slot);
+        bool IsEmptyPlace(int slot) => squad.EmptyPlace(slot) is { } place ? PanelMarkers.IsEmptyPlace(frame, place) : ShowsNothing(slot, coveredIsNothing: true);
 
-        bool ShowsNothing(int slot) =>
+        bool ShowsNothing(int slot, bool coveredIsNothing) =>
             marks[slot] == 0
-            && HpBar.Measure(frame, ui.BottomLeft(squad.HpBar(slot))) is not > 0.02
+            && HpBar.Measure(frame, ui.BottomLeft(squad.HpBar(slot))) is var hp && (hp is null ? coveredIsNothing : hp <= 0.02)
             && !PanelMarkers.IsDeathMark(frame, squad.DeathMark(slot));
     }
 

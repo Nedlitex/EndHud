@@ -63,7 +63,8 @@ public class InCombatTests
         var state = await ReadAsync(await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("panel-or-not", "white-sky-after-a-failed-fight.jpg"))));
 
         Assert.True(state.Slots.Count(s => s.Combo is not null) >= 2, "the case this guards against: the sky reads as combo bars");
-        Assert.All(state.Slots, s => Assert.True(s.Hp <= 0.02, $"slot {s.Number} HP {s.Hp}"));
+        // Empty, or unknown: light sky, then dark rocks, then light sky again isn't a bar (HpBar).
+        Assert.All(state.Slots, s => Assert.True(s.Hp is null or <= 0.02, $"slot {s.Number} HP {s.Hp}"));
         Assert.False(state.PanelVisible);
         Assert.False(state.InCombat);
     }

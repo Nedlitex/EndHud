@@ -16,27 +16,72 @@ public static class HpBar
         // the red and cyan fringes around rocks on a white sky read 4–8% in a controller recording
         // where no panel was drawn, and with white "combo bars" passed for the squad panel.
         int maxGap = Math.Max(MinGapColumns, (int)Math.Round(r.Width * MaxGapShare));
-        int end = 0, gap = 0;
+        int end = 0, gap = 0, blockColumns = 0, resumed = 0, tinted = 0, tintedFromLeft = 0, runStart = -1;
+        double blockBrightness = 0;
+        bool ended = false, light = false, lightThenDark = false, lightNotFill = false;
         for (int x = r.X; x < r.Right; x++)
         {
-            int hits = 0;
+            int hits = 0, brightness = 0, colour = 0;
             for (int y = y0; y < y1; y++)
             {
                 var (cr, cg, cb) = frame.GetPixel(x, y);
                 if (IsFill(cr, cg, cb)) hits++;
+                int max = Math.Max(cr, Math.Max(cg, cb));
+                brightness += max;
+                colour += max - Math.Min(cr, Math.Min(cg, cb));
             }
-            if (hits * 2 > y1 - y0)
+            bool fill = hits * 2 > y1 - y0;
+            brightness /= y1 - y0;
+            if (colour / (y1 - y0) >= TintedFrom && brightness < DimBelow)
+            {
+                tinted++;
+                // A run starting at the bar's left end (its soft end left out).
+                if (runStart < 0) runStart = x - r.X;
+                if (runStart <= maxGap) tintedFromLeft = Math.Max(tintedFromLeft, x - r.X + 1 - runStart);
+            }
+            else runStart = -1;
+            if (!ended && fill)
             {
                 end = x - r.X + 1;
                 gap = 0;
+                blockColumns++;
+                blockBrightness += brightness;
+                light = true;
+                continue;
             }
-            else if (++gap > maxGap)
-            {
-                break;
-            }
+            if (!ended && ++gap > maxGap) ended = true;
+            bool lit = fill || brightness >= LightFrom;
+            if (brightness < DarkBelow) lightThenDark |= light;
+            else if (lit && ended && (lightThenDark || (blockColumns == 0 && fill && lightNotFill))
+                     && brightness >= ResumedShare * (blockColumns == 0 ? 0 : blockBrightness / blockColumns)) resumed++;
+            light |= lit;
+            lightNotFill |= lit && !fill;
         }
+        // Light, then black, then light again (or the fill going on, as bright) right of where the
+        // fill stops, or the fill starting only after something light at the bar's left end: text
+        // drawn across the bar (an on-screen display's, outlined in black), so where the fill ends
+        // can't be told. The bar itself is fill from its left end, then the dark track to its end.
+        if (resumed > maxGap) return null;
+        // No fill from the left, yet the bar coloured from its left end or over most of it: not the
+        // empty bar's grey track, but the fill dimmed out of reach (a display's dark backdrop over it).
+        if (end == 0 && (tinted * 2 > r.Width || tintedFromLeft > maxGap)) return null;
         return end / (double)r.Width;
     }
+
+    /// <summary>A column darker than this (brightest channel, mean): black, as an overlay's text outline or shadow.</summary>
+    private const int DarkBelow = 50;
+
+    /// <summary>A column at least this bright, or fill-coloured, is light.</summary>
+    private const int LightFrom = 120;
+
+    /// <summary>Light after the black counts when at least this share as bright as the fill block (dimmed with it under a display's backdrop).</summary>
+    private const double ResumedShare = 0.75;
+
+    /// <summary>A column this coloured (brightest minus darkest channel, mean) isn't grey track.</summary>
+    private const int TintedFrom = 40;
+
+    /// <summary>...and this dim: the fill under a dark backdrop (cyan 246 at 45 % is 111), not lit scenery.</summary>
+    private const int DimBelow = 120;
 
     // Columns the block may skip (its left end blending into the outline, a spark over it) and
     // still count as one block.
