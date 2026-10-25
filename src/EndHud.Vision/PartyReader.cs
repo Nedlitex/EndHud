@@ -225,6 +225,17 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
     /// </summary>
     public bool OutOfBattle => ModePill == ModePillReading.OutOfBattle;
 
+    /// <summary>The evacuate bar (撤离, <see cref="Vision.EvacuateBar"/>) at the top left on this frame, which only an
+    /// instance draws; false also when it is covered. The kind of battle it implies is <see cref="BattleKind"/>.</summary>
+    public bool EvacuateBar { get; init; }
+
+    /// <summary>
+    /// Which kind of battle this is, by the top left (<see cref="PartyTracker"/>): an instance while the evacuate bar was
+    /// the last of the two signs seen, the open world while the mode switch was; unknown until either is seen. Set by the
+    /// tracker only: a single reading says <see cref="BattleKind.Unknown"/>.
+    /// </summary>
+    public BattleKind BattleKind { get; init; }
+
     private const int MinPanelMarks = 6;
 }
 
