@@ -216,4 +216,27 @@ public class ConfigTests
         Assert.Equal(expected, config.OcrIntervalMs);
         Assert.Equal(HudConfig.CurrentSettingsVersion, config.SettingsVersion);
     }
+
+    /// <summary>A hand-edited config.json with null where a list or a name belongs runs on the defaults for those, never crashes the HUD later.</summary>
+    [Theory]
+    [InlineData("""{ "ActiveRotations": null, "Language": null, "SkillKeys": null }""")]
+    [InlineData("""{ "Language": "zh-CN?x=1" }""")]
+    [InlineData("""{ "Language": "../../evil" }""")]
+    public void Nulls_and_odd_names_in_a_hand_edited_config_fall_back_to_the_defaults(string json)
+    {
+        var config = ConfigStore.Parse(json);
+
+        Assert.NotNull(config.ActiveRotations);
+        Assert.Equal(Loc.DefaultLanguage, config.Language);
+        Assert.Equal(new HudConfig().SkillKeys, config.SkillKeys);
+    }
+
+    [Theory]
+    [InlineData("""{ "OcrIntervalMs": 1.5 }""")]
+    [InlineData("""{ "OcrIntervalMs": 1e40 }""")]
+    [InlineData("""{ "ComboHintMode": "Nonsense" }""")]
+    [InlineData("""{ "ActiveRotations": [1, 2] }""")]
+    [InlineData("[]")]
+    public void A_config_that_cant_be_read_is_a_JSON_error_which_the_store_keeps_aside(string json) =>
+        Assert.ThrowsAny<System.Text.Json.JsonException>(() => ConfigStore.Parse(json));
 }
