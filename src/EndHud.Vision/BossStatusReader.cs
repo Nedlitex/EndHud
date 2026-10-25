@@ -130,10 +130,36 @@ public sealed class BossStatusReader(OperatorLibrary library)
                 if (score > first.Score) (second, first) = (first, (status.Id, score));
                 else if (score > second.Score) second = (status.Id, score);
             }
-            bool accepted = first.Score >= MatchAt && first.Score - second.Score >= Margin;
+            bool accepted = first.Score >= MatchAt && first.Score - second.Score >= Margin && !Dimmed(frame, square);
             yield return (position, accepted ? first : null, (first, second));
         }
     }
+
+    /// <summary>
+    /// The square much dimmer than an icon is drawn: seen through something dark, an on-screen display's backdrop
+    /// (RivaTuner's, at the top centre). The correlation doesn't see it (it is the same at any brightness), and a
+    /// covered icon the wiki doesn't have matched Amp there. The brightest fifth of an accepted icon's square starts at
+    /// 171 or more on the fixtures; under the display's 55 % black backdrop, 112.
+    /// </summary>
+    internal static bool Dimmed(Frame frame, PixelRect square)
+    {
+        var levels = new int[256];
+        int n = 0;
+        for (int y = square.Y; y < square.Bottom; y++)
+        for (int x = square.X; x < square.Right; x++)
+        {
+            var (r, g, b) = frame.GetPixel(x, y);
+            levels[Math.Max(r, Math.Max(g, b))]++;
+            n++;
+        }
+        // The level the brightest fifth starts at.
+        int above = 0;
+        for (int v = 255; v >= 0; v--)
+            if ((above += levels[v]) >= n / 5) return v < BrightestFifthFrom;
+        return true;
+    }
+
+    private const int BrightestFifthFrom = 140;
 
     /// <summary>The frame's background colour: the median of the square's top-left corner, which icons leave empty.</summary>
     internal static (int R, int G, int B) Background(Frame frame, PixelRect square)
