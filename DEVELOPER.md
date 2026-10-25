@@ -775,7 +775,7 @@ How the package build stays safe ([`OperatorReference`](src/EndHud.Vision/Operat
   interrupted swap is undone on the next start. If the wiki lists far fewer operators than the
   current copy (under 80%), the current copy is kept: operators don't leave the game.
 
-Si and Argent Flow have no skill icons on the wiki yet; they're recognised by portrait only.
+Argent Flow has no skill icons on the wiki yet; it's recognised by portrait only.
 
 ---
 
@@ -2833,6 +2833,14 @@ Copy `src/EndHud/i18n/zh-CN.xaml` to, for example, `en-US.xaml`, translate the v
   drawn in the owner's two recordings at 4K: if the game draws her portrait differently, or on a
   smaller screen than measured, no badge may stay unknown (her stacks show the last value seen). A battle skill's cooldown is read
   as available or cooling, not its seconds.
+- A condition on an operator's counter shows that operator's avatar, not the counter's own picture
+  (Laevatain's flower, Typhoeus's arrow bars and dots, Zhuang Fangyi's grid of swords, Si's green
+  badge): on the strip's badges, a condition step's circle, the alert pop-up and the gauge row. The
+  operator package's source has no picture of any of them (checked 2026-10-25): none of the 6,312
+  files on endfield.wiki.gg is one, its glossary gives Sign and Hunting Arrow no icon (and has no
+  entry for the other three), and the talents that grant them carry the wiki's generic talent icons
+  (a shield, a broken square, a lightning bolt), not the counter's art. The Chinese BWIKI has none
+  either. A counter picture needs another source or a drawing of EndHud's own: the owner's call.
 - Lasting ultimates: the time bar's owner is told by its colour for Laevatain (red), Zhuang
   Fangyi (gold) and Yvonne (teal) only; a bar of another colour is shown for no one, and
   "ultimate active" for an operator not known to have one is unknown while a bar shows. Yvonne's
