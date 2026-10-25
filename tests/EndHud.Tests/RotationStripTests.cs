@@ -160,7 +160,7 @@ public class RotationStripTests
     public void A_badge_under_an_unlit_step_is_not_dimmed_with_the_step()
     {
         var holding = ShortOfPoints with { Holds = true };
-        var view = new StripView("P", [new StripStep(null, null, "战技", null, StripStepState.Unlit, false, Badges: [holding])], null, []);
+        var view = new StripView("P", [new StripStep(null, null, "Battle skill", null, StripStepState.Unlit, false, Badges: [holding])], null, []);
 
         double opacity = OnSta(() =>
         {
@@ -195,14 +195,14 @@ public class RotationStripTests
     {
         StripBadge B(string value, bool not = false) => new(null, BadgeGlyph.Other, value, BadgeSign.Running, not, Holds: true);
         IReadOnlyList<StripBadge> Three() => [B("≥100%"), B("=4", not: true), B("≥III"), B("<2") with { Or = true }];
-        var view = new StripView("爆发轴",
+        var view = new StripView("Burst",
         [
-            new StripStep(null, null, "终结技", null, StripStepState.Lit, false, Badges: Three()),
-            new StripStep(null, null, "连携技", null, StripStepState.Ready, false, Badges: Three()),
-            new StripStep(null, null, "连携技", null, StripStepState.Unlit, true, Badges: Three()),
-            new StripStep(null, null, "连携技", "连击", StripStepState.Unlit, true, Badges: Three()),
-            new StripStep(null, null, "战技", null, StripStepState.Unlit, false, Badges: Three()),
-            new StripStep(null, null, "战技", null, StripStepState.Unlit, false),
+            new StripStep(null, null, "Ultimate", null, StripStepState.Lit, false, Badges: Three()),
+            new StripStep(null, null, "Combo", null, StripStepState.Ready, false, Badges: Three()),
+            new StripStep(null, null, "Combo", null, StripStepState.Unlit, true, Badges: Three()),
+            new StripStep(null, null, "Combo", "Link", StripStepState.Unlit, true, Badges: Three()),
+            new StripStep(null, null, "Battle skill", null, StripStepState.Unlit, false, Badges: Three()),
+            new StripStep(null, null, "Battle skill", null, StripStepState.Unlit, false),
         ], null, Three());
 
         AssertNoOverlap(view);
@@ -231,7 +231,7 @@ public class RotationStripTests
                 AssertNoOverlap(view);
             }
         }
-        Assert.True(badged >= 6, $"{badged} steps with badges"); // 卡缪's 强化战技 steps, 诀's ultimate, the 熔火 condition steps
+        Assert.True(badged >= 6, $"{badged} steps with badges"); // Laevatain's empowered battle skills, Arcane's ultimate, the Melting Flame condition steps
     }
 
     private static string RepositoryRoot()

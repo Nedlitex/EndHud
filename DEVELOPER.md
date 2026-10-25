@@ -61,13 +61,52 @@ rotation charts.
   over is bad"). A step seen used this round is lit (an amber ring on a filled disc), the others are
   dim; basic, heavy and plunge attacks, which can't be seen, are neutral (half dim, a dashed ring) and
   stay in place. The first unlit step in written order has two chevrons, cyan when it can be used
-  now, white when not yet, with the reason under the strip (skill points short, the battle skill
-  cooling down). Cyan needs every check known to hold: a condition that can't be read now (the boss's
-  statuses out of sight) keeps it white with no reason for that condition (owner, 2026-10-25). Nothing is ever skipped. When the phase's finish condition holds (by default:
+  now, white when not yet. Cyan needs every check known to hold: a condition that can't be read now (the boss's
+  statuses out of sight) keeps it white (owner, 2026-10-25). Nothing is ever skipped. When the phase's finish condition holds (by default:
   every step that lights up lit) the lights go out for a new round. Battle skills are seen by the
   flash on their button and the skill point spent; the player's keys (`ReadSkillPresses`, off until
   turned on) only assist. See [Following battle skills from the screen](#following-battle-skills-from-the-screen).
   The editor's preview and the menu's sample draw every step alike.
+- **Conditions are badges, never words** (owner, 2026-10-25: "can we show some condition hint in the rotation? like
+  连击 icon >= 1, fire icon >= 1, etc? not text, this will make user confuse"). Every step with conditions (`expect`,
+  a condition step's too) has a badge per condition right under its circle, above its own `note`, always shown
+  ([`StripBadges`](src/EndHud/StripBadges.cs), drawn by `RotationStrip.Badge`): the condition's picture by the shared
+  icon rule (`ConditionIcon.BadgeSubject`, below) and a compact sign, no words.
+
+  | Condition | Badge |
+  |---|---|
+  | `skillPoints` | the skill-point glyph, "≥2" |
+  | `teamBuff` | the buff's icon (Link's), "≥1" |
+  | `bossStatus` present / absent | the status's icon, "≥1" (or "≥3"; a reaction's level "≥II") / slashed, no number |
+  | `counter` | the operator's avatar (counters have no icon of their own), "=4" |
+  | `combo`, `ultimate`, `battleSkill` ready / not | that skill's icon / slashed |
+  | `comboCharge`, `ultimateCharge` | that skill's icon, "≥90%" |
+  | `ultimateActive`, `battleSkillActive` | that skill's icon and a small triangle (running); not running: slashed |
+  | `ultimateTimeLeft` | the ultimate's icon, the triangle, "≤30%" |
+  | `battleSkillEmpowered` | the battle skill's icon and a small amber star; not: slashed |
+  | `controlling` | the avatar |
+  | `phaseShown`, `phasePlayed` / `phaseCurrent` | "!" with "≥2" / "!" alone (nothing to picture) |
+  | `stepsLit` all / at least N / these | an amber ring / the ring, "≥N" / each named step's own icon |
+  | `not` | its condition's badge with the slash toggled; over a group, pushed down (not (a and b) = not a / not b) |
+  | `all` / `any` | a badge per part / the same, a "/" before each later part |
+
+  A badge is bright with an amber edge while its condition holds now, dim (`RotationStrip.DimBadgeOpacity`, grey edge)
+  while it doesn't or can't be told. The current step's are judged by the follower's checks (`StepPosition.Checks`),
+  every other step's live on the same reading (`RotationTracker.Evaluate` with the selector's history): a later step
+  shows which of its conditions already hold. Badges aren't dimmed with an unlit step. **The step's own ability**
+  gets no words either: the current battle skill short of skill points shows a dim skill-point badge "≥1" first; a
+  battle skill cooling, a combo or ultimate not ready get nothing (the white chevron says "not yet", and the step's own
+  icon is the skill). **The finish condition**: with every step lit and the round not finished, its badges follow
+  the last step on the line (`StripView.Finish`, from the follower's checks). Nothing is written under the strip any
+  more (it was each unmet condition's need in words, the skill points short, the skill cooling).
+  **Layout**: a step's badges stay in its column, the whole step (104 units at 1080p) or, beside a step drawn
+  overlapping it (`withPrevious`), up to halfway to that step's circle (62); they wrap to another row, and one too
+  wide shrinks (a down-only `Viewbox`), never overlapping a neighbour's at any size (the 50–200 % slider scales the
+  whole strip). With any badge in the phase every step keeps the badge row, so the notes stay in line; the phase name
+  is pinned to the line. Measured by `RotationStripTests.Badges_never_overlap_*` (a group of three overlapping steps
+  with four badges each, and every phase of the two rotations in `rotations/next-release`), `StripBadgesTests` (every
+  kind) and `RotationStripViewTests`. The redraw key (`RotationStripView.Key`) carries each badge's look and whether
+  it holds, so a condition coming true brightens its badge on that reading.
 - **Shown in battle only** ([`StripVisibility`](src/EndHud.Vision/StripVisibility.cs)). A reading that
   misses the battle signs, or the panel covered by an ultimate animation (up to 3 s), doesn't take
   it down; it goes 2 s after the battle signs are gone (exploration, menus, loading). The gauges
@@ -121,13 +160,15 @@ it turns true. See [Alerts](#alerts) for the file, the firing rule and the edito
   goes); all down on leaving battle. No sound.
 - **Words:** a rule with no text shows its conditions in words from the `Alert.Describe.*`
   strings, e.g. "技力 ≥ 1.8", "寒冷附着 ≥ 3 层". These are the one wording every condition has
-  ([`ConditionWords`](src/EndHud/ConditionWords.cs)): the strip's reason under a waiting step is
-  the same statement as a need, `Rotation.Reason.Need` "需要：{0}", or `NeedNow`
+  ([`ConditionWords`](src/EndHud/ConditionWords.cs)), used by the alerts and the editors (the strip shows
+  badges instead, see [Rotation strip](#rotation-strip-排轴)). A need is the same statement, `Rotation.Reason.Need` "需要：{0}", or `NeedNow`
   "需要：{0}（当前 {1}）" when the value it compares is read now (skill points, a charge's or
   cooldown's %, a counter found by operator and counter, a status's stacks or level, a phase's
   showings or plays). An unmet `all` lists the needs of its parts that don't hold. A lasting skill
   that stopped is 已结束 everywhere. The icon rule is shared too
-  ([`ConditionIcon`](src/EndHud/ConditionIcon.cs)): the alert pop-up and the condition step use it.
+  ([`ConditionIcon`](src/EndHud/ConditionIcon.cs)): the alert pop-up, the condition step and the strip's badges use it
+  (a badge, one condition, shows a skill's own icon for a combo, ultimate or battle-skill condition:
+  `ConditionIcon.BadgeSubject`; the pop-up keeps the avatar).
 - **Menu and tray:** a 战斗提示 card (on/off, the number of rules, 编辑战斗提示…; while the menu is
   open a sample pop-up shows where alerts appear) and a tray item 编辑战斗提示. Editing works with
   the pop-ups off.
@@ -1655,13 +1696,13 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   `""`): its `expect` is the step, every condition must hold, the same kinds and checks as anywhere
   (`ConditionHostKind.ConditionStep`). On the strip its circle holds the first condition's icon by the
   alert pop-up's rule ([`ConditionIcon`](src/EndHud/ConditionIcon.cs): a status's icon, an
-  operator's avatar, the skill-points glyph, else "!"), labelled 条件 (or its `label`), with the
-  conditions in words under it (or its `note`; two lines at most). On the strip
+  operator's avatar, the skill-points glyph, else "!"), labelled 条件 (or its `label`), with its
+  conditions as badges under it, and its `note` under those (no conditions in words, owner 2026-10-25). On the strip
   ([`StepFollower`](src/EndHud.Vision/Rotations/StepFollower.cs)) it **lights up on the reading its
   conditions hold** (owner, 2026-10-24: "condition met should also light up to indicate"), wherever it
   is in the phase and whatever came before, and stays lit for the round when they stop holding.
   Not holding, or unknown (the statuses not read), it stays unlit and nothing passes it; with the
-  chevron on it, the reasons under the strip are its conditions' needs. It counts for the default
+  chevron on it, its badges show which conditions are missing (dim). It counts for the default
   finish like a cast step. (Until the light-up model it glowed cyan while its conditions held,
   `StripCondition.Holds`; that is gone: the lit look says it.) Refused: one with no condition
   (`ConditionStepEmpty`) and one in a group (`ConditionStepWithPrevious`: it, or the step after it,
@@ -1896,8 +1937,8 @@ and the older tests pin it). Decided with the owner's three rules:
 - What a `when` that can't be read does is unchanged: it only matters when no phase holds, and then
   the phase shown stays.
 
-Rules see the counts as the entry conditions do, before the reading's switch. The strip's reasons
-under the icons and the editor's preview don't show priorities.
+Rules see the counts as the entry conditions do, before the reading's switch. The strip's badges
+and the editor's preview don't show priorities.
 
 In the editor, under a phase's entry condition: **优先级**, a box taking a whole number (full-width
 digits and signs from a Chinese input method count; anything else is refused under the box, and
@@ -1921,7 +1962,7 @@ into an attack is unticked. Copying a phase copies
 its finish condition.
 
 Conditions are evaluated by `RotationTracker.Evaluate`, which takes an `IPhaseHistory`: the
-selector passes itself, anything else (`RotationTracker`'s step following, the strip's reasons)
+selector passes itself (the strip's badges get it too), anything else (`RotationTracker`'s step following)
 passes `PhaseHistory.None`, where `phaseShown` and `phasePlayed` are unknown. The selector's
 `phasePlayed` counts are the step follower's: `PhaseSelector.Update(state, plays)` takes the
 rotation's `StepFollower`. Alerts get the history from `RotationFollowing.History`: the selector of
@@ -2076,8 +2117,8 @@ condition"):
 `finish` condition is checked (absent: every step that isn't neutral lit, at least one). When it comes true the round
 counts once (played +1, played through this showing) and every light goes out; the condition steps still met light
 again at once in the new round. One already holding when the phase comes onto the strip counts on that reading, as an
-entry condition would. With every step lit and the finish condition not holding there is no chevron, and the reasons
-under the strip are the finish condition's needs (the follower's checks are its conditions), never a silent strip. "Steps
+entry condition would. With every step lit and the finish condition not holding there is no chevron, and the finish condition's badges
+follow the last step (the follower's checks are its conditions), never a silent strip. "Steps
 lit" naming nothing (no step picked, at least 0: refused, but a hand-written file is followed) never holds. "Steps lit" in it is told from this
 round's lights (`IPhaseHistory.StepsLit`; the selector passes the follower's on). Measured by `StepFollowerTests`,
 `FinishConditionTests`, `ConditionStepTests`, `PhasePlayedTests` and the 祀 rotation's

@@ -9,8 +9,8 @@ namespace EndHud;
 /// Conditions in words, one wording for every place a condition is shown (owner, 2026-10-24: "the
 /// same language"). Every kind has one plain statement (<see cref="Statement"/>), e.g. "技力 ≤ 1.0",
 /// "寒冷附着 ≥ 3 层", "祀 战技已结束": what an alert pops up when the player wrote no text, how the
-/// alert editor lists such a rule, a condition step's caption. The strip's reason under a waiting step
-/// is the same statement as a need (<see cref="Need"/>): "需要：寒冷附着 ≥ 3 层（当前 1）", with the
+/// alert editor lists such a rule, the rotation editor's lists. (The strip shows conditions as badges, no words:
+/// <see cref="StripBadges"/>.) A need is the same statement (<see cref="Need"/>): "需要：寒冷附着 ≥ 3 层（当前 1）", with the
 /// value read now where there is one (<see cref="Current"/>). Every word comes from the i18n strings
 /// (<c>Alert.Describe.*</c> for the statements, <c>Rotation.Reason.Need</c>/<c>NeedNow</c> around them).
 /// </summary>

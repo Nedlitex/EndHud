@@ -23,7 +23,7 @@ public enum StepMark
 /// <param name="Phase">The phase (index into <see cref="Rotation.Phases"/>).</param>
 /// <param name="Marks">Each step of the phase, in order.</param>
 /// <param name="Ready">The first current step can be used now (its own ability is available and its expected state holds).</param>
-/// <param name="Checks">That step's checks, for the reasons under the strip.</param>
+/// <param name="Checks">That step's checks (every step lit: the finish condition's), for the strip's badges.</param>
 public sealed record StepPosition(int Phase, IReadOnlyList<StepMark> Marks, bool Ready, IReadOnlyList<ConditionCheck> Checks);
 
 /// <summary>
@@ -251,7 +251,7 @@ public sealed class StepFollower(Rotation rotation)
         if (at < 0)
         {
             // Every step lit and the finish condition not holding: nothing to point at, so what the phase waits for
-            // is its finish condition (the strip's reasons), never a silent strip.
+            // is its finish condition (its badges on the strip), never a silent strip.
             var finish = rotation.Phases[phase].Finish;
             var lights = new WithLights(history, StepsLit!);
             return new StepPosition(phase, marks, false,
@@ -267,8 +267,8 @@ public sealed class StepFollower(Rotation rotation)
         var checks = new List<ConditionCheck> { new(CheckKind.OwnAbility, null, own) };
         foreach (var condition in step.Expect)
             checks.Add(new ConditionCheck(CheckKind.Expected, condition, RotationTracker.Holds(condition, now, slots, history)));
-        // Ready only when every check is known to hold: one that can't be read now keeps the step waiting, with no reason
-        // under the strip (only checks known not to hold give one). Owner 2026-10-25: "not ready, dont say why".
+        // Ready only when every check is known to hold: one that can't be read now keeps the step waiting, its badge dim
+        // (no words on the strip, only badges). Owner 2026-10-25: "not ready, dont say why".
         bool ready = checks.All(c => c.Holds == true);
         return new StepPosition(phase, marks, ready, checks);
     }

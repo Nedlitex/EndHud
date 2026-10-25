@@ -46,7 +46,7 @@ public class StripBadgesTests
         [B(Ultimate, sign: BadgeSign.Running, not: true)], // Laevatain's ultimate not running
         [B(BattleSkill, sign: BadgeSign.Running, not: true)], // Si's battle skill not running
         [B(BattleSkill, sign: BadgeSign.Empowered)], // her battle skill empowered
-        [B(Status, "≥1")], // 连击 at least 1
+        [B(Status, "≥1")], // Link at least 1
         [B(Face, "<3")], // Si's damage stacks below 3
         [B(Status, "≥3")], // 3 Cryo stacks
         [B(Face)], // Last Rite controlled

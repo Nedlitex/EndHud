@@ -88,7 +88,7 @@ public class RotationStripViewTests
 
     /// <summary>
     /// Every step lit and the phase's finish condition not holding yet: its conditions are badges at the end of the
-    /// strip (before: "需要：…" in words under it), and the steps have none of their own.
+    /// strip (before: the needs in words under it), and the steps have none of their own.
     /// </summary>
     [Fact]
     public void Every_step_lit_and_not_finished_the_finish_conditions_are_badges_at_the_end()
@@ -107,7 +107,7 @@ public class RotationStripViewTests
 
     /// <summary>
     /// The current battle skill short of a skill point: a dim skill-point badge "≥1" under it, and no words (before:
-    /// "技力 0.4/1" under the strip). Cooling with points enough, or a combo not ready: nothing, the white chevron says
+    /// the skill points in words under the strip). Cooling with points enough, or a combo not ready: nothing, the white chevron says
     /// "not yet".
     /// </summary>
     [Fact]
@@ -414,7 +414,7 @@ public class RotationStripViewTests
         [
             new RotationStep("Ardelia", StepAction.BattleSkill, [new SkillPointsCondition(Comparison.AtLeast, 2), CryoThree]),
             new RotationStep("Camille", StepAction.Combo),
-            new RotationStep("Arcane", StepAction.BattleSkill, [new SkillPointsCondition(Comparison.AtMost, 1)], Note: "飞天"),
+            new RotationStep("Arcane", StepAction.BattleSkill, [new SkillPointsCondition(Comparison.AtMost, 1)], Note: "after the jump"),
         ]),
     ]);
 
@@ -448,7 +448,7 @@ public class RotationStripViewTests
         ], view.Steps[0].Badges);
         Assert.Empty(view.Steps[1].Badges);
         Assert.Equal([new StripBadge(null, BadgeGlyph.SkillPoints, "≤1", BadgeSign.None, Not: false, Holds: false)], view.Steps[2].Badges);
-        Assert.Equal("飞天", view.Steps[2].Note);
+        Assert.Equal("after the jump", view.Steps[2].Note);
 
         var later = BadgedView(Cryo(3) with { SkillPoints = 0.5 }, status);
         Assert.Equal([false, true], later.Steps[0].Badges.Select(b => b.Holds));

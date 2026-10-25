@@ -60,7 +60,7 @@ internal enum BadgeSign
     /// <summary>The skill is running (a lasting ultimate or battle skill; its time left): a small triangle.</summary>
     Running,
 
-    /// <summary>The battle skill is empowered (战技已强化): a small four-pointed star.</summary>
+    /// <summary>The battle skill is empowered: a small four-pointed star.</summary>
     Empowered,
 }
 
@@ -79,7 +79,7 @@ internal enum StripStepState
     /// <summary>The current step, ready to use: cyan chevrons and ring.</summary>
     Ready,
 
-    /// <summary>The current step, not ready yet: white chevrons and ring, with the reasons under the strip.</summary>
+    /// <summary>The current step, not ready yet: white chevrons and ring (its badges say which condition is missing).</summary>
     Waiting,
 
     /// <summary>Not seen used yet this round.</summary>
@@ -131,7 +131,7 @@ internal static class RotationStrip
     private static readonly Brush CurrentFill = Frozen(Color.FromArgb(0xE0, 0x18, 0x1A, 0x1E));
     private static readonly Brush Band = FrozenBand();
 
-    /// <summary>A lit step's ring and glow: amber, apart from the cyan of "use it now" and the red of the reasons.</summary>
+    /// <summary>A lit step's ring and glow: amber, apart from the cyan of "use it now" and the red of a badge's "not" slash.</summary>
     internal static readonly Color LitColor = Color.FromRgb(0xFF, 0xC2, 0x4A);
     private static readonly Brush Lit = Frozen(LitColor);
 
