@@ -370,7 +370,7 @@ public sealed class RotationFormatTests : IDisposable
 
         Assert.Equal(2, Rotation.FormatNeeded(plain, lastMatchWins: false));
         Assert.Equal(3, Rotation.FormatNeeded(plain, lastMatchWins: true));
-        Assert.Equal(12, Rotation.CurrentFormat);
+        Assert.Equal(13, Rotation.CurrentFormat);
     }
 
     [Fact]

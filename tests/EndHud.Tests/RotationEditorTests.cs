@@ -365,6 +365,65 @@ public sealed class RotationEditorTests : IDisposable
     /// 队伍增益层数 built with the pickers (owner, 2026-10-25: "a condition that 连击>=1"): the buff picked by its Chinese
     /// name (连击), a comparison and its stacks 0 to 4, a line under the row saying what is read, saved in format 12.
     /// </summary>
+    /// <summary>
+    /// The boss's stagger built with the pickers (owner, 2026-10-25: stagger progress and time left as conditions): each of
+    /// the four kinds offered, a comparison and a percentage (0-100 %) or a count of node boxes (0-9), a line under the row
+    /// saying what is read; saved in format 13.
+    /// </summary>
+    [Fact]
+    public void A_phase_gated_on_the_stagger_is_built_with_the_pickers()
+    {
+        var library = new RotationLibrary(_folder);
+        library.Own.Save(new Rotation(Rotation.CurrentFormat, "mine", "Si", SiSquad,
+        [
+            new RotationPhase("charge", "Charge", [new RotationStep("Si", StepAction.BattleSkill)]),
+            new RotationPhase("burst", "Burst", [new RotationStep("Tangtang", StepAction.BattleSkill)], [new SkillPointsCondition(Comparison.AtLeast, 1)]),
+        ]));
+
+        string said = "";
+        List<object> percents = [], counts = [], states = [];
+        List<string> kinds = [];
+        List<string> hints = [];
+        OnEditor(library, _ => { }, editor =>
+        {
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;
+            var gate = (StackPanel)editor.FindName("GateRows");
+            kinds = RowOf(gate.Children[0]).Children.OfType<ComboBox>().First().Items.Cast<ComboBoxItem>().Select(i => (string)i.Tag).ToList();
+            string Hint() => gate.Children[0] is StackPanel { Children: [_, TextBlock { Text: var text }] } ? text : "";
+
+            Pick(RowOf(gate.Children[0]).Children.OfType<ComboBox>().First(), "StaggerNodes");
+            counts = RowOf(gate.Children[0]).Children.OfType<ComboBox>().ToList()[2].Items.Cast<ComboBoxItem>().Select(i => i.Tag).ToList();
+            hints.Add(Hint());
+            Pick(RowOf(gate.Children[0]).Children.OfType<ComboBox>().First(), "Staggered");
+            states = RowOf(gate.Children[0]).Children.OfType<ComboBox>().ToList()[1].Items.Cast<ComboBoxItem>().Select(i => i.Tag).ToList();
+            hints.Add(Hint());
+            Pick(RowOf(gate.Children[0]).Children.OfType<ComboBox>().First(), "StaggerTimeLeft");
+            hints.Add(Hint());
+            Pick(RowOf(gate.Children[0]).Children.OfType<ComboBox>().First(), "StaggerProgress");
+            var pickers = RowOf(gate.Children[0]).Children.OfType<ComboBox>().ToList(); // kind, comparison, percent
+            percents = pickers[2].Items.Cast<ComboBoxItem>().Select(i => i.Tag).ToList();
+            hints.Add(Hint());
+            Pick(pickers[1], Comparison.AtLeast);
+            Pick(pickers[2], 50);
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        }, squad: SiSquad);
+
+        Assert.Contains("StaggerProgress", kinds);
+        Assert.Contains("StaggerNodes", kinds);
+        Assert.Contains("Staggered", kinds);
+        Assert.Contains("StaggerTimeLeft", kinds);
+        Assert.Equal(Enumerable.Range(0, 101), percents.Cast<int>());
+        Assert.Equal(Enumerable.Range(0, 10), counts.Cast<int>());
+        Assert.Equal([true, false], states.Cast<bool>());
+        Assert.Equal(["Editor.StaggerHint", "Editor.StaggerHint", "Editor.StaggerTimeHint", "Editor.StaggerHint"], hints);
+        var saved = Assert.Single(library.Own.Load().Rotations);
+        Assert.True(saved.Phases[1].When.Count == 1, $"editor said: {said}");
+        Assert.Equal(new StaggerProgressCondition(Comparison.AtLeast, 50), saved.Phases[1].When[0]);
+        Assert.Equal(13, saved.Format);
+        Assert.Contains("\"kind\": \"staggerProgress\"", File.ReadAllText(Directory.GetFiles(_folder, "*.json").Single()));
+    }
+
     [Fact]
     public void A_phase_gated_on_team_buff_stacks_is_built_with_the_pickers()
     {

@@ -60,6 +60,10 @@ public class StripBadgesTests
         [B(null, glyph: BadgeGlyph.Steps)], // every step lit
         [B(null, "≥3", glyph: BadgeGlyph.Steps)], // at least 3 steps lit
         [B(Step1), B(Step3)], // steps 1 and 3 lit: their pictures
+        [B(StaggerGlyphs.Bar, "≥50%")], // the stagger bar filled at least half: a drawn bar
+        [B(StaggerGlyphs.Node, "≥1")], // at least one node reached: a drawn node box
+        [B(StaggerGlyphs.Countdown)], // staggered: the yellow countdown bar
+        [B(StaggerGlyphs.Countdown, "≤30%", BadgeSign.Running)], // its time left
     ];
 
     [Fact]

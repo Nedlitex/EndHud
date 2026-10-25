@@ -103,7 +103,31 @@ public class AlertTextTests
         Assert.Equal(new AlertSubject(AlertSubjectKind.BattleSkill, "Laevatain"), AlertText.Subject([new NotCondition(new BattleSkillEmpoweredCondition("Laevatain", true))]));
         // A team buff: its icon, as a status's (the wiki's Link icon).
         Assert.Equal(new AlertSubject(AlertSubjectKind.Status, "Link"), AlertText.Subject([new TeamBuffCondition("Link", Comparison.AtLeast, 1)]));
+        // The boss's stagger: a drawn picture of its bar, its node box, or its yellow countdown.
+        Assert.Equal(new AlertSubject(AlertSubjectKind.Stagger, StaggerGlyphs.BarId), AlertText.Subject([new StaggerProgressCondition(Comparison.AtLeast, 50)]));
+        Assert.Equal(new AlertSubject(AlertSubjectKind.Stagger, StaggerGlyphs.NodeId), AlertText.Subject([new StaggerNodesCondition(Comparison.AtLeast, 1)]));
+        Assert.Equal(new AlertSubject(AlertSubjectKind.Stagger, StaggerGlyphs.CountdownId), AlertText.Subject([new NotCondition(new StaggeredCondition(true))]));
+        Assert.Equal(new AlertSubject(AlertSubjectKind.Stagger, StaggerGlyphs.CountdownId), AlertText.Subject([new StaggerTimeLeftCondition(Comparison.AtMost, 30)]));
         Assert.Equal(new AlertSubject(AlertSubjectKind.None), AlertText.Subject([]));
         Assert.Equal(new AlertSubject(AlertSubjectKind.None), AlertText.Subject([new AnyCondition([])]));
+    }
+
+    /// <summary>
+    /// The pop-up's icon for a stagger alert is a picture, without the operator library or any download (the wiki has no
+    /// picture of the bar): it never falls back to "!".
+    /// </summary>
+    [Fact]
+    public void A_stagger_alert_pops_up_with_its_drawn_picture()
+    {
+        foreach (var condition in new StateCondition[]
+        {
+            new StaggerProgressCondition(Comparison.AtLeast, 50), new StaggerNodesCondition(Comparison.AtLeast, 1),
+            new StaggeredCondition(true), new StaggerTimeLeftCondition(Comparison.AtMost, 30),
+        })
+        {
+            var picture = ConditionIcon.Picture(AlertText.Subject([condition]), null, _ => null, _ => null, (_, _) => null);
+            Assert.NotNull(picture);
+            Assert.True(picture.IsFrozen);
+        }
     }
 }

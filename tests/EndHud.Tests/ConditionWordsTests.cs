@@ -90,6 +90,10 @@ public class ConditionWordsTests
         new StepsLitCondition(StepsLitWhich.All),
         new StepsLitCondition(StepsLitWhich.AtLeast, Count: 3),
         new StepsLitCondition(StepsLitWhich.These, Steps: [1, 3]),
+        new StaggerProgressCondition(Comparison.AtLeast, 50),
+        new StaggerNodesCondition(Comparison.AtLeast, 1),
+        new StaggeredCondition(true),
+        new StaggerTimeLeftCondition(Comparison.AtMost, 30),
     ];
 
     /// <summary>本轴段步骤已点亮 in words, each of its three choices; "at least" with how many are lit now.</summary>
@@ -186,6 +190,34 @@ public class ConditionWordsTests
             Need(new TeamBuffCondition("Link", Comparison.AtLeast, 2), Reading() with { Buffs = [new Vision.TeamBuff("Link", 1)] }));
         Assert.Equal(F("Rotation.Reason.NeedNow", F("Alert.Describe.TeamBuff", link, "≥", 1), "0"), Need(new TeamBuffCondition("Link", Comparison.AtLeast, 1), Reading()));
         Assert.Equal("队伍增益层数", S("Editor.Condition.TeamBuff"));
+    }
+
+    /// <summary>
+    /// The boss's stagger in words (owner, 2026-10-25): how far its bar has filled, the node boxes reached, the large stagger
+    /// and its time left; each need says the value read now (full while staggered, the time left 0 while building).
+    /// </summary>
+    [Fact]
+    public void Stagger_reads_as_its_bar()
+    {
+        Assert.Equal("失衡进度 ≥ 50%", Statement(new StaggerProgressCondition(Comparison.AtLeast, 50)));
+        Assert.Equal("失衡节点已达到 ≥ 1 个", Statement(new StaggerNodesCondition(Comparison.AtLeast, 1)));
+        Assert.Equal("敌人处于失衡", Statement(new StaggeredCondition(true)));
+        Assert.Equal("敌人未处于失衡", Statement(new StaggeredCondition(false)));
+        Assert.Equal("失衡剩余时间 ≤ 30%", Statement(new StaggerTimeLeftCondition(Comparison.AtMost, 30)));
+
+        var building = Reading() with { Stagger = new Vision.StaggerReading(Vision.StaggerState.Building, 0.42, [0.4995], null) };
+        var staggered = Reading() with { Stagger = new Vision.StaggerReading(Vision.StaggerState.Staggered, 1, [0.4995], 0.56) };
+        Assert.Equal(F("Rotation.Reason.NeedNow", "失衡进度 ≥ 50%", "42%"), Need(new StaggerProgressCondition(Comparison.AtLeast, 50), building));
+        Assert.Equal(F("Rotation.Reason.NeedNow", "失衡节点已达到 ≥ 1 个", "0"), Need(new StaggerNodesCondition(Comparison.AtLeast, 1), building));
+        Assert.Equal(F("Rotation.Reason.NeedNow", "失衡剩余时间 ≤ 30%", "56%"), Need(new StaggerTimeLeftCondition(Comparison.AtMost, 30), staggered));
+        Assert.Equal(F("Rotation.Reason.NeedNow", "失衡剩余时间 ≥ 30%", "0%"), Need(new StaggerTimeLeftCondition(Comparison.AtLeast, 30), building));
+        // The bar not read: the need alone.
+        Assert.Equal(F("Rotation.Reason.Need", "失衡进度 ≥ 50%"), Need(new StaggerProgressCondition(Comparison.AtLeast, 50), Reading()));
+
+        Assert.Equal("失衡进度", S("Editor.Condition.StaggerProgress"));
+        Assert.Equal("失衡节点已达到", S("Editor.Condition.StaggerNodes"));
+        Assert.Equal("处于失衡", S("Editor.Condition.Staggered"));
+        Assert.Equal("失衡剩余时间", S("Editor.Condition.StaggerTimeLeft"));
     }
 
     /// <summary>One word per meaning (Lead, 2026-10-24): a lasting skill that stopped is 已结束 everywhere, never 未持续.</summary>
