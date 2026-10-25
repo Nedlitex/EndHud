@@ -150,6 +150,18 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
         return buff is null ? 0 : buff.Stacks;
     }
 
+    /// <summary>
+    /// The boss's stagger bar under its HP bar (<see cref="StaggerBar"/>, node boxes carried through their swell by
+    /// <see cref="StaggerMemory"/>); null when it isn't read: out of combat, no boss bar, or the bar covered.
+    /// </summary>
+    public StaggerReading? Stagger { get; init; }
+
+    /// <summary>How far the stagger bar has filled, in whole percent (100 while staggered); null when the bar isn't read.</summary>
+    public int? StaggerPercent => Stagger is { } s ? (int)Math.Round(s.Progress * 100) : null;
+
+    /// <summary>The large stagger's countdown left, in whole percent of the bar; 0 while building; null when the bar isn't read.</summary>
+    public int? StaggerTimeLeftPercent => Stagger is { } s ? (int)Math.Round((s.CountdownLeft ?? 0) * 100) : null;
+
     /// <summary>The boss's statuses recognised under its bars (see <see cref="BossStatusReader"/>);
     /// null when not read this time (it's read less often than the rest).</summary>
     public IReadOnlyList<BossStatusReading>? BossStatuses { get; init; }

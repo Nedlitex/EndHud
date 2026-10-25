@@ -382,6 +382,14 @@ public sealed class RotationTracker(Rotation rotation)
                 return slots.TryGetValue(c.OperatorId, out int es) && state.EmpoweredOf(es) is { } empowered ? empowered == c.Empowered : null;
             case TeamBuffCondition c:
                 return state.BuffStacks(c.BuffId) is { } buffStacks ? Compare(buffStacks, c.Is, c.Value) : null;
+            case StaggerProgressCondition c:
+                return state.StaggerPercent is { } staggerPercent ? Compare(staggerPercent, c.Is, c.Percent) : null;
+            case StaggerNodesCondition c:
+                return state.Stagger is { } nodes ? Compare(nodes.NodesReached, c.Is, c.Count) : null;
+            case StaggeredCondition c:
+                return state.Stagger is { } staggered ? (staggered.State == StaggerState.Staggered) == c.Staggered : null;
+            case StaggerTimeLeftCondition c:
+                return state.StaggerTimeLeftPercent is { } staggerLeft ? Compare(staggerLeft, c.Is, c.Percent) : null;
             case ComboChargeCondition c:
                 return slots.TryGetValue(c.OperatorId, out int ccs) && state.Slots[ccs].Combo is { } bar
                     ? Compare(bar.Ready ? 100 : bar.Progress * 100, c.Is, c.Percent)

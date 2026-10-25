@@ -98,6 +98,11 @@ internal static class StripBadges
                 UltimateTimeLeftCondition c => (Compare(c.Is, $"{c.Percent}%"), BadgeSign.Running, false),
                 CounterCondition c => (Compare(c.Is, Number(c.Value)), BadgeSign.None, false),
                 TeamBuffCondition c => (Compare(c.Is, Number(c.Value)), BadgeSign.None, false),
+                StaggerProgressCondition c => (Compare(c.Is, $"{c.Percent}%"), BadgeSign.None, false),
+                StaggerNodesCondition c => (Compare(c.Is, Number(c.Count)), BadgeSign.None, false),
+                // Staggered and its time left share the countdown's picture: the time left carries the running sign.
+                StaggeredCondition c => (null, BadgeSign.None, !c.Staggered),
+                StaggerTimeLeftCondition c => (Compare(c.Is, $"{c.Percent}%"), BadgeSign.Running, false),
                 // Present: its stacks (a reaction's level in the game's numerals). Absent: a slash; "not absent" is present, at least 1.
                 BossStatusCondition { Present: true } c => (Stacks(c), BadgeSign.None, false),
                 BossStatusCondition => (not ? Compare(Comparison.AtLeast, "1") : null, BadgeSign.None, true),

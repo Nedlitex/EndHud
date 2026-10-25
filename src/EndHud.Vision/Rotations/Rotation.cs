@@ -92,6 +92,10 @@ public enum Comparison
 [JsonDerivedType(typeof(StepsLitCondition), "stepsLit")]
 [JsonDerivedType(typeof(BattleSkillEmpoweredCondition), "battleSkillEmpowered")]
 [JsonDerivedType(typeof(TeamBuffCondition), "teamBuff")]
+[JsonDerivedType(typeof(StaggerProgressCondition), "staggerProgress")]
+[JsonDerivedType(typeof(StaggerNodesCondition), "staggerNodes")]
+[JsonDerivedType(typeof(StaggeredCondition), "staggered")]
+[JsonDerivedType(typeof(StaggerTimeLeftCondition), "staggerTimeLeft")]
 public abstract record StateCondition;
 
 /// <summary>Which steps a <see cref="StepsLitCondition"/> asks to be lit.</summary>
@@ -196,6 +200,28 @@ public sealed record BattleSkillEmpoweredCondition(string OperatorId, bool Empow
 /// read, it is unknown (<see cref="PartyState.BuffStacks"/>). Format 12.
 /// </summary>
 public sealed record TeamBuffCondition(string BuffId, Comparison Is, int Value) : StateCondition;
+
+/// <summary>
+/// How far the boss's stagger bar has filled, in percent (<see cref="StaggerBar"/>, <see cref="PartyState.StaggerPercent"/>):
+/// "stagger progress at least 80 %". 100 while the boss is staggered; unknown when the bar isn't read. Format 13.
+/// </summary>
+public sealed record StaggerProgressCondition(Comparison Is, int Percent) : StateCondition;
+
+/// <summary>
+/// How many of the stagger bar's node boxes the fill has passed (each one a small stagger; all of them while staggered):
+/// "at least 1 node reached". Unknown when the bar isn't read. Format 13.
+/// </summary>
+public sealed record StaggerNodesCondition(Comparison Is, int Count) : StateCondition;
+
+/// <summary>The boss is in the large stagger (its bar a yellow countdown, <c>true</c>) or not. Unknown when the bar isn't read. Format 13.</summary>
+public sealed record StaggeredCondition(bool Staggered) : StateCondition;
+
+/// <summary>
+/// How much of the large stagger is left, as a percentage of its yellow countdown bar (<see cref="PartyState.StaggerTimeLeftPercent"/>):
+/// "stagger time left at most 30 %"; 0 while the boss isn't staggered. No seconds: the countdown stands still at times.
+/// Unknown when the bar isn't read. Format 13.
+/// </summary>
+public sealed record StaggerTimeLeftCondition(Comparison Is, int Percent) : StateCondition;
 
 /// <summary>
 /// How much of an operator's lasting ultimate is left to run, as a percentage of its time bar
@@ -390,6 +416,8 @@ public sealed record Rotation(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool LastMatchWins = false)
 {
     /// <summary>
+    /// 13: the boss's stagger conditions (<see cref="StaggerProgressCondition"/>, <see cref="StaggerNodesCondition"/>,
+    /// <see cref="StaggeredCondition"/>, <see cref="StaggerTimeLeftCondition"/>).
     /// 12: "team buff stacks" conditions (<see cref="TeamBuffCondition"/>), and condition steps in a group (marked
     /// <see cref="RotationStep.WithPrevious"/>, or followed by a step that is; builds before refused them).
     /// 11: "battle skill empowered" conditions (<see cref="BattleSkillEmpoweredCondition"/>).
@@ -408,7 +436,7 @@ public sealed record Rotation(
     /// holds it (<see cref="FormatNeeded"/>), so one that uses nothing new stays readable by builds
     /// from before format 3.
     /// </summary>
-    public const int CurrentFormat = 12;
+    public const int CurrentFormat = 13;
 
     /// <summary>The lowest format that holds these phases and options.</summary>
     public static int FormatNeeded(IEnumerable<RotationPhase> phases, bool lastMatchWins)

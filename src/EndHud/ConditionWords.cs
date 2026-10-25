@@ -66,6 +66,12 @@ internal static class ConditionWords
                 return state?.Counters.FirstOrDefault(r => r.OperatorId == c.OperatorId && r.CounterId == c.CounterId)?.Value is { } value ? Number(value) : null;
             case TeamBuffCondition c:
                 return state?.BuffStacks(c.BuffId) is { } buffStacks ? Number(buffStacks) : null;
+            case StaggerProgressCondition:
+                return state?.StaggerPercent is { } staggerPercent ? $"{Number(staggerPercent)}%" : null;
+            case StaggerNodesCondition:
+                return state?.Stagger is { } stagger ? Number(stagger.NodesReached) : null;
+            case StaggerTimeLeftCondition:
+                return state?.StaggerTimeLeftPercent is { } staggerLeft ? $"{Number(staggerLeft)}%" : null;
             case BossStatusCondition { MinStacks: > 1 } c:
                 if (state?.BossStatuses is not { } statuses) return null;
                 if (statuses.FirstOrDefault(s => s.StatusId == c.StatusId) is not { } status) return Number(0);
@@ -127,6 +133,10 @@ internal static class ConditionWords
                 Symbol(c.Is), c.Value),
             BossStatusCondition c => Status(c, F),
             TeamBuffCondition c => F("Alert.Describe.TeamBuff", StatusNames.Zh(c.BuffId) ?? c.BuffId, Symbol(c.Is), c.Value),
+            StaggerProgressCondition c => F("Alert.Describe.StaggerProgress", Symbol(c.Is), Percent(c.Percent)),
+            StaggerNodesCondition c => F("Alert.Describe.StaggerNodes", Symbol(c.Is), c.Count),
+            StaggeredCondition c => F(c.Staggered ? "Alert.Describe.Staggered" : "Alert.Describe.NotStaggered"),
+            StaggerTimeLeftCondition c => F("Alert.Describe.StaggerTimeLeft", Symbol(c.Is), Percent(c.Percent)),
             ControllingCondition c => F("Alert.Describe.Controlling", Who(c.OperatorId)),
             NotCondition c => F("Alert.Describe.Not", One(c.Of, library, phaseName, text, nested: false)),
             AnyCondition c => Group(c.Of, "Alert.Describe.Or"),

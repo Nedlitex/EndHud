@@ -709,6 +709,7 @@ internal sealed class PartyMonitor : IDisposable
         int silentCaptures = 0;
         OperatorMatch?[] lastNames = [];
         IReadOnlyList<TeamBuff> lastBuffs = []; // kept while the panel is out of sight (a cutscene over the HUD)
+        var staggerMemory = new StaggerMemory(); // the stagger bar's node boxes, through the swell as the fill reaches one
         var panelReadAt = DateTime.MinValue; // when a reading last saw the squad panel
         bool panelSeenLast = false; // the last squad reading saw the panel (then the inn isn't looked for)
         TimeSpan? combatAt = null; // when a reading last saw the fight (for sampling the battle-skill buttons)
@@ -956,6 +957,11 @@ internal sealed class PartyMonitor : IDisposable
                             bossClock.Restart();
                         }
                     }
+                    // The boss's stagger bar under its HP bar: cheap (about a hundred thousand pixel reads at any size), so
+                    // read on every reading in battle, whatever asks; its node boxes carried through the swell the game
+                    // draws as the fill reaches one. Not in battle: unknown.
+                    Enter("stagger");
+                    state = state with { Stagger = staggerMemory.Track(state.InCombat ? StaggerBar.Read(gameFrame) : null) };
                     if (firstReading)
                     {
                         firstReading = false;

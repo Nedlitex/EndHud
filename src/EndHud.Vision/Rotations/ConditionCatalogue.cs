@@ -126,6 +126,11 @@ public static class ConditionCatalogue
         // The team's, not an operator's: read left of whoever is controlled's HP bar.
         Kind<TeamBuffCondition>("TeamBuff", "teamBuff", "TeamBuff", 12, 6, comparison: c => c.Is),
         Kind<BossStatusCondition>("BossStatus", "bossStatus", "BossStatus", 2, 1, ConditionNeeds.BossStatuses),
+        // The boss's stagger bar under its HP bar: read on every reading in battle (it's cheap), so nothing to ask for.
+        Kind<StaggerProgressCondition>("StaggerProgress", "staggerProgress", "StaggerProgress", 13, 7, comparison: c => c.Is),
+        Kind<StaggerNodesCondition>("StaggerNodes", "staggerNodes", "StaggerNodes", 13, 7, comparison: c => c.Is),
+        Kind<StaggeredCondition>("Staggered", "staggered", "Staggered", 13, 7),
+        Kind<StaggerTimeLeftCondition>("StaggerTimeLeft", "staggerTimeLeft", "StaggerTimeLeft", 13, 7, comparison: c => c.Is),
         Kind<ControllingCondition>("Controlling", "controlling", "Controlling", 2, 1, who: c => c.OperatorId),
         // An alert names a phase of any of the player's rotations, told while that rotation is followed.
         Kind<PhaseShownCondition>("PhaseShown", "phaseShown", "PhaseShown", 4, 4, ConditionNeeds.Phase, comparison: c => c.Is, phase: c => c.PhaseId),

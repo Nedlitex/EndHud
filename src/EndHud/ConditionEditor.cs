@@ -67,6 +67,10 @@ internal sealed class ConditionEditor(
             "Counter" => counters().FirstOrDefault() is { } c ? new CounterCondition(c.OperatorId, c.Id, Comparison.AtLeast, c.Max ?? 1) : new SkillPointsCondition(Comparison.AtLeast, 2),
             "BossStatus" => new BossStatusCondition(library.Statuses.FirstOrDefault()?.Id ?? "", true),
             "TeamBuff" => new TeamBuffCondition(TeamBuffReader.Buffs[0], Comparison.AtLeast, 1),
+            "StaggerProgress" => new StaggerProgressCondition(Comparison.AtLeast, 80),
+            "StaggerNodes" => new StaggerNodesCondition(Comparison.AtLeast, 1),
+            "Staggered" => new StaggeredCondition(true),
+            "StaggerTimeLeft" => new StaggerTimeLeftCondition(Comparison.AtMost, 30),
             "Controlling" => new ControllingCondition(first),
             // Another phase's count by default: a phase's entry condition can't use its own (Rotation.Problems).
             "PhaseShown" => new PhaseShownCondition(defaultPhaseId?.Invoke() ?? phases().FirstOrDefault().Id ?? "", Comparison.AtLeast, 1),
@@ -88,6 +92,21 @@ internal sealed class ConditionEditor(
 
     /// <summary>The kind picker's name for a condition (a "not" is its condition with the box ticked).</summary>
     private static string KindOf(StateCondition c) => ConditionCatalogue.Of(c is NotCondition not ? not.Of : c).EditorKind ?? "SkillPoints";
+
+    /// <summary>The node-box counts offered for "stagger nodes reached": 0 to one less than this.</summary>
+    public const int StaggerNodeChoices = 10;
+
+    /// <summary>A comparison and a percentage (0% to 100% by 1%; a value from a file is kept as it is).</summary>
+    private (ComboBox Compare, ComboBox Value) PercentPickers(Panel row, Comparison comparison, int percent)
+    {
+        var compare = ComparePicker(comparison);
+        var percents = Enumerable.Range(0, 101).ToList();
+        if (!percents.Contains(percent)) percents = [.. percents.Append(percent).Order()];
+        var value = Picker(percents, v => $"{v}%", percent);
+        row.Children.Add(compare);
+        row.Children.Add(value);
+        return (compare, value);
+    }
 
     /// <summary>Who, a comparison, and a percentage (0% to 100% by 1%; a value from a file is kept as it is). At most 0%: just used.</summary>
     private (ComboBox Who, ComboBox Compare, ComboBox Value) ChargePickers(Panel row, string operatorId, Comparison comparison, int percent, IEnumerable<OperatorInfo>? offered = null)
@@ -241,6 +260,41 @@ internal sealed class ConditionEditor(
                 row.Children.Add(state);
                 read = () => new BattleSkillEmpoweredCondition((string)Picked(who), (bool)Picked(state));
                 hint = Loc.Get("Editor.EmpoweredHint");
+                break;
+            }
+            case StaggerProgressCondition c:
+            {
+                var (compare, value) = PercentPickers(row, c.Is, c.Percent);
+                read = () => new StaggerProgressCondition((Comparison)Picked(compare), (int)Picked(value));
+                hint = Loc.Get("Editor.StaggerHint");
+                break;
+            }
+            case StaggerNodesCondition c:
+            {
+                var compare = ComparePicker(c.Is);
+                // 0 to 9 boxes (the one boss measured has one; the bar has room for many); a file's value off the list is kept.
+                var counts = Enumerable.Range(0, StaggerNodeChoices).ToList();
+                if (!counts.Contains(c.Count)) counts = [.. counts.Append(c.Count).Order()];
+                var value = Picker(counts, v => v.ToString(CultureInfo.InvariantCulture), c.Count);
+                row.Children.Add(compare);
+                row.Children.Add(value);
+                read = () => new StaggerNodesCondition((Comparison)Picked(compare), (int)Picked(value));
+                hint = Loc.Get("Editor.StaggerHint");
+                break;
+            }
+            case StaggeredCondition c:
+            {
+                var state = Picker([true, false], s => Loc.Get(s ? "Editor.Staggered" : "Editor.NotStaggered"), c.Staggered);
+                row.Children.Add(state);
+                read = () => new StaggeredCondition((bool)Picked(state));
+                hint = Loc.Get("Editor.StaggerHint");
+                break;
+            }
+            case StaggerTimeLeftCondition c:
+            {
+                var (compare, value) = PercentPickers(row, c.Is, c.Percent);
+                read = () => new StaggerTimeLeftCondition((Comparison)Picked(compare), (int)Picked(value));
+                hint = Loc.Get("Editor.StaggerTimeHint");
                 break;
             }
             case UltimateTimeLeftCondition c:

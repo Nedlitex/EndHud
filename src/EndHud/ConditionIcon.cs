@@ -34,6 +34,9 @@ internal enum AlertSubjectKind
     /// draws it beside the HP bar; the operator's avatar for a counter without one.
     /// </summary>
     Counter,
+
+    /// <summary>The boss's stagger (<see cref="AlertSubject.Id"/>: which part, <see cref="StaggerGlyphs"/>): a drawn piece of its bar.</summary>
+    Stagger,
 }
 
 /// <param name="Id">The status id or operator id; null for <see cref="AlertSubjectKind.SkillPoints"/> and <see cref="AlertSubjectKind.None"/>.</param>
@@ -66,6 +69,10 @@ internal static class ConditionIcon
             BattleSkillEmpoweredCondition e => new AlertSubject(AlertSubjectKind.BattleSkill, e.OperatorId),
             // A counter: its drawn glyph, not the operator's face (owner, 2026-10-25).
             CounterCondition k => new AlertSubject(AlertSubjectKind.Counter, k.OperatorId, Counter: k.CounterId),
+            // The boss's stagger: its bar filling, a node box, or the yellow countdown (staggered, time left).
+            StaggerProgressCondition => new AlertSubject(AlertSubjectKind.Stagger, StaggerGlyphs.BarId),
+            StaggerNodesCondition => new AlertSubject(AlertSubjectKind.Stagger, StaggerGlyphs.NodeId),
+            StaggeredCondition or StaggerTimeLeftCondition => new AlertSubject(AlertSubjectKind.Stagger, StaggerGlyphs.CountdownId),
             NotCondition n => SubjectOf(n.Of),
             AllCondition { Of.Count: > 0 } all => SubjectOf(all.Of[0]),
             AnyCondition { Of.Count: > 0 } any => SubjectOf(any.Of[0]),
@@ -102,6 +109,7 @@ internal static class ConditionIcon
         { Kind: AlertSubjectKind.Status, Id: { } status } => statusIcon(status),
         { Kind: AlertSubjectKind.Operator, Id: { } op } when library?.Find(op) is { } info => avatar(info),
         { Kind: AlertSubjectKind.Counter, Counter: { } counter } when CounterGlyphs.For(counter) is { } glyph => glyph,
+        { Kind: AlertSubjectKind.Stagger, Id: var part } => StaggerGlyphs.For(part),
         { Kind: AlertSubjectKind.Counter, Id: { } op } when library?.Find(op) is { } info => avatar(info),
         { Kind: AlertSubjectKind.BattleSkill, Id: { } op } when library?.Find(op) is { } info => skillIcon(info, StepAction.BattleSkill) ?? avatar(info),
         { Kind: AlertSubjectKind.Skill, Id: { } op, Action: { } action } when library?.Find(op) is { } info => skillIcon(info, action) ?? avatar(info),

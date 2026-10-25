@@ -121,6 +121,14 @@
     <sys:String x:Key="Editor.Condition.Counter">干员资源</sys:String>
     <sys:String x:Key="Editor.Condition.TeamBuff">队伍增益层数</sys:String>
     <sys:String x:Key="Editor.TeamBuffHint">按血条左侧的增益图标判断（目前识别连击）：图标右下角的数字是层数，没有数字算 1 层，图标不在算 0 层。只在战斗中读取；数字被特效挡住时无法判断。</sys:String>
+    <sys:String x:Key="Editor.Condition.StaggerProgress">失衡进度</sys:String>
+    <sys:String x:Key="Editor.Condition.StaggerNodes">失衡节点已达到</sys:String>
+    <sys:String x:Key="Editor.Condition.Staggered">处于失衡</sys:String>
+    <sys:String x:Key="Editor.Condition.StaggerTimeLeft">失衡剩余时间</sys:String>
+    <sys:String x:Key="Editor.Staggered">处于失衡</sys:String>
+    <sys:String x:Key="Editor.NotStaggered">未处于失衡</sys:String>
+    <sys:String x:Key="Editor.StaggerHint">按敌人血条下方的失衡条判断：粉色部分填到多少就是失衡进度；条上的小方框是失衡节点，填过一个就是一次小失衡；填满后变成黄色倒计时条，就是处于失衡。看不到敌人血条（过场动画、被遮住）时无法判断。</sys:String>
+    <sys:String x:Key="Editor.StaggerTimeHint">按失衡时黄色倒计时条剩下的长度占整条的百分比判断；没有处于失衡时算 0%。不提供秒数：倒计时在部分技能演出时会暂停。看不到敌人血条时无法判断。</sys:String>
     <sys:String x:Key="Editor.Condition.BossStatus">敌人状态</sys:String>
     <sys:String x:Key="Editor.Condition.Controlling">当前操控</sys:String>
     <sys:String x:Key="Editor.Compare.AtLeast">至少</sys:String>
@@ -483,6 +491,11 @@
     <sys:String x:Key="Alert.Describe.BattleSkillNotEmpowered">{0} 战技未强化</sys:String>
     <sys:String x:Key="Alert.Describe.Counter">{0} {1} {2} {3}</sys:String>
     <sys:String x:Key="Alert.Describe.TeamBuff">{0}层数 {1} {2}</sys:String>
+    <sys:String x:Key="Alert.Describe.StaggerProgress">失衡进度 {0} {1}%</sys:String>
+    <sys:String x:Key="Alert.Describe.StaggerNodes">失衡节点已达到 {0} {1} 个</sys:String>
+    <sys:String x:Key="Alert.Describe.Staggered">敌人处于失衡</sys:String>
+    <sys:String x:Key="Alert.Describe.NotStaggered">敌人未处于失衡</sys:String>
+    <sys:String x:Key="Alert.Describe.StaggerTimeLeft">失衡剩余时间 {0} {1}%</sys:String>
     <sys:String x:Key="Alert.Describe.Status.Has">敌人有 {0}</sys:String>
     <sys:String x:Key="Alert.Describe.Status.HasNot">敌人没有 {0}</sys:String>
     <sys:String x:Key="Alert.Describe.Status.Stacks">{0} {1} {2} 层</sys:String>
