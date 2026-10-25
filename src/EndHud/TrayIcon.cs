@@ -248,9 +248,23 @@ internal sealed class TrayIcon : IDisposable
 
     private static void OnUi(Action action) => System.Windows.Application.Current?.Dispatcher.BeginInvoke(action);
 
-    private static void OpenLink(string? url)
+    private static void OpenLink(string? url) => OpenLink(url, info => Process.Start(info));
+
+    /// <summary>
+    /// Open a release page in the browser: only an https page of this repository on github.com
+    /// (<see cref="UpdateTrust.IsRepositoryPage"/>). The address comes from GitHub's answer, and the shell runs
+    /// whatever it is handed (a file:// or \\share path would start a program), so anything else is not opened, only logged.
+    /// </summary>
+    internal static bool OpenLink(string? url, Action<ProcessStartInfo> start)
     {
-        if (url is not null) Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        if (url is null) return false;
+        if (!UpdateTrust.IsRepositoryPage(url))
+        {
+            DiagnosticLog.Warn($"not opening the release link: not a page of {ReleaseChecker.Repository} on github.com ({url.Length} characters)");
+            return false;
+        }
+        start(new ProcessStartInfo(url) { UseShellExecute = true });
+        return true;
     }
 
     private static void OpenConfigFolder()
