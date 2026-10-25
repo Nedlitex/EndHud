@@ -38,6 +38,9 @@ public static class BattleSkillButton
     /// </summary>
     internal const int TextLines = 3;
 
+    /// <summary>The icon's half width (4K): the lines are also counted on the disc beside it, where the icon doesn't join them.</summary>
+    private const double BesideIcon = 42;
+
     /// <summary>
     /// Inside this radius (4K) the white rows are counted: the dark disc (to 58), the outline left out. At 44 (the icon's
     /// reach) the text's lines over a dimmed button joined through its light parts into two bands.
@@ -48,7 +51,7 @@ public static class BattleSkillButton
     /// How many bands of rows with white (at least 2 px at 4K) the disc has, told apart by at least 3 rows (4K) with
     /// none.
     /// </summary>
-    internal static int WhiteLines(Frame frame, double cx, double cy, double scale)
+    internal static int WhiteLines(Frame frame, double cx, double cy, double scale, double besideIcon = 0)
     {
         double radius = LinesRadius * scale;
         double minWhite = Math.Max(1, 2 * scale), minGap = Math.Max(1, 3 * scale);
@@ -61,7 +64,7 @@ public static class BattleSkillButton
             for (int x = (int)Math.Round(cx - radius); x <= (int)Math.Round(cx + radius); x++)
             {
                 double dx = x - cx, dy = y - cy;
-                if (dx * dx + dy * dy > radius * radius || (uint)x >= (uint)frame.Width) continue;
+                if (dx * dx + dy * dy > radius * radius || Math.Abs(dx) < besideIcon * scale || (uint)x >= (uint)frame.Width) continue;
                 var (r, g, b) = frame.GetPixel(x, y);
                 if (Math.Min(r, Math.Min(g, b)) > 200) white++;
             }
@@ -102,7 +105,7 @@ public static class BattleSkillButton
             else if (min > 200) white++;
         }
         if (n == 0) return null;
-        if (WhiteLines(frame, cx, cy, ui.Scale) >= TextLines) return null;
+        if (Math.Max(WhiteLines(frame, cx, cy, ui.Scale), WhiteLines(frame, cx, cy, ui.Scale, BesideIcon)) >= TextLines) return null;
 
         double darkShare = dark / (double)n, whiteShare = white / (double)n;
         if (darkShare >= CoolingDarkAt && whiteShare is >= CoolingWhiteMin and <= CoolingWhiteMax) return BattleSkillState.Cooling;
