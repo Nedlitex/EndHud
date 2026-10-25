@@ -111,6 +111,14 @@
                         <StackPanel x:Name="PriorityRuleRows" />
                         <Button x:Name="AddPriorityRuleButton" Content="{DynamicResource Editor.AddPriorityRule}" HorizontalAlignment="Left"
                                 Margin="0,4,0,0" Click="AddPriorityRule_Click" />
+
+                        <!-- The phase's finish condition: when it holds, the round is played through and every step's light goes out.
+                             None: every step that lights up lit, in any order (said in the hint). -->
+                        <TextBlock Text="{DynamicResource Editor.Finish}" FontWeight="SemiBold" Margin="0,16,0,2" />
+                        <TextBlock Text="{DynamicResource Editor.FinishHint}" Foreground="#888" TextWrapping="Wrap" Margin="0,0,0,6" />
+                        <StackPanel x:Name="FinishRows" />
+                        <Button x:Name="AddFinishButton" Content="{DynamicResource Editor.AddCondition}" HorizontalAlignment="Left"
+                                Margin="0,4,0,0" Click="AddFinishCondition_Click" />
                     </StackPanel>
                 </ScrollViewer>
             </GroupBox>
@@ -129,8 +137,8 @@
                         <WrapPanel DockPanel.Dock="Bottom" Margin="0,6,0,0">
                             <Button x:Name="AddStepButton" Content="{DynamicResource Editor.AddStep}" Click="AddStep_Click" />
                             <Button Content="↑" Click="StepUp_Click" ToolTip="{DynamicResource Editor.MoveUp}" />
-                            <Button Content="↓" Click="StepDown_Click" ToolTip="{DynamicResource Editor.MoveDown}" />
-                            <Button Content="{DynamicResource Editor.DeleteStep}" Click="DeleteStep_Click" />
+                            <Button x:Name="StepDownButton" Content="↓" Click="StepDown_Click" ToolTip="{DynamicResource Editor.MoveDown}" />
+                            <Button x:Name="DeleteStepButton" Content="{DynamicResource Editor.DeleteStep}" Click="DeleteStep_Click" />
                         </WrapPanel>
                         <ListBox x:Name="StepList" SelectionChanged="StepList_SelectionChanged" />
                     </DockPanel>

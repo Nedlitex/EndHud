@@ -13,9 +13,10 @@ namespace EndHud;
 /// Conditions as rows of pickers: the "not" box, the kind, then what it needs, then ✕; groups ("all of" / "any
 /// of") shown indented under their row with their own "add". Everything is picked from lists, never
 /// typed. Used wherever conditions are written: the rotation editor (a phase's entry condition, its
-/// priority rules, a step's expected state, a condition step) and the alert editor (a rule's
-/// conditions). Every host offers the same full set of kinds (<see cref="ConditionCatalogue"/>);
-/// a kind that can't be told in this setting stays listed, greyed out, saying why.
+/// priority rules, its finish condition, a step's expected state, a condition step) and the alert editor (a rule's
+/// conditions). Every host offers the same full set of kinds (<see cref="ConditionCatalogue"/>), and a finish
+/// condition "the phase's steps lit" as well; a kind that can't be told in this setting stays listed, greyed
+/// out, saying why.
 /// </summary>
 /// <param name="operators">Who the operator pickers offer: a rotation's squad, or every operator for alerts.</param>
 /// <param name="counters">The operator resources offered: a rotation squad's, or all of them for alerts.</param>
@@ -24,6 +25,8 @@ namespace EndHud;
 /// <param name="host">Where the conditions are used: the kinds offered are the catalogue's for it (a stored condition of another kind is still shown, as itself).</param>
 /// <param name="avatar">An operator's avatar for the pickers, if there is one.</param>
 /// <param name="defaultPhaseId">The phase a new "phase shown" or "phase played" condition names.</param>
+/// <param name="phaseSteps">The steps of the phase the conditions belong to that light up, by number (from 1, in written
+/// order) and how the step list names them: what "the phase's steps lit" offers (a finish condition). Null: none.</param>
 internal sealed class ConditionEditor(
     OperatorLibrary library,
     Func<IEnumerable<OperatorInfo>> operators,
@@ -31,8 +34,12 @@ internal sealed class ConditionEditor(
     Func<IReadOnlyList<(string Id, string Label)>> phases,
     ConditionHostKind host,
     Func<OperatorInfo, BitmapSource?> avatar,
-    Func<string?>? defaultPhaseId = null)
+    Func<string?>? defaultPhaseId = null,
+    Func<IReadOnlyList<(int Number, string Label)>>? phaseSteps = null)
 {
+    /// <summary>The phase's steps that light up (see the constructor).</summary>
+    private IReadOnlyList<(int Number, string Label)> PhaseSteps() => phaseSteps?.Invoke() ?? [];
+
     /// <summary>Where these conditions are used.</summary>
     public ConditionHostKind Host => host;
 
@@ -62,6 +69,8 @@ internal sealed class ConditionEditor(
             // Another phase's count by default: a phase's entry condition can't use its own (Rotation.Problems).
             "PhaseShown" => new PhaseShownCondition(defaultPhaseId?.Invoke() ?? phases().FirstOrDefault().Id ?? "", Comparison.AtLeast, 1),
             "PhasePlayed" => new PhasePlayedCondition(defaultPhaseId?.Invoke() ?? phases().FirstOrDefault().Id ?? "", Comparison.AtLeast, 1),
+            // Every step that lights up: the default finish written out, to lower from there.
+            "StepsLit" => new StepsLitCondition(StepsLitWhich.AtLeast, Count: Math.Max(1, PhaseSteps().Count)),
             // A group is made to say "or": it starts as "any of" with one condition in it.
             "Group" => new AnyCondition([new UltimateCondition(first, true)]),
             _ => new SkillPointsCondition(Comparison.AtLeast, 2),
@@ -244,6 +253,58 @@ internal sealed class ConditionEditor(
                 kind.ToolTip = hint;
                 break;
             }
+            case StepsLitCondition c:
+            {
+                // 全部 / 至少 N 步 / 指定步骤: then the count picked, or the steps ticked, from the phase's own steps.
+                var which = Picker([StepsLitWhich.All, StepsLitWhich.AtLeast, StepsLitWhich.These], w => Loc.Get($"Editor.StepsLit.{w}"), c.Which);
+                row.Children.Add(which);
+                var steps = PhaseSteps();
+                ComboBox? count = null;
+                var ticks = new List<(int Number, CheckBox Box)>();
+                if (c.Which == StepsLitWhich.AtLeast)
+                {
+                    // 1 to the steps that light up; a file's value off the list is kept (and refused, saying why).
+                    count = Picker(Enumerable.Range(1, Math.Max(1, steps.Count)).ToList(), n => Loc.Format("Editor.StepsLit.Count", n), c.Count);
+                    row.Children.Add(count);
+                }
+                else if (c.Which == StepsLitWhich.These)
+                {
+                    var picked = c.Steps ?? [];
+                    var boxes = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
+                    boxes.Children.Add(new TextBlock { Text = Loc.Get("Editor.StepsLit.Pick"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
+                    // A step number from a file that isn't one of these (deleted, or an attack) is kept ticked under its number.
+                    foreach (var (number, label) in steps.Concat(picked.Where(n => steps.All(s => s.Number != n)).Select(n => (n, Loc.Format("Editor.StepsLit.Missing", n)))))
+                    {
+                        var box = new CheckBox { Content = label, IsChecked = picked.Contains(number), Margin = new Thickness(0, 0, 10, 2), VerticalAlignment = VerticalAlignment.Center };
+                        ticks.Add((number, box));
+                        boxes.Children.Add(box);
+                    }
+                    row.Children.Add(boxes);
+                }
+                var mode = which;
+                read = () => (StepsLitWhich)Picked(mode) switch
+                {
+                    StepsLitWhich.AtLeast => new StepsLitCondition(StepsLitWhich.AtLeast, Count: count is null ? Math.Max(1, steps.Count) : (int)Picked(count)),
+                    StepsLitWhich.These => new StepsLitCondition(StepsLitWhich.These, Steps: count is null && ticks.Count > 0
+                        ? ticks.Where(t => t.Box.IsChecked == true).Select(t => t.Number).Order().ToList()
+                        : steps.Select(s => s.Number).ToList()),
+                    _ => new StepsLitCondition(StepsLitWhich.All),
+                };
+                foreach (var (_, box) in ticks)
+                {
+                    box.Checked += (_, _) => Ticked();
+                    box.Unchecked += (_, _) => Ticked();
+                }
+                void Ticked()
+                {
+                    list[index] = Wrap(read());
+                    changed(false);
+                }
+                hint = Loc.Get("Editor.StepsLitHint");
+                kind.ToolTip = hint;
+                rebuildOnPick = true; // the count picker or the ticks follow the choice
+                break;
+            }
             case UltimateChargeCondition c:
             {
                 var (who, compare, value) = ChargePickers(row, c.OperatorId, c.Is, c.Percent);
@@ -424,6 +485,8 @@ internal sealed class ConditionEditor(
         var needs = ConditionCatalogue.Kinds.First(k => k.EditorKind == kind);
         string? why =
             needs.Needs.HasFlag(ConditionNeeds.Phase) && phases().Count == 0 ? "Editor.PhasePlayedNoPhases"
+            // The phase's steps lit: nothing to light without a step that lights up.
+            : needs.Type == typeof(StepsLitCondition) && PhaseSteps().Count == 0 ? "Editor.StepsLitNoSteps"
             // Only Si's skill time is read, only some lasting ultimates: without them in the list, nobody to ask about.
             : needs.OnlyFor is { } only && !operators().Any(o => only.Contains(o.Id))
                 ? needs.Needs.HasFlag(ConditionNeeds.SkillTime) ? "Editor.SkillTimeNoOperator" : "Editor.UltimateTimeNoOperator"

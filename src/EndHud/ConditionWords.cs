@@ -79,6 +79,8 @@ internal static class ConditionWords
                 return Percent(running.TryGetValue(c.OperatorId, out var view) ? view.LeftShare : 0);
             case PhaseCurrentCondition:
                 return history?.CurrentPhase is { } current ? phaseName?.Invoke(current) ?? current : null;
+            case StepsLitCondition { Which: StepsLitWhich.AtLeast }:
+                return history?.StepsLit is { } lit ? Number(lit.Count(l => l == true)) : null;
             default:
                 return null;
         }
@@ -119,6 +121,12 @@ internal static class ConditionWords
             AllCondition c => Group(c.Of, "Alert.Describe.And"),
             PhaseShownCondition c => F("Alert.Describe.PhaseShown", Phase(c.PhaseId), Symbol(c.Is), c.Times),
             PhasePlayedCondition c => F("Alert.Describe.PhasePlayed", Phase(c.PhaseId), Symbol(c.Is), c.Times),
+            StepsLitCondition c => c.Which switch
+            {
+                StepsLitWhich.All => F("Alert.Describe.StepsLit.All"),
+                StepsLitWhich.AtLeast => F("Alert.Describe.StepsLit.AtLeast", Symbol(Comparison.AtLeast), c.Count),
+                _ => F("Alert.Describe.StepsLit.These", string.Join(text("Alert.Describe.StepsLit.Joiner"), (c.Steps ?? []).Select(n => n.ToString(CultureInfo.InvariantCulture)))),
+            },
             _ => "?",
         };
 

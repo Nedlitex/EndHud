@@ -114,7 +114,7 @@
     <sys:String x:Key="Editor.PhaseCurrent.Any">不论是否打完</sys:String>
     <sys:String x:Key="Editor.PhaseCurrent.Played">本次已打完</sys:String>
     <sys:String x:Key="Editor.PhaseCurrent.NotPlayed">本次未打完</sys:String>
-    <sys:String x:Key="Editor.PhaseCurrentHint">排轴条上现在显示的轴段。“本次已打完”指这个轴段这次出现在排轴条上以后，每一步都打到了（按画面判断：战技释放时按钮的闪光和技力消耗、连携技、终结技；每轮允许漏掉一个技能）；轴段离开后再出现时重新算。</sys:String>
+    <sys:String x:Key="Editor.PhaseCurrentHint">排轴条上现在显示的轴段。“本次已打完”指这个轴段这次出现在排轴条上以后，它的完成条件成立过（没有完成条件时：除普攻、重击、下落攻击以外的每一步都点亮，顺序不限；按画面判断：战技释放时按钮的闪光和技力消耗、连携技、终结技）；轴段离开后再出现时重新算。</sys:String>
     <sys:String x:Key="Editor.SkillTimeHint">按祀的战技按钮判断：图标变成漩涡（或第二次释放后的叉形蝴蝶）时为持续中，变回蝴蝶时结束，即她计数圈外紫色倒计时的那段时间。按钮被特效挡住时按倒计时估计；手柄布局下读不到，条件无法判断。</sys:String>
     <sys:String x:Key="Editor.SkillTimeNoOperator">小队中没有能读取战技持续时间的干员（目前只有祀）。</sys:String>
     <sys:String x:Key="Editor.Condition.Counter">干员资源</sys:String>
@@ -166,7 +166,7 @@
     <sys:String x:Key="Editor.Condition.PhaseShown">轴段已显示次数</sys:String>
     <sys:String x:Key="Editor.PhaseShownHint">本场战斗中这个轴段出现在排轴条上的次数（出现一次算一次），离开战斗后清零。</sys:String>
     <sys:String x:Key="Editor.Condition.PhasePlayed">轴段已完成次数</sys:String>
-    <sys:String x:Key="Editor.PhasePlayedHint">本场战斗中这个轴段被完整打完的次数（每一步都打到算一次，每轮允许漏掉一个技能；按画面判断：战技释放时按钮的闪光和技力消耗、连携技、终结技），离开战斗后清零。</sys:String>
+    <sys:String x:Key="Editor.PhasePlayedHint">本场战斗中这个轴段打完的次数（它的完成条件每成立一次算一次；没有完成条件时，除普攻、重击、下落攻击以外的每一步都点亮算一次，顺序不限；按画面判断：战技释放时按钮的闪光和技力消耗、连携技、终结技），离开战斗后清零。</sys:String>
     <sys:String x:Key="Editor.PhasePlayedNoPhases">还没有排轴，没有轴段可选。请先在排轴编辑器中建一个排轴。</sys:String>
     <sys:String x:Key="Editor.Times">{0} 次</sys:String>
     <sys:String x:Key="Editor.PhaseMissing">（已删除的轴段）</sys:String>
@@ -178,7 +178,7 @@
     <sys:String x:Key="Rotation.Problem.PhasePlayedMissingPhase">轴段“{0}”的完成次数条件引用了一个已删除的轴段，请重新选择轴段或删除这个条件。</sys:String>
     <sys:String x:Key="Rotation.Problem.ConditionStepEmpty">轴段“{0}”第 {1} 步是条件步骤，但还没有条件。请添加条件或删除这一步。</sys:String>
     <sys:String x:Key="Rotation.Problem.ConditionStepWithPrevious">轴段“{0}”第 {1} 步“与上一步连放”，但它或它的上一步是条件步骤：条件步骤要单独等待。请取消“与上一步连放”。</sys:String>
-    <sys:String x:Key="Editor.ConditionStepHint">这一步不需要释放技能，只等下面的条件：条件满足时，排轴条上这一步的圆圈亮起（青色），不满足时变暗。它是当前步骤，直到条件满足才算完成，进入下一步；条件不满足时，打出后面的技能也不会越过它；条件暂时无法判断时（例如被特效挡住），打出后面的技能就算跳过它。</sys:String>
+    <sys:String x:Key="Editor.ConditionStepHint">这一步不需要释放技能，只等下面的条件：条件满足时，排轴条上这一步点亮，这一轮里一直亮着（之后条件不再满足也一样）；不论它在第几步、前面的步骤打没打。条件不满足或暂时无法判断时（例如被特效挡住）不会点亮，也不会被跳过。</sys:String>
     <sys:String x:Key="Editor.ConditionStepExpect">等到这些条件都满足</sys:String>
     <sys:String x:Key="Editor.ConditionStepExpectHint">排轴条上显示第一个条件的图标（敌人状态的图标、干员头像或技力），下方写出条件；在“备注”中可以改成更短的文字。</sys:String>
     <sys:String x:Key="Rotation.Problem.UltimateTimeNotRead">轴段“{0}”的条件中“终结技剩余持续时间”选了莱万汀、庄方宜、伊冯以外的干员：目前只读取她们的终结技持续时间，这个条件永远无法判断。请改选她们之一，或删除这个条件。</sys:String>
@@ -213,6 +213,24 @@
     <sys:String x:Key="Rotation.Problem.EmptyRuleGroup">轴段“{0}”第 {1} 条条件优先级中有空的条件组，请添加条件或删除它。</sys:String>
     <sys:String x:Key="Rotation.Problem.RuleMissingPhase">轴段“{0}”第 {1} 条条件优先级引用了一个已删除的轴段，请重新选择轴段或删除这个条件。</sys:String>
     <sys:String x:Key="Rotation.Problem.EmptyGroup">轴段“{0}”第 {1} 步的预期状态中有空的条件组，请添加条件或删除它。</sys:String>
+    <sys:String x:Key="Editor.Finish">完成条件（可选）</sys:String>
+    <sys:String x:Key="Editor.FinishHint">满足这些条件时，这个轴段算打完一轮：“轴段已完成次数”加 1，“当前轴段 本次已打完”成立，排轴条上所有点亮的步骤熄灭，重新开始一轮。不添加时：除普攻、重击、下落攻击以外的每一步都点亮就算打完，顺序不限。战技、连携技、终结技在画面上看到释放时点亮，条件步骤在条件满足时点亮。只想要求其中几步时，用“本轴段步骤已点亮”，例如“至少 4 步”。</sys:String>
+    <sys:String x:Key="Editor.Condition.StepsLit">本轴段步骤已点亮</sys:String>
+    <sys:String x:Key="Editor.StepsLit.All">全部</sys:String>
+    <sys:String x:Key="Editor.StepsLit.AtLeast">至少 N 步</sys:String>
+    <sys:String x:Key="Editor.StepsLit.These">指定步骤已点亮</sys:String>
+    <sys:String x:Key="Editor.StepsLit.Count">{0} 步</sys:String>
+    <sys:String x:Key="Editor.StepsLit.Pick">勾选的步骤都点亮时成立：</sys:String>
+    <sys:String x:Key="Editor.StepsLit.Missing">第 {0} 步（已不存在或不会点亮）</sys:String>
+    <sys:String x:Key="Editor.StepsLitHint">这一轮里排轴条上已点亮的步骤：战技、连携技、终结技在画面上看到释放时点亮，条件步骤在条件满足时点亮，顺序不限。普攻、重击、下落攻击看不到，不会点亮，也不计入。</sys:String>
+    <sys:String x:Key="Editor.StepsLitNoSteps">这个轴段还没有会点亮的步骤（普攻、重击、下落攻击不会点亮）。请先添加战技、连携技、终结技或条件步骤。</sys:String>
+    <sys:String x:Key="Rotation.Problem.FinishOperator">轴段“{0}”的完成条件中有不在小队中的干员。</sys:String>
+    <sys:String x:Key="Rotation.Problem.FinishEmptyGroup">轴段“{0}”的完成条件中有空的条件组，请添加条件或删除它。</sys:String>
+    <sys:String x:Key="Rotation.Problem.FinishMissingPhase">轴段“{0}”的完成条件引用了一个已删除的轴段，请重新选择轴段或删除这个条件。</sys:String>
+    <sys:String x:Key="Rotation.Problem.StepsLitOutsideFinish">轴段“{0}”在完成条件以外用了“本轴段步骤已点亮”：它只能用在完成条件里。请删除这个条件。</sys:String>
+    <sys:String x:Key="Rotation.Problem.StepsLitNoSteps">轴段“{0}”的完成条件“指定步骤已点亮”还没有勾选步骤，请至少勾选一步。</sys:String>
+    <sys:String x:Key="Rotation.Problem.StepsLitNotCountable">轴段“{0}”的完成条件“指定步骤已点亮”勾选了已不存在或不会点亮的步骤（普攻、重击、下落攻击不会点亮），请取消勾选它们。</sys:String>
+    <sys:String x:Key="Rotation.Problem.StepsLitCountOutOfRange">轴段“{0}”的完成条件“至少 N 步”超出了这个轴段会点亮的步骤数，请重新选择步数。</sys:String>
     <sys:String x:Key="Editor.OwnItem">{0}（{1}）</sys:String>
     <sys:String x:Key="Editor.PublishedItem">【推荐】{0}（{1}）</sys:String>
     <sys:String x:Key="Editor.PublishedNote">这是 EndHud 推荐排轴，会自动更新到最新版本。可以直接修改：保存时会另存为你自己的排轴，推荐排轴本身继续保持更新。</sys:String>
@@ -232,7 +250,7 @@
 
     <!-- Menu: rotation strip -->
     <sys:String x:Key="Menu.Rotation">排轴</sys:String>
-    <sys:String x:Key="Menu.Rotation.Hint">按识别到的小队自动加载排轴，战斗中按当前状态显示该打的轴段，并按画面标出你打到了哪一步（战技释放时按钮的闪光和技力消耗、连携技、终结技）。没看到某个技能、却看到后面的技能时，会跳到后面那一步，漏掉的步骤画一道斜线。菜单打开时会显示排轴示例，可直接拖动调整位置，并在下方调整大小和不透明度。</sys:String>
+    <sys:String x:Key="Menu.Rotation.Hint">按识别到的小队自动加载排轴，战斗中按当前状态显示该打的轴段，并按画面点亮你打过的步骤（战技释放时按钮的闪光和技力消耗、连携技、终结技），顺序不限，不会跳过任何一步；箭头指向第一个还没点亮的步骤。菜单打开时会显示排轴示例，可直接拖动调整位置，并在下方调整大小和不透明度。</sys:String>
     <sys:String x:Key="Menu.Rotation.Edit">编辑排轴…</sys:String>
     <sys:String x:Key="Menu.Rotation.ResetPosition">恢复默认位置</sys:String>
     <sys:String x:Key="Menu.Rotation.Opacity">不透明度</sys:String>
@@ -460,11 +478,16 @@
     <sys:String x:Key="Alert.Describe.Controlling">正在操控 {0}</sys:String>
     <sys:String x:Key="Alert.Describe.PhaseShown">{0} 已显示 {1} {2} 次</sys:String>
     <sys:String x:Key="Alert.Describe.PhasePlayed">{0} 已完成 {1} {2} 次</sys:String>
+    <sys:String x:Key="Alert.Describe.StepsLit.All">本轴段步骤全部已点亮</sys:String>
+    <sys:String x:Key="Alert.Describe.StepsLit.AtLeast">本轴段已点亮 {0} {1} 步</sys:String>
+    <sys:String x:Key="Alert.Describe.StepsLit.These">本轴段第 {0} 步已点亮</sys:String>
+    <sys:String x:Key="Alert.Describe.StepsLit.Joiner">、</sys:String>
     <sys:String x:Key="Alert.Describe.UltimateTimeLeft">{0} 终结技剩余持续时间 {1} {2}%</sys:String>
     <sys:String x:Key="Alert.Describe.PhaseCurrent">当前轴段 是 {0}</sys:String>
     <sys:String x:Key="Alert.Describe.PhaseCurrent.Played">当前轴段 是 {0} 且本次已打完</sys:String>
     <sys:String x:Key="Alert.Describe.PhaseCurrent.NotPlayed">当前轴段 是 {0} 且本次未打完</sys:String>
     <sys:String x:Key="Alerts.Problem.UltimateTimeNotRead">提示“{0}”的条件中“终结技剩余持续时间”选了莱万汀、庄方宜、伊冯以外的干员：目前只读取她们的终结技持续时间，这个条件永远无法判断。请改选她们之一，或删除这个条件。</sys:String>
+    <sys:String x:Key="Alerts.Problem.NotForAlerts">提示“{0}”的条件中有“本轴段步骤已点亮”：它只能用在排轴轴段的完成条件里，战斗提示里无法判断。请删除这个条件（想在轴段打完时提示，可以用“当前轴段 是 … 且本次已打完”）。</sys:String>
     <sys:String x:Key="Alert.Sample">战斗提示会在这里弹出</sys:String>
     <sys:String x:Key="Alerts.Title">战斗提示</sys:String>
     <sys:String x:Key="Alerts.Intro">战斗中条件满足时，在屏幕右侧（和连携提示左右对称的位置）弹出提示：圆圈里是提示的对象（技力、敌人状态或干员头像），旁边滑出提示文字。最多显示 3 秒，条件不再满足时提前收起；条件要先不满足、再次满足，才会再次提示。对所有小队和排轴都有效。</sys:String>

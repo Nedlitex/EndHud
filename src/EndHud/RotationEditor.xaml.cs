@@ -31,7 +31,7 @@ public partial class RotationEditor : Window
     private bool _dirty;
     private bool _loading;
     /// <summary>The condition pickers of a phase's entry condition, its priority rules, a step's expected state: the same kinds, each host its own.</summary>
-    private readonly ConditionEditor _gateConditions, _ruleConditions, _stepConditions, _conditionStepConditions;
+    private readonly ConditionEditor _gateConditions, _ruleConditions, _stepConditions, _conditionStepConditions, _finishConditions;
 
     /// <param name="currentSquad">The squad EndHud recognises now (for "use the current squad"), null slots unknown.</param>
     /// <param name="select">The rotation to open with, if any.</param>
@@ -52,6 +52,9 @@ public partial class RotationEditor : Window
         _ruleConditions = Conditions(ConditionHostKind.PriorityRule);
         _stepConditions = Conditions(ConditionHostKind.StepExpect);
         _conditionStepConditions = Conditions(ConditionHostKind.ConditionStep);
+        // The finish condition offers "the phase's steps lit", picked from the selected phase's own steps.
+        _finishConditions = new(library, SquadOperators, Counters, PhaseChoices, ConditionHostKind.PhaseFinish, Avatar,
+            () => (_draft?.Phases.FirstOrDefault(p => p != _phase) ?? _phase)?.Id, FinishStepChoices);
         InitializeComponent();
         PriorityError.Text = Loc.Get("Editor.PriorityNotNumber");
         PriorityNeedsGate.Text = Loc.Get("Editor.PriorityNeedsGate");
@@ -193,10 +196,11 @@ public partial class RotationEditor : Window
         RefreshPhaseList();
         _loading = true;
         PhaseNameBox.Text = _phase?.Name ?? "";
-        PhaseNameBox.IsEnabled = AddGateButton.IsEnabled = CopyPhaseButton.IsEnabled = _phase is not null;
+        PhaseNameBox.IsEnabled = AddGateButton.IsEnabled = AddFinishButton.IsEnabled = CopyPhaseButton.IsEnabled = _phase is not null;
         _loading = false;
         BuildGateRows();
         ShowPriority();
+        BuildFinishRows();
         StepsGroup.Header = _phase is null ? Loc.Get("Editor.Steps") : Loc.Format("Editor.StepsOf", _phase.Name);
         _step = _phase?.Steps.FirstOrDefault();
         RefreshSteps();
@@ -225,6 +229,7 @@ public partial class RotationEditor : Window
         }
         _loading = false;
         ShowStep();
+        BuildFinishRows(); // "these steps lit" names the steps as the list does
         Preview();
     }
 
@@ -398,6 +403,7 @@ public partial class RotationEditor : Window
         int at = StepList.SelectedIndex >= 0 ? StepList.SelectedIndex + 1 : _phase.Steps.Count;
         _step = new StepDraft { OperatorId = SquadOperators().FirstOrDefault()?.Id ?? "", Action = StepAction.BattleSkill };
         _phase.Steps.Insert(at, _step);
+        _phase.RenumberFinishSteps(n => n > at ? n + 1 : n); // numbered from 1: the new step is number at + 1
         MarkDirty();
         RefreshSteps();
     }
@@ -412,6 +418,8 @@ public partial class RotationEditor : Window
         if (to < 0 || to >= _phase.Steps.Count) return;
         _phase.Steps.RemoveAt(from);
         _phase.Steps.Insert(to, _step);
+        // The two steps swap numbers (from 1).
+        _phase.RenumberFinishSteps(n => n == from + 1 ? to + 1 : n == to + 1 ? from + 1 : n);
         if (to == 0) _step.WithPrevious = false; // the first step has nothing before it
         MarkDirty();
         RefreshSteps();
@@ -422,6 +430,8 @@ public partial class RotationEditor : Window
         if (_phase is null || _step is null) return;
         int index = _phase.Steps.IndexOf(_step);
         _phase.Steps.RemoveAt(index);
+        // Numbered from 1: the deleted step leaves the finish condition, the ones after it move up.
+        _phase.RenumberFinishSteps(n => n == index + 1 ? null : n > index + 1 ? n - 1 : n);
         if (index == 0 && _phase.Steps.Count > 0) _phase.Steps[0].WithPrevious = false;
         _step = _phase.Steps.Count == 0 ? null : _phase.Steps[Math.Min(index, _phase.Steps.Count - 1)];
         MarkDirty();
@@ -468,6 +478,7 @@ public partial class RotationEditor : Window
         _loading = true;
         if (index >= 0 && index < StepList.Items.Count) ((ListBoxItem)StepList.Items[index]).Content = StepText(index, _step);
         _loading = false;
+        BuildFinishRows(); // a step's name, or whether it lights up at all, changed
         Preview();
     }
 
@@ -515,6 +526,35 @@ public partial class RotationEditor : Window
         ShowPriority(); // an entry condition added or removed: the priority starts or stops ranking
         Preview();
     }
+
+    // ---- Finish condition: when it holds, the round is played through ----
+
+    private void AddFinishCondition_Click(object sender, RoutedEventArgs e)
+    {
+        if (_phase is null) return;
+        // The owner's own: the phase's steps lit (at least all of them, to lower from), unless the phase has none that light.
+        _phase.Finish.Add(_finishConditions.Default(FinishStepChoices().Count > 0 ? "StepsLit" : "SkillPoints"));
+        FinishConditionsChanged(rebuild: true);
+    }
+
+    private void BuildFinishRows()
+    {
+        FinishRows.Children.Clear();
+        if (_phase is not null) _finishConditions.AddRows(FinishRows, _phase.Finish, FinishConditionsChanged);
+    }
+
+    private void FinishConditionsChanged(bool rebuild)
+    {
+        MarkDirty();
+        if (rebuild) BuildFinishRows();
+    }
+
+    /// <summary>The selected phase's steps that light up (not basic, heavy or plunge attacks), by number from 1 and as the step list names them.</summary>
+    private IReadOnlyList<(int Number, string Label)> FinishStepChoices() =>
+        _phase is null ? [] : _phase.Steps.Select((s, i) => (Step: s, Number: i + 1)).Where(s => !s.Step.Action.IsDisplayOnly())
+            .Select(s => (s.Number, s.Step.Action == StepAction.Condition
+                ? $"{s.Number}. {s.Step.Label ?? Loc.Get("Rotation.Action.Condition")}"
+                : $"{s.Number}. {OperatorName(s.Step.OperatorId)} {s.Step.Label ?? Loc.Get($"Rotation.Action.{s.Step.Action}")}")).ToList();
 
     // ---- Priority: a whole number, and rules "if this holds, the priority is that" ----
 
