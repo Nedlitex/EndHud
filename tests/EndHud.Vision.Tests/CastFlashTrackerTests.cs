@@ -10,7 +10,10 @@ namespace EndHud.Vision.Tests;
 /// </summary>
 public sealed class CastFlashTrackerTests
 {
-    private static readonly FlashSample Rest = new(75, 4, 70, 0);
+    /// <summary>A keyboard-and-mouse sample; the recorded samples predate the icon measure, so the button counts as seen (0.3).</summary>
+    private static FlashSample Keyboard(double fill, double spread, double scene, double rim) => new(fill, spread, scene, rim, 0.3, SkillButtonPlaces.Row);
+
+    private static readonly FlashSample Rest = Keyboard(75, 4, 70, 0);
 
     private static List<(TimeSpan At, FlashSample[] Buttons)> Load(string file)
     {
@@ -23,7 +26,7 @@ public sealed class CastFlashTrackerTests
             var buttons = line[(space + 1)..].Split('|').Select(cell =>
             {
                 var v = cell.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(x => double.Parse(x, CultureInfo.InvariantCulture)).ToArray();
-                return new FlashSample(v[0], v[1], v[2], v[3]);
+                return Keyboard(v[0], v[1], v[2], v[3]);
             }).ToArray();
             rows.Add((TimeSpan.FromSeconds(t), buttons));
         }
@@ -108,15 +111,15 @@ public sealed class CastFlashTrackerTests
     [Fact]
     public void One_bright_frame_without_a_countdown_is_not_a_flash()
     {
-        var samples = Steady(0, 1.0).Concat(At(1.0, new FlashSample(200, 5, 70, 0))).Concat(Steady(1.033, 1.0));
+        var samples = Steady(0, 1.0).Concat(At(1.0, Keyboard(200, 5, 70, 0))).Concat(Steady(1.033, 1.0));
         Assert.Empty(Run(samples));
     }
 
     [Fact]
     public void One_bright_frame_then_a_countdown_is_a_cast()
     {
-        var dark = new FlashSample(15, 0, 70, 0);
-        var samples = Steady(0, 1.0).Concat(At(1.0, new FlashSample(150, 5, 70, 0)))
+        var dark = Keyboard(15, 0, 70, 0);
+        var samples = Steady(0, 1.0).Concat(At(1.0, Keyboard(150, 5, 70, 0)))
             .Concat(Enumerable.Range(1, 30).SelectMany(k => At(1.0 + k / 30.0, dark)));
         var fill = Assert.Single(Run(samples));
         Assert.Equal(1, fill.Button);
@@ -125,7 +128,7 @@ public sealed class CastFlashTrackerTests
     [Fact]
     public void A_fill_longer_than_any_cast_is_scene_light()
     {
-        var bright = new FlashSample(200, 5, 70, 0);
+        var bright = Keyboard(200, 5, 70, 0);
         var samples = Steady(0, 1.0).Concat(Enumerable.Range(0, 20).SelectMany(k => At(1.0 + k / 30.0, bright))).Concat(Steady(1.667, 1.0));
         Assert.Empty(Run(samples));
     }
@@ -133,8 +136,8 @@ public sealed class CastFlashTrackerTests
     [Fact]
     public void Two_buttons_filling_together_without_a_countdown_is_scene_light_and_with_one_two_casts()
     {
-        var bright = new FlashSample(200, 5, 70, 0);
-        var dark = new FlashSample(15, 0, 70, 0);
+        var bright = Keyboard(200, 5, 70, 0);
+        var dark = Keyboard(15, 0, 70, 0);
         IEnumerable<(TimeSpan, FlashSample[])> Both(FlashSample after) =>
             Steady(0, 1.0)
                 .Concat(Enumerable.Range(0, 4).Select(k => (TimeSpan.FromSeconds(1.0 + k / 30.0), new[] { Rest, bright, bright, Rest })))
@@ -146,7 +149,7 @@ public sealed class CastFlashTrackerTests
     [Fact]
     public void A_gap_in_the_samples_forgets_a_fill_in_progress()
     {
-        var bright = new FlashSample(200, 5, 70, 0);
+        var bright = Keyboard(200, 5, 70, 0);
         var samples = Steady(0, 1.0)
             .Concat(Enumerable.Range(0, 2).SelectMany(k => At(1.0 + k / 30.0, bright)))
             .Concat(Steady(3.0, 1.0)); // nothing sampled for two seconds

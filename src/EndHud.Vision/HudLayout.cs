@@ -71,6 +71,23 @@ public static class HudLayoutDetector
         return HudLayout.KeyboardMouse;
     }
 
+    /// <summary>
+    /// The skill diamond's "LB" (or "L1") badge is in its middle: the plain controller diamond, not the one LB held
+    /// draws, which has none there. For the battle-skill corner alone (<see cref="BattleSkillFlash.PlacesOf"/>).
+    /// </summary>
+    /// <param name="image">A picture whose bottom-right corner is the game picture's (the whole picture, or a corner cut from it).</param>
+    /// <param name="scale">The game picture's HUD scale.</param>
+    internal static bool SkillsBadgeShown(Frame image, double scale) =>
+        WhiteShape.Score(image, FromBottomRight(image, scale, SkillsLetters), SkillsLbShape, LetterWhiteMin, SearchRadius) >= MatchAt
+        || WhiteShape.Score(image, FromBottomRight(image, scale, SkillsLetterL), LetterLShape, LetterWhiteMin, LetterLSearchRadius) >= LetterLMatchAt;
+
+    /// <summary>A 4K rectangle anchored bottom right, on a picture (or a corner of it) at this scale.</summary>
+    private static PixelRect FromBottomRight(Frame image, double scale, PixelRect r) => new(
+        image.Width - (int)Math.Round((UiScaler.ReferenceWidth - r.X) * scale),
+        image.Height - (int)Math.Round((UiScaler.ReferenceHeight - r.Y) * scale),
+        Math.Max(1, (int)Math.Round(r.Width * scale)),
+        Math.Max(1, (int)Math.Round(r.Height * scale)));
+
     private static readonly string[] SkillsLbShape =
     [
         "..........................................",
