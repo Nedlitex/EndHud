@@ -8,21 +8,22 @@ namespace EndHud;
 
 /// <summary>
 /// What the rotation strip shows for a tracker position: the phase it's in, with where the player is
-/// (<see cref="StepFollower"/>, followed from the screen): done steps fade, skipped ones fade with a
-/// slash, and the current one has chevrons (cyan: use it now; white: not yet, with why under the
-/// strip). Without step marks (the editor's preview, the menu's sample) every step looks the same.
+/// (<see cref="StepFollower"/>, followed from the screen): steps seen used this round are lit (a condition
+/// step: met), the others dim, basic/heavy/plunge attacks neutral, and the first unlit step has chevrons
+/// (cyan: use it now; white: not yet, with why under the strip). Without step marks (the editor's preview,
+/// the menu's sample) every step looks the same.
 /// </summary>
 internal static class RotationStripView
 {
     /// <summary>
-    /// What decides whether the strip must be drawn again: the same key, the same picture. A condition
-    /// step's "holds" is in it, or its glow would never follow the game.
+    /// What decides whether the strip must be drawn again: the same key, the same picture. Each step's
+    /// state is in it, or a light would never reach the screen.
     /// </summary>
     internal static string? Key(StripView? view)
     {
         if (view is null) return null;
         static string Keys(IEnumerable<StripStep> steps) =>
-            string.Join(",", steps.Select(s => $"{s.Action}{s.State}{s.Icon is not null}{s.Avatar is not null}{s.Note}{s.Condition?.Holds}{s.Condition?.SkillPoints}"));
+            string.Join(",", steps.Select(s => $"{s.Action}{s.State}{s.Icon is not null}{s.Avatar is not null}{s.Note}{s.Condition?.SkillPoints}"));
         return $"{view.Phase}|{Keys(view.Steps)}|{view.Next?.Phase}|{Keys(view.Next?.Steps ?? [])}|{string.Join(",", view.Reasons)}";
     }
 
@@ -36,12 +37,10 @@ internal static class RotationStripView
         Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, StepPosition? steps = null, IPhaseHistory? history = null,
         Func<string, BitmapSource?>? statusIcon = null)
     {
-        // A condition step glows while its conditions hold, done or not (owner, 2026-10-24).
-        bool? Holds(RotationStep step) => state is null ? null : RotationTracker.Evaluate(new AllCondition(step.Expect), state, history ?? PhaseHistory.None);
         // An attack by whoever is controlled shows them: the operator under the chevron in this reading.
         var controlled = state?.ActiveSlot is int active && active >= 1 && active <= state.Slots.Count && state.Slots[active - 1].Operator?.Operator.Id is { } id
             ? library?.Find(id) : null;
-        var view = ForPhase(rotation, position.Step.PhaseIndex, library, skillIcon, avatar, steps, statusIcon, Holds, controlled);
+        var view = ForPhase(rotation, position.Step.PhaseIndex, library, skillIcon, avatar, steps, statusIcon, controlled);
         if (steps is not { Ready: false } || steps.Phase != position.Step.PhaseIndex) return view;
         int current = steps.Marks.ToList().IndexOf(StepMark.Current);
         if (current < 0) return view;
@@ -70,11 +69,10 @@ internal static class RotationStripView
     /// </summary>
     /// <param name="steps">Where the player is inside this phase; null (the editor's preview, the menu's sample): every step alike.</param>
     /// <param name="statusIcon">A boss status's icon, for a condition step about one.</param>
-    /// <param name="holds">Whether a condition step's conditions hold now (null: not known, e.g. the editor's preview: drawn dim).</param>
     /// <param name="controlled">The operator controlled now, for an attack by whoever is controlled; null when not known (the editor's preview).</param>
     public static StripView ForPhase(Rotation rotation, int phase, OperatorLibrary? library,
         Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, StepPosition? steps = null,
-        Func<string, BitmapSource?>? statusIcon = null, Func<RotationStep, bool?>? holds = null, OperatorInfo? controlled = null)
+        Func<string, BitmapSource?>? statusIcon = null, OperatorInfo? controlled = null)
     {
         var look = new Look(library, skillIcon, avatar, statusIcon ?? (_ => null), PhaseName(rotation), controlled);
         var played = rotation.Played();
@@ -86,11 +84,10 @@ internal static class RotationStripView
         {
             var upcoming = played.Where(p => p.PhaseIndex == n).Take(NextStepsShown).ToList();
             // The first of them starts a new phase: never drawn overlapping the step before.
-            // The next phase's preview: its conditions aren't asked (null: dim).
-            next = new StripNext(upcoming[0].PhaseLabel, upcoming.Select((p, i) => Step(p, look, i > 0, StripStepState.Plain, null)).ToList());
+            next = new StripNext(upcoming[0].PhaseLabel, upcoming.Select((p, i) => Step(p, look, i > 0, StripStepState.Plain)).ToList());
         }
         return new StripView(rotation.PhaseLabel(phase),
-            current.Select((p, i) => Step(p, look, i > 0, State(steps, i), holds?.Invoke(p.Step))).ToList(), next, []);
+            current.Select((p, i) => Step(p, look, i > 0, State(steps, i))).ToList(), next, []);
     }
 
     /// <summary>Where a step's pictures and words come from.</summary>
@@ -106,7 +103,7 @@ internal static class RotationStripView
         _ => StripStepState.Unlit,
     };
 
-    private static StripStep Step(PlayedStep p, Look look, bool mayOverlap, StripStepState state, bool? holds)
+    private static StripStep Step(PlayedStep p, Look look, bool mayOverlap, StripStepState state)
     {
         var (library, skillIcon, avatar) = (look.Library, look.SkillIcon, look.Avatar);
         if (p.Step.Action == StepAction.Condition)
@@ -116,7 +113,7 @@ internal static class RotationStripView
             return new StripStep(ConditionIcon.Picture(subject, library, look.StatusIcon, avatar), null,
                 p.Step.Label ?? Loc.Get("Rotation.Action.Condition"),
                 p.Step.Note ?? ConditionWords.Statements(p.Step.Expect, library, look.PhaseName),
-                state, false, new StripCondition(holds, subject.Kind == AlertSubjectKind.SkillPoints));
+                state, false, new StripCondition(subject.Kind == AlertSubjectKind.SkillPoints));
         }
         // "Whoever is controlled": the one controlled now; nobody known, no face (the label says what it is).
         var op = p.Step.OperatorId == RotationStep.Controlled ? look.Controlled : library?.Find(p.Step.OperatorId);

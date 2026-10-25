@@ -16,10 +16,9 @@ namespace EndHud;
 /// <param name="Condition">A condition step's own look; null for a skill or an attack.</param>
 internal sealed record StripStep(BitmapSource? Icon, BitmapSource? Avatar, string Action, string? Note, StripStepState State, bool WithPrevious, StripCondition? Condition = null);
 
-/// <summary>A condition step on the strip.</summary>
-/// <param name="Holds">Its conditions hold now (glows cyan); false or unknown (null: not read, or the editor's preview): dim.</param>
+/// <summary>A condition step on the strip (lit like any step once met: <see cref="StripStepState.Lit"/>).</summary>
 /// <param name="SkillPoints">Its first condition is about the skill points: their glyph in the circle (when <see cref="StripStep.Icon"/> is null).</param>
-internal sealed record StripCondition(bool? Holds, bool SkillPoints);
+internal sealed record StripCondition(bool SkillPoints);
 
 internal enum StripStepState
 {
@@ -55,7 +54,8 @@ internal sealed record StripNext(string Phase, IReadOnlyList<StripStep> Steps);
 /// The rotation strip (排轴), drawn like the community's rotation charts: a see-through grey band that
 /// fades out at both ends, a line through the skill icons, the phase's name large on the left. The
 /// current step has stacked chevrons above it: cyan when it's time to use it, white when it isn't
-/// yet (the reasons, in words, under the band). Done steps fade. Text has a dark outline so it reads
+/// yet (the reasons, in words, under the band). Steps seen used are lit (an amber ring on a filled disc),
+/// the others dim, attacks (never seen) half dim with a dashed ring. Text has a dark outline so it reads
 /// over any scene. Drawn at the size for a 1080p game window and scaled with the window (see
 /// ComboHintLayout).
 /// </summary>
@@ -82,6 +82,10 @@ internal static class RotationStrip
 
     /// <summary>A lit step's ring and glow: amber, apart from the cyan of "use it now" and the red of the reasons.</summary>
     internal static readonly Color LitColor = Color.FromRgb(0xFF, 0xC2, 0x4A);
+    private static readonly Brush Lit = Frozen(LitColor);
+
+    /// <summary>A lit step's disc: filled, a dark warm tone under its white icon.</summary>
+    private static readonly Brush LitFill = Frozen(Color.FromArgb(0xE0, 0x4A, 0x36, 0x14));
 
     /// <summary>A step not seen used yet this round: dimmed, so the lit ones stand out.</summary>
     internal const double UnlitOpacity = 0.45;
@@ -211,14 +215,14 @@ internal static class RotationStrip
     private static UIElement Step(StripStep step)
     {
         bool current = step.State is StripStepState.Ready or StripStepState.Waiting;
+        bool lit = step.State == StripStepState.Lit;
         var accent = step.State == StripStepState.Ready ? Cyan : Text;
-        // A condition step glows cyan while its conditions hold, done or not; dim otherwise (owner, 2026-10-24).
-        bool? glows = step.Condition is { } condition ? condition.Holds == true : null;
         var panel = new StackPanel
         {
             Width = StepWidth,
             Margin = new Thickness(step.WithPrevious ? -Overlap : 0, 0, 0, 0),
-            Opacity = glows switch { true => 1, false => 0.45, null => step.State is StripStepState.Lit ? 0.45 : 1 },
+            // Lit and current bright; not seen yet dim; an attack (never seen) in between (owner, 2026-10-24).
+            Opacity = step.State switch { StripStepState.Unlit => UnlitOpacity, StripStepState.Neutral => NeutralOpacity, _ => 1 },
             Tag = step.State, // found by it in tests
         };
         panel.Children.Add(Chevrons(current ? accent : null));
@@ -234,14 +238,16 @@ internal static class RotationStrip
         });
 
         var icon = new Grid { Width = IconSize, Height = IconSize, Margin = new Thickness(0, 2, 0, 2) };
-        bool cyan = glows ?? step.State == StripStepState.Ready;
         icon.Children.Add(new Ellipse
         {
-            Fill = current ? CurrentFill : StepFill,
-            // Cyan: use it now (a condition step: it holds). White: this is the step, but not yet. Grey: later.
-            Stroke = cyan ? Cyan : current ? accent : Ring,
-            StrokeThickness = current || cyan ? 3.5 : 2,
-            Effect = cyan ? new DropShadowEffect { Color = CyanColor, BlurRadius = 12, ShadowDepth = 0, Opacity = 0.9 } : null,
+            Fill = current ? CurrentFill : lit ? LitFill : StepFill,
+            // Cyan: use it now. White: this is the step, but not yet. Amber: seen used (met). Grey: not yet seen; dashed: never seen.
+            Stroke = current ? accent : lit ? Lit : Ring,
+            StrokeThickness = current || lit ? 3.5 : 2,
+            StrokeDashArray = step.State == StripStepState.Neutral ? [3, 2] : null,
+            Effect = step.State == StripStepState.Ready ? new DropShadowEffect { Color = CyanColor, BlurRadius = 12, ShadowDepth = 0, Opacity = 0.9 }
+                : lit ? new DropShadowEffect { Color = LitColor, BlurRadius = 10, ShadowDepth = 0, Opacity = 0.8 }
+                : null,
         });
         if (step.Condition is { } about)
         {

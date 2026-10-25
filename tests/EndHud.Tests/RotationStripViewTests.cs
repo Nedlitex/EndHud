@@ -253,11 +253,11 @@ public class RotationStripViewTests
     private static Vision.PartyState Cryo(int stacks) => new([]) { SkillPoints = 2, BossStatuses = [new Vision.BossStatusReading("Cryo Infliction", 0, 1, stacks)] };
 
     /// <summary>
-    /// The circle holds the first condition's icon (the alert pop-up's rule: a status's icon here), the
-    /// caption under it is the conditions in words, and it glows while they hold, followed or not.
+    /// The circle holds the first condition's icon (the alert pop-up's rule: a status's icon here), and the
+    /// caption under it is the conditions in words. How it is lit is its mark's, as any step's (below).
     /// </summary>
     [Fact]
-    public void A_condition_step_shows_its_icon_and_words_and_glows_while_it_holds()
+    public void A_condition_step_shows_its_icon_and_words()
     {
         var status = OnSta(() =>
         {
@@ -276,16 +276,14 @@ public class RotationStripViewTests
         Assert.Null(step.Avatar);
         Assert.Equal(Loc.Get("Rotation.Action.Condition"), step.Action);
         Assert.Equal(ConditionWords.Statements([CryoThree], null, _ => null), step.Note);
-        Assert.Equal(new StripCondition(true, false), step.Condition);
-        Assert.Equal(new StripCondition(false, false), waiting.Steps[0].Condition);
+        Assert.Equal(new StripCondition(false), step.Condition);
+        Assert.Equal(new StripCondition(false), waiting.Steps[0].Condition);
         Assert.Null(holding.Steps[1].Condition); // a skill step isn't one
-        // The glow must reach the screen: the strip is redrawn only when its key changes.
-        Assert.NotEqual(RotationStripView.Key(holding), RotationStripView.Key(waiting));
         OnSta(() => RotationStrip.Build(holding)); // draws
         OnSta(() => RotationStrip.Build(waiting));
     }
 
-    /// <summary>A note written on the step is its caption; skill points draw their glyph; nothing read (the editor's preview): dim.</summary>
+    /// <summary>A note written on the step is its caption; skill points draw their glyph; the preview draws it plain.</summary>
     [Fact]
     public void A_condition_step_keeps_its_note_and_draws_the_skill_points_glyph()
     {
@@ -295,22 +293,9 @@ public class RotationStripViewTests
         var preview = RotationStripView.ForPhase(rotation, 0, null, (_, _) => null, _ => null);
 
         Assert.Equal("等技力", preview.Steps[0].Note);
-        Assert.Equal(new StripCondition(null, true), preview.Steps[0].Condition);
+        Assert.Equal(new StripCondition(true), preview.Steps[0].Condition);
         Assert.Null(preview.Steps[0].Icon);
         OnSta(() => RotationStrip.Build(preview));
-    }
-
-    /// <summary>Followed, the condition step is done the reading it holds, and still glows (owner: the glow follows "holds").</summary>
-    [Fact]
-    public void Done_and_holding_it_still_glows()
-    {
-        var rotation = WithConditionStep(CryoThree);
-        var steps = new StepPosition(0, [StepMark.Lit, StepMark.Current], true, [new ConditionCheck(CheckKind.OwnAbility, null, true)]);
-
-        var view = RotationStripView.Build(rotation, new RotationPosition(rotation.Played()[0], true, []), Cryo(3), null, (_, _) => null, _ => null, steps);
-
-        Assert.Equal(StripStepState.Lit, view.Steps[0].State);
-        Assert.Equal(true, view.Steps[0].Condition?.Holds);
     }
 
     /// <summary>
