@@ -49,6 +49,31 @@ public class OnScreenDisplayCombatTests
     }
 
     /// <summary>
+    /// A ready combo bar under the display's backdrop is grey at 114, which read as a bar refilling (ready read
+    /// 0.92-0.99); a flat dark backdrop over exploration read as an empty track (unknown read 0.00), and with the
+    /// skill points read as a battle.
+    /// </summary>
+    [Theory]
+    [InlineData("combat-all-ready.jpg", "4K")]
+    [InlineData("combat-all-ready.jpg", "1080p")]
+    [InlineData("ultimate-charge-near-half.jpg", "4K")]
+    [InlineData("exploration-dark-portraits.jpg", "1080p")]
+    public async Task A_combo_bar_under_a_display_reads_its_value_or_unknown(string file, string size)
+    {
+        var reader = new PartyReader(new TextRecognizer());
+        var frame = (await Sizes(file)).Single(s => s.Size == size).Frame;
+        var clean = await reader.ReadAsync(frame);
+        foreach (var (name, covered) in Covered(frame, OsdPosition.BottomLeft))
+        {
+            var read = await reader.ReadAsync(covered);
+            for (int i = 0; i < clean.Slots.Count; i++)
+                if (read.Slots[i].Combo is { } combo)
+                    Assert.True(clean.Slots[i].Combo == combo, $"{name}: slot {i + 1} combo {clean.Slots[i].Combo} read {combo}");
+            Assert.False(read.InCombat && !clean.InCombat, $"{name}: read as a battle");
+        }
+    }
+
+    /// <summary>
     /// A squad of three with the display over slot 1: slot 1 showing nothing readable was taken for a screen without
     /// the squad panel, so the squad was read as four.
     /// </summary>
