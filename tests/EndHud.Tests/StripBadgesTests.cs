@@ -120,6 +120,10 @@ public class StripBadgesTests
         Assert.Equal([true], Of(new NotCondition(b), Holds).Select(x => x.Holds));
         Assert.Equal([false], Of(new SkillPointsCondition(Comparison.AtLeast, 1), Holds).Select(x => x.Holds)); // unknown: dim
         Assert.Contains(asked, c => c is NotCondition { Of: UltimateCondition });
+
+        // "Step 2 lit" in a finish condition: bright by its own check (only the follower knows this round's lights).
+        var stepTwo = new StepsLitCondition(StepsLitWhich.These, Steps: [2]);
+        Assert.Equal([true], Of(stepTwo, c => ReferenceEquals(c, stepTwo) ? true : null).Select(x => x.Holds));
     }
 
     /// <summary>A step's own ability: only a battle skill short of skill points gets a badge, the skill points it needs, dim.</summary>

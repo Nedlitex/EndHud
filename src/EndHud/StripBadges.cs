@@ -55,7 +55,8 @@ internal static class StripBadges
                     // A badge per step named, its picture; "not" over them: any one not lit.
                     for (int i = 0; i < steps.Count; i++)
                     {
-                        StateCondition one = new StepsLitCondition(StepsLitWhich.These, Steps: [steps[i]]);
+                        // One step named: the condition itself, as it was checked (the finish condition's check knows this round's lights).
+                        StateCondition one = steps.Count == 1 ? condition : new StepsLitCondition(StepsLitWhich.These, Steps: [steps[i]]);
                         var picture = pictures.StepPicture(steps[i]);
                         badges.Add(new StripBadge(picture, picture is null ? BadgeGlyph.Steps : BadgeGlyph.Picture, null, BadgeSign.None, not,
                             Holds(not ? new NotCondition(one) : one), i == 0 ? or : not));

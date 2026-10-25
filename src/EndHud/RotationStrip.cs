@@ -373,7 +373,7 @@ internal static class RotationStrip
     }
 
     /// <summary>A badge's height at 1080p, and its picture's.</summary>
-    private const double BadgeHeight = 26, BadgePicture = 22, BadgeMargin = 1.5;
+    private const double BadgeHeight = 24, BadgePicture = 20, BadgeMargin = 1;
 
     private static readonly Brush BadgeFill = Frozen(Color.FromArgb(0xD0, 0x18, 0x1A, 0x1E));
 
@@ -416,10 +416,10 @@ internal static class RotationStrip
             {
                 Text = value,
                 Foreground = Text,
-                FontSize = 15,
+                FontSize = 14,
                 FontWeight = FontWeights.Bold,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(2, 0, 0, 1),
+                Margin = new Thickness(1, 0, 0, 1),
                 Effect = Outline(),
             });
         }
@@ -430,7 +430,7 @@ internal static class RotationStrip
             Background = BadgeFill,
             BorderBrush = badge.Holds ? Lit : Ring,
             BorderThickness = new Thickness(1.5),
-            Padding = new Thickness(1, 0, badge.Value is null && badge.Sign == BadgeSign.None ? 1 : 6, 0),
+            Padding = new Thickness(1, 0, badge.Value is null && badge.Sign == BadgeSign.None ? 1 : 5, 0),
             Child = content,
         };
         var item = new StackPanel { Orientation = Orientation.Horizontal };
