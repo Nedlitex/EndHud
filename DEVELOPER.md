@@ -146,6 +146,15 @@ rotation charts.
   at once: strip, gauges, alerts, combo hints, and a battle-skill key is "not in battle". A fight in
   the open world turns the switch's icon red, and that is a battle. See
   [Out of battle: the mode switch](#out-of-battle-the-mode-switch).
+- **Not in open-world fights, by default** (owner, 2026-10-25: "we should by default not show the rotation in open
+  world battle, make this a choice that user can flip otherwise. look at the left top for difference, if there is 撤离
+  that is battle we should by default show rotation"). An instance's battle (the evacuate bar, 撤离, at the top left)
+  shows the strip; a fight in the open world doesn't, unless the player ticks 在大世界战斗中也显示排轴 in the 排轴 card
+  (`ShowRotationInOpenWorld`, off by default). The gauges, combo-ready hints and alert pop-ups have the same switch in
+  their cards, on by default (owner: "the rest of the battle hud should also be able to controlled"). Only the drawing
+  is held back: the phase selector and step follower keep running, so ticking it mid-fight shows the right step at
+  once. The first time a strip is held back, the tray says so once. See
+  [The battle kind: instance or open world](#the-battle-kind-instance-or-open-world).
 - **Looks like the guides' charts:** a see-through grey band that fades out at both ends, no
   backdrop box, the phase name large on the left, a line through the icons. Centred at the top by
   default, and it stays centred as its width changes.
@@ -665,7 +674,7 @@ release.yml).
 | `AutoShowOnGameFocus` | `true` | Show the HUD when the game has focus and hide it otherwise. When `false`, the HUD only shows after Ctrl+Shift+H. |
 | `PartyOcrEnabled` | `true` | Read the squad panel (names, HP, skills, levels). |
 | `OcrIntervalMs` | `250` | How often the screen is read, in milliseconds (minimum 250). Rotations need it fast: skill points are spent and refilled quickly. |
-| `SettingsVersion` | current | The file's version, to update old defaults the player never chose (the first start writes the whole file): before version 2 an `OcrIntervalMs` of 1000 gets 250; before 3 a `GaugesScale` of 50% gets 100%; before 5 the inn banners' old default places get the new one; before 6 an `InnStripOpacity` of 100% gets 85%. |
+| `SettingsVersion` | current | The file's version, to update old defaults the player never chose (the first start writes the whole file): before version 2 an `OcrIntervalMs` of 1000 gets 250; before 3 a `GaugesScale` of 50% gets 100%; before 5 the inn banners' old default places get the new one; before 6 an `InnStripOpacity` of 100% gets 85%. Version 7 adds the show-in-open-world settings and the notice's mark; a file without them reads their defaults, nothing rewritten. |
 | `Language` | `zh-CN` | UI language: picks `i18n/<Language>.xaml`. |
 | `ComboHintEnabled` | `true` | Show the combo-ready hint (needs `PartyOcrEnabled`). |
 | `ComboHintMode` | `WhenReady` | `WhenReady`: for `ComboHintSeconds` after the cooldown finishes. `WhileReady`: until the combo skill is used. |
@@ -673,6 +682,9 @@ release.yml).
 | `ComboHintX`, `ComboHintY` | `0.2`, `0.36` | Where the hint sits: its top-left corner as a fraction of the game window's width and height. The alert pop-ups mirror it (right edge at 1 − `ComboHintX`, same `ComboHintY`). |
 | `AlertsEnabled` | `true` | Pop up the player's alert rules (`alerts.json`) in battle (needs `PartyOcrEnabled`). An operational switch over a feature that ships on: the rules list decides whether anything shows. A `config.json` from before it reads as on. |
 | `RotationEnabled` | `true` | Show the rotation strip when the recognised squad has a rotation. |
+| `ShowRotationInOpenWorld` | `false` | Show the rotation strip in a fight in the open world too (the 排轴 card's 在大世界战斗中也显示排轴). Off by default, the owner's choice; an instance's battle shows it either way. See [The battle kind](#the-battle-kind-instance-or-open-world). |
+| `ShowGaugesInOpenWorld`, `ShowComboHintsInOpenWorld`, `ShowAlertsInOpenWorld` | `true` | The same for the gauges, the combo-ready hints and the alert pop-ups, each in its own card. On by default, as before the settings. |
+| `OpenWorldRotationNoticeShown` | `false` | The one-time tray notice that the strip is hidden in open-world fights has been shown; it never comes again. |
 | `RotationCenterX`, `RotationY` | `0.5`, `0.13` | Where the strip sits, as a fraction of the game window: the middle of its width (it stays centred as it changes width) and its top. |
 | `RotationScale` | `1` | The strip's size on top of following the game window, 0.5–2 (the menu's 大小 slider; a value outside is brought back into range). |
 | `GaugesEnabled` | `true` | Show the gauges in battle: team buffs (Link with its stacks, once seen in the battle), and each recognised operator's ultimate charge and own counters, as circles with the operator's avatar in the middle. While a lasting ultimate runs (Laevatain's, Zhuang Fangyi's, Yvonne's), its own operator's ultimate circle shows its time left instead, whoever is controlled: violet, glowing, draining anticlockwise, labelled 持续中 ("≈持续中" while it's carried on off the bar); see [Lasting ultimates](#lasting-ultimates). Counters are live for the whole squad in combat with keyboard and mouse (the switched-out operators' are read on their portraits). With Si in the squad: her damage stacks as a plain number, and while her battle skill lasts its time left (grey-white, "≈" when estimated); see [Gauges for Si](#gauges-for-si). |
@@ -2644,7 +2656,7 @@ package, add it to `requirements.txt` with an exact version.
 | `build-portrait-references <squads.json> <out.json>` | Rebuild EndHud's built-in in-game portrait references from labelled 4K squad screenshots. |
 | `trace-video <video>` `[--every <s>] [--from <s>] [--to <s>] [--presses <file>] [--casts] [--rotation <rotation.json> --squad <id1>,<id2>,<id3>,<id4>]` | One CSV row per sampled frame: skill points and, per slot, combo, ultimate and battle-skill button, for studying when abilities are used. `--presses`: a file of the battle skills cast in the recording, lines `seconds,slot` (`#` starts a comment; a bad line is refused with its line number); a `presses` column says how each press was judged against the row before (e.g. `2:Counted 2:Repeat`). `--casts` (a 30 fps recording): the battle-skill corner of every frame sampled between rows, as the app does, and a `casts` column of the casts judged at each row (`slot:source@seconds`, e.g. `3:Flash@16.43`, `?:Unattributed@20.25`), and an `empowered` column, each slot's battle skill empowered as that row takes it (`y`, `n`, `-` when it can't be told; slot 1 first, e.g. `ny--`). Both layouts: the corner read follows the layout of the last row that saw the squad panel. `--rotation` with `--squad` (the operator ids by slot, so no naming is needed): `phase,step` columns, the phase the strip shows and the step it marks current (1-based; `-` out of battle or with no step marked), followed from the casts judged. |
 | `trace-inn <video>` `[--every <s>] [--from <s>] [--to <s>] [--end-margin <s>] [--reference <dir>]` | Text only, never an image: per sampled frame (0.5 s) the inn screen, the timer, each table card's state and item ids and the dispatch panel's dishes and queue; then every order once (counted only after its table was seen choosing, items by a vote over the frames that showed them), the counts per dish and drink, gourmand orders apart, the menu and the theme as the screens state them. For measuring what guests order. `--end-margin` leaves out a recording's last seconds. |
-| `trace-mode-pill <video\|image>...` `[--every <s>] [--from <s>] [--to <s>] [--end-margin <s>]` | Text only: per frame (a recording sampled every `--every` s, never its last `--end-margin` s, 5 by default; or each image) the top-left mode switch's shape score, the red share of its icon, the reading, and whether the squad panel reads as on screen and in combat. For tuning [the mode switch](#out-of-battle-the-mode-switch). |
+| `trace-mode-pill <video\|image>...` `[--every <s>] [--from <s>] [--to <s>] [--end-margin <s>]` | Text only: per frame (a recording sampled every `--every` s, never its last `--end-margin` s, 5 by default; or each image) the top-left mode switch's shape score, the red share of its icon, the reading, whether the squad panel reads as on screen and in combat, and the evacuate bar's white share, the ink of its icon and of each character, and whether it is read. For tuning [the mode switch](#out-of-battle-the-mode-switch) and [the battle kind](#the-battle-kind-instance-or-open-world). |
 | `fetch-operators <dir>` | Download or update the roster, avatars and skill icons from the wiki into `<dir>/reference`, as the app does (`identify` and `learn` use the same layout). |
 
 
@@ -2764,6 +2776,59 @@ and goes as they go).
 - **Fixtures**: `Fixtures/mode-switch/` (controller exploring, also over a bright sky; a fight over
   a bright sky; the evacuate bar's highest-scoring frame; keyboard building), the exploration and
   `controller/` fixtures. No fixture has the controller layout in 工业 mode.
+
+### The battle kind: instance or open world
+
+What the owner asked for (2026-10-25): "we should by default not show the rotation in open world battle, make this a
+choice that user can flip otherwise. look at the left top for difference, if there is 撤离 that is battle we should by
+default show rotation", then "the rest of the battle hud should also be able to controlled to define whether to show in
+open world. add a notification after flipping the default to false to notify user that they can change this (show only
+once)".
+
+- **Reading** ([`EvacuateBar`](src/EndHud.Vision/EvacuateBar.cs), every reading, anchored top-left via `UiScaler.TopLeft`
+  on the letterbox-free picture): the evacuate bar is a white rounded box, x 36-356 and y 68-146 at 4K, with an icon on
+  its left (a door with keyboard and mouse, "ESC" above; a round menu button with a controller; none at all after a
+  failed fight) and 撤离 in black. By its parts, never by OCR: the box's blank areas (above and below the icon and the
+  word, between them, right of the word) at least 0.9 white (all channels over 200), and ink (all channels under 110)
+  in each character's place between 0.15 and 0.6 (the bar: 0.42-0.48 each; a dark patch is more). The icon is measured
+  but not required. The glyphs aren't compared pixel by pixel: 撤离 renders a pixel or two differently from one capture
+  to the next. The scenery around the box is never compared (a bright sky sits right against it).
+- **Measured** with `endhud-cli trace-mode-pill` (its evacuate columns) every 1 s over 14 of the owner's recordings,
+  never their last 5 s (1,737 frames, keyboard and controller): in the 12 instance recordings the bar was read on
+  996 of the 1,003 frames in combat (the 7 others: the screen greyed as a battle starts, the HUD fading in); in the two
+  open-world recordings (battle_controller_test4: fights with the switch's red mark; test_battle_full1: an event fight
+  at 重度能量淤积点 with neither the switch nor the bar) on none of the 100 frames in combat, and on none of the 147
+  frames showing the switch anywhere. Every fixture: the bar on every instance fixture whose top left isn't blacked
+  out, nowhere else (menus, cutscenes, photo mode, the inn's white panels).
+- **Kept** ([`PartyTracker`](src/EndHud.Vision/PartyTracker.cs), `PartyState.BattleKind`): the evacuate bar is
+  `Instance`, the mode switch (either reading) `OpenWorld`, whichever was seen last, a new one after 2 readings in a
+  row; neither seen keeps it for good. That is what makes it work: the bar is gone in an ultimate's cutscene and under
+  an on-screen display, and an open-world event's fight draws its own buttons there with no switch (the owner's
+  screenshot, `Fixtures/mode-switch/keyboard-open-world-event-fight.jpg`), while the kind can only change through a
+  loading screen into the other, which shows its own sign (in every instance recording the bar was read by the first
+  second of combat). `Unknown` until either sign is seen (EndHud started mid-fight in an open-world event, or the
+  corner covered all along): every overlay shows, as before.
+- **What it hides** ([`BattleOverlays`](src/EndHud/BattleOverlays.cs)): in an `OpenWorld` fight, each battle overlay
+  by its own setting: the strip by `ShowRotationInOpenWorld` (off by default, the owner's choice), the gauges, the
+  combo-ready hints and the alert pop-ups by `ShowGaugesInOpenWorld`, `ShowComboHintsInOpenWorld`,
+  `ShowAlertsInOpenWorld` (on by default, as before). One row in each card: 在大世界战斗中也显示排轴 / 连携就绪提示 /
+  状态监视, 在大世界战斗中也弹出战斗提示, with the one-line hint 副本战斗（左上角有“撤离”按钮）中总是显示…. The boss's
+  statuses are read for the strip and the alerts, not drawn on their own, so they have no switch. Only the drawing is
+  held back: `RotationFollower` (phase and step following), the gauges' counter memory and the combo cooldowns keep
+  running on the reading already taken (no extra cost), so a setting ticked mid-fight shows the fight as it is; held-back
+  alert rules start over as at a fight's start. The menu's placement samples show whatever the kind.
+- **The notice** ([`OpenWorldNotice`](src/EndHud/BattleOverlays.cs)): the first time a strip would have shown and was
+  held back in an open-world fight (a player upgrading and a new player alike: that is when it matters), a tray
+  balloon says the strip is now hidden in open-world fights and where to turn it on (`Notice.RotationHiddenInOpenWorld`).
+  `OpenWorldRotationNoticeShown` in config.json, saved at once, so it never comes again.
+- **Overlays drawn into the game**: text and graphs don't make a white box with the word in it, and a display's dark
+  backdrop greys the box: a covered bar reads not seen, which keeps the kind last seen (`EvacuateBarTests` draws the
+  synthetic display at every position over open-world frames; the combat OSD gate compares it as "seen or unknown").
+- **Logged**: "battle kind (top left): …" with the bar's measures whenever the kept kind changes; the diagnostics' last
+  reading names it.
+- **Fixtures**: the instance fixtures (`combat-*`, `battle-*`, `controller/combat*`, `mode-switch/controller-evacuate-bar.jpg`,
+  `panel-or-not/white-sky-after-a-failed-fight.jpg`); `mode-switch/keyboard-open-world-event-fight.jpg` (an open-world
+  event fight) and `mode-switch/controller-evacuate-bar-battle-start.jpg` (the bar greyed: not read).
 
 ### Controller layout
 
