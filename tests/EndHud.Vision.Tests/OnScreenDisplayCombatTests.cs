@@ -79,6 +79,34 @@ public class OnScreenDisplayCombatTests
     }
 
     /// <summary>
+    /// The display at the bottom right over a battle-skill button that can't be read (dimmed): its white text gave
+    /// enough white for an icon (unknown read Available), and on its dark backdrop for a countdown (unknown read
+    /// Cooling); Si's button, read through the same test first, read Cooling too.
+    /// </summary>
+    [Theory]
+    [InlineData("battle-hud/battle-47s.jpg")]
+    [InlineData("battle-low-hp.jpg")]
+    [InlineData("portrait-counters/laevatain-35s.jpg")]
+    public async Task A_battle_skill_button_under_a_display_reads_its_state_or_unknown(string file)
+    {
+        var reader = new PartyReader(new TextRecognizer());
+        foreach (var (size, frame) in await Sizes(file))
+        {
+            var clean = await reader.ReadAsync(frame);
+            foreach (var (name, covered) in Covered(frame, OsdPosition.BottomRight))
+            {
+                var read = await reader.ReadAsync(covered);
+                for (int i = 0; i < clean.Slots.Count; i++)
+                    if (read.Slots[i].BattleSkill is { } state)
+                        Assert.True(clean.Slots[i].BattleSkill == state, $"{size} {name}: slot {i + 1} battle skill {clean.Slots[i].BattleSkill} read {state}");
+                for (int button = 0; button < PartyLayout.SlotCount; button++)
+                    if (SkillRing.ReadSi(covered, button).Icon is var icon and not SkillButtonIcon.Unknown)
+                        Assert.True(SkillRing.ReadSi(frame, button).Icon == icon, $"{size} {name}: Si's button {button} read {icon}");
+            }
+        }
+    }
+
+    /// <summary>
     /// A squad of three with the display over slot 1: slot 1 showing nothing readable was taken for a screen without
     /// the squad panel, so the squad was read as four.
     /// </summary>
