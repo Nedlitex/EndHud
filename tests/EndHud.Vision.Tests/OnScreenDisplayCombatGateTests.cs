@@ -15,7 +15,7 @@ namespace EndHud.Vision.Tests;
 /// <para>
 /// Read at 4K and at 1080p over the combat, exploration and HUD fixtures (both layouts): the squad panel (seen, in
 /// combat, squad size, the controlled slot, skill points and the bar's segment count, the time bar; per slot fallen, HP, level, combo, ultimate,
-/// battle skill), the mode switch, team buffs, the boss's statuses, the squad's counters and Si's button with the squad
+/// battle skill), the mode switch, the evacuate bar (撤离: an instance), team buffs, the boss's statuses, the squad's counters and Si's button with the squad
 /// known. What the app keeps from a reading follows <see cref="PartyTracker"/>: a reading without the squad panel is not
 /// taken, so its slot values count as unknown. Each variant's verdicts are written to the test output ("GATE" lines).
 /// </para>
@@ -163,7 +163,8 @@ public class OnScreenDisplayCombatGateTests(ITestOutputHelper output)
     }
 
     /// <summary>A value <see cref="PartyTracker"/> takes only from a reading that saw the squad panel.</summary>
-    private static bool TakenWithPanel(string field) => !field.StartsWith("boss", StringComparison.Ordinal) && field != "mode switch";
+    private static bool TakenWithPanel(string field) =>
+        !field.StartsWith("boss", StringComparison.Ordinal) && field != "mode switch" && field != "evacuate bar";
 
     /// <summary>Two fractions within 0.03: the same reading (a pixel's rounding at another size).</summary>
     private static bool Close(string? a, string? b) =>
@@ -182,6 +183,8 @@ public class OnScreenDisplayCombatGateTests(ITestOutputHelper output)
         r["panel"] = state.PanelVisible.ToString();
         r["combat"] = state.InCombat.ToString();
         r["mode switch"] = state.ModePill == ModePillReading.NotSeen ? null : state.ModePill.ToString();
+        // The evacuate bar (撤离): seen, or unknown (not seen says nothing: absent or covered).
+        r["evacuate bar"] = state.EvacuateBar ? "True" : null;
         r["layout"] = state.Layout.ToString();
         r["squad size"] = state.SquadSize.ToString(CultureInfo.InvariantCulture);
         r["active"] = state.ActiveSlot?.ToString(CultureInfo.InvariantCulture);
