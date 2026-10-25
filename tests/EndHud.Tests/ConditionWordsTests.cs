@@ -75,6 +75,7 @@ public class ConditionWordsTests
         new UltimateActiveCondition("Laevatain", false),
         new BattleSkillActiveCondition("Si", false),
         new BattleSkillEmpoweredCondition("Si", true),
+        new TeamBuffCondition("Link", Comparison.AtLeast, 1),
         new CounterCondition("Si", "damage-stacks", Comparison.Below, 3),
         new BossStatusCondition("Cryo Infliction", true, 3),
         new ControllingCondition("Last_Rite"),
@@ -171,6 +172,20 @@ public class ConditionWordsTests
         Assert.Contains("战技已强化", S("Alert.Describe.BattleSkillEmpowered"));
         Assert.Contains("战技未强化", S("Alert.Describe.BattleSkillNotEmpowered"));
         Assert.Equal("战技已强化", S("Editor.Condition.BattleSkillEmpowered"));
+    }
+
+    /// <summary>连击层数 in words: the buff's Chinese name, the comparison and the stacks; the need says the stacks read now (0 when not shown).</summary>
+    [Fact]
+    public void Team_buff_stacks_read_as_its_name_and_count()
+    {
+        string link = StatusNames.Zh("Link")!;
+        Assert.Equal("连击", link);
+        Assert.Equal(F("Alert.Describe.TeamBuff", link, "≥", 1), Statement(new TeamBuffCondition("Link", Comparison.AtLeast, 1)));
+        Assert.Equal("连击层数 ≥ 1", Statement(new TeamBuffCondition("Link", Comparison.AtLeast, 1)));
+        Assert.Equal(F("Rotation.Reason.NeedNow", F("Alert.Describe.TeamBuff", link, "≥", 2), "1"),
+            Need(new TeamBuffCondition("Link", Comparison.AtLeast, 2), Reading() with { Buffs = [new Vision.TeamBuff("Link", 1)] }));
+        Assert.Equal(F("Rotation.Reason.NeedNow", F("Alert.Describe.TeamBuff", link, "≥", 1), "0"), Need(new TeamBuffCondition("Link", Comparison.AtLeast, 1), Reading()));
+        Assert.Equal("队伍增益层数", S("Editor.Condition.TeamBuff"));
     }
 
     /// <summary>One word per meaning (Lead, 2026-10-24): a lasting skill that stopped is 已结束 everywhere, never 未持续.</summary>

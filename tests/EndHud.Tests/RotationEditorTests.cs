@@ -361,6 +361,51 @@ public sealed class RotationEditorTests : IDisposable
         Assert.Contains("\"kind\": \"battleSkillEmpowered\"", File.ReadAllText(Directory.GetFiles(_folder, "*.json").Single()));
     }
 
+    /// <summary>
+    /// 队伍增益层数 built with the pickers (owner, 2026-10-25: "a condition that 连击>=1"): the buff picked by its Chinese
+    /// name (连击), a comparison and its stacks 0 to 4, a line under the row saying what is read, saved in format 12.
+    /// </summary>
+    [Fact]
+    public void A_phase_gated_on_team_buff_stacks_is_built_with_the_pickers()
+    {
+        var library = new RotationLibrary(_folder);
+        library.Own.Save(new Rotation(Rotation.CurrentFormat, "mine", "Si", SiSquad,
+        [
+            new RotationPhase("charge", "Charge", [new RotationStep("Si", StepAction.BattleSkill)]),
+            new RotationPhase("burst", "Burst", [new RotationStep("Tangtang", StepAction.BattleSkill)], [new SkillPointsCondition(Comparison.AtLeast, 1)]),
+        ]));
+
+        string said = "";
+        List<object> buffs = [], values = [];
+        List<string> buffNames = [];
+        bool hint = false;
+        OnEditor(library, _ => { }, editor =>
+        {
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1;
+            var gate = (StackPanel)editor.FindName("GateRows");
+            Pick(RowOf(gate.Children[0]).Children.OfType<ComboBox>().First(), "TeamBuff");
+            var pickers = RowOf(gate.Children[0]).Children.OfType<ComboBox>().ToList(); // kind, buff, comparison, stacks
+            buffs = pickers[1].Items.Cast<ComboBoxItem>().Select(i => i.Tag).ToList();
+            buffNames = pickers[1].Items.Cast<ComboBoxItem>().Select(i => i.Content?.ToString() ?? "").ToList();
+            values = pickers[3].Items.Cast<ComboBoxItem>().Select(i => i.Tag).ToList();
+            Pick(pickers[2], Comparison.AtLeast);
+            Pick(pickers[3], 1);
+            hint = gate.Children[0] is StackPanel { Children: [_, TextBlock { Text: "Editor.TeamBuffHint" }] };
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        }, squad: SiSquad);
+
+        Assert.Equal(["Link"], buffs);
+        Assert.Equal(["连击"], buffNames);
+        Assert.Equal([0, 1, 2, 3, 4], values.Cast<int>());
+        Assert.True(hint);
+        var saved = Assert.Single(library.Own.Load().Rotations);
+        Assert.True(saved.Phases[1].When.Count == 1, $"editor said: {said}");
+        Assert.Equal(new TeamBuffCondition("Link", Comparison.AtLeast, 1), saved.Phases[1].When[0]);
+        Assert.Equal(12, saved.Format);
+        Assert.Contains("\"kind\": \"teamBuff\"", File.ReadAllText(Directory.GetFiles(_folder, "*.json").Single()));
+    }
+
     /// <summary>A squad without Si: "battle skill running" is listed but greyed out, saying whose skill time is read.</summary>
     [Fact]
     public void Without_Si_battle_skill_running_is_greyed_out_and_says_why()

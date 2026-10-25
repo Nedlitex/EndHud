@@ -100,6 +100,8 @@ public class AlertTextTests
         // Empowered: the operator's battle skill icon, not their face (the glow is on that button).
         Assert.Equal(new AlertSubject(AlertSubjectKind.BattleSkill, "Laevatain"), AlertText.Subject([new BattleSkillEmpoweredCondition("Laevatain", true)]));
         Assert.Equal(new AlertSubject(AlertSubjectKind.BattleSkill, "Laevatain"), AlertText.Subject([new NotCondition(new BattleSkillEmpoweredCondition("Laevatain", true))]));
+        // A team buff: its icon, as a status's (the wiki's Link icon).
+        Assert.Equal(new AlertSubject(AlertSubjectKind.Status, "Link"), AlertText.Subject([new TeamBuffCondition("Link", Comparison.AtLeast, 1)]));
         Assert.Equal(new AlertSubject(AlertSubjectKind.None), AlertText.Subject([]));
         Assert.Equal(new AlertSubject(AlertSubjectKind.None), AlertText.Subject([new AnyCondition([])]));
     }
