@@ -1021,13 +1021,18 @@ public sealed class RotationEditorTests : IDisposable
         Assert.Single(draft.Finish);
     }
 
+    /// <summary>
+    /// 0.0 to 20.0 by tenths: the bar has three segments in most fights and more in some (seven seen, 2026-10-25), and
+    /// the reader takes up to 20 (owner: "if we need a max, use 20").
+    /// </summary>
     [Fact]
-    public void The_skill_point_picker_offers_0_to_3_by_tenths()
+    public void The_skill_point_picker_offers_0_to_20_by_tenths()
     {
         var items = NewGateValues("SkillPoints");
-        Assert.Equal(31, items.Count);
+        Assert.Equal(201, items.Count);
         Assert.Equal("0.0", items[0].Text);
-        Assert.Equal("3.0", items[^1].Text);
+        Assert.Contains(items, i => i.Text == "7.0");
+        Assert.Equal("20.0", items[^1].Text);
         // What the list holds is the very number a file holds, so a file's 1.8 is found in it.
         Assert.Contains(items, i => (double)i.Value == double.Parse("1.8", System.Globalization.CultureInfo.InvariantCulture));
         Assert.Equal(1.8, Math.Round(18 * 0.1, 1));
