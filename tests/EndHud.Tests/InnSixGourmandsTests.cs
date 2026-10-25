@@ -137,28 +137,27 @@ public class InnSixGourmandsTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Owner, 2026-10-22: "the left 3 banner for gourmand should be table 1-3, right should be 4-6, make sure you do it this
-    /// way"; "the gourmand location IS TOO close to center! should be roughly at where I draw". Tables 1, 2, 3 down the left
-    /// of the screen, top to bottom, x 0.11–0.24 as drawn; 4, 5, 6 down the right, top to bottom, x 0.73–0.91.
+    /// Owner, 2026-10-24: "yuan yuan gourmand should display 135 table at left, and 246 at right, to match the real layout"
+    /// (before, 2026-10-22: tables 1-3 left, 4-6 right). The spots stay where the owner drew them ("roughly at where I
+    /// draw"): tables 1, 3, 5 down the left of the screen, top to bottom, x 0.11–0.24; 2, 4, 6 down the right, x 0.73–0.91.
     /// </summary>
     [Theory]
     [InlineData(1920, 1080)]
     [InlineData(3840, 2160)]
     [InlineData(2560, 1080)]
-    public void Tables_1_to_3_go_down_the_left_and_4_to_6_down_the_right(int width, int height)
+    public void Tables_1_3_5_go_down_the_left_and_2_4_6_down_the_right(int width, int height)
     {
         double unit = Math.Min(width / 16.0, height / 9.0), areaLeft = (width - unit * 16) / 2, areaWidth = unit * 16;
         var spots = Enumerable.Range(1, TableCardReader.Tables).Select(t => InnGourmandLayout.Spot(t, width, height)).ToList();
         double X(double x) => (x - areaLeft) / areaWidth;
         for (int t = 1; t <= 6; t++)
             output.WriteLine($"table {t}: x {X(spots[t - 1].Left):F3}-{X(spots[t - 1].Right):F3}, y {spots[t - 1].Top / height:F3}-{spots[t - 1].Bottom / height:F3}");
-        for (int t = 0; t < 3; t++)
-        {
-            Assert.True(spots[t].Right <= width / 2.0 && X(spots[t].Left) >= 0.10 && X(spots[t].Right) <= 0.25, $"table {t + 1} not at the left: {spots[t]}");
-            Assert.True(spots[t + 3].Left >= width / 2.0 && X(spots[t + 3].Left) >= 0.72 && X(spots[t + 3].Right) <= 0.92, $"table {t + 4} not at the right: {spots[t + 3]}");
-        }
-        Assert.True(spots[0].Bottom <= spots[1].Top && spots[1].Bottom <= spots[2].Top, "left column: tables 1, 2, 3 top to bottom");
-        Assert.True(spots[3].Bottom <= spots[4].Top && spots[4].Bottom <= spots[5].Top, "right column: tables 4, 5, 6 top to bottom");
+        foreach (int t in new[] { 1, 3, 5 })
+            Assert.True(spots[t - 1].Right <= width / 2.0 && X(spots[t - 1].Left) >= 0.10 && X(spots[t - 1].Right) <= 0.25, $"table {t} not at the left: {spots[t - 1]}");
+        foreach (int t in new[] { 2, 4, 6 })
+            Assert.True(spots[t - 1].Left >= width / 2.0 && X(spots[t - 1].Left) >= 0.72 && X(spots[t - 1].Right) <= 0.92, $"table {t} not at the right: {spots[t - 1]}");
+        Assert.True(spots[0].Bottom <= spots[2].Top && spots[2].Bottom <= spots[4].Top, "left column: tables 1, 3, 5 top to bottom");
+        Assert.True(spots[1].Bottom <= spots[3].Top && spots[3].Bottom <= spots[5].Top, "right column: tables 2, 4, 6 top to bottom");
     }
 
     /// <summary>The player's size makes the tiles smaller, never larger than their spot (a larger one would cover the game's HUD or the panel).</summary>
