@@ -152,8 +152,8 @@ public static class StaggerBar
         for (int y = HpLeftEnd.Y; y < HpLeftEnd.Bottom; y++)
         for (int x = HpLeftEnd.X; x < HpLeftEnd.Right; x++)
         {
-            var (r, g, _) = at[x, y];
-            if (r >= 160 && r - g >= 70) red++;
+            var (r, g, b) = at[x, y];
+            if (HpRed(r, g, b)) red++;
             n++;
         }
         return red >= n * HpRedShare;
@@ -235,20 +235,26 @@ public static class StaggerBar
         return rightLight < leftLight * EdgeDarker;
     }
 
+    /// <summary>The window's HP fill (red or not, by most of its pixels) and its brightness, the median pixel's: text over a
+    /// backdrop is a few bright pixels and doesn't move it.</summary>
     private static (bool Red, double Light) HpWindow(Sampler at, int x0, int x1)
     {
-        int red = 0, n = 0;
-        double light = 0;
+        int red = 0;
+        var light = new List<int>();
         for (int x = Math.Max(x0, 1441); x <= Math.Min(x1, 2398); x++)
         for (int y = 124; y <= 138; y += 2)
         {
             var (r, g, b) = at[x, y];
-            if (r >= 160 && r - g >= 70) red++;
-            light += Math.Max(r, Math.Max(g, b));
-            n++;
+            if (HpRed(r, g, b)) red++;
+            light.Add(Math.Max(r, Math.Max(g, b)));
         }
-        return n == 0 ? (false, 0) : (red * 2 > n, light / n);
+        if (light.Count == 0) return (false, 0);
+        light.Sort();
+        return (red * 2 > light.Count, light[light.Count / 2]);
     }
+
+    /// <summary>The boss's HP fill: red with some blue (about 229,62,111). An on-screen display's magenta text (255,80,255) isn't.</summary>
+    private static bool HpRed(int r, int g, int b) => r >= 160 && r - g >= 70 && r - b >= 60;
 
     /// <summary>The node boxes, as shares of the bar: white sides in the rim's rows, a dark hole between, darker outside.</summary>
     private static IReadOnlyList<double> Nodes(Sampler at)
