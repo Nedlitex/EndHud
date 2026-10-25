@@ -50,14 +50,16 @@ public class OnScreenDisplayCombatTests
 
     /// <summary>
     /// A ready combo bar under the display's backdrop is grey at 114, which read as a bar refilling (ready read
-    /// 0.92-0.99); a flat dark backdrop over exploration read as an empty track (unknown read 0.00), and with the
-    /// skill points read as a battle.
+    /// 0.92-0.99); the flat dark backdrop over a fallen operator's slot, or over a bar's fill, read as an empty
+    /// track (unknown read 0.00, 0.96 read 0.00). A reading the app doesn't take (no squad panel) only must not be a
+    /// battle that the clean frame isn't.
     /// </summary>
     [Theory]
     [InlineData("combat-all-ready.jpg", "4K")]
     [InlineData("combat-all-ready.jpg", "1080p")]
     [InlineData("ultimate-charge-near-half.jpg", "4K")]
-    [InlineData("exploration-dark-portraits.jpg", "1080p")]
+    [InlineData("battle-three-fallen.jpg", "4K")]
+    [InlineData("infliction/ring-42_5s.jpg", "1080p")]
     public async Task A_combo_bar_under_a_display_reads_its_value_or_unknown(string file, string size)
     {
         var reader = new PartyReader(new TextRecognizer());
@@ -66,6 +68,9 @@ public class OnScreenDisplayCombatTests
         foreach (var (name, covered) in Covered(frame, OsdPosition.BottomLeft))
         {
             var read = await reader.ReadAsync(covered);
+            Assert.False(read.InCombat && !clean.InCombat, $"{name}: read as a battle");
+            // A reading without the squad panel isn't taken (PartyTracker keeps the last one): its bars are unknown.
+            if (!read.PanelVisible) continue;
             for (int i = 0; i < clean.Slots.Count; i++)
                 if (read.Slots[i].Combo is { } combo)
                     Assert.True(clean.Slots[i].Combo == combo, $"{name}: slot {i + 1} combo {clean.Slots[i].Combo} read {combo}");

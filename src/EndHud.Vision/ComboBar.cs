@@ -23,6 +23,11 @@ public static class ComboBar
     private const int MinTrackColumnsForEvenness = 8;
     private const int FillEdgeColumns = 4;
     private const int EndCapColumns = 3;
+    // The fill's middle column (darkest channel): 151-175 grey, up to 255 white, on every bar of the
+    // fixtures; a white bar under a display's 55 % black backdrop 111-114.
+    private const int MinFillLevel = 125;
+    // An empty track against the rows above or below it: 14-116 darker on the fixtures' real bars.
+    private const double TrackContrast = 8;
     private const double MinBarCoverage = 0.9;
     private const double MinFillFromLeft = 0.9;
 
@@ -45,6 +50,7 @@ public static class ComboBar
         var isFill = new bool[r.Width];
         int fill = 0;
         double fillBrightness = 0;
+        var fillLevels = new List<int>(r.Width);
         var trackBrightness = new List<(int Column, int Brightness)>(r.Width);
         for (int i = 0; i < r.Width; i++)
         {
@@ -62,6 +68,7 @@ public static class ComboBar
                 isFill[i] = true;
                 fill++;
                 fillBrightness += min;
+                fillLevels.Add(min);
             }
             else if (max < TrackMaxBrightness)
             {
@@ -80,6 +87,12 @@ public static class ComboBar
             .Select(t => t.Brightness)
             .ToList();
         if (flat.Count >= MinTrackColumnsForEvenness && StdDev(flat) > MaxTrackUnevenness) return null;
+        // The fill is grey (151 or more, the middle column) or white: dimmer is the bar seen through
+        // something dark, an on-screen display's backdrop (a full white bar at 45 % is 114).
+        if (fill > 0 && fillLevels.Order().ElementAt(fill / 2) < MinFillLevel) return null;
+        // An empty track is a thin dark line: darker than the rows just above or just below it. A
+        // flat dark area (a display's backdrop over scenery) is dark there too.
+        if (fill == 0 && !StandsOut(frame, r, bar.Height / (double)PartyLayout.ComboBar.Height)) return null;
 
         double progress = Math.Min(1, fill / (double)r.Width);
         // Full and white means ready; a full bar tinted pink at low HP is ready too.
@@ -123,6 +136,36 @@ public static class ComboBar
             total += Math.Max(maxR - minR, Math.Max(maxG - minG, maxB - minB));
         }
         return total / r.Width;
+    }
+
+    /// <summary>
+    /// The bar's rows darker, by <see cref="TrackContrast"/>, than the rows 4-8 above it (4K; the portrait's
+    /// bottom or the level text's place) or 2-4 below it (the gap over the HP bar).
+    /// </summary>
+    private static bool StandsOut(Frame frame, PixelRect r, double scale)
+    {
+        double track = Brightness(frame, r.X, r.Right, r.Y, r.Bottom);
+        int above0 = r.Y - (int)Math.Round(8 * scale), above1 = Math.Max(above0 + 1, r.Y - (int)Math.Round(4 * scale) + 1);
+        int below0 = r.Bottom + (int)Math.Round(2 * scale), below1 = Math.Max(below0 + 1, r.Bottom + (int)Math.Round(4 * scale) + 1);
+        double above = Brightness(frame, r.X, r.Right, above0, above1), below = Brightness(frame, r.X, r.Right, below0, below1);
+        return above - track >= TrackContrast || below - track >= TrackContrast;
+    }
+
+    /// <summary>Mean brightest channel over the rows from <paramref name="y0"/> to <paramref name="y1"/> (clamped to the frame).</summary>
+    private static double Brightness(Frame frame, int x0, int x1, int y0, int y1)
+    {
+        y0 = Math.Max(0, y0);
+        y1 = Math.Min(frame.Height, y1);
+        double sum = 0;
+        int n = 0;
+        for (int y = y0; y < y1; y++)
+        for (int x = x0; x < x1; x++)
+        {
+            var (cr, cg, cb) = frame.GetPixel(x, y);
+            sum += Math.Max(cr, Math.Max(cg, cb));
+            n++;
+        }
+        return n == 0 ? 0 : sum / n;
     }
 
     private static double StdDev(List<int> values)
