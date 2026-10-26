@@ -30,6 +30,8 @@ public static class ReadLimits
     /// <summary>Alert rules read from one file or code (EndHud keeps at most <see cref="Alerts.AlertFile.MaxRules"/>; a file over that still reads).</summary>
     public const int MaxAlertRulesRead = 1000;
 
+    public const int MaxOperatorIdChars = 100;
+
     /// <summary>
     /// Every condition present (no null in a list, no empty "not"), nested at most <see cref="MaxConditionDepth"/>,
     /// and no more than <paramref name="budget"/> of them (taken from it as they are counted).

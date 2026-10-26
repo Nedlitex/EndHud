@@ -18,6 +18,10 @@ public sealed record AlertRule(string Id, IReadOnlyList<StateCondition> When, st
 
     public string Message { get; init; } = Message ?? "";
 
+    /// <summary>Skeleton: not yet used.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<string>? Squad { get; init; }
+
     /// <summary>A new rule, under a new id.</summary>
     public static AlertRule New(IReadOnlyList<StateCondition> when, string message) => new(NewId(), when, message);
 
@@ -71,6 +75,10 @@ public enum AlertProblem
     /// phase's finish condition). Only a hand-written file can hold one; the editor doesn't offer it.
     /// </summary>
     NotForAlerts,
+
+    EmptySquad,
+
+    SquadOperatorRepeated,
 }
 
 /// <summary>The alerts file: every rule, in the player's order.</summary>
