@@ -90,43 +90,46 @@ public static class StaggerBar
     /// <summary>The stagger bar, or null when it isn't there or can't be read (no boss bar, an effect or overlay over it).</summary>
     public static StaggerReading? Read(Frame frame) => Measure(frame).Reading;
 
-    /// <summary>The reading, or why there is none (for tests and the diagnostic log).</summary>
-    public static (StaggerReading? Reading, string Why) Measure(Frame frame)
+    /// <summary>
+    /// The reading, or why there is none (for tests and the diagnostic log); and whether the boss's HP bar is there, which
+    /// tells a bar that can't be read (a boss: <see cref="StaggerMemory"/> holds its last reading) from no boss at all.
+    /// </summary>
+    public static (StaggerReading? Reading, string Why, bool BossBar) Measure(Frame frame)
     {
         var ui = new UiScaler(frame.Width, frame.Height);
-        if (ui.Scale < 0.2) return (null, "screen too small");
+        if (ui.Scale < 0.2) return (null, "screen too small", false);
         var at = new Sampler(frame, ui);
-        if (!HpBarThere(at)) return (null, "no boss HP bar");
+        if (!HpBarThere(at)) return (null, "no boss HP bar", false);
 
         var columns = new Column[Span];
         for (int i = 0; i < Span; i++) columns[i] = Classify(at, FillLeft + i);
 
         var (pinkEnd, pinkStart) = Run(columns, Column.Pink);
         var (yellowEnd, _) = Run(columns, Column.Yellow);
-        if (yellowEnd > 0 && pinkEnd > 0) return (null, $"pink to {pinkEnd} and yellow to {yellowEnd}");
+        if (yellowEnd > 0 && pinkEnd > 0) return (null, $"pink to {pinkEnd} and yellow to {yellowEnd}", true);
         var nodes = Nodes(at);
 
         if (yellowEnd > 0)
         {
-            if (Strays(columns, yellowEnd + 8)) return (null, $"yellow to {yellowEnd}, fill colours past it");
-            if (CoveredFrom(at, FillLeft + yellowEnd)) return (null, $"yellow to {yellowEnd}, an edge across the HP bar there");
-            return (new StaggerReading(StaggerState.Staggered, 1, nodes, Math.Clamp(yellowEnd / (double)Span, 0, 1)), "");
+            if (Strays(columns, yellowEnd + 8)) return (null, $"yellow to {yellowEnd}, fill colours past it", true);
+            if (CoveredFrom(at, FillLeft + yellowEnd)) return (null, $"yellow to {yellowEnd}, an edge across the HP bar there", true);
+            return (new StaggerReading(StaggerState.Staggered, 1, nodes, Math.Clamp(yellowEnd / (double)Span, 0, 1)), "", true);
         }
         if (pinkEnd == 0)
         {
             // Nothing filled, not even the cap that stands at the left end of an empty bar.
-            if (Strays(columns, 0)) return (null, "no fill from the left, fill colours further on");
-            return (new StaggerReading(StaggerState.Building, 0, nodes, null), "");
+            if (Strays(columns, 0)) return (null, "no fill from the left, fill colours further on", true);
+            return (new StaggerReading(StaggerState.Building, 0, nodes, null), "", true);
         }
-        if (pinkStart > 3) return (null, $"pink from {pinkStart}");
-        if (!CapAt(at, FillLeft + pinkEnd - 1)) return (null, $"pink to {pinkEnd} without its cap");
-        if (Strays(columns, pinkEnd + 8)) return (null, $"pink to {pinkEnd}, fill colours past it");
+        if (pinkStart > 3) return (null, $"pink from {pinkStart}", true);
+        if (!CapAt(at, FillLeft + pinkEnd - 1)) return (null, $"pink to {pinkEnd} without its cap", true);
+        if (Strays(columns, pinkEnd + 8)) return (null, $"pink to {pinkEnd}, fill colours past it", true);
         // The cap alone (3-4 px) at the left end is an empty bar.
         double progress = pinkEnd <= 5 ? 0 : pinkEnd / (double)Span;
         // Beside the fill's end the cap and a lighter part of the fill just added can look like a box's side (seven times
         // over the two recordings, each 6-9 px left of the end): no box is taken there.
         var clear = nodes.Where(n => Math.Abs(n * Span - pinkEnd) >= CapClearance).ToList();
-        return (new StaggerReading(StaggerState.Building, Math.Clamp(progress, 0, 1), clear, null), "");
+        return (new StaggerReading(StaggerState.Building, Math.Clamp(progress, 0, 1), clear, null), "", true);
     }
 
     /// <summary>Pixels by 4K position, anchored top-centre (the nearest pixel of the frame).</summary>
@@ -319,8 +322,11 @@ public sealed class StaggerMemory
     private int _missing;
 
     /// <summary>The reading with the boxes seen in at least <see cref="SightingsNeeded"/> readings of this bar; null stays null.</summary>
-    public StaggerReading? Track(StaggerReading? reading)
+    /// <param name="reading">The bar as read (<see cref="StaggerBar.Measure"/>), null when it isn't.</param>
+    /// <param name="bossBar">Whether the boss's HP bar is there (<see cref="StaggerBar.Measure"/>).</param>
+    public StaggerReading? Track(StaggerReading? reading, bool bossBar)
     {
+        _ = bossBar;
         if (reading is null)
         {
             if (++_missing >= ForgetAfterReadings) _nodes.Clear();

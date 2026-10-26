@@ -63,7 +63,7 @@ public class StaggerBarTests
         var screen = SimulatedScreen.Named(screenName);
         foreach (var label in Labels)
         {
-            var (reading, why) = StaggerBar.Measure(screen.Render(await Load(label.File)));
+            var (reading, why, _) = StaggerBar.Measure(screen.Render(await Load(label.File)));
             try
             {
                 AssertAsLabelled(label, reading, 0.03, nodes: screen.Height >= 1080);
@@ -98,10 +98,10 @@ public class StaggerBarTests
     public async Task A_swollen_node_box_is_remembered()
     {
         var memory = new StaggerMemory();
-        memory.Track(StaggerBar.Read(await Load("fb-30s.jpg")));
-        var before = memory.Track(StaggerBar.Read(await Load("fb-41s.jpg")));
-        var swollen = memory.Track(StaggerBar.Read(await Load("fb-44_2s.jpg")));
-        var after = memory.Track(StaggerBar.Read(await Load("fb-50s.jpg")));
+        memory.Track(StaggerBar.Read(await Load("fb-30s.jpg")), bossBar: true);
+        var before = memory.Track(StaggerBar.Read(await Load("fb-41s.jpg")), bossBar: true);
+        var swollen = memory.Track(StaggerBar.Read(await Load("fb-44_2s.jpg")), bossBar: true);
+        var after = memory.Track(StaggerBar.Read(await Load("fb-50s.jpg")), bossBar: true);
 
         Assert.Equal(0, before!.NodesReached);
         Assert.Equal(1, swollen!.NodesReached);
@@ -143,13 +143,13 @@ public class StaggerBarTests
     {
         var memory = new StaggerMemory();
         var seen = StaggerBar.Read(await Load("fb-41s.jpg"))!;
-        memory.Track(seen);
-        memory.Track(seen);
-        for (int i = 0; i < StaggerMemory.ForgetAfterReadings - 1; i++) Assert.Null(memory.Track(null));
-        Assert.Single(memory.Track(seen with { Nodes = [] })!.Nodes);
-        for (int i = 0; i < StaggerMemory.ForgetAfterReadings; i++) Assert.Null(memory.Track(null));
+        memory.Track(seen, bossBar: true);
+        memory.Track(seen, bossBar: true);
+        for (int i = 0; i < StaggerMemory.ForgetAfterReadings - 1; i++) Assert.Null(memory.Track(null, bossBar: false));
+        Assert.Single(memory.Track(seen with { Nodes = [] }, bossBar: true)!.Nodes);
+        for (int i = 0; i < StaggerMemory.ForgetAfterReadings; i++) Assert.Null(memory.Track(null, bossBar: false));
 
-        Assert.Empty(memory.Track(seen with { Nodes = [] })!.Nodes);
+        Assert.Empty(memory.Track(seen with { Nodes = [] }, bossBar: true)!.Nodes);
     }
 
     /// <summary>
@@ -161,11 +161,11 @@ public class StaggerBarTests
     {
         var memory = new StaggerMemory();
         var seen = StaggerBar.Read(await Load("fb-50s.jpg"))!;
-        memory.Track(seen);
-        memory.Track(seen);
+        memory.Track(seen, bossBar: true);
+        memory.Track(seen, bossBar: true);
 
-        var once = memory.Track(seen with { Nodes = [.. seen.Nodes, 0.58] });
-        var next = memory.Track(seen);
+        var once = memory.Track(seen with { Nodes = [.. seen.Nodes, 0.58] }, bossBar: true);
+        var next = memory.Track(seen, bossBar: true);
 
         Assert.Equal(1, once!.NodesReached);
         Assert.Equal(1, next!.NodesReached);

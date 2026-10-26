@@ -962,8 +962,8 @@ internal sealed class PartyMonitor : IDisposable
                     // read on every reading in battle, whatever asks; its node boxes carried through the swell the game
                     // draws as the fill reaches one. Not in battle: unknown.
                     Enter("stagger");
-                    var (stagger, staggerWhy) = state.InCombat ? StaggerBar.Measure(gameFrame) : (null, "not in battle");
-                    state = state with { Stagger = staggerMemory.Track(stagger) };
+                    var (stagger, staggerWhy, bossBar) = state.InCombat ? StaggerBar.Measure(gameFrame) : (null, "not in battle", false);
+                    state = state with { Stagger = staggerMemory.Track(stagger, bossBar) };
                     // Logged when its kind changes (building, staggered, unread), with why it's unread.
                     string staggerKind = state.Stagger?.State.ToString() ?? "unread: " + staggerWhy;
                     if (staggerKind != staggerSeen)
