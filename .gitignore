@@ -31,3 +31,6 @@ out/
 # Python tools (see requirements.txt)
 .venv/
 __pycache__/
+
+# Claude Code agent worktrees, agent notes and local settings: never committed.
+.claude/
