@@ -10,7 +10,8 @@ namespace EndHud.Tests;
 
 /// <summary>
 /// A condition met must be unmistakable at a glance in a fight (owner, 2026-10-25: "when condition is met, glow more
-/// obviously to notify user, right now it is hard to tell"): a badge holding and a condition step lit glow round
+/// obviously to notify user, right now it is hard to tell"; styled after the game's empowered skill and Arcane's ready
+/// second-stage ultimate: a thick white rim and a soft white glow): a badge holding and a condition step lit glow round
 /// themselves, over a light scene and a dark one, where one not met shows nothing round it. Rendered off screen over solid
 /// backgrounds; set ENDHUD_STRIP_RENDERS to a folder to keep the renders.
 /// </summary>
@@ -278,9 +279,9 @@ public class MetGlowTests(ITestOutputHelper output)
                         _ => RotationStrip.StepHaloPeak,
                     };
                     glow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.BlurRadiusProperty, null);
-                    glow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.ColorProperty, null);
+                    glow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.OpacityProperty, null);
                     glow.BlurRadius = top;
-                    glow.Color = RotationStrip.MetFlashColor;
+                    glow.Opacity = 1;
                 }
             }
             Brush background = fixture is null ? new SolidColorBrush(scene) : new ImageBrush(new BitmapImage(new Uri(Path.Combine(AppContext.BaseDirectory, "Fixtures", fixture))))

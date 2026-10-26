@@ -60,7 +60,7 @@ rotation charts.
 - **Steps light up as they are played, in any order, from the screen** (owner, 2026-10-24: "skip
   over is bad"). A step seen used this round is lit (an amber ring on a filled disc), the others are
   dim; basic, heavy and plunge attacks, which can't be seen, are neutral (half dim, a dashed ring) and
-  stay in place. A condition step lit (met) glows gold instead, and pulses when it comes true (see the badges, below).
+  stay in place. A condition step lit (met) gets a thick white rim and a soft white glow instead, and pulses when it comes true (see the badges, below).
   The first unlit step in written order has two chevrons, cyan when it can be used
   now, white when not yet. Cyan needs every check known to hold: a condition that can't be read now (the boss's
   statuses out of sight) keeps it white (owner, 2026-10-25). Nothing is ever skipped. When the phase's finish condition holds (by default:
@@ -120,25 +120,34 @@ rotation charts.
   editor's counter picker lists counters by name, without pictures.
 
   A badge is bright while its condition holds now, dim (`RotationStrip.DimBadgeOpacity`, grey edge, no glow) while it
-  doesn't or can't be told. **Met glows** (owner, 2026-10-25: "when condition is met, glow more obviously to notify
-  user, right now it is hard to tell"): a badge holding has a warm pill, a bright gold edge and two gold glows round it
-  (`RotationStrip.MetGlowColor`, a tight one on the pill and a wider one round that, `BadgeGlow` / `BadgeHalo`); a
-  condition step lit (met) gets the same on its circle, wider (`StepGlow` / `StepHalo`), over a warmer disc than a lit
-  skill step's amber. The glows are effects, outside the layout: nothing moves or resizes when a condition comes true.
-  **The moment it becomes met** they pulse: three flashes, wider and nearly white (`MetFlashColor`), about a second in
-  all (`PulseHalf` x 2 x `PulseCount`), then the steady glow; the effect's blur and colour animate at 30 frames a
-  second, the strip isn't redrawn. "Becomes met" is against what the strip drew before
-  ([`StripRedraw`](src/EndHud/StripRedraw.cs), the overlay's redraw: `RotationStrip.Build(view, before)`, by
-  `RotationStrip.Met`): drawn again with it still met (another step lit, a picture loaded) it stays steady; the strip
-  hidden and shown again pulses once more; the next phase's preview never pulses. Nothing animates while not met. The
-  strip's opacity setting dims the glows with the rest. Measured by `MetGlowTests`: over a light and a dark scene, and
-  over a bright fight (`controller/fullbattle-lb-held`, mean grey 227 where the strip sits) and a dark one
-  (`battle-hud/battle-25s`, 26), the ring round a holding badge differs from one not holding by 49–66 (mean colour
-  distance; 0 before), round a met condition step's circle by 40–49 (3–5 before); the layout is the same met or not at
-  50, 100 and 200 %; the pulse only on becoming met, through the overlay's redraws; half the strip's opacity, half the
-  glow. Set `ENDHUD_STRIP_RENDERS` to a folder to keep its renders (met, unmet and the top of a pulse over both fights). The current step's are judged by the follower's checks (`StepPosition.Checks`),
+  doesn't or can't be told. The current step's are judged by the follower's checks (`StepPosition.Checks`),
   every other step's live on the same reading (`RotationTracker.Evaluate` with the selector's history): a later step
-  shows which of its conditions already hold. Badges aren't dimmed with an unlit step. **The step's own ability**
+  shows which of its conditions already hold. Badges aren't dimmed with an unlit step.
+
+  **Met looks like the game's "ready"** (owner, 2026-10-25: "when condition is met, glow more obviously to notify user,
+  right now it is hard to tell", then "make it look like the empowered skill is ready or arcane's second stage ult is
+  ready"): a thick near-white rim with a soft white glow round it, as the game draws a battle skill's button while
+  empowered (`Fixtures/cast-flash/fullbattletest-slot2-empowered-rim.png`) and Arcane's ultimate ready for its second
+  stage. A badge holding: a 2.5-unit white rim over its pill's edge (`RotationStrip.MetBadgeRim`), a lighter slate pill,
+  a tight white glow on the rim and a wider one round the whole (`BadgeGlow` / `BadgeHalo`, `MetGlowColor`). A condition
+  step lit (met): a 7-unit white rim on its dark disc (`MetRing`), the same two glows, wider (`StepGlow` / `StepHalo`),
+  and a faint thin ring 7 units outside (`MetOuterGap`), as the rings round the game's ready buttons. Rim, glows and
+  ring are drawn inside the circle's or pill's box or as effects: nothing moves or resizes when a condition comes true.
+  **The moment it becomes met** the glows pulse: three flashes, wider and at full strength, about a second in all
+  (`PulseHalf` x 2 x `PulseCount`), then the steady glow; the effects' blur and strength animate at 30 frames a second,
+  the strip isn't redrawn. "Becomes met" is against what the strip drew before ([`StripRedraw`](src/EndHud/StripRedraw.cs),
+  the overlay's redraw: `RotationStrip.Build(view, before)`, by `RotationStrip.Met`): drawn again with it still met
+  (another step lit, a picture loaded) it stays steady; the strip hidden and shown again pulses once more; the next
+  phase's preview never pulses. Nothing animates while not met. The strip's opacity setting dims the glows with the
+  rest. Measured by `MetGlowTests`: over a light and a dark scene, and over a bright fight
+  (`controller/fullbattle-lb-held`, mean grey 227 where the strip sits) and a dark one (`battle-hud/battle-25s`, 26),
+  the ring round a holding badge differs from one not holding by 33–69 (mean colour distance; 0 before), round a met
+  condition step's circle by 32–61 (3–5 before); white reads less over a bright scene than over a dark one (the band
+  under the strip greys it). The layout is the same met or not at 50, 100 and 200 %; the pulse only on becoming met,
+  through the overlay's redraws; half the strip's opacity, half the glow. Set `ENDHUD_STRIP_RENDERS` to a folder to
+  keep its renders (met, not met and the top of a pulse over both fights).
+
+  **The step's own ability**
   gets no words either: the current battle skill short of skill points shows a dim skill-point badge "≥1" first; a
   battle skill cooling, a combo or ultimate not ready get nothing (the white chevron says "not yet", and the step's own
   icon is the skill). **The finish condition**: with every step lit and the round not finished, its badges follow

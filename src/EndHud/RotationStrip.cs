@@ -108,7 +108,7 @@ internal sealed record StripNext(string Phase, IReadOnlyList<StripStep> Steps);
 /// fades out at both ends, a line through the skill icons, the phase's name large on the left. The
 /// current step has stacked chevrons above it: cyan when it's time to use it, white when it isn't
 /// yet. A step's conditions are small badges right under its circle (a picture and "≥1"-style signs, never words;
-/// glowing gold while they hold, pulsing the moment they come true, dim while not), kept inside the step's own column so they never reach a
+/// a thick white rim and a soft white glow while they hold, as the game's empowered skill button, pulsing the moment they come true, dim while not), kept inside the step's own column so they never reach a
 /// neighbour's; the finish condition's, once every step is lit, follow the last step. Steps seen used are lit (an amber ring on a filled disc),
 /// the others dim, attacks (never seen) half dim with a dashed ring. Text has a dark outline so it reads
 /// over any scene. Drawn at the size for a 1080p game window and scaled with the window (see
@@ -143,34 +143,46 @@ internal static class RotationStrip
     private static readonly Brush LitFill = Frozen(Color.FromArgb(0xE0, 0x4A, 0x36, 0x14));
 
     /// <summary>
-    /// A condition met (a badge holding, a condition step lit) glows round itself in this warm gold, so it reads at a glance
-    /// in a fight (owner, 2026-10-25: "when condition is met, glow more obviously to notify user, right now it is hard to
-    /// tell"): bright over a dark scene, and over a light one its colour (and the dark pill or disc it surrounds) still
-    /// stands apart. Drawn as an effect, outside the layout: nothing moves when a condition comes true.
+    /// A condition met (a badge holding, a condition step lit) looks like the game's own "ready" buttons: a thick bright
+    /// white rim with a soft white glow round it, as a battle skill's button while empowered and Arcane's ultimate button
+    /// ready for its second stage (owner, 2026-10-25: "when condition is met, glow more obviously to notify user, right now
+    /// it is hard to tell", then "make it look like the empowered skill is ready or arcane's second stage ult is ready").
+    /// The glow is drawn as an effect, outside the layout: nothing moves when a condition comes true.
     /// </summary>
-    internal static readonly Color MetGlowColor = Color.FromRgb(0xFF, 0xC4, 0x1A);
+    internal static readonly Color MetGlowColor = Color.FromRgb(0xF4, 0xF8, 0xFF);
 
-    /// <summary>The glow at the top of each pulse: nearly white gold, a flash.</summary>
-    internal static readonly Color MetFlashColor = Color.FromRgb(0xFF, 0xF2, 0xB8);
-
-    /// <summary>A met badge's or condition step's edge: brighter than a lit step's amber.</summary>
-    internal static readonly Color MetEdgeColor = Color.FromRgb(0xFF, 0xE0, 0x78);
+    /// <summary>A met badge's or condition step's rim: near white, as the game's empowered rim (its min channel over 200).</summary>
+    internal static readonly Color MetEdgeColor = Color.FromRgb(0xFA, 0xFC, 0xFF);
     private static readonly Brush MetEdge = Frozen(MetEdgeColor);
 
-    /// <summary>A holding badge's pill: a warm fill, brighter than the dark one of a badge not holding.</summary>
-    private static readonly Brush MetBadgeFill = Frozen(Color.FromArgb(0xF0, 0x6A, 0x4A, 0x0C));
+    /// <summary>A met condition step's rim: thick, as the game's empowered rim (about a fifth of the button's radius).</summary>
+    internal const double MetRing = 7;
 
-    /// <summary>A met condition step's disc: a warmer, brighter fill than a lit skill step's.</summary>
-    private static readonly Brush MetStepFill = Frozen(Color.FromArgb(0xF0, 0x74, 0x52, 0x10));
+    /// <summary>A met condition step's faint outer ring, this far outside its circle.</summary>
+    internal const double MetOuterGap = 7;
 
-    /// <summary>The glow's blur round a holding badge, steady and at the top of a pulse (units at 1080p).</summary>
-    internal const double BadgeGlow = 14, BadgeGlowPeak = 30;
+    private static readonly Brush MetOuterRing = Frozen(Color.FromArgb(0x80, 0xF4, 0xF8, 0xFF));
 
-    /// <summary>The glow's blur round a met condition step's circle, steady and at the top of a pulse.</summary>
-    internal const double StepGlow = 24, StepGlowPeak = 46;
+    /// <summary>A holding badge's rim, drawn over its pill's edge (the pill keeps its size).</summary>
+    internal const double MetBadgeRim = 2.5;
+
+    /// <summary>A holding badge's pill: a dark slate, a little lighter than a badge not holding, under its white rim.</summary>
+    private static readonly Brush MetBadgeFill = Frozen(Color.FromArgb(0xF0, 0x30, 0x35, 0x3C));
+
+    /// <summary>A met condition step's disc: dark, as the game's empowered button, under its white rim and icon.</summary>
+    private static readonly Brush MetStepFill = Frozen(Color.FromArgb(0xF0, 0x2C, 0x31, 0x38));
+
+    /// <summary>The soft glow's blur round a holding badge, steady and at the top of a pulse (units at 1080p).</summary>
+    internal const double BadgeGlow = 12, BadgeGlowPeak = 26;
+
+    /// <summary>The soft glow's blur round a met condition step's circle, steady and at the top of a pulse.</summary>
+    internal const double StepGlow = 20, StepGlowPeak = 40;
 
     /// <summary>The wider glow round those (<see cref="Halo"/>), steady and at the top of a pulse.</summary>
     internal const double BadgeHalo = 26, BadgeHaloPeak = 46, StepHalo = 36, StepHaloPeak = 64;
+
+    /// <summary>The glows' strength steady (tight, wide); a pulse takes both to full.</summary>
+    internal const double GlowOpacity = 1, HaloOpacity = 0.85;
 
     /// <summary>
     /// The moment a condition becomes met, its glow pulses: <see cref="PulseCount"/> flashes, each up and back in twice
@@ -320,25 +332,28 @@ internal static class RotationStrip
     /// glow of the glow carries it out to where it reads over a busy scene. A wrapper of the same size, so the layout is
     /// the same.
     /// </summary>
-    private static Grid Halo(FrameworkElement met, double steady, double peak, bool pulse)
+    /// <param name="over">Drawn over <paramref name="met"/> in the same box: a badge's thick white rim.</param>
+    private static Grid Halo(FrameworkElement met, double steady, double peak, bool pulse, UIElement? over = null)
     {
-        var halo = new Grid { Effect = MetGlow(steady, peak, pulse), HorizontalAlignment = met.HorizontalAlignment, VerticalAlignment = met.VerticalAlignment };
+        var halo = new Grid { Effect = MetGlow(steady, peak, HaloOpacity, pulse), HorizontalAlignment = met.HorizontalAlignment, VerticalAlignment = met.VerticalAlignment };
         halo.Children.Add(met);
+        if (over is not null) halo.Children.Add(over);
         return halo;
     }
 
-    /// <summary>The glow round something met, steady, or pulsing first when it has just become met.</summary>
-    private static DropShadowEffect MetGlow(double steady, double peak, bool pulse)
+    /// <summary>The soft white glow round something met, steady, or pulsing first when it has just become met.</summary>
+    private static DropShadowEffect MetGlow(double steady, double peak, double opacity, bool pulse)
     {
-        var glow = new DropShadowEffect { Color = MetGlowColor, BlurRadius = steady, ShadowDepth = 0, Opacity = 1 };
+        var glow = new DropShadowEffect { Color = MetGlowColor, BlurRadius = steady, ShadowDepth = 0, Opacity = opacity };
         if (!pulse) return glow;
-        // Up and back PulseCount times, then the steady glow: the effect's own properties, no redraw of the strip.
+        // Up and back PulseCount times, wider and at full strength, then the steady glow: the effect's own properties, no
+        // redraw of the strip.
         var blur = new DoubleAnimation(steady, peak, PulseHalf) { AutoReverse = true, RepeatBehavior = new RepeatBehavior(PulseCount), FillBehavior = FillBehavior.Stop };
-        var colour = new ColorAnimation(MetGlowColor, MetFlashColor, PulseHalf) { AutoReverse = true, RepeatBehavior = new RepeatBehavior(PulseCount), FillBehavior = FillBehavior.Stop };
+        var strength = new DoubleAnimation(opacity, 1, PulseHalf) { AutoReverse = true, RepeatBehavior = new RepeatBehavior(PulseCount), FillBehavior = FillBehavior.Stop };
         Timeline.SetDesiredFrameRate(blur, PulseFrameRate);
-        Timeline.SetDesiredFrameRate(colour, PulseFrameRate);
+        Timeline.SetDesiredFrameRate(strength, PulseFrameRate);
         glow.BeginAnimation(DropShadowEffect.BlurRadiusProperty, blur);
-        glow.BeginAnimation(DropShadowEffect.ColorProperty, colour);
+        glow.BeginAnimation(DropShadowEffect.OpacityProperty, strength);
         return glow;
     }
 
@@ -430,16 +445,24 @@ internal static class RotationStrip
         var circle = new Ellipse
         {
             Fill = current ? CurrentFill : met ? MetStepFill : lit ? LitFill : StepFill,
-            // Cyan: use it now. White: this is the step, but not yet. Gold: a condition met. Amber: seen used. Grey: not yet seen; dashed: never seen.
+            // Cyan: use it now. White: this is the step, but not yet. Thick white rim, glowing: a condition met (the game's
+            // empowered look). Amber: seen used. Grey: not yet seen; dashed: never seen. The stroke is inside the circle's box.
             Stroke = current ? accent : met ? MetEdge : lit ? Lit : Ring,
-            StrokeThickness = current || lit ? 3.5 : 2,
+            StrokeThickness = met ? MetRing : current || lit ? 3.5 : 2,
             StrokeDashArray = step.State == StripStepState.Neutral ? [3, 2] : null,
             Effect = step.State == StripStepState.Ready ? new DropShadowEffect { Color = CyanColor, BlurRadius = 12, ShadowDepth = 0, Opacity = 0.9 }
-                : met ? MetGlow(StepGlow, StepGlowPeak, pulse)
+                : met ? MetGlow(StepGlow, StepGlowPeak, GlowOpacity, pulse)
                 : lit ? new DropShadowEffect { Color = LitColor, BlurRadius = 10, ShadowDepth = 0, Opacity = 0.8 }
                 : null,
         };
-        icon.Children.Add(met ? Halo(circle, StepHalo, StepHaloPeak, pulse) : circle);
+        if (met)
+        {
+            // A thin faint ring just outside, as the rings round the game's empowered and Arcane's ready buttons: drawn past
+            // the circle's box (a negative margin in its fixed-size cell), so the layout is the same.
+            icon.Children.Add(Halo(circle, StepHalo, StepHaloPeak, pulse));
+            icon.Children.Add(new Ellipse { Stroke = MetOuterRing, StrokeThickness = 1.5, Margin = new Thickness(-MetOuterGap), IsHitTestVisible = false });
+        }
+        else icon.Children.Add(circle);
         if (step.Condition is { } about)
         {
             // The alert pop-up's circle content: the subject's picture, the skill-points glyph, or "!".
@@ -569,7 +592,7 @@ internal static class RotationStrip
     /// <summary>
     /// One condition's badge: a dark pill with its picture (the shared icon rule: <see cref="AlertPopUp.Icon"/>'s picture,
     /// skill-point glyph or "!"; an amber ring for steps lit), a slash across it for "not", a small triangle (running) or
-    /// star (empowered), and the comparison with its number. Gold-edged, warm and glowing while it holds, grey-edged and dim
+    /// star (empowered), and the comparison with its number. A thick white rim with a soft white glow while it holds, grey-edged and dim
     /// while not. After a "/" when it is one of several where any is enough.
     /// </summary>
     /// <param name="pulse">It has just come true: its glow pulses first.</param>
@@ -617,18 +640,27 @@ internal static class RotationStrip
         {
             Height = BadgeHeight,
             CornerRadius = new CornerRadius(BadgeHeight / 2),
-            // Holding: a warmer fill, a bright gold edge and a glow round it (outside the layout).
+            // Holding: a lighter slate, and (below) a thick white rim over its edge with a soft white glow round it.
             Background = badge.Holds ? MetBadgeFill : BadgeFill,
             BorderBrush = badge.Holds ? MetEdge : Ring,
             BorderThickness = new Thickness(1.5),
             Padding = new Thickness(1, 0, badge.Value is null && badge.Sign == BadgeSign.None ? 1 : 5, 0),
             Child = content,
-            Effect = badge.Holds ? MetGlow(BadgeGlow, BadgeGlowPeak, pulse) : null,
         };
         var item = new StackPanel { Orientation = Orientation.Horizontal };
         if (badge.Or)
             item.Children.Add(new TextBlock { Text = "/", Foreground = Text, FontSize = 17, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(1, 0, 2, 0), Effect = Outline() });
-        item.Children.Add(badge.Holds ? Halo(pill, BadgeHalo, BadgeHaloPeak, pulse) : pill);
+        // The rim is drawn over the pill in the same box (the pill's own edge stays 1.5 thick, so its size is the same).
+        item.Children.Add(badge.Holds
+            ? Halo(pill, BadgeHalo, BadgeHaloPeak, pulse, new Border
+            {
+                CornerRadius = pill.CornerRadius,
+                BorderBrush = MetEdge,
+                BorderThickness = new Thickness(MetBadgeRim),
+                IsHitTestVisible = false,
+                Effect = MetGlow(BadgeGlow, BadgeGlowPeak, GlowOpacity, pulse),
+            })
+            : pill);
         return new Viewbox
         {
             // Too wide for the step's column (a long number, an "or"): smaller, never past it.
