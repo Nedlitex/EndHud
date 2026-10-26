@@ -210,9 +210,10 @@ public sealed class AlertSizeWindowTests
                 // Not shown, so the window's own scale is 1: the frame is drawn at the player's size alone.
                 double Drawn() => (window.AlertFrame.LayoutTransform as ScaleTransform)?.ScaleX ?? 1;
                 window.SetAlertsEditing(true);
-                var start = (Samples: window.AlertStack.Children.Count, Scale: Drawn(), Text: window.AlertsSizeText.Text);
+                // (The percentage beside the slider isn't checked: the language's strings aren't loaded without the app.)
+                var start = (Samples: window.AlertStack.Children.Count, Scale: Drawn(), Slider: window.AlertsSizeSlider.Value);
                 window.AlertsSizeSlider.Value = 2;
-                var dragged = (Scale: Drawn(), Saved: config.AlertScale, Text: window.AlertsSizeText.Text, OnDisk: ConfigStore.Load().AlertScale);
+                var dragged = (Scale: Drawn(), Saved: config.AlertScale, OnDisk: ConfigStore.Load().AlertScale);
                 window.AlertsResetSizeButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
                 var reset = (Scale: Drawn(), Saved: config.AlertScale, Slider: window.AlertsSizeSlider.Value);
                 return (start, dragged, reset);
@@ -225,11 +226,10 @@ public sealed class AlertSizeWindowTests
 
         Assert.Equal(1, seen.start.Samples);
         Assert.Equal(1.5, seen.start.Scale, 3);
-        Assert.Equal("150%", seen.start.Text);
+        Assert.Equal(1.5, seen.start.Slider);
         Assert.Equal(2, seen.dragged.Scale, 3);
         Assert.Equal(2, seen.dragged.Saved);
         Assert.Equal(2, seen.dragged.OnDisk);
-        Assert.Equal("200%", seen.dragged.Text);
         Assert.Equal(1.5, seen.reset.Scale, 3);
         Assert.Equal(1.5, seen.reset.Saved);
         Assert.Equal(1.5, seen.reset.Slider);

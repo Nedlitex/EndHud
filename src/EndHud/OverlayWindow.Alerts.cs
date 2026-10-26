@@ -25,6 +25,8 @@ public partial class OverlayWindow
     // True until InitAlertSettings has put the saved size in the slider: WPF attaches the slider's ValueChanged before
     // applying Minimum="0.5", which would otherwise save 50% at every start (see OverlayWindow.Gauges).
     private bool _loadingAlertSettings = true;
+    private double _alertWindowScale = 1; // following the game window (ComboHintLayout), before the player's size
+    private double _alertTextMaxWidth = AlertPopUp.TextMaxWidth; // AlertLayout.TextMaxWidth where the pop-ups are now
 
     /// <summary>(Re)load the rules, at start and after the alert editor saved them.</summary>
     internal void ReloadAlerts()
@@ -46,6 +48,7 @@ public partial class OverlayWindow
         _loadingAlertSettings = false;
         ReloadAlerts();
         ApplyAlertSettings();
+        ScaleAlerts(_alertWindowScale);
     }
 
     /// <summary>The Size slider: the pop-ups (and, with the menu open, the sample) resize as it's dragged.</summary>
@@ -55,6 +58,7 @@ public partial class OverlayWindow
         _config.AlertScale = Math.Clamp(Math.Round(e.NewValue, 2), HudConfig.MinAlertScale, HudConfig.MaxAlertScale);
         AlertsSizeText.Text = Loc.Format("Menu.Gauges.SizeValue", _config.AlertScale * 100);
         ConfigStore.Save(_config);
+        ScaleAlerts(_alertWindowScale);
     }
 
     /// <summary>The card's reset button: back to the default size (the pop-ups have no place of their own to reset).</summary>
@@ -68,11 +72,13 @@ public partial class OverlayWindow
         ApplyAlertSettings();
     }
 
-    /// <summary>The menu's alerts card: it needs the squad panel read.</summary>
+    /// <summary>The menu's alerts card: it needs the squad panel read; its size is dimmed while it's off (editing isn't).</summary>
     private void ApplyAlertSettings()
     {
         AlertsNeedsPartyOcr.Visibility = _config.PartyOcrEnabled ? Visibility.Collapsed : Visibility.Visible;
         AlertsCheckBox.IsEnabled = _config.PartyOcrEnabled;
+        AlertsSizeRow.IsEnabled = _config.PartyOcrEnabled && _config.AlertsEnabled;
+        AlertsResetSizeButton.IsEnabled = _config.PartyOcrEnabled && _config.AlertsEnabled;
     }
 
     /// <summary>
@@ -99,7 +105,7 @@ public partial class OverlayWindow
     {
         TakeDownAlert(rule.Id);
         string text = rule.Message.Trim().Length > 0 ? rule.Message.Trim() : AlertText.Describe(rule.When, _party.Identifier?.Library, AlertEditor.PhaseName(_rotations));
-        var popUp = AlertPopUp.Create(AlertIcon(rule), text);
+        var popUp = AlertPopUp.Create(AlertIcon(rule), text, _alertTextMaxWidth);
         var holder = AlertPopUp.Holder(popUp, rule.Id);
         AlertStack.Children.Add(holder); // the newest at the bottom
         _alertPopUps[rule.Id] = (holder, popUp);
@@ -122,22 +128,37 @@ public partial class OverlayWindow
 
     // ---- Placing: the combo hint's mirror image ----
 
-    /// <summary>Right edge at the window's width less the combo hints' left edge; same top. Called whenever the combo hints move.</summary>
+    /// <summary>
+    /// Right edge at the window's width less the combo hints' left edge; same top (<see cref="AlertLayout"/>: kept on the
+    /// window, the text wrapping sooner rather than reaching the centre). Called whenever the combo hints move or the size changes.
+    /// </summary>
     private void PlaceAlerts()
     {
-        if (HintCanvas.ActualWidth <= 0) return;
-        double scale = (AlertFrame.LayoutTransform as ScaleTransform)?.ScaleX ?? 1;
-        double right = HintCanvas.ActualWidth - Canvas.GetLeft(ComboHintFrame);
-        Canvas.SetLeft(AlertFrame, right - AlertFrame.ActualWidth * scale);
-        Canvas.SetTop(AlertFrame, Canvas.GetTop(ComboHintFrame));
+        double width = HintCanvas.ActualWidth, height = HintCanvas.ActualHeight;
+        if (width <= 0) return;
+        double scale = AlertLayout.Scale(_alertWindowScale, _config.AlertScale);
+        double right = width - Canvas.GetLeft(ComboHintFrame);
+        double text = AlertLayout.TextMaxWidth(right, width, scale);
+        if (text != _alertTextMaxWidth)
+        {
+            // Rewraps the pop-ups up now and the sample: the frame's size changes and this runs again, with the same width.
+            _alertTextMaxWidth = text;
+            foreach (var (_, popUp) in _alertPopUps.Values) AlertPopUp.SetTextMaxWidth(popUp, text);
+            if (_alertSample is { } sample) AlertPopUp.SetTextMaxWidth(sample.PopUp, text);
+        }
+        Canvas.SetLeft(AlertFrame, AlertLayout.Left(right, AlertFrame.ActualWidth * scale, width));
+        Canvas.SetTop(AlertFrame, AlertLayout.Top(Canvas.GetTop(ComboHintFrame), height, scale));
     }
 
     private void AlertFrame_SizeChanged(object sender, SizeChangedEventArgs e) => PlaceAlerts();
 
-    /// <summary>The same size as the combo hints (they follow the game window together).</summary>
-    private void ScaleAlerts(Transform comboHintsScale)
+    /// <summary>The combo hints' scale (they follow the game window together) times the player's size.</summary>
+    /// <param name="windowScale">Following the game window (see ComboHintLayout).</param>
+    private void ScaleAlerts(double windowScale)
     {
-        AlertFrame.LayoutTransform = comboHintsScale;
+        _alertWindowScale = windowScale;
+        double scale = AlertLayout.Scale(windowScale, _config.AlertScale);
+        AlertFrame.LayoutTransform = new ScaleTransform(scale, scale);
         PlaceAlerts();
     }
 
@@ -146,7 +167,7 @@ public partial class OverlayWindow
     {
         if (editing && _alertSample is null)
         {
-            var popUp = AlertPopUp.Create(AlertPopUp.Icon(null, skillPoints: false), Loc.Get("Alert.Sample"));
+            var popUp = AlertPopUp.Create(AlertPopUp.Icon(null, skillPoints: false), Loc.Get("Alert.Sample"), _alertTextMaxWidth);
             var holder = AlertPopUp.Holder(popUp, "sample");
             AlertStack.Children.Insert(0, holder);
             AlertPopUp.ShowStill(holder);
