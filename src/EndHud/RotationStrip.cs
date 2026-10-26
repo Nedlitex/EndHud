@@ -174,7 +174,7 @@ internal static class RotationStrip
     /// <summary>A dark outline around text, so it reads over bright scenes through the see-through band.</summary>
     private static Effect Outline() => new DropShadowEffect { Color = Colors.Black, BlurRadius = 4, ShadowDepth = 0, Opacity = 0.85 };
 
-    public static UIElement Build(StripView view)
+    public static UIElement Build(StripView view, StripView? before = null)
     {
         var steps = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top };
         // With any badge in the phase every step keeps a row for them, so the notes stay in line.
