@@ -24,6 +24,7 @@ AppFolders.UseRoot(Path.Combine(Path.GetTempPath(), "endhud-readme-media", "app"
 
 if (args.Length > 0 && args[0] == "rotation") return await RotationDemo.RunAsync(args[1..]);
 if (args.Length > 0 && args[0] == "glyphs") return GlyphSheet.Run(args[1..]);
+if (args.Length > 0 && args[0] == "windows") return WindowShots.Run(args[1..]);
 
 if (args.Length < 2)
 {
