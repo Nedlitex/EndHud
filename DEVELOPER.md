@@ -183,7 +183,7 @@ rotation charts.
 ### Combat alerts (战斗提示)
 
 The player writes rules ("when 技力 is at least 1.8, say 可以放战技了"; "when the enemy has 寒冷附着
-at least 3 stacks …"), global for every fight and squad, and EndHud pops each up in battle when
+at least 3 stacks …"), for every fight and every squad or one squad (`AlertRule.Squad`), and EndHud pops each up in battle when
 it turns true. See [Alerts](#alerts) for the file, the firing rule and the editor.
 
 - **Where:** the combo hint's mirror image (owner, 2026-10-22). The pop-ups' right edge is at the
@@ -1908,9 +1908,10 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   one of the editor's refusals (not a rotation / damaged code / newer), never another exception, and
   within [`ReadLimits`](src/EndHud.Vision/Rotations/ReadLimits.cs): text 1 MB (a code is unpacked only
   that far), a code 256K characters, 100 phases, 200 steps in a phase, 5000 conditions, conditions
-  nested 16 deep, a format-1 repeat count of 20, 1000 alert rules; no null in a list or group. The
+  nested 16 deep, a format-1 repeat count of 20, 1000 alert rules, an alert rule's squad of 4
+  operator ids each at most 100 characters; no null in a list or group. The
   largest real rotation (6.5 KB) has 5 phases, 18 steps in a phase, 39 conditions, nested 5 deep.
-  `ShareCodeHardeningTests` covers each.
+  `ShareCodeHardeningTests` covers each (the alert squad: `AlertSquadScopeTests`).
 
 The store ([`RotationStore`](src/EndHud.Vision/Rotations/RotationStore.cs)) covers every way an
 entry changes:
@@ -2460,7 +2461,7 @@ reading. The counts are since EndHud started.
 
 ### The file
 
-One file for every rule, global (every fight, every squad): `%APPDATA%\EndHud\alerts.json`
+One file for every rule (every fight; every squad, or the rule's own squad): `%APPDATA%\EndHud\alerts.json`
 ([`AlertRule`, `AlertFile`](src/EndHud.Vision/Alerts/AlertRule.cs),
 [`AlertFormat`, `AlertStore`](src/EndHud.Vision/Alerts/AlertStore.cs)):
 
@@ -2482,14 +2483,31 @@ One file for every rule, global (every fight, every squad): `%APPDATA%\EndHud\al
   no rotation of its own, so they name a phase of any of the player's rotations (listed as
   "rotation · phase", `AlertEditor.PhaseChoices`), and are known while that rotation is the one the
   strip follows (else unknown: the rule neither fires nor re-arms).
-- `format`: 7 when a rule uses a stagger condition (`staggerProgress`, `staggerNodes`, `staggered`, `staggerTimeLeft`), else 6 when a rule uses `teamBuff`, else 5 when one uses `battleSkillEmpowered`, else 4 when one uses `phaseShown` (before, the editor refused it), `ultimateTimeLeft` or `phaseCurrent`, else 3 when one uses `battleSkillActive`, else 2 when one uses `phasePlayed`, else 1, the lowest that holds the rules
+- `squad` (owner, 2026-10-25: "the notification can be set to be either always enabled, or tie to a squad";
+  `AlertRule.Squad`): absent runs the rule for every squad (所有小队), the default and every rule from before
+  format 8; written only when set. Otherwise one to four operator ids (指定小队), e.g.
+  `"squad": ["Camille", "Laevatain"]`, in no order. The rule runs while the recognised squad **contains every
+  one** of them, in any slot (`AlertRule.ForSquad`): a squad of two or three named matches any four that
+  include them. This differs from a rotation's squad on purpose: a rotation is written for exactly four
+  operators (`Rotation.IsFor`), while an alert about, say, Laevatain's 熔火 with Camille holds whoever
+  fills the other places. Not the named squad (every operator recognised, one named missing): the rule
+  isn't holding, so a pop-up comes down and the rule re-arms. An operator not recognised yet while a named
+  one isn't seen, or no squad read: unknown, it neither fires nor re-arms (as a condition that can't be
+  told). Imports tell squads apart: the same conditions and words for another squad is another rule; the
+  same squad in another order is a duplicate (`AlertRule.SameAs`).
+- `format`: 8 when a rule has a `squad`, else 7 when a rule uses a stagger condition (`staggerProgress`, `staggerNodes`, `staggered`, `staggerTimeLeft`), else 6 when a rule uses `teamBuff`, else 5 when one uses `battleSkillEmpowered`, else 4 when one uses `phaseShown` (before, the editor refused it), `ultimateTimeLeft` or `phaseCurrent`, else 3 when one uses `battleSkillActive`, else 2 when one uses `phasePlayed`, else 1, the lowest that holds the rules
   (`AlertFile.FormatNeeded`): rules using nothing new stay readable by builds from before format 2,
   which refuse the rest as newer (left as it is, never renamed as unreadable). The share code keeps
   its `EHA1:` prefix (the code's own version).
   `message`: the pop-up's text; empty shows the conditions in words.
 - `AlertRule.Problems()`: no conditions, an empty group, or `battleSkillActive` for an operator
   whose battle-skill time isn't read (`SkillTimeNotRead`, as in rotations; before, alerts let it
-  through and it could never fire). The editor refuses to save such a rule, with a sentence.
+  through and it could never fire), a `squad` naming nobody (`EmptySquad`: it would run for no squad,
+  and the monitor never fires it) or an operator twice (`SquadOperatorRepeated`). The editor refuses to
+  save such a rule, with a sentence.
+- Read limits (`ReadLimits.SquadFits`): a `squad` of more than four (`MaxAlertSquad`), or holding a null,
+  an empty id or one over 100 characters (`MaxOperatorIdChars`), makes the file or code not alert rules,
+  refused as unreadable like any other over-limit content.
 - Share codes: `EHA1:` + the JSON, deflated, in URL-safe base64 (the rotations' `EHR1:` scheme). A
   damaged code is refused; an `EHA2:` code says it's from a newer EndHud; anything else (a
   rotation's code) isn't alert rules. Files export as `战斗提示.endhud-alerts.json`.
@@ -2524,20 +2542,35 @@ followed now, for `phasePlayed`; see [Choosing the phase](#choosing-the-phase)):
   rule (`AlertMonitor.EndFight`); so does turning alerts off.
 - The boss's statuses are read when any rule asks about them (`AlertMonitor.NeedsBossStatuses`),
   even when the rotation doesn't.
+- A rule with a `squad` is first checked against the squad (the slots' recognised operators, empty
+  places left out): another squad counts as not holding, a squad not recognised yet as unknown (see
+  [The file](#the-file-1)); only for its squad are the conditions evaluated.
 
 Measured by `AlertMonitorTests`: 技力 1.7 → 1.8 fires once; staying at 1.8 is quiet; 1.5 then 1.9
-fires again; 寒冷附着 2 → 3 stacks fires, an unread count doesn't.
+fires again; 寒冷附着 2 → 3 stacks fires, an unread count doesn't. By `AlertSquadScopeTests`: a rule for
+four fires for them in any slot order and not for another squad; one for two fires for any squad with
+both; an unrecognised operator neither fires nor re-arms it; switching to another squad takes it down.
 
 ### The editor
 
 [`AlertEditor`](src/EndHud/AlertEditor.xaml.cs) (menu → 战斗提示 → 编辑战斗提示…, or the tray):
-the rule list (新建, 复制, 删除), the selected rule's 提示文字 and conditions on the shared
+the rule list (新建, 复制, 删除; each line shows the rule's squad on the right: a small 全部, or the
+squad's avatars, names on the tooltip), the selected rule's 提示文字, its 生效小队 and conditions on the shared
 [`ConditionEditor`](src/EndHud/ConditionEditor.cs) pickers (the same full set as a rotation's;
 轴段已显示次数 and 轴段已完成次数 list every rotation's phases), and 粘贴分享码,
 复制选中的分享码, 复制全部分享码, 导入文件…, 导出文件…, 保存, 关闭. Saving reloads the overlay's rules at
 once. The status condition offers 至少 1–4 层 for the four inflictions and 至少 I–IV 级 for Corrosion
 and Electrification; for any other status a grey line says its count isn't read, and only
 present/absent is offered. Si's damage stacks offer 0–200 (a larger value from a file is kept).
+
+生效小队 is two radio buttons, 所有小队 (new rules) and 指定小队. 指定小队 shows four operator pickers
+(（不选） and every operator in the library, with avatars) and 用当前小队, which fills them from the
+recognised squad in slot order (the overlay hands the editor its slots, empty places left out); it is
+enabled only when every operator in that squad is recognised, and its tooltip otherwise says when it
+becomes available. A grey line under them states the matching rule in plain words. While a rule has a
+squad picked, the conditions' operator pickers offer just those operators (an operator a condition
+already names stays shown, as in the rotation editor). Going back to 所有小队 saves no squad. Refusals:
+`Alerts.Problem.EmptySquad` (指定小队 with nobody picked) and `Alerts.Problem.SquadOperatorRepeated`.
 
 ## Tests
 

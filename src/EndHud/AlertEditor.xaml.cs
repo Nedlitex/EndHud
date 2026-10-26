@@ -11,7 +11,7 @@ using Rotation = EndHud.Vision.Rotations.Rotation;
 namespace EndHud;
 
 /// <summary>
-/// The alert rules editor: one list of rules for every fight, each for every squad or one squad (所有小队 / 指定小队,
+/// The alert rules editor: one list of rules for every fight, each for every squad or one squad (`Alerts.Scope.All` / `Alerts.Scope.Squad`,
 /// up to four operators picked from the library or filled from the recognised squad). A rule's conditions are picked
 /// with the rotation editor's pickers (<see cref="ConditionEditor"/>); only its text is typed. Every
 /// way the store changes is here: new, copy, correct (edit and save: same id, same place), delete
@@ -41,7 +41,7 @@ public partial class AlertEditor : Window
         public List<StateCondition> When { get; } = [.. when];
         public string Message { get; set; } = message;
 
-        /// <summary>Tied to a squad (指定小队) rather than every squad (所有小队).</summary>
+        /// <summary>Tied to a squad rather than every squad.</summary>
         public bool Scoped { get; set; } = squad is not null;
 
         /// <summary>The four squad pickers' choices, null where nobody is picked (kept while "every squad" is chosen, until saved).</summary>
@@ -133,7 +133,7 @@ public partial class AlertEditor : Window
         : Loc.Format("Alerts.NoText", AlertText.Describe(rule.When, _library, PhaseName(_rotations())));
 
     /// <summary>
-    /// A rule's line in the list: its squad on the right (a small "全部", or the squad's avatars), its words in one line, cut
+    /// A rule's line in the list: its squad on the right (a small `Alerts.Scope.AllShort`, or the squad's avatars), its words in one line, cut
     /// with "…" when long (the whole text is its tooltip).
     /// </summary>
     private DockPanel ListText(RuleDraft rule)
@@ -146,7 +146,7 @@ public partial class AlertEditor : Window
         return line;
     }
 
-    /// <summary>Which squad a rule runs for, as its list line shows it: "全部", or each operator's avatar (the name when there's none).</summary>
+    /// <summary>Which squad a rule runs for, as its list line shows it: `Alerts.Scope.AllShort`, or each operator's avatar (the name when there's none).</summary>
     private StackPanel ScopeBadge(RuleDraft rule)
     {
         var badge = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
