@@ -68,9 +68,12 @@ public partial class OverlayWindow
         yield return $"  skill points spent with nobody named: {Count(4, CastSource.Unattributed)}";
     }
 
-    /// <summary>The summary's key-reading lines: the reader's status and its tally while it is offered.</summary>
+    /// <summary>
+    /// The summary's key-reading lines: the reader's status and its tally while key reading is offered; one line saying
+    /// it isn't otherwise (<see cref="SkillKeyReading.Offered"/>), the reader not even asked.
+    /// </summary>
     internal static IEnumerable<string> SkillReadingLines(bool offered, bool consented, Func<string> describe, int[,] tally) =>
-        PressLines(consented ? describe() : "off (not consented)", tally);
+        offered ? PressLines(consented ? describe() : "off (not consented)", tally) : ["battle-skill key reading: not offered in this build"];
 
     /// <summary>
     /// The summary's lines about battle-skill key reading: whether it reads, then for each slot how

@@ -83,10 +83,10 @@ public sealed class SkillKeyReadingHiddenWindowTests
                 }
             });
 
-            Assert.Equal(Visibility.Collapsed, card);
             Assert.All(keysFreeWhileInFront, Assert.True);
             Assert.Equal("off", status);
             Assert.Equal(0, hotkeysHeld);
+            Assert.Equal(Visibility.Collapsed, card);
         }
         finally
         {

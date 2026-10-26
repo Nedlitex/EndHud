@@ -11,6 +11,10 @@ namespace EndHud;
 /// off until ticked), the four keys, chosen by pressing them, and the reader (<see cref="SkillInputReader"/>),
 /// which listens only while the switch is on, the strip and the squad reading are on, and the game itself is
 /// in front: never in another program, never in this menu.
+/// <para>
+/// Not offered in this build (<see cref="SkillKeyReading.Offered"/>, owner 2026-10-25, the anti-cheat risk): the card
+/// stays hidden and the reader never listens, whatever <see cref="HudConfig.ReadSkillPresses"/> says.
+/// </para>
 /// </summary>
 public partial class OverlayWindow
 {
@@ -25,11 +29,19 @@ public partial class OverlayWindow
     /// <summary>The presses for the strip: null when the player hasn't turned reading on (nothing is read then).</summary>
     internal ISkillPressSource? ActiveSkillPresses => PressesFor(_config, _skillInput);
 
-    /// <summary>The presses the strip follows under these settings: the reader's when the player turned reading on, else none.</summary>
-    internal static ISkillPressSource? PressesFor(HudConfig config, ISkillPressSource reader) => config.ReadSkillPresses ? reader : null;
+    /// <summary>The presses the strip follows under these settings in this build: none while key reading isn't offered.</summary>
+    internal static ISkillPressSource? PressesFor(HudConfig config, ISkillPressSource reader) => PressesFor(config, reader, SkillKeyReading.Offered);
+
+    /// <summary>The presses the strip follows: the reader's when key reading is offered and the player turned it on, else none.</summary>
+    internal static ISkillPressSource? PressesFor(HudConfig config, ISkillPressSource reader, bool offered) =>
+        offered && config.ReadSkillPresses ? reader : null;
 
     private void InitSkillInput()
     {
+        // Hidden in the XAML; shown only in a build that offers key reading. Not offered: nothing below is wired,
+        // so no row, key capture or click can be reached.
+        if (!SkillKeyReading.Offered) return;
+        SkillInputCard.Visibility = Visibility.Visible;
         SkillInputCheckBox.IsChecked = _config.ReadSkillPresses;
         // The rows depend on the strip's and the squad reading's switches: follow their clicks at once.
         RotationCheckBox.Click += (_, _) => ApplySkillInputSettings();
@@ -42,16 +54,22 @@ public partial class OverlayWindow
     /// <summary>Called on every refresh: listen or not, and show whether Windows refused.</summary>
     internal void UpdateSkillInput(bool gameInFront)
     {
+        // Not offered: the reader is never asked to listen (nor to stop: it never started).
+        if (!SkillKeyReading.Offered) return;
         _skillInput.SetListening(SkillInputListens(_config, gameInFront), _config.SkillKeys);
         ApplySkillInputSettings();
     }
 
+    /// <summary>Whether the reader listens under these settings in this build: never while key reading isn't offered.</summary>
+    internal static bool SkillInputListens(HudConfig config, bool gameInFront) => SkillInputListens(config, gameInFront, SkillKeyReading.Offered);
+
     /// <summary>
-    /// Whether the reader listens (and so holds the four keys as hotkeys): only with the player's switch, the strip and
-    /// the squad reading on, and the game itself in front. Anywhere else the keys are let go at once and type as usual.
+    /// Whether the reader listens (and so holds the four keys as hotkeys): only in a build that offers it, with the
+    /// player's switch, the strip and the squad reading on, and the game itself in front. Anywhere else the keys are
+    /// let go at once and type as usual.
     /// </summary>
-    internal static bool SkillInputListens(HudConfig config, bool gameInFront) =>
-        config.ReadSkillPresses && config.RotationEnabled && config.PartyOcrEnabled && gameInFront;
+    internal static bool SkillInputListens(HudConfig config, bool gameInFront, bool offered) =>
+        offered && config.ReadSkillPresses && config.RotationEnabled && config.PartyOcrEnabled && gameInFront;
 
     /// <summary>The card's rows: usable only with the strip and the squad reading on; the keys only with reading on.</summary>
     private void ApplySkillInputSettings()

@@ -101,6 +101,7 @@ internal sealed class HudConfig
     /// Read the player's battle-skill keys and controller chords, so the rotation strip can mark the
     /// current step. The player's consent: off until they turn it on (owner, 2026-10-23), and with it
     /// off no input is read at all. Not a rollout flag.
+    /// Ignored (kept, never cleared) while the build doesn't offer key reading: <see cref="SkillKeyReading.Offered"/>.
     /// </summary>
     public bool ReadSkillPresses { get; set; }
 

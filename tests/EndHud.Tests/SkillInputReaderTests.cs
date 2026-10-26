@@ -254,17 +254,17 @@ public sealed class SkillInputReaderTests : IDisposable
         var config = new HudConfig { ReadSkillPresses = true, RotationEnabled = true, PartyOcrEnabled = true };
         using var reader = new SkillInputReader();
 
-        Listen(reader, OverlayWindow.SkillInputListens(config, gameInFront: false));
+        Listen(reader, OverlayWindow.SkillInputListens(config, gameInFront: false, offered: true));
         Assert.Equal(AllFree, Free(_vks)); // the game isn't in front: the keys are everyone's
 
-        Listen(reader, OverlayWindow.SkillInputListens(config, gameInFront: true));
+        Listen(reader, OverlayWindow.SkillInputListens(config, gameInFront: true, offered: true));
         Assert.Equal(AllHeld, Free(_vks));
 
-        Listen(reader, OverlayWindow.SkillInputListens(config, gameInFront: false)); // the game left the front
+        Listen(reader, OverlayWindow.SkillInputListens(config, gameInFront: false, offered: true)); // the game left the front
         Assert.Equal(AllFree, Free(_vks));
 
         config.ReadSkillPresses = false;
-        Listen(reader, OverlayWindow.SkillInputListens(config, gameInFront: true)); // the player turned it off
+        Listen(reader, OverlayWindow.SkillInputListens(config, gameInFront: true, offered: true)); // the player turned it off
         Assert.Equal(AllFree, Free(_vks));
     }
 

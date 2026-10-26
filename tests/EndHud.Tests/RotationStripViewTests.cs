@@ -781,7 +781,7 @@ public class RotationFollowerTests
     public void Key_2_in_battle_marks_slot_2s_battle_skill_done()
     {
         var reader = new Presses(Press(2, 1.0));
-        var presses = OverlayWindow.PressesFor(new HudConfig { ReadSkillPresses = true }, reader);
+        var presses = OverlayWindow.PressesFor(new HudConfig { ReadSkillPresses = true }, reader, offered: true);
         var follower = new RotationFollower();
         static Vision.PartyState Ready(double seconds) => At(seconds, points: seconds < 1 ? 2.4 : 1.4) with
         {
@@ -842,8 +842,8 @@ public class RotationFollowerTests
     {
         var reader = new Presses(Press(2, 1.0));
 
-        Assert.Null(OverlayWindow.PressesFor(new HudConfig { ReadSkillPresses = false }, reader));
-        Assert.Same(reader, OverlayWindow.PressesFor(new HudConfig { ReadSkillPresses = true }, reader));
+        Assert.Null(OverlayWindow.PressesFor(new HudConfig { ReadSkillPresses = false }, reader, offered: true));
+        Assert.Same(reader, OverlayWindow.PressesFor(new HudConfig { ReadSkillPresses = true }, reader, offered: true));
     }
 
     [Fact]
