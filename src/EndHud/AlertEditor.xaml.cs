@@ -11,7 +11,8 @@ using Rotation = EndHud.Vision.Rotations.Rotation;
 namespace EndHud;
 
 /// <summary>
-/// The alert rules editor: one list of rules for every fight. A rule's conditions are picked
+/// The alert rules editor: one list of rules for every fight, each for every squad or one squad (所有小队 / 指定小队,
+/// up to four operators picked from the library or filled from the recognised squad). A rule's conditions are picked
 /// with the rotation editor's pickers (<see cref="ConditionEditor"/>); only its text is typed. Every
 /// way the store changes is here: new, copy, correct (edit and save: same id, same place), delete
 /// (asks first), and share codes and files in and out (imports never replace).
@@ -30,32 +31,56 @@ public partial class AlertEditor : Window
     private bool _loading;
     private bool _canSave = true;
 
-    /// <summary>A rule being edited: its id stays, its conditions and text change in place.</summary>
-    private sealed class RuleDraft(string id, IEnumerable<StateCondition> when, string message)
+    /// <summary>The recognised squad when every operator in it is recognised; null otherwise ("use the current squad" waits).</summary>
+    private readonly IReadOnlyList<string>? _currentSquad;
+
+    /// <summary>A rule being edited: its id stays, its conditions, text and squad change in place.</summary>
+    private sealed class RuleDraft(string id, IEnumerable<StateCondition> when, string message, IReadOnlyList<string>? squad)
     {
         public string Id { get; } = id;
         public List<StateCondition> When { get; } = [.. when];
         public string Message { get; set; } = message;
 
-        public static RuleDraft From(AlertRule rule) => new(rule.Id, rule.When, rule.Message);
+        /// <summary>Tied to a squad (指定小队) rather than every squad (所有小队).</summary>
+        public bool Scoped { get; set; } = squad is not null;
 
-        public AlertRule ToRule() => new(Id, [.. When], Message.Trim());
+        /// <summary>The four squad pickers' choices, null where nobody is picked (kept while "every squad" is chosen, until saved).</summary>
+        public string?[] Squad { get; } = [.. Enumerable.Range(0, 4).Select(i => squad is not null && i < squad.Count ? squad[i] : null)];
+
+        /// <summary>The operators picked, in the pickers' order.</summary>
+        public IReadOnlyList<string> Picked => [.. Squad.OfType<string>()];
+
+        public static RuleDraft From(AlertRule rule) => new(rule.Id, rule.When, rule.Message, rule.Squad);
+
+        public RuleDraft CopyAs(string id) => new(id, When, Message, Scoped ? Picked : null);
+
+        public AlertRule ToRule() => new(Id, [.. When], Message.Trim()) { Squad = Scoped ? Picked : null };
     }
 
     /// <param name="store">The rules' file.</param>
     /// <param name="rotations">The player's rotations: "phase played" names one of their phases.</param>
     /// <param name="saved">Called after the rules were saved (the overlay reloads them).</param>
+    /// <param name="currentSquad">The recognised squad's operators by slot (null where one isn't recognised, empty places left
+    /// out; empty when no squad was read): what "use the current squad" fills a rule's squad with.</param>
     internal AlertEditor(AlertStore store, OperatorLibrary library, Func<IReadOnlyList<Rotation>> rotations, IReadOnlyList<string?> currentSquad, Action saved)
     {
-        _ = currentSquad;
         _store = store;
         _library = library;
         _rotations = rotations;
         _saved = saved;
-        // Alerts are global: every operator in the library, every operator resource, every rotation's phases
+        _currentSquad = currentSquad.Count is > 0 and <= 4 && currentSquad.All(id => id is not null) ? [.. currentSquad.OfType<string>()] : null;
+        // Every operator in the library (just the rule's squad when it has one), every operator resource, every rotation's phases
         // ("phase shown" and "phase played" name one: known while that rotation is followed). The same full set of kinds as a rotation.
-        _conditions = new ConditionEditor(library, () => _library.Operators, () => OperatorCounters.Definitions, () => PhaseChoices(_rotations()), ConditionHostKind.Alert, Avatar);
+        _conditions = new ConditionEditor(library, ConditionOperators, () => OperatorCounters.Definitions, () => PhaseChoices(_rotations()), ConditionHostKind.Alert, Avatar);
         InitializeComponent();
+        foreach (var picker in ScopePickers)
+        {
+            ConditionEditor.FillOperators(picker, _library.Operators, Avatar);
+            picker.Items.Insert(0, ConditionEditor.Item(Loc.Get("Alerts.Scope.Nobody"), ""));
+        }
+        UseCurrentSquadButton.IsEnabled = _currentSquad is not null;
+        UseCurrentSquadButton.ToolTip = _currentSquad is null ? Loc.Get("Editor.UseCurrentSquad.Unavailable") : null;
+        ToolTipService.SetShowOnDisabled(UseCurrentSquadButton, true);
         Load();
         Closing += (_, e) => e.Cancel = !ConfirmDiscard();
     }
@@ -107,8 +132,43 @@ public partial class AlertEditor : Window
         : rule.When.Count == 0 ? Loc.Format("Alerts.Numbered", _rules.IndexOf(rule) + 1)
         : Loc.Format("Alerts.NoText", AlertText.Describe(rule.When, _library, PhaseName(_rotations())));
 
-    /// <summary>A rule's line in the list: one line, cut with "…" when long (the whole text is its tooltip).</summary>
-    private TextBlock ListText(RuleDraft rule) => new() { Text = RuleName(rule), TextTrimming = TextTrimming.CharacterEllipsis };
+    /// <summary>
+    /// A rule's line in the list: its squad on the right (a small "全部", or the squad's avatars), its words in one line, cut
+    /// with "…" when long (the whole text is its tooltip).
+    /// </summary>
+    private DockPanel ListText(RuleDraft rule)
+    {
+        var line = new DockPanel { LastChildFill = true };
+        var badge = ScopeBadge(rule);
+        DockPanel.SetDock(badge, Dock.Right);
+        line.Children.Add(badge);
+        line.Children.Add(new TextBlock { Text = RuleName(rule), TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center });
+        return line;
+    }
+
+    /// <summary>Which squad a rule runs for, as its list line shows it: "全部", or each operator's avatar (the name when there's none).</summary>
+    private StackPanel ScopeBadge(RuleDraft rule)
+    {
+        var badge = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        if (!rule.Scoped)
+        {
+            badge.Children.Add(new TextBlock { Text = Loc.Get("Alerts.Scope.AllShort"), Foreground = System.Windows.Media.Brushes.Gray, FontSize = 11 });
+            badge.ToolTip = Loc.Get("Alerts.Scope.All");
+            return badge;
+        }
+        var names = new List<string>();
+        foreach (string id in rule.Picked)
+        {
+            var op = _library.Find(id);
+            names.Add(op?.NameZh ?? id);
+            if (op is not null && Avatar(op) is { } image)
+                badge.Children.Add(new Image { Source = image, Width = 18, Height = 18, Margin = new Thickness(1, 0, 0, 0) });
+            else
+                badge.Children.Add(new TextBlock { Text = op?.NameZh ?? id, FontSize = 11, Margin = new Thickness(2, 0, 0, 0) });
+        }
+        badge.ToolTip = Loc.Format("Alerts.Scope.ListTip", string.Join("、", names));
+        return badge;
+    }
 
     private void RefreshList()
     {
@@ -130,9 +190,58 @@ public partial class AlertEditor : Window
         RuleDetails.IsEnabled = CopyButton.IsEnabled = DeleteButton.IsEnabled = CopySelectedCodeButton.IsEnabled = has;
         _loading = true;
         MessageTextBox.Text = rule?.Message ?? "";
+        ShowScope();
         _loading = false;
         BuildConditionRows();
     }
+
+    private ComboBox[] ScopePickers => [ScopeOperator0, ScopeOperator1, ScopeOperator2, ScopeOperator3];
+
+    /// <summary>The selected rule's squad on the controls (called while <see cref="_loading"/>).</summary>
+    private void ShowScope()
+    {
+        bool scoped = _rule?.Scoped == true;
+        ScopeAllRadio.IsChecked = !scoped;
+        ScopeSquadRadio.IsChecked = scoped;
+        ScopeSquadPanel.Visibility = scoped ? Visibility.Visible : Visibility.Collapsed;
+        for (int i = 0; i < 4; i++) ConditionEditor.Select(ScopePickers[i], _rule?.Squad[i] ?? "");
+    }
+
+    /// <summary>Who a condition's operator picker offers: the rule's squad when it has one picked, else every operator.</summary>
+    private IEnumerable<OperatorInfo> ConditionOperators() =>
+        _rule is { Scoped: true } rule && rule.Picked.Count > 0
+            ? _library.Operators.Where(o => rule.Picked.Contains(o.Id, StringComparer.Ordinal))
+            : _library.Operators;
+
+    private void Scope_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_loading || _rule is null) return;
+        _rule.Scoped = ScopeSquadRadio.IsChecked == true;
+        ScopeSquadPanel.Visibility = _rule.Scoped ? Visibility.Visible : Visibility.Collapsed;
+        ScopeChanged();
+    }
+
+    private void ScopeOperator_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || _rule is null) return;
+        int i = Array.IndexOf(ScopePickers, sender);
+        _rule.Squad[i] = (ScopePickers[i].SelectedItem as ComboBoxItem)?.Tag is string { Length: > 0 } id ? id : null;
+        ScopeChanged();
+    }
+
+    /// <summary>"Use the current squad": the recognised squad's operators, in slot order; the rest emptied.</summary>
+    private void UseCurrentSquadButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_rule is null || _currentSquad is null) return;
+        for (int i = 0; i < 4; i++) _rule.Squad[i] = i < _currentSquad.Count ? _currentSquad[i] : null;
+        _loading = true;
+        ShowScope();
+        _loading = false;
+        ScopeChanged();
+    }
+
+    /// <summary>The squad changed: the condition pickers offer the new squad, and the list line shows it.</summary>
+    private void ScopeChanged() => ConditionsChanged(rebuild: true);
 
     private void RuleList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -144,7 +253,7 @@ public partial class AlertEditor : Window
     {
         if (!HasRoom()) return;
         // A first condition to change: skill points at least 2.0.
-        var rule = new RuleDraft(AlertRule.NewId(), [_conditions.Default("SkillPoints")], "");
+        var rule = new RuleDraft(AlertRule.NewId(), [_conditions.Default("SkillPoints")], "", squad: null); // every squad
         _rules.Add(rule);
         MarkDirty();
         Show(rule);
@@ -154,7 +263,7 @@ public partial class AlertEditor : Window
     private void CopyButton_Click(object sender, RoutedEventArgs e)
     {
         if (_rule is null || !HasRoom()) return;
-        var copy = new RuleDraft(AlertRule.NewId(), _rule.When, _rule.Message);
+        var copy = _rule.CopyAs(AlertRule.NewId());
         _rules.Insert(_rules.IndexOf(_rule) + 1, copy);
         MarkDirty();
         Show(copy);
@@ -360,12 +469,6 @@ public partial class AlertEditor : Window
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
-
-    private void Scope_Checked(object sender, RoutedEventArgs e) { }
-
-    private void ScopeOperator_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
-
-    private void UseCurrentSquadButton_Click(object sender, RoutedEventArgs e) { }
 
     /// <summary>With unsaved changes: save, discard, or stay. True to go on.</summary>
     private bool ConfirmDiscard()
