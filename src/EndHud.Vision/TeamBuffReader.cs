@@ -123,7 +123,8 @@ public sealed class TeamBuffReader(OperatorLibrary library)
             }
             seen.Add(score >= MatchAt && white >= MinWhiteShare
                 ? new TeamBuffSighting(id, BuffSight.Shown, badge is { } shownBadge ? Stacks(StackDigits.Read(frame, shownBadge)) : 1)
-                : new TeamBuffSighting(id, BuffSight.Absent));
+                : score < AbsentBelow && white < AbsentWhiteBelow ? new TeamBuffSighting(id, BuffSight.Absent)
+                : new TeamBuffSighting(id, BuffSight.Unclear));
         }
         return seen;
     }

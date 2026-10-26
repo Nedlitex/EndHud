@@ -35,8 +35,41 @@ public sealed class TeamBuffHold
     private readonly Dictionary<string, Held> _shown = [];
 
     /// <summary>The buffs to show now, from this reading's sightings (<see cref="TeamBuffReader.Look"/>).</summary>
-    public IReadOnlyList<TeamBuff> Track(IReadOnlyList<TeamBuffSighting> sightings) =>
-        [.. sightings.Where(s => s.Sight == BuffSight.Shown).Select(s => new TeamBuff(s.Id, s.Stacks))];
+    public IReadOnlyList<TeamBuff> Track(IReadOnlyList<TeamBuffSighting> sightings)
+    {
+        var now = new List<TeamBuff>();
+        foreach (var seen in sightings)
+        {
+            _shown.TryGetValue(seen.Id, out var held);
+            switch (seen.Sight)
+            {
+                case BuffSight.Shown when seen.Stacks is { } stacks:
+                    _shown[seen.Id] = new Held { Stacks = stacks };
+                    now.Add(new TeamBuff(seen.Id, stacks));
+                    break;
+                case BuffSight.Shown:
+                    // There, its number unreadable (an effect over the badge): the count held a while, then unknown.
+                    held ??= _shown[seen.Id] = new Held();
+                    held.Absent = 0;
+                    held.Unclear++;
+                    now.Add(new TeamBuff(seen.Id, held.Unclear <= HoldReadings && held.Stacks >= 2 ? held.Stacks : null));
+                    break;
+                case BuffSight.Absent when held is not null && held.Absent + 1 < GoneAfterAbsent:
+                    held.Absent++;
+                    held.Unclear++;
+                    now.Add(new TeamBuff(seen.Id, held.Unclear <= HoldReadings ? held.Stacks : null));
+                    break;
+                case BuffSight.Absent:
+                    _shown.Remove(seen.Id);
+                    break;
+                case BuffSight.Unclear when held is not null:
+                    held.Unclear++;
+                    now.Add(new TeamBuff(seen.Id, held.Unclear <= HoldReadings ? held.Stacks : null));
+                    break;
+            }
+        }
+        return now;
+    }
 
     /// <summary>Forget every buff (out of combat: they aren't read there).</summary>
     public void Reset() => _shown.Clear();
