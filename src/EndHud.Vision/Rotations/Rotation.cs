@@ -203,23 +203,24 @@ public sealed record TeamBuffCondition(string BuffId, Comparison Is, int Value) 
 
 /// <summary>
 /// How far the boss's stagger bar has filled, in percent (<see cref="StaggerBar"/>, <see cref="PartyState.StaggerPercent"/>):
-/// "stagger progress at least 80 %". 100 while the boss is staggered; unknown when the bar isn't read. Format 13.
+/// "stagger progress at least 80 %". 100 while the boss is staggered. Unknown with no boss HP bar; unread under one, the last reading held
+/// (<see cref="StaggerMemory"/>, 0 before any). Format 13.
 /// </summary>
 public sealed record StaggerProgressCondition(Comparison Is, int Percent) : StateCondition;
 
 /// <summary>
 /// How many of the stagger bar's node boxes the fill has passed (each one a small stagger; all of them while staggered):
-/// "at least 1 node reached". Unknown when the bar isn't read. Format 13.
+/// "at least 1 node reached"; 0 for a boss without node boxes (false, not unknown, for "at least 1"). Unknown with no boss HP bar. Format 13.
 /// </summary>
 public sealed record StaggerNodesCondition(Comparison Is, int Count) : StateCondition;
 
-/// <summary>The boss is in the large stagger (its bar a yellow countdown, <c>true</c>) or not. Unknown when the bar isn't read. Format 13.</summary>
+/// <summary>The boss is in the large stagger (its bar a yellow countdown, <c>true</c>) or not. Unknown with no boss HP bar. Format 13.</summary>
 public sealed record StaggeredCondition(bool Staggered) : StateCondition;
 
 /// <summary>
 /// How much of the large stagger is left, as a percentage of its yellow countdown bar (<see cref="PartyState.StaggerTimeLeftPercent"/>):
 /// "stagger time left at most 30 %"; 0 while the boss isn't staggered. No seconds: the countdown stands still at times.
-/// Unknown when the bar isn't read. Format 13.
+/// Unknown with no boss HP bar; a countdown held while unread stays at its last length. Format 13.
 /// </summary>
 public sealed record StaggerTimeLeftCondition(Comparison Is, int Percent) : StateCondition;
 

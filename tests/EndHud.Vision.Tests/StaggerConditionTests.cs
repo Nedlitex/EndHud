@@ -9,7 +9,8 @@ namespace EndHud.Vision.Tests;
 /// as conditions and notifications"), read from its bar (<see cref="StaggerBar"/>, carried on the reading as
 /// <see cref="PartyState.Stagger"/>): how far the bar has filled, how many node boxes it has passed (each a small
 /// stagger), whether the boss is in the large stagger, and how much of its countdown is left. Four kinds of the shared
-/// catalogue: every host, their own formats; unknown whenever the bar isn't read.
+/// catalogue: every host, their own formats; unknown with no boss HP bar (unread under one, <see cref="StaggerMemory"/>
+/// holds the last reading, so a condition never sees it unknown there).
 /// </summary>
 public class StaggerConditionTests
 {
@@ -76,8 +77,9 @@ public class StaggerConditionTests
         Assert.Equal(true, Holds(new StaggerTimeLeftCondition(Comparison.Exactly, 0), Building));
     }
 
+    /// <summary>No reading: out of battle or no boss HP bar.</summary>
     [Fact]
-    public void Unknown_when_the_bar_isnt_read()
+    public void Unknown_without_a_boss_bar()
     {
         Assert.Null(Holds(new StaggerProgressCondition(Comparison.AtLeast, 0), null));
         Assert.Null(Holds(new StaggerNodesCondition(Comparison.Exactly, 0), null));

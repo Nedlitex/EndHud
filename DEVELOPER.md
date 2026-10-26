@@ -1830,7 +1830,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   | `battleSkillActive` | `operatorId`, `active` (format 7) | that operator's lasting battle skill is running (`true`) or not: Si's, from the swirl on her battle-skill button until the butterfly is back (the purple countdown round her stacks' circle, see [Si's battle-skill timer](#sis-battle-skill-timer)). This reading's button decides (swirl or crossed-out butterfly: running; butterfly: not); a reading that can't tell it (an effect, a countdown look) goes by the overlay's timer (`PartyState.RunningSkills`, the estimate while it lasts): running while it shows one, else unknown. Unknown with a controller (the buttons aren't read). Only Si's is read (`SkillRing.Operators`); naming anyone else is refused (`SkillTimeNotRead`), and the editors offer only Si, greyed out without her |
   | `battleSkillEmpowered` | `operatorId`, `empowered` (format 11) | that operator's battle skill is empowered (战技已强化, `true`) or not: the steady near-white glow on the rim of their battle-skill button, judged over the last 0.5 s of the corner sampled 30 times a second (see [Following battle skills from the screen](#following-battle-skills-from-the-screen); `PartyState.Empowered`, `PartyState.EmpoweredOf`). Keyboard and mouse and controller alike (either diamond: LB held or not). Unknown when the corner isn't sampled (no window capture), the squad panel is out of sight or out of battle, with keyboard and mouse when that reading couldn't read the slot's button, and whenever the glow can't be told (below). Any operator may be named: whose battle skill the game empowers is not EndHud's to say |
   | `teamBuff` | `buffId` (the wiki's name: `Link`, 连击), `is`, `value` (0–4 in the editor) (format 12) | how many stacks of a team buff the game shows left of the controlled operator's HP bar (连击层数, e.g. `Link` `AtLeast` 1 before Laevatain's empowered battle skill), compared: the number on the icon's bottom right, 1 when it has none ([`TeamBuffReader`](src/EndHud.Vision/TeamBuffReader.cs), `PartyState.Buffs`); **0 when it isn't shown in combat** (`PartyState.BuffStacks`). Unknown out of combat or with the squad panel out of sight (buffs are read in combat only), and when the number is there but can't be read. The editor offers the buffs EndHud reads (`TeamBuffReader.Buffs`: Link) by their Chinese names. Its reading is in the on-screen display combat gate (`buffs`, compared exactly), so a display over it gives the same stacks or none read; tests: `TeamBuffConditionTests` |
-  | `staggerProgress` | `is`, `percent` (0–100) (format 13) | how far the boss's stagger bar has filled, in whole percent ([Stagger bar](#the-bosss-stagger-bar), `PartyState.StaggerPercent`); 100 while staggered. Unknown when the bar isn't read: out of battle, no boss HP bar, the bar covered or unreadable |
+  | `staggerProgress` | `is`, `percent` (0–100) (format 13) | how far the boss's stagger bar has filled, in whole percent ([Stagger bar](#the-bosss-stagger-bar), `PartyState.StaggerPercent`); 100 while staggered. Unknown only out of battle or with no boss HP bar; the bar covered or unreadable under the HP bar holds its last reading (0 before any) |
   | `staggerNodes` | `is`, `count` (0–9 in the editor) (format 13) | how many of the bar's node boxes the fill has passed, each a small stagger (`StaggerReading.NodesReached`); all of them while staggered. A boss without boxes has 0. Unknown as above |
   | `staggered` | `staggered` (format 13) | the boss is in the large stagger (the bar a yellow countdown, `true`) or not. Unknown as above |
   | `staggerTimeLeft` | `is`, `percent` (0–100) (format 13) | how much of the large stagger is left, as a percentage of the bar (`PartyState.StaggerTimeLeftPercent`); 0 while not staggered. **No seconds**: the countdown stands still in some moments, so its length can't be turned into time. Unknown as above; tests: `StaggerConditionTests` |
@@ -2030,6 +2030,15 @@ on any condition. Measured on the owner's two recordings of one boss (`fullbattl
 - **Where:** the track x 1441–2398, y 154–169 (the scene darkened behind it); the fill inset, x 1445–2394, rows
   158–167. It is taken as there only when the boss's HP bar is: its left end red (about 229,62,111; x 1447–1457,
   y 122–140). No HP bar: unknown, never 0.
+- **Unread under the boss's HP bar: the last reading, held.** Every boss has a stagger bar, so a bar that can't be read
+  (an effect, an on-screen display over it; the cases below that are "unknown" to the reader) is not unknown to the
+  app. Owner, 2026-10-25: "when stagger bar cannot be read, just use the last known value instead of hardcode that
+  back to 0. only start from 0". [`StaggerMemory`](src/EndHud.Vision/StaggerBar.cs) (`Track(reading, bossBar)`, the
+  reader saying whether the HP bar is there) keeps the last reading and shows it unchanged while the bar is unread: its
+  state, fill, node boxes, and a countdown at its last length (never run down: it stands still at times). Before any
+  reading of this boss it is building, 0, with no node boxes (none made up). Once the HP bar has been gone 20 readings
+  in a row (about 5 s: the fight over, the boss gone), the reading and the boxes are forgotten and the next boss starts
+  from 0; a shorter gap (an effect over the HP bar's end for a moment) keeps them. Out of battle: unknown.
 - **Building:** pink on a gradient fixed to the bar (about 235,110,128 at the left, nearly white at the right end),
   ending in a white cap 3–4 px wide that stands out of the fill above and below. Stagger just added shows first as a
   lighter part ahead of the fill, with the cap at its end, and the fill catches up a moment later (it counts at once).
@@ -2041,8 +2050,11 @@ on any condition. Measured on the owner's two recordings of one boss (`fullbattl
   assumed. A node is reached when the fill has passed it. The game's only cue for the small stagger on the bar is the
   box drawn about 1.5 times its size for 0.7–1 s as the fill reaches it (fullbattletest 43.9–44.8 s,
   test_battle_full2 67.1–68.1 s); the box isn't found then, so
-  [`StaggerMemory`](src/EndHud.Vision/StaggerBar.cs) keeps a box seen in two readings or more until no bar has been
-  read for 20 readings (another boss may have others). No box is taken within 16 px of a building fill's end: the cap
+  [`StaggerMemory`](src/EndHud.Vision/StaggerBar.cs) keeps a box seen in two readings or more until the boss's HP bar
+  has been gone for 20 readings (another boss may have others). **A boss can have no node boxes** (owner: only the
+  large stagger; Typhoeus): it reads its fill with no nodes and none reached, the large stagger reads as usual (all
+  of its nodes reached: none), and "nodes reached at least 1" is false, not unknown (`A_boss_without_node_boxes` in
+  `StaggerBarTests` on `reactions/level-I-typhoeus-24s/98s`, and in `StaggerConditionTests`). No box is taken within 16 px of a building fill's end: the cap
   and a lighter part just added looked like a box's side seven times over the recordings (each one reading, and,
   remembered, counted as a second node until the two-readings rule).
 - **Large stagger:** the bar turns into a yellow countdown (about 230,200,85; no cap) that drains to the left. On its
@@ -2056,10 +2068,13 @@ on any condition. Measured on the owner's two recordings of one boss (`fullbattl
   (cutscenes, before the fight), 12 unknown with it (flashes, the moment it turns yellow); the rest, against contact
   sheets of the bar one frame a second, showed no wrong state and a fill or countdown that only moved with the bar. About 150 boss frames of other fixture folders: 14 checked by eye, all right.
   [`Fixtures/stagger`](tests/data/Fixtures/stagger) (21 frames, labelled) at 4K, 1440p, 1080p and 720p (the node
-  boxes from 1080p up): `StaggerBarTests`, including the synthetic on-screen display at every position (same or
-  unknown), which `OnScreenDisplayCombatGateTests` also sweeps.
+  boxes from 1080p up): `StaggerBarTests`, including the synthetic on-screen display at every position (the reader:
+  same or unknown, which `OnScreenDisplayCombatGateTests` also sweeps; what the app keeps, through `StaggerMemory`:
+  same or the last known value, never another), and the hold (first unread under a boss 0, unread after 40 % 40 %,
+  the boss gone then back 0).
 - **Diagnostics:** the summary's last reading says `stagger Building 0.630 nodes [0.500] reached 1` (or `-`), and the
-  log says when its kind changes, with why it is unread.
+  log says when its kind changes (building, staggered, held, unread), with why it is held or unread
+  (`stagger bar: held Building 0.450 … (unread: pink to 480, fill colours past it)`).
 
 ### Si's battle-skill timer
 

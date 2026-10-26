@@ -127,8 +127,8 @@
     <sys:String x:Key="Editor.Condition.StaggerTimeLeft">失衡剩余时间</sys:String>
     <sys:String x:Key="Editor.Staggered">处于失衡</sys:String>
     <sys:String x:Key="Editor.NotStaggered">未处于失衡</sys:String>
-    <sys:String x:Key="Editor.StaggerHint">按敌人血条下方的失衡条判断：粉色部分填到多少就是失衡进度；条上的小方框是失衡节点，填过一个就是一次小失衡；填满后变成黄色倒计时条，就是处于失衡。看不到敌人血条（过场动画、被遮住）时无法判断。</sys:String>
-    <sys:String x:Key="Editor.StaggerTimeHint">按失衡时黄色倒计时条剩下的长度占整条的百分比判断；没有处于失衡时算 0%。不提供秒数：倒计时在部分技能演出时会暂停。看不到敌人血条时无法判断。</sys:String>
+    <sys:String x:Key="Editor.StaggerHint">按敌人血条下方的失衡条判断：粉色部分填到多少就是失衡进度；条上的小方框是失衡节点，填过一个就是一次小失衡；填满后变成黄色倒计时条，就是处于失衡。看不到敌人血条（过场动画、血条被遮住）时无法判断；看得到血条但失衡条看不清时，沿用最后一次看清的数值，还没看清过时按 0 算。有的敌人没有失衡节点，这时“失衡节点已达到”为 0。</sys:String>
+    <sys:String x:Key="Editor.StaggerTimeHint">按失衡时黄色倒计时条剩下的长度占整条的百分比判断；没有处于失衡时算 0%。不提供秒数：倒计时在部分技能演出时会暂停。看不到敌人血条时无法判断；看得到血条但失衡条看不清时，沿用最后一次看清的剩余长度（不会自己往下减）。</sys:String>
     <sys:String x:Key="Editor.Condition.BossStatus">敌人状态</sys:String>
     <sys:String x:Key="Editor.Condition.Controlling">当前操控</sys:String>
     <sys:String x:Key="Editor.Compare.AtLeast">至少</sys:String>
