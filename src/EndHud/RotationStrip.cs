@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
@@ -141,6 +142,47 @@ internal static class RotationStrip
     /// <summary>A lit step's disc: filled, a dark warm tone under its white icon.</summary>
     private static readonly Brush LitFill = Frozen(Color.FromArgb(0xE0, 0x4A, 0x36, 0x14));
 
+    /// <summary>
+    /// A condition met (a badge holding, a condition step lit) glows round itself in this warm gold, so it reads at a glance
+    /// in a fight (owner, 2026-10-25: "when condition is met, glow more obviously to notify user, right now it is hard to
+    /// tell"): bright over a dark scene, and over a light one its colour (and the dark pill or disc it surrounds) still
+    /// stands apart. Drawn as an effect, outside the layout: nothing moves when a condition comes true.
+    /// </summary>
+    internal static readonly Color MetGlowColor = Color.FromRgb(0xFF, 0xC4, 0x1A);
+
+    /// <summary>The glow at the top of each pulse: nearly white gold, a flash.</summary>
+    internal static readonly Color MetFlashColor = Color.FromRgb(0xFF, 0xF2, 0xB8);
+
+    /// <summary>A met badge's or condition step's edge: brighter than a lit step's amber.</summary>
+    private static readonly Brush MetEdge = Frozen(Color.FromRgb(0xFF, 0xE0, 0x78));
+
+    /// <summary>A holding badge's pill: a warm fill, brighter than the dark one of a badge not holding.</summary>
+    private static readonly Brush MetBadgeFill = Frozen(Color.FromArgb(0xF0, 0x6A, 0x4A, 0x0C));
+
+    /// <summary>A met condition step's disc: a warmer, brighter fill than a lit skill step's.</summary>
+    private static readonly Brush MetStepFill = Frozen(Color.FromArgb(0xF0, 0x74, 0x52, 0x10));
+
+    /// <summary>The glow's blur round a holding badge, steady and at the top of a pulse (units at 1080p).</summary>
+    internal const double BadgeGlow = 14, BadgeGlowPeak = 30;
+
+    /// <summary>The glow's blur round a met condition step's circle, steady and at the top of a pulse.</summary>
+    internal const double StepGlow = 24, StepGlowPeak = 46;
+
+    /// <summary>The wider glow round those (<see cref="Halo"/>), steady and at the top of a pulse.</summary>
+    internal const double BadgeHalo = 24, BadgeHaloPeak = 44, StepHalo = 36, StepHaloPeak = 64;
+
+    /// <summary>
+    /// The moment a condition becomes met, its glow pulses: <see cref="PulseCount"/> flashes, each up and back in twice
+    /// this, about a second in all, then the steady glow. Only on the change: a redraw with it still met doesn't pulse
+    /// again, and nothing moves while it isn't met.
+    /// </summary>
+    internal static readonly TimeSpan PulseHalf = TimeSpan.FromMilliseconds(170);
+
+    internal const int PulseCount = 3;
+
+    /// <summary>The pulse's frame rate: a glow's blur and colour need no more, and the overlay's window is redrawn by the CPU.</summary>
+    private const int PulseFrameRate = 30;
+
     /// <summary>A step not seen used yet this round: dimmed, so the lit ones stand out.</summary>
     internal const double UnlitOpacity = 0.45;
 
@@ -174,15 +216,19 @@ internal static class RotationStrip
     /// <summary>A dark outline around text, so it reads over bright scenes through the see-through band.</summary>
     private static Effect Outline() => new DropShadowEffect { Color = Colors.Black, BlurRadius = 4, ShadowDepth = 0, Opacity = 0.85 };
 
+    /// <param name="before">What the strip showed until now (null: nothing): a condition met in <paramref name="view"/> but not
+    /// in it pulses (<see cref="PulseHalf"/>), one met in both glows steadily.</param>
     public static UIElement Build(StripView view, StripView? before = null)
     {
+        var fresh = Met(view);
+        fresh.ExceptWith(Met(before));
         var steps = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top };
         // With any badge in the phase every step keeps a row for them, so the notes stay in line.
         bool badgeRow = view.Steps.Any(s => s.Badges.Count > 0);
         for (int i = 0; i < view.Steps.Count; i++)
         {
             var step = view.Steps[i];
-            var element = Step(step, Column(view.Steps, i), badgeRow);
+            var element = Step(step, Column(view.Steps, i), badgeRow, StepId(view, i), fresh);
             // The current step on top of a step overlapping it.
             if (step.State is StripStepState.Ready or StripStepState.Waiting) Panel.SetZIndex(element, 1);
             steps.Children.Add(element);
@@ -191,7 +237,8 @@ internal static class RotationStrip
         {
             // What the round still waits for, after the last step, on the line: badges only.
             var finish = new WrapPanel { MaxWidth = StepWidth, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(10, LineY - BadgeHeight / 2, 0, 0) };
-            foreach (var badge in view.Finish) finish.Children.Add(Badge(badge, StepWidth));
+            var ids = BadgeIds(FinishId(view), view.Finish);
+            for (int j = 0; j < view.Finish.Count; j++) finish.Children.Add(Badge(view.Finish[j], StepWidth, fresh.Contains(ids[j])));
             steps.Children.Add(finish);
         }
         if (view.Next is { Steps.Count: > 0 } next)
@@ -200,7 +247,8 @@ internal static class RotationStrip
             bool nextRow = next.Steps.Any(s => s.Badges.Count > 0);
             for (int i = 0; i < next.Steps.Count; i++)
             {
-                var element = Step(next.Steps[i], Column(next.Steps, i), nextRow);
+                // A preview: it glows where met, but never pulses.
+                var element = Step(next.Steps[i], Column(next.Steps, i), nextRow, null, fresh);
                 element.Opacity = NextOpacity;
                 steps.Children.Add(element);
             }
@@ -225,6 +273,72 @@ internal static class RotationStrip
         grid.Children.Add(row);
 
         return new Border { Background = Band, Padding = new Thickness(FadeWidth, 6, FadeWidth, 6), Child = grid };
+    }
+
+    /// <summary>
+    /// What is met in a view, by where it is: each condition step lit, and each badge holding, by its step (or the finish),
+    /// its look and its place among the step's badges alike. A badge put before the others (the step's own ability) doesn't
+    /// shift the rest, and a picture loading doesn't make it another badge.
+    /// </summary>
+    internal static HashSet<string> Met(StripView? view)
+    {
+        var met = new HashSet<string>(StringComparer.Ordinal);
+        if (view is null) return met;
+        for (int i = 0; i < view.Steps.Count; i++)
+        {
+            var step = view.Steps[i];
+            if (step.Condition is not null && step.State == StripStepState.Lit) met.Add(StepId(view, i));
+            var ids = BadgeIds(StepId(view, i), step.Badges);
+            for (int j = 0; j < ids.Count; j++) if (step.Badges[j].Holds) met.Add(ids[j]);
+        }
+        var finish = BadgeIds(FinishId(view), view.Finish);
+        for (int j = 0; j < finish.Count; j++) if (view.Finish[j].Holds) met.Add(finish[j]);
+        return met;
+    }
+
+    private static string StepId(StripView view, int i) => $"{view.Phase}|{i}";
+
+    private static string FinishId(StripView view) => $"{view.Phase}|finish";
+
+    private static List<string> BadgeIds(string owner, IReadOnlyList<StripBadge> badges)
+    {
+        var seen = new Dictionary<string, int>(StringComparer.Ordinal);
+        var ids = new List<string>(badges.Count);
+        foreach (var b in badges)
+        {
+            string look = $"{b.Glyph}{b.Value}{b.Sign}{b.Not}{b.Or}";
+            int n = seen.GetValueOrDefault(look);
+            seen[look] = n + 1;
+            ids.Add($"{owner}|{look}#{n}");
+        }
+        return ids;
+    }
+
+    /// <summary>
+    /// A second, wider glow round something met that already glows: one shadow round a pill 24 units high is faint, the
+    /// glow of the glow carries it out to where it reads over a busy scene. A wrapper of the same size, so the layout is
+    /// the same.
+    /// </summary>
+    private static Grid Halo(FrameworkElement met, double steady, double peak, bool pulse)
+    {
+        var halo = new Grid { Effect = MetGlow(steady, peak, pulse), HorizontalAlignment = met.HorizontalAlignment, VerticalAlignment = met.VerticalAlignment };
+        halo.Children.Add(met);
+        return halo;
+    }
+
+    /// <summary>The glow round something met, steady, or pulsing first when it has just become met.</summary>
+    private static DropShadowEffect MetGlow(double steady, double peak, bool pulse)
+    {
+        var glow = new DropShadowEffect { Color = MetGlowColor, BlurRadius = steady, ShadowDepth = 0, Opacity = 1 };
+        if (!pulse) return glow;
+        // Up and back PulseCount times, then the steady glow: the effect's own properties, no redraw of the strip.
+        var blur = new DoubleAnimation(steady, peak, PulseHalf) { AutoReverse = true, RepeatBehavior = new RepeatBehavior(PulseCount), FillBehavior = FillBehavior.Stop };
+        var colour = new ColorAnimation(MetGlowColor, MetFlashColor, PulseHalf) { AutoReverse = true, RepeatBehavior = new RepeatBehavior(PulseCount), FillBehavior = FillBehavior.Stop };
+        Timeline.SetDesiredFrameRate(blur, PulseFrameRate);
+        Timeline.SetDesiredFrameRate(colour, PulseFrameRate);
+        glow.BeginAnimation(DropShadowEffect.BlurRadiusProperty, blur);
+        glow.BeginAnimation(DropShadowEffect.ColorProperty, colour);
+        return glow;
     }
 
     // Chevrons (26) + label (24) + the icon's top margin (2) + half the icon.
@@ -274,10 +388,14 @@ internal static class RotationStrip
     private static double Column(IReadOnlyList<StripStep> steps, int i) =>
         steps[i].WithPrevious || (i + 1 < steps.Count && steps[i + 1].WithPrevious) ? StepWidth - Overlap : StepWidth;
 
-    private static FrameworkElement Step(StripStep step, double column, bool badgeRow)
+    /// <param name="id">Where the step is (<see cref="Met"/>); null for the next phase's preview, which never pulses.</param>
+    /// <param name="fresh">What has just become met: it pulses.</param>
+    private static FrameworkElement Step(StripStep step, double column, bool badgeRow, string? id, HashSet<string> fresh)
     {
         bool current = step.State is StripStepState.Ready or StripStepState.Waiting;
         bool lit = step.State == StripStepState.Lit;
+        // A condition step lit is a condition met: it glows, like a badge holding.
+        bool met = lit && step.Condition is not null;
         var accent = step.State == StripStepState.Ready ? Cyan : Text;
         // Lit and current bright; not seen yet dim; an attack (never seen) in between (owner, 2026-10-24). The badges
         // aren't dimmed with the step: theirs is their condition's own (a later step's condition is live too).
@@ -307,17 +425,20 @@ internal static class RotationStrip
         });
 
         var icon = new Grid { Width = IconSize, Height = IconSize, Margin = new Thickness(0, 2, 0, 2) };
-        icon.Children.Add(new Ellipse
+        bool pulse = met && id is not null && fresh.Contains(id);
+        var circle = new Ellipse
         {
-            Fill = current ? CurrentFill : lit ? LitFill : StepFill,
-            // Cyan: use it now. White: this is the step, but not yet. Amber: seen used (met). Grey: not yet seen; dashed: never seen.
-            Stroke = current ? accent : lit ? Lit : Ring,
+            Fill = current ? CurrentFill : met ? MetStepFill : lit ? LitFill : StepFill,
+            // Cyan: use it now. White: this is the step, but not yet. Gold: a condition met. Amber: seen used. Grey: not yet seen; dashed: never seen.
+            Stroke = current ? accent : met ? MetEdge : lit ? Lit : Ring,
             StrokeThickness = current || lit ? 3.5 : 2,
             StrokeDashArray = step.State == StripStepState.Neutral ? [3, 2] : null,
             Effect = step.State == StripStepState.Ready ? new DropShadowEffect { Color = CyanColor, BlurRadius = 12, ShadowDepth = 0, Opacity = 0.9 }
+                : met ? MetGlow(StepGlow, StepGlowPeak, pulse)
                 : lit ? new DropShadowEffect { Color = LitColor, BlurRadius = 10, ShadowDepth = 0, Opacity = 0.8 }
                 : null,
-        });
+        };
+        icon.Children.Add(met ? Halo(circle, StepHalo, StepHaloPeak, pulse) : circle);
         if (step.Condition is { } about)
         {
             // The alert pop-up's circle content: the subject's picture, the skill-points glyph, or "!".
@@ -361,7 +482,8 @@ internal static class RotationStrip
         {
             // Right under the circle, inside the step's column: they wrap to another row, and one too wide shrinks.
             var badges = new WrapPanel { MaxWidth = column, MinHeight = BadgeHeight + 2 * BadgeMargin, HorizontalAlignment = HorizontalAlignment.Center };
-            foreach (var badge in step.Badges) badges.Children.Add(Badge(badge, column));
+            var ids = BadgeIds(id ?? "", step.Badges);
+            for (int j = 0; j < step.Badges.Count; j++) badges.Children.Add(Badge(step.Badges[j], column, id is not null && fresh.Contains(ids[j])));
             outer.Children.Add(badges);
         }
         outer.Children.Add(new TextBlock
@@ -449,7 +571,8 @@ internal static class RotationStrip
     /// star (empowered), and the comparison with its number. Amber-edged and bright while it holds, grey-edged and dim
     /// while not. After a "/" when it is one of several where any is enough.
     /// </summary>
-    private static FrameworkElement Badge(StripBadge badge, double column)
+    /// <param name="pulse">It has just come true: its glow pulses first.</param>
+    private static FrameworkElement Badge(StripBadge badge, double column, bool pulse)
     {
         var picture = new Grid { Width = BadgePicture, Height = BadgePicture, VerticalAlignment = VerticalAlignment.Center };
         picture.Children.Add(badge.Glyph switch
@@ -493,16 +616,18 @@ internal static class RotationStrip
         {
             Height = BadgeHeight,
             CornerRadius = new CornerRadius(BadgeHeight / 2),
-            Background = BadgeFill,
-            BorderBrush = badge.Holds ? Lit : Ring,
+            // Holding: a warmer fill, a bright gold edge and a glow round it (outside the layout).
+            Background = badge.Holds ? MetBadgeFill : BadgeFill,
+            BorderBrush = badge.Holds ? MetEdge : Ring,
             BorderThickness = new Thickness(1.5),
             Padding = new Thickness(1, 0, badge.Value is null && badge.Sign == BadgeSign.None ? 1 : 5, 0),
             Child = content,
+            Effect = badge.Holds ? MetGlow(BadgeGlow, BadgeGlowPeak, pulse) : null,
         };
         var item = new StackPanel { Orientation = Orientation.Horizontal };
         if (badge.Or)
             item.Children.Add(new TextBlock { Text = "/", Foreground = Text, FontSize = 17, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(1, 0, 2, 0), Effect = Outline() });
-        item.Children.Add(pill);
+        item.Children.Add(badge.Holds ? Halo(pill, BadgeHalo, BadgeHaloPeak, pulse) : pill);
         return new Viewbox
         {
             // Too wide for the step's column (a long number, an "or"): smaller, never past it.

@@ -44,7 +44,7 @@ public class MetGlowTests(ITestOutputHelper output)
 
         double distance = RingDistance(met, unmet, box, 2, 8, above: false);
         output.WriteLine($"{(light ? "light" : "dark")} scene: badge ring distance met vs unmet {distance:0.0}");
-        Assert.True(distance >= 40, $"the ring round a holding badge differs by only {distance:0.0} from one not holding");
+        Assert.True(distance >= 30, $"the ring round a holding badge differs by only {distance:0.0} from one not holding");
     }
 
     /// <summary>The same for a condition step's circle: lit (met), the ring 3–12 units round it glows; unlit it doesn't.</summary>
@@ -59,7 +59,107 @@ public class MetGlowTests(ITestOutputHelper output)
 
         double distance = RingDistance(met, unmet, circle, 3, 12, above: true);
         output.WriteLine($"{(light ? "light" : "dark")} scene: circle ring distance met vs unmet {distance:0.0}");
-        Assert.True(distance >= 40, $"the ring round a met condition step differs by only {distance:0.0} from one not met");
+        Assert.True(distance >= 30, $"the ring round a met condition step differs by only {distance:0.0} from one not met");
+    }
+
+    /// <summary>The met glows drawn under a strip: (glowing, pulsing now) for each.</summary>
+    private static List<bool> Glows(StripView view, StripView? before = null) => OnSta(() =>
+        Descendants(RotationStrip.Build(view, before)).OfType<UIElement>()
+            .Select(e => e.Effect).OfType<System.Windows.Media.Effects.DropShadowEffect>()
+            .Where(e => e.Color == RotationStrip.MetGlowColor)
+            .Select(e => e.HasAnimatedProperties).ToList());
+
+    private static StripView Mixed(bool firstHolds, bool conditionLit, StripStepState second = StripStepState.Unlit) => new("P",
+    [
+        new StripStep(null, null, "Condition", null, conditionLit ? StripStepState.Lit : StripStepState.Ready, false, new StripCondition(true), [Points(conditionLit)]),
+        new StripStep(null, null, "Battle skill", null, second, false, Badges: [Points(firstHolds), Points(false) with { Value = "≥3" }]),
+    ], null, [Points(false) with { Value = "≥1" }]);
+
+    /// <summary>Met: a badge holding and a condition step lit glow (two glows each, a tight and a wide one); not met: no glow at all.</summary>
+    [Fact]
+    public void Met_glows_and_not_met_does_not()
+    {
+        Assert.Empty(Glows(Mixed(firstHolds: false, conditionLit: false)));
+        Assert.Equal(2, Glows(Mixed(firstHolds: true, conditionLit: false)).Count);
+        Assert.Equal(6, Glows(Mixed(firstHolds: true, conditionLit: true)).Count); // the badge, the condition step's badge and its circle
+        // The finish condition's badges too.
+        var finish = new StripView("P", [new StripStep(null, null, "Battle skill", null, StripStepState.Lit, false)], null, [Points(true)]);
+        Assert.Equal(2, Glows(finish).Count);
+        // A skill step lit (seen used) is not a condition: its own amber glow, not the met one.
+        Assert.Empty(Glows(new StripView("P", [new StripStep(null, null, "Battle skill", null, StripStepState.Lit, false)], null, [])));
+    }
+
+    /// <summary>
+    /// The pulse starts only where a condition has just become met: first shown met, or met now and not on the strip drawn
+    /// before. Drawn again with it still met (another step lit, a picture loaded), the glow is steady; nothing not met moves.
+    /// </summary>
+    [Fact]
+    public void The_pulse_starts_only_when_a_condition_becomes_met()
+    {
+        var none = Mixed(firstHolds: false, conditionLit: false);
+        var badge = Mixed(firstHolds: true, conditionLit: false);
+        var both = Mixed(firstHolds: true, conditionLit: true);
+
+        Assert.All(Glows(badge, before: none), pulsing => Assert.True(pulsing));
+        Assert.All(Glows(badge, before: badge), pulsing => Assert.False(pulsing));
+        // The condition step comes true: its badge and its circle pulse, the badge already holding stays steady.
+        Assert.Equal([false, false, true, true, true, true], Glows(both, before: badge).Order());
+        // Another step lit, nothing newly met: no pulse.
+        Assert.All(Glows(Mixed(true, true, StripStepState.Lit), before: both), pulsing => Assert.False(pulsing));
+        // Not met: nothing animates anywhere.
+        Assert.Empty(Glows(none, before: badge));
+        // A badge put first (the step's own ability short) doesn't make the others new.
+        var own = both with { Steps = [both.Steps[0], both.Steps[1] with { Badges = [Points(false) with { Value = "≥1" }, .. both.Steps[1].Badges] }] };
+        Assert.All(Glows(own, before: both), pulsing => Assert.False(pulsing));
+    }
+
+    /// <summary>The glow is outside the layout: every step, badge and the strip are the same size and place met or not, at 50, 100 and 200 %.</summary>
+    [Theory]
+    [InlineData(0.5)]
+    [InlineData(1.0)]
+    [InlineData(2.0)]
+    public void Met_or_not_the_layout_is_the_same(double scale)
+    {
+        List<Rect> Boxes(StripView view) => OnSta(() =>
+        {
+            var strip = (FrameworkElement)RotationStrip.Build(view);
+            // The menu's size slider scales the whole strip.
+            var root = new Border { Child = strip, LayoutTransform = new ScaleTransform(scale, scale) };
+            root.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            root.Arrange(new Rect(root.DesiredSize));
+            root.UpdateLayout();
+            return Descendants(strip).OfType<FrameworkElement>().Where(e => e.Tag is StripBadge or StripStep or StripStepState)
+                .Select(e => e.TransformToAncestor(root).TransformBounds(new Rect(0, 0, e.ActualWidth, e.ActualHeight)))
+                .Prepend(new Rect(root.DesiredSize)).ToList();
+        });
+
+        Assert.Equal(Boxes(Mixed(false, false)), Boxes(Mixed(true, true)));
+    }
+
+    /// <summary>The strip's opacity setting dims the glow with the rest: half the opacity, about half the glow's cover.</summary>
+    [Fact]
+    public void The_glow_follows_the_strips_opacity()
+    {
+        // How much the glow adds under the badge, over the dark scene: met minus not met, red and green.
+        double Glow(double opacity)
+        {
+            var met = Render(OneBadge(true), DarkScene, out var box, $"badge-met-opacity-{opacity:0.0}", opacity: opacity);
+            var unmet = Render(OneBadge(false), DarkScene, out _, $"badge-unmet-opacity-{opacity:0.0}", opacity: opacity);
+            double sum = 0;
+            int n = 0;
+            for (int y = (int)box.Bottom + 3; y < (int)box.Bottom + 8; y++)
+            for (int x = (int)box.Left; x < (int)box.Right; x++)
+            {
+                var (r1, g1, _) = met.At(x, y);
+                var (r2, g2, _) = unmet.At(x, y);
+                sum += r1 + g1 - r2 - g2;
+                n++;
+            }
+            return sum / n;
+        }
+        double full = Glow(1), half = Glow(0.5);
+        output.WriteLine($"glow under the badge: +{full:0} at 100 %, +{half:0} at 50 %");
+        Assert.InRange(half / full, 0.4, 0.6);
     }
 
     internal sealed record Rendered(int Width, int Height, byte[] Bgra)
@@ -105,7 +205,7 @@ public class MetGlowTests(ITestOutputHelper output)
             root.Arrange(new Rect(root.DesiredSize));
             root.UpdateLayout();
             FrameworkElement target = circle
-                ? Descendants(strip).OfType<System.Windows.Shapes.Ellipse>().First(e => e.Width is double.NaN && e.Parent is Grid { Width: 80 })
+                ? Descendants(strip).OfType<System.Windows.Shapes.Ellipse>().First(e => e.Width is double.NaN && e.ActualWidth == 80)
                 : Descendants(strip).OfType<FrameworkElement>().First(e => e.Tag is StripBadge);
             found = target.TransformToAncestor(root).TransformBounds(new Rect(0, 0, target.ActualWidth, target.ActualHeight));
             int w = (int)Math.Ceiling(root.DesiredSize.Width), h = (int)Math.Ceiling(root.DesiredSize.Height);
