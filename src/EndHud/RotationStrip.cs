@@ -172,14 +172,17 @@ internal static class RotationStrip
     /// <summary>A met condition step's disc: dark, as the game's empowered button, under its white rim and icon.</summary>
     private static readonly Brush MetStepFill = Frozen(Color.FromArgb(0xF0, 0x2C, 0x31, 0x38));
 
-    /// <summary>The soft glow's blur round a holding badge, steady and at the top of a pulse (units at 1080p).</summary>
-    internal const double BadgeGlow = 12, BadgeGlowPeak = 26;
-
-    /// <summary>The soft glow's blur round a met condition step's circle, steady and at the top of a pulse.</summary>
+    /// <summary>The soft glow's blur round a met condition step's circle, steady and at the top of a pulse (units at 1080p).</summary>
     internal const double StepGlow = 20, StepGlowPeak = 40;
 
-    /// <summary>The wider glow round those (<see cref="Halo"/>), steady and at the top of a pulse.</summary>
-    internal const double BadgeHalo = 26, BadgeHaloPeak = 46, StepHalo = 36, StepHaloPeak = 64;
+    /// <summary>
+    /// A holding badge glows exactly as a met condition step does (owner, 2026-10-25: "this should use the same glow as
+    /// the condition"): the same blur, pulse and halo, so a badge coming true reads as plainly as the step.
+    /// </summary>
+    internal const double BadgeGlow = StepGlow, BadgeGlowPeak = StepGlowPeak;
+
+    /// <summary>The wider glow round those (<see cref="Halo"/>), steady and at the top of a pulse; the badge's is the step's.</summary>
+    internal const double StepHalo = 36, StepHaloPeak = 64, BadgeHalo = StepHalo, BadgeHaloPeak = StepHaloPeak;
 
     /// <summary>The glows' strength steady (tight, wide); a pulse takes both to full.</summary>
     internal const double GlowOpacity = 1, HaloOpacity = 0.85;

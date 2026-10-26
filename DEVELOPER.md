@@ -129,8 +129,9 @@ rotation charts.
   ready"): a thick near-white rim with a soft white glow round it, as the game draws a battle skill's button while
   empowered (`Fixtures/cast-flash/fullbattletest-slot2-empowered-rim.png`) and Arcane's ultimate ready for its second
   stage. A badge holding: a 2.5-unit white rim over its pill's edge (`RotationStrip.MetBadgeRim`), a lighter slate pill,
-  a tight white glow on the rim and a wider one round the whole (`BadgeGlow` / `BadgeHalo`, `MetGlowColor`). A condition
-  step lit (met): a 7-unit white rim on its dark disc (`MetRing`), the same two glows, wider (`StepGlow` / `StepHalo`),
+  a white glow on the rim and a wider one round the whole, exactly the condition step's (`BadgeGlow` = `StepGlow`,
+  `BadgeHalo` = `StepHalo`, `MetGlowColor`; owner 2026-10-25: "the same glow as the condition"). A condition
+  step lit (met): a 7-unit white rim on its dark disc (`MetRing`), the same two glows (`StepGlow` / `StepHalo`),
   and a faint thin ring 7 units outside (`MetOuterGap`), as the rings round the game's ready buttons. Rim, glows and
   ring are drawn inside the circle's or pill's box or as effects: nothing moves or resizes when a condition comes true.
   **The moment it becomes met** the glows pulse: three flashes, wider and at full strength, about a second in all

@@ -259,6 +259,14 @@ public class MetGlowTests(ITestOutputHelper output)
     /// frame at the strip's 1080p size); <paramref name="box"/>: the first badge's bounds, or the circle's.
     /// </summary>
     /// <param name="peak">Each pulse frozen at its top (the brightest flash), instead of its first frame.</param>
+    /// <summary>Owner, 2026-10-25: a holding badge "should use the same glow as the condition" step.</summary>
+    [Fact]
+    public void A_holding_badge_glows_exactly_as_a_met_condition_step()
+    {
+        Assert.Equal((RotationStrip.StepGlow, RotationStrip.StepGlowPeak, RotationStrip.StepHalo, RotationStrip.StepHaloPeak),
+            (RotationStrip.BadgeGlow, RotationStrip.BadgeGlowPeak, RotationStrip.BadgeHalo, RotationStrip.BadgeHaloPeak));
+    }
+
     internal static Rendered Render(StripView view, Color scene, out Rect box, string name, bool circle = false, StripView? before = null, double opacity = 1,
         string? fixture = null, bool peak = false)
     {
@@ -273,9 +281,7 @@ public class MetGlowTests(ITestOutputHelper output)
                 {
                     double top = glow.BlurRadius switch
                     {
-                        RotationStrip.BadgeGlow => RotationStrip.BadgeGlowPeak,
-                        RotationStrip.BadgeHalo => RotationStrip.BadgeHaloPeak,
-                        RotationStrip.StepGlow => RotationStrip.StepGlowPeak,
+                        RotationStrip.StepGlow => RotationStrip.StepGlowPeak,   // a badge's is the step's (BadgeGlow)
                         _ => RotationStrip.StepHaloPeak,
                     };
                     glow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.BlurRadiusProperty, null);
