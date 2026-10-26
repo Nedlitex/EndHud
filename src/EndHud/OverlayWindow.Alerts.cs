@@ -160,7 +160,7 @@ public partial class OverlayWindow
             MessageBox.Show(Loc.Get("Alerts.NoLibrary"), Loc.Get("Alerts.Title"), MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
-        _alertEditor = new AlertEditor(_alertStore, library, () => _rotations, ReloadAlerts);
+        _alertEditor = new AlertEditor(_alertStore, library, () => _rotations, [], ReloadAlerts);
         _alertEditor.Closed += (_, _) => _alertEditor = null;
         if (_menuOpen) SetMenuOpen(false); // hand the screen to the editor
         _alertEditor.Show();

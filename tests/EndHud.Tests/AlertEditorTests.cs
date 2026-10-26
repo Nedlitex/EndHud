@@ -358,6 +358,176 @@ public sealed class AlertEditorTests : IDisposable
         Assert.Equal(newer, File.ReadAllText(Store().File));
     }
 
+    // ---- A rule's squad: every squad, or one (owner, 2026-10-25) ----
+
+    private static ComboBox ScopePicker(AlertEditor editor, int i) => (ComboBox)editor.FindName($"ScopeOperator{i}");
+
+    private static void Check(AlertEditor editor, string radio) =>
+        ((RadioButton)editor.FindName(radio)).IsChecked = true;
+
+    /// <summary>The scope a rule's line in the list shows: its badge's words, and how many avatars.</summary>
+    private static (string Words, int Avatars) Badge(AlertEditor editor, int rule = 0)
+    {
+        var line = (Panel)((ListBoxItem)((ListBox)editor.FindName("RuleList")).Items[rule]).Content;
+        var badge = (Panel)line.Children[0];
+        return (string.Concat(badge.Children.OfType<TextBlock>().Select(t => t.Text)), badge.Children.OfType<Image>().Count());
+    }
+
+    [Fact]
+    public void A_new_rule_runs_for_every_squad_and_the_list_says_so()
+    {
+        bool allChecked = false, pickersShown = true;
+        (string, int) badge = default;
+        OnEditor(Store(), () => { }, editor =>
+        {
+            Click(editor, "NewButton");
+            allChecked = ((RadioButton)editor.FindName("ScopeAllRadio")).IsChecked == true;
+            pickersShown = ((FrameworkElement)editor.FindName("ScopeSquadPanel")).Visibility == Visibility.Visible;
+            badge = Badge(editor);
+            Click(editor, "SaveButton");
+        });
+
+        Assert.True(allChecked);
+        Assert.False(pickersShown);
+        Assert.Equal(("Alerts.Scope.AllShort", 0), badge);
+        Assert.Null(Assert.Single(Store().Load().Rules).Squad);
+        Assert.True(Translated("Alerts.Scope.All") && Translated("Alerts.Scope.Squad") && Translated("Alerts.Scope.AllShort") && Translated("Alerts.Scope.Hint"));
+    }
+
+    [Fact]
+    public void A_rule_tied_to_two_operators_is_saved_with_them_and_listed_with_their_avatars()
+    {
+        (string, int) badge = default;
+        bool pickersShown = false;
+        OnEditor(Store(), () => { }, editor =>
+        {
+            Click(editor, "NewButton");
+            Check(editor, "ScopeSquadRadio");
+            pickersShown = ((FrameworkElement)editor.FindName("ScopeSquadPanel")).Visibility == Visibility.Visible;
+            Pick(ScopePicker(editor, 0), "Camille");
+            Pick(ScopePicker(editor, 2), "Laevatain");
+            badge = Badge(editor);
+            Click(editor, "SaveButton");
+        });
+
+        Assert.True(pickersShown);
+        Assert.Equal(["Camille", "Laevatain"], Assert.Single(Store().Load().Rules).Squad);
+        Assert.Equal(2, badge.Item2);
+    }
+
+    [Fact]
+    public void A_squad_with_nobody_picked_is_refused_in_words()
+    {
+        string said = "";
+        OnEditor(Store(), () => { }, editor =>
+        {
+            Click(editor, "NewButton");
+            Check(editor, "ScopeSquadRadio");
+            Click(editor, "SaveButton");
+            said = Said(editor);
+        });
+
+        Assert.Contains("Alerts.Problem.EmptySquad", said);
+        Assert.False(File.Exists(Store().File));
+        Assert.True(Translated("Alerts.Problem.EmptySquad", withPlaceholder: true));
+    }
+
+    [Fact]
+    public void A_squad_naming_an_operator_twice_is_refused_in_words()
+    {
+        string said = "";
+        OnEditor(Store(), () => { }, editor =>
+        {
+            Click(editor, "NewButton");
+            Check(editor, "ScopeSquadRadio");
+            Pick(ScopePicker(editor, 0), "Si");
+            Pick(ScopePicker(editor, 1), "Si");
+            Click(editor, "SaveButton");
+            said = Said(editor);
+        });
+
+        Assert.Contains("Alerts.Problem.SquadOperatorRepeated", said);
+        Assert.False(File.Exists(Store().File));
+        Assert.True(Translated("Alerts.Problem.SquadOperatorRepeated", withPlaceholder: true));
+    }
+
+    [Fact]
+    public void Use_current_squad_fills_the_pickers_from_the_recognised_squad()
+    {
+        bool enabled = false;
+        OnEditor(Store(), () => { }, editor =>
+        {
+            Click(editor, "NewButton");
+            Check(editor, "ScopeSquadRadio");
+            enabled = ((Button)editor.FindName("UseCurrentSquadButton")).IsEnabled;
+            Click(editor, "UseCurrentSquadButton");
+            Click(editor, "SaveButton");
+        }, currentSquad: ["Si", "Ardelia", "Laevatain", "Camille"]);
+
+        Assert.True(enabled);
+        Assert.Equal(["Si", "Ardelia", "Laevatain", "Camille"], Assert.Single(Store().Load().Rules).Squad);
+        Assert.True(Translated("Alerts.Scope.UseCurrent"));
+    }
+
+    [Fact]
+    public void Use_current_squad_waits_until_every_operator_is_recognised()
+    {
+        static bool Enabled(AlertEditor editor)
+        {
+            Click(editor, "NewButton");
+            Check(editor, "ScopeSquadRadio");
+            return ((Button)editor.FindName("UseCurrentSquadButton")).IsEnabled;
+        }
+        bool partly = true, none = true, whole = false, small = false;
+        OnEditor(Store(), () => { }, editor => partly = Enabled(editor), currentSquad: ["Si", null, "Laevatain", "Camille"]);
+        OnEditor(Store(), () => { }, editor => none = Enabled(editor));
+        OnEditor(Store(), () => { }, editor => whole = Enabled(editor), currentSquad: ["Si", "Ardelia", "Laevatain", "Camille"]);
+        // A squad of three (the fourth place empty, left out): known, so it can be used.
+        OnEditor(Store(), () => { }, editor => small = Enabled(editor), currentSquad: ["Si", "Laevatain", "Camille"]);
+
+        Assert.False(partly);
+        Assert.False(none);
+        Assert.True(whole);
+        Assert.True(small);
+    }
+
+    [Fact]
+    public void A_saved_squad_rule_opens_with_its_squad_and_back_to_every_squad_saves_none()
+    {
+        Store().Save([AlertRule.New([new SkillPointsCondition(Comparison.AtLeast, 1.8)], "x") with { Squad = ["Si", "Camille"] }]);
+        bool squadChecked = false;
+        string?[] picked = [];
+        OnEditor(Store(), () => { }, editor =>
+        {
+            squadChecked = ((RadioButton)editor.FindName("ScopeSquadRadio")).IsChecked == true;
+            picked = [.. Enumerable.Range(0, 4).Select(i => (ScopePicker(editor, i).SelectedItem as ComboBoxItem)?.Tag as string)];
+            Check(editor, "ScopeAllRadio");
+            Click(editor, "SaveButton");
+        });
+
+        Assert.True(squadChecked);
+        Assert.Equal(["Si", "Camille", "", ""], picked.Select(p => p ?? ""));
+        Assert.Null(Assert.Single(Store().Load().Rules).Squad);
+    }
+
+    /// <summary>Tied to a squad: a condition's operator picker offers just that squad.</summary>
+    [Fact]
+    public void A_condition_on_a_squad_rule_offers_just_the_squad()
+    {
+        List<string> offered = [];
+        OnEditor(Store(), () => { }, editor =>
+        {
+            Click(editor, "NewButton");
+            Check(editor, "ScopeSquadRadio");
+            Pick(ScopePicker(editor, 0), "Camille");
+            Pick(ScopePicker(editor, 1), "Si");
+            Pick(Pickers(editor)[0], "Combo");
+            offered = [.. Pickers(editor)[1].Items.Cast<ComboBoxItem>().Select(i => (string)i.Tag)];
+        });
+
+        Assert.Equal(["Camille", "Si"], offered.Order());
+    }
+
     /// <summary>The sentence the player reads is in the zh-CN strings, in Chinese.</summary>
     private static bool Translated(string key, bool withPlaceholder = false)
     {
@@ -371,7 +541,8 @@ public sealed class AlertEditorTests : IDisposable
         throw new DirectoryNotFoundException("src/EndHud/i18n");
     }
 
-    private void OnEditor(AlertStore store, Action saved, Action<AlertEditor> act, IReadOnlyList<Rotation>? rotations = null)
+    private void OnEditor(AlertStore store, Action saved, Action<AlertEditor> act, IReadOnlyList<Rotation>? rotations = null,
+        IReadOnlyList<string?>? currentSquad = null)
     {
         // Operators (with Si, whose counter has no maximum) and three statuses, without any art: enough for the pickers.
         string reference = Path.Combine(_folder, "reference");
@@ -393,7 +564,7 @@ public sealed class AlertEditorTests : IDisposable
             try
             {
                 if (Application.Current is null) _ = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-                act(new AlertEditor(store, library, () => rotations ?? [], saved));
+                act(new AlertEditor(store, library, () => rotations ?? [], currentSquad ?? [], saved));
             }
             catch (Exception ex)
             {

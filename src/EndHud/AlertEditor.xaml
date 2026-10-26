@@ -66,6 +66,24 @@
                             <TextBox x:Name="MessageTextBox" MaxLength="40" VerticalAlignment="Center" TextChanged="MessageTextBox_TextChanged" />
                         </DockPanel>
                         <TextBlock Text="{DynamicResource Alerts.MessageHint}" Foreground="#888" TextWrapping="Wrap" Margin="0,0,0,10" />
+                        <!-- Which squad it runs for: every squad (the default), or one of up to four operators. -->
+                        <TextBlock Text="{DynamicResource Alerts.Scope}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <RadioButton x:Name="ScopeAllRadio" GroupName="Scope" Content="{DynamicResource Alerts.Scope.All}"
+                                         VerticalAlignment="Center" Margin="0,0,16,0" Checked="Scope_Checked" />
+                            <RadioButton x:Name="ScopeSquadRadio" GroupName="Scope" Content="{DynamicResource Alerts.Scope.Squad}"
+                                         VerticalAlignment="Center" Checked="Scope_Checked" />
+                        </StackPanel>
+                        <StackPanel x:Name="ScopeSquadPanel" Visibility="Collapsed" Margin="0,0,0,10">
+                            <WrapPanel>
+                                <ComboBox x:Name="ScopeOperator0" MinWidth="120" Margin="0,0,6,6" SelectionChanged="ScopeOperator_SelectionChanged" />
+                                <ComboBox x:Name="ScopeOperator1" MinWidth="120" Margin="0,0,6,6" SelectionChanged="ScopeOperator_SelectionChanged" />
+                                <ComboBox x:Name="ScopeOperator2" MinWidth="120" Margin="0,0,6,6" SelectionChanged="ScopeOperator_SelectionChanged" />
+                                <ComboBox x:Name="ScopeOperator3" MinWidth="120" Margin="0,0,6,6" SelectionChanged="ScopeOperator_SelectionChanged" />
+                                <Button x:Name="UseCurrentSquadButton" Content="{DynamicResource Alerts.Scope.UseCurrent}" Click="UseCurrentSquadButton_Click" />
+                            </WrapPanel>
+                            <TextBlock Text="{DynamicResource Alerts.Scope.Hint}" Foreground="#888" TextWrapping="Wrap" />
+                        </StackPanel>
                         <TextBlock Text="{DynamicResource Alerts.Conditions}" FontWeight="SemiBold" Margin="0,0,0,6" />
                         <StackPanel x:Name="ConditionRows" />
                         <Button x:Name="AddConditionButton" Content="{DynamicResource Editor.AddCondition}" HorizontalAlignment="Left"

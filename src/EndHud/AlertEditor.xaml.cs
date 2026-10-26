@@ -45,8 +45,9 @@ public partial class AlertEditor : Window
     /// <param name="store">The rules' file.</param>
     /// <param name="rotations">The player's rotations: "phase played" names one of their phases.</param>
     /// <param name="saved">Called after the rules were saved (the overlay reloads them).</param>
-    internal AlertEditor(AlertStore store, OperatorLibrary library, Func<IReadOnlyList<Rotation>> rotations, Action saved)
+    internal AlertEditor(AlertStore store, OperatorLibrary library, Func<IReadOnlyList<Rotation>> rotations, IReadOnlyList<string?> currentSquad, Action saved)
     {
+        _ = currentSquad;
         _store = store;
         _library = library;
         _rotations = rotations;
@@ -359,6 +360,12 @@ public partial class AlertEditor : Window
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
+
+    private void Scope_Checked(object sender, RoutedEventArgs e) { }
+
+    private void ScopeOperator_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
+
+    private void UseCurrentSquadButton_Click(object sender, RoutedEventArgs e) { }
 
     /// <summary>With unsaved changes: save, discard, or stay. True to go on.</summary>
     private bool ConfirmDiscard()
