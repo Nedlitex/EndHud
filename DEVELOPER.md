@@ -225,6 +225,19 @@ it turns true. See [Alerts](#alerts) for the file, the firing rule and the edito
   out of it leftwards, towards the screen centre, with an orange edge (the combo banners' is
   gold); the text wraps to two lines at most and ends in an ellipsis past that
   ([`AlertPopUp`](src/EndHud/AlertPopUp.cs)).
+- **Size:** the combo hints' scale (following the game window) times the player's size, `AlertScale`
+  (the card's 大小 slider, 50–200% by 5%, applied as it's dragged: with the menu open the sample
+  shows it; 恢复默认大小 sets 150%). 150% by default (owner, 2026-10-25: "the default notification
+  should be larger, right now it is hard to notice"): at 100% the circle was the combo banner's
+  height (72 units at 1080p) and the words 20 tall, under the rotation strip's 80-unit skill icons;
+  at 150% the circle is 108 and the words 30. A bigger size doesn't cover the game's centre or the
+  combo hint: the text wraps sooner instead, so the stack stays right of a band 4% of the window's
+  width right of its centre, never narrower than 80 units of text (four characters a line); the
+  stack's top is raised where the fullest stack (the sample and three pop-ups) would run off the
+  bottom, and its left edge is kept on the window wherever the combo hint is dragged
+  ([`AlertLayout`](src/EndHud/AlertLayout.cs)). At 1080p 16:9 the fullest stack with the longest
+  text spans x 1047–1536, y 389–881 at 150% (the combo hint ends at 769, the centre is 960).
+  `AlertSizeTests` measure it on 16:9, 16:10 and 21:9 windows from 1080p to 4K at every step.
 - **How long:** 3 s, or less if the rule stops holding first; at most three at once (the oldest
   goes); all down on leaving battle. No sound.
 - **Words:** a rule with no text shows its conditions in words from the `Alert.Describe.*`
@@ -715,13 +728,14 @@ release.yml).
 | `AutoShowOnGameFocus` | `true` | Show the HUD when the game has focus and hide it otherwise. When `false`, the HUD only shows after Ctrl+Shift+H. |
 | `PartyOcrEnabled` | `true` | Read the squad panel (names, HP, skills, levels). |
 | `OcrIntervalMs` | `250` | How often the screen is read, in milliseconds (minimum 250). Rotations need it fast: skill points are spent and refilled quickly. |
-| `SettingsVersion` | current | The file's version, to update old defaults the player never chose (the first start writes the whole file): before version 2 an `OcrIntervalMs` of 1000 gets 250; before 3 a `GaugesScale` of 50% gets 100%; before 5 the inn banners' old default places get the new one; before 6 an `InnStripOpacity` of 100% gets 85%. Version 7 adds the show-in-open-world settings and the notice's mark; a file without them reads their defaults, nothing rewritten. |
+| `SettingsVersion` | current | The file's version, to update old defaults the player never chose (the first start writes the whole file): before version 2 an `OcrIntervalMs` of 1000 gets 250; before 3 a `GaugesScale` of 50% gets 100%; before 5 the inn banners' old default places get the new one; before 6 an `InnStripOpacity` of 100% gets 85%. Version 7 adds the show-in-open-world settings and the notice's mark; a file without them reads their defaults, nothing rewritten. Version 8 adds `AlertScale`; nobody could choose one before, so a file without it reads the new default, 150%, nothing rewritten. |
 | `Language` | `zh-CN` | UI language: picks `i18n/<Language>.xaml`. |
 | `ComboHintEnabled` | `true` | Show the combo-ready hint (needs `PartyOcrEnabled`). |
 | `ComboHintMode` | `WhenReady` | `WhenReady`: for `ComboHintSeconds` after the cooldown finishes. `WhileReady`: until the combo skill is used. |
 | `ComboHintSeconds` | `3` | How long a `WhenReady` hint stays up. |
 | `ComboHintX`, `ComboHintY` | `0.2`, `0.36` | Where the hint sits: its top-left corner as a fraction of the game window's width and height. The alert pop-ups mirror it (right edge at 1 − `ComboHintX`, same `ComboHintY`). |
 | `AlertsEnabled` | `true` | Pop up the player's alert rules (`alerts.json`) in battle (needs `PartyOcrEnabled`). An operational switch over a feature that ships on: the rules list decides whether anything shows. A `config.json` from before it reads as on. |
+| `AlertScale` | `1.5` | The alert pop-ups' size on top of following the game window, 0.5–2 (the 战斗提示 card's 大小 slider; a value outside is brought back into range; its 恢复默认大小 sets 1.5). 150% by default (owner, 2026-10-25: hard to notice at 100%). See [Combat alerts](#combat-alerts-战斗提示). |
 | `RotationEnabled` | `true` | Show the rotation strip when the recognised squad has a rotation. |
 | `ShowRotationInOpenWorld` | `false` | Show the rotation strip in a fight in the open world too (the 排轴 card's 在大世界战斗中也显示排轴). Off by default, the owner's choice; an instance's battle shows it either way. See [The battle kind](#the-battle-kind-instance-or-open-world). |
 | `ShowGaugesInOpenWorld`, `ShowComboHintsInOpenWorld`, `ShowAlertsInOpenWorld` | `true` | The same for the gauges, the combo-ready hints and the alert pop-ups, each in its own card. On by default, as before the settings. |
