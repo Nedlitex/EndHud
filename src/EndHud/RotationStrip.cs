@@ -169,7 +169,7 @@ internal static class RotationStrip
     internal const double StepGlow = 24, StepGlowPeak = 46;
 
     /// <summary>The wider glow round those (<see cref="Halo"/>), steady and at the top of a pulse.</summary>
-    internal const double BadgeHalo = 24, BadgeHaloPeak = 44, StepHalo = 36, StepHaloPeak = 64;
+    internal const double BadgeHalo = 26, BadgeHaloPeak = 46, StepHalo = 36, StepHaloPeak = 64;
 
     /// <summary>
     /// The moment a condition becomes met, its glow pulses: <see cref="PulseCount"/> flashes, each up and back in twice

@@ -57,6 +57,11 @@
           CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\si\stacks-14s.jpg')" />
     <None Include="..\data\Fixtures\si\stacks-50_75s.jpg" Link="Fixtures\si\stacks-50_75s.jpg"
           CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\si\stacks-50_75s.jpg')" />
+    <!-- A bright fight and a dark one where the rotation strip sits: a condition met must glow over both (MetGlowTests). -->
+    <None Include="..\data\Fixtures\controller\fullbattle-lb-held.jpg" Link="Fixtures\controller\fullbattle-lb-held.jpg"
+          CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\controller\fullbattle-lb-held.jpg')" />
+    <None Include="..\data\Fixtures\battle-hud\battle-25s.jpg" Link="Fixtures\battle-hud\battle-25s.jpg"
+          CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\battle-hud\battle-25s.jpg')" />
     <!-- Inn frames for the inn wire-up's tests: the real readers end to end. -->
     <None Include="..\data\Fixtures\inn\session-gourmand-order.jpg" Link="Fixtures\inn\session-gourmand-order.jpg"
           CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\data\Fixtures\inn\session-gourmand-order.jpg')" />

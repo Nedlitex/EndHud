@@ -47,6 +47,34 @@ public class MetGlowTests(ITestOutputHelper output)
         Assert.True(distance >= 30, $"the ring round a holding badge differs by only {distance:0.0} from one not holding");
     }
 
+    /// <summary>
+    /// Over the game itself, where the strip sits: a bright fight (the controller fight's sky, mean grey 227 there) and a
+    /// dark one (battle-hud at 25 s, mean grey 26). A strip of a met condition step, a battle skill with two badges and a
+    /// finish badge, met (just come true: its first frame, and the top of a pulse) and not; the first badge's surroundings
+    /// differ by as much as over the solid scenes.
+    /// </summary>
+    [Theory]
+    [InlineData("controller/fullbattle-lb-held.jpg", "light")]
+    [InlineData("battle-hud/battle-25s.jpg", "dark")]
+    public void Over_a_fight_light_or_dark_a_met_badge_stands_out(string fixture, string name)
+    {
+        StripView Fight(bool met) => new("爆发轴",
+        [
+            new StripStep(null, null, "条件", null, met ? StripStepState.Lit : StripStepState.Unlit, false, new StripCondition(true), [Points(met)]),
+            new StripStep(null, null, "战技", null, met ? StripStepState.Ready : StripStepState.Waiting, false,
+                Badges: [Points(met) with { Value = "≥1" }, new StripBadge(null, BadgeGlyph.Steps, "≥2", BadgeSign.None, false, met)]) { Key = new StripKey(2, false) },
+            new StripStep(null, null, "连携技", null, StripStepState.Unlit, false),
+        ], null, []);
+
+        var met = Render(Fight(true), default, out var box, $"fight-{name}-met", fixture: fixture);
+        Render(Fight(true), default, out _, $"fight-{name}-met-pulse-peak", fixture: fixture, peak: true);
+        var unmet = Render(Fight(false), default, out _, $"fight-{name}-unmet", fixture: fixture);
+
+        double distance = RingDistance(met, unmet, box, 2, 8, above: false);
+        output.WriteLine($"{name} fight: badge ring distance met vs unmet {distance:0.0}");
+        Assert.True(distance >= 30, $"over the {name} fight the ring round a holding badge differs by only {distance:0.0}");
+    }
+
     /// <summary>The same for a condition step's circle: lit (met), the ring 3–12 units round it glows; unlit it doesn't.</summary>
     [Theory]
     [InlineData(true)]
@@ -225,14 +253,42 @@ public class MetGlowTests(ITestOutputHelper output)
         return sum / n;
     }
 
-    /// <summary>The strip drawn over a solid scene, opaque; <paramref name="box"/>: the badge's bounds, or the circle's.</summary>
-    internal static Rendered Render(StripView view, Color scene, out Rect box, string name, bool circle = false, StripView? before = null, double opacity = 1)
+    /// <summary>
+    /// The strip drawn over a solid scene, opaque, or over the top middle of a fixture (where the strip sits, the game's 4K
+    /// frame at the strip's 1080p size); <paramref name="box"/>: the first badge's bounds, or the circle's.
+    /// </summary>
+    /// <param name="peak">Each pulse frozen at its top (the brightest flash), instead of its first frame.</param>
+    internal static Rendered Render(StripView view, Color scene, out Rect box, string name, bool circle = false, StripView? before = null, double opacity = 1,
+        string? fixture = null, bool peak = false)
     {
         Rect found = default;
         var rendered = OnSta(() =>
         {
             var strip = (FrameworkElement)RotationStrip.Build(view, before);
-            var root = new Grid { Background = new SolidColorBrush(scene) };
+            if (peak)
+            {
+                foreach (var glow in Descendants(strip).OfType<UIElement>().Select(e => e.Effect).OfType<System.Windows.Media.Effects.DropShadowEffect>()
+                    .Where(e => e.HasAnimatedProperties))
+                {
+                    double top = glow.BlurRadius switch
+                    {
+                        RotationStrip.BadgeGlow => RotationStrip.BadgeGlowPeak,
+                        RotationStrip.BadgeHalo => RotationStrip.BadgeHaloPeak,
+                        RotationStrip.StepGlow => RotationStrip.StepGlowPeak,
+                        _ => RotationStrip.StepHaloPeak,
+                    };
+                    glow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.BlurRadiusProperty, null);
+                    glow.BeginAnimation(System.Windows.Media.Effects.DropShadowEffect.ColorProperty, null);
+                    glow.BlurRadius = top;
+                    glow.Color = RotationStrip.MetFlashColor;
+                }
+            }
+            Brush background = fixture is null ? new SolidColorBrush(scene) : new ImageBrush(new BitmapImage(new Uri(Path.Combine(AppContext.BaseDirectory, "Fixtures", fixture))))
+            {
+                Viewbox = new Rect(0.3, 0.06, 0.4, 0.2),
+                Stretch = Stretch.UniformToFill,
+            };
+            var root = new Grid { Background = background };
             root.Children.Add(new ContentControl { Content = strip, Opacity = opacity, Margin = new Thickness(30) });
             root.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             root.Arrange(new Rect(root.DesiredSize));
