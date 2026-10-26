@@ -52,15 +52,22 @@ internal enum FaceButton
 internal sealed record StripKeys(IReadOnlyList<string?> Squad, bool Controller)
 {
     /// <summary>The key for this operator's battle skill; null when they aren't in the recognised squad.</summary>
-    public StripKey? For(string operatorId) => null;
+    public StripKey? For(string operatorId)
+    {
+        for (int i = 0; i < Squad.Count && i < 4; i++)
+            if (Squad[i] == operatorId) return new StripKey(i + 1, Controller);
+        return null;
+    }
 
     /// <summary>The keys as this reading has them; null without a reading.</summary>
-    public static StripKeys? Of(PartyState? state) => null;
+    public static StripKeys? Of(PartyState? state) => state is null ? null
+        : new([.. state.Slots.Select(s => s.Empty ? null : s.Operator?.Operator.Id)], state.Layout != HudLayout.KeyboardMouse);
 
     /// <summary>
     /// The editor's preview: the keys only while the squad EndHud recognises now is the rotation's (any order), in the
     /// order the game has them; none otherwise (no squad recognised, or another squad's rotation being edited).
     /// </summary>
     /// <param name="currentSquad">The recognised squad by slot, as the overlay last read it.</param>
-    public static StripKeys? ForPreview(Vision.Rotations.Rotation rotation, IReadOnlyList<string?> currentSquad, HudLayout layout) => null;
+    public static StripKeys? ForPreview(Vision.Rotations.Rotation rotation, IReadOnlyList<string?> currentSquad, HudLayout layout) =>
+        rotation.IsFor(currentSquad) ? new StripKeys(currentSquad, layout != HudLayout.KeyboardMouse) : null;
 }

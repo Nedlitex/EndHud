@@ -19,7 +19,8 @@ internal static class RotationStripView
     /// <summary>
     /// What decides whether the strip must be drawn again: the same key, the same picture. Each step's
     /// state is in it, or a light would never reach the screen, and each badge's look, holding or not, or a
-    /// condition coming true would never brighten its badge.
+    /// condition coming true would never brighten its badge. Each battle skill's key too: the squad reordered, or the
+    /// player switching between keyboard and controller, redraws the chips.
     /// </summary>
     internal static string? Key(StripView? view)
     {
@@ -27,7 +28,7 @@ internal static class RotationStripView
         static string Badges(IEnumerable<StripBadge> badges) =>
             string.Concat(badges.Select(b => $"[{b.Picture is not null}{b.Glyph}{b.Value}{b.Sign}{b.Not}{b.Holds}{b.Or}]"));
         static string Keys(IEnumerable<StripStep> steps) =>
-            string.Join(",", steps.Select(s => $"{s.Action}{s.State}{s.Icon is not null}{s.Avatar is not null}{s.Note}{s.Condition?.SkillPoints}{Badges(s.Badges)}"));
+            string.Join(",", steps.Select(s => $"{s.Action}{s.State}{s.Icon is not null}{s.Avatar is not null}{s.Note}{s.Condition?.SkillPoints}{Badges(s.Badges)}k{s.Key?.Slot}{s.Key?.Controller}"));
         return $"{view.Phase}|{Keys(view.Steps)}|{view.Next?.Phase}|{Keys(view.Next?.Steps ?? [])}|{Badges(view.Finish)}";
     }
 

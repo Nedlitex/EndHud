@@ -122,8 +122,9 @@ public class StripKeyChipTests
                 pad.Select(c => (Text: Descendants(c.Element).OfType<TextBlock>().Count(), Shapes: Descendants(c.Element).OfType<System.Windows.Shapes.Shape>().Count())).ToList());
         });
 
-        Assert.Equal(["4", "1"], digits);
-        Assert.Equal(2, glyphs.Count);
+        // Ardelia's and Laevatain's, then Ardelia's again in the next phase's preview (the phase plays again).
+        Assert.Equal(["4", "1", "4"], digits);
+        Assert.Equal(3, glyphs.Count);
         Assert.All(glyphs, g => Assert.True(g.Text == 0 && g.Shapes >= 1, $"{g.Text} words, {g.Shapes} shapes"));
     }
 

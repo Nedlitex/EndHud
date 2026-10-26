@@ -353,6 +353,8 @@ internal static class RotationStrip
                 StrokeThickness = 1,
             });
         }
+        // A battle skill's key, on top of the circle, under the label (never over it): drawn last, over the ring and the icon.
+        if (step.Key is { } key) icon.Children.Add(KeyChip(key));
         panel.Children.Add(icon);
 
         if (badgeRow)
@@ -373,6 +375,67 @@ internal static class RotationStrip
             Effect = Outline(),
         });
         return outer;
+    }
+
+    /// <summary>The key chip's size at 1080p: a small square, as the game's key hint boxes under its skill buttons.</summary>
+    internal const double ChipSize = 18;
+
+    private static readonly Brush ChipFill = Frozen(Color.FromArgb(0xE6, 0x1C, 0x1E, 0x22));
+    private static readonly Brush ChipEdge = Frozen(Color.FromArgb(0xB0, 0xC8, 0xC8, 0xC8));
+    private static readonly Brush ChipInk = Frozen(Color.FromRgb(0xF2, 0xF2, 0xF2));
+
+    /// <summary>
+    /// A battle skill's key, styled after the game's key hint boxes: a small dark rounded square with a light digit (1-4,
+    /// the operator's squad slot), or with a controller the face button in the slot's direction of the skill diamond, drawn
+    /// as a shape (□ △ ○ ×). Centred on the circle's top, just under the label: the label's row ends where the circle begins
+    /// (the icon's top margin), so the chip never reaches it, and a step drawn overlapping its neighbour keeps its chip over
+    /// its own circle, clear of the neighbour's.
+    /// </summary>
+    private static FrameworkElement KeyChip(StripKey key)
+    {
+        UIElement mark = key.Controller ? FaceGlyph(key.Button) : new TextBlock
+        {
+            Text = key.Slot.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            Foreground = ChipInk,
+            FontSize = 14,
+            FontWeight = FontWeights.Bold,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, -1, 0, 0),
+        };
+        return new Border
+        {
+            Width = ChipSize,
+            Height = ChipSize,
+            CornerRadius = new CornerRadius(3),
+            Background = ChipFill,
+            BorderBrush = ChipEdge,
+            BorderThickness = new Thickness(1),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Top,
+            // Its top 1 under the label's row (the icon sits 2 under it).
+            Margin = new Thickness(0, -1, 0, 0),
+            Child = mark,
+            Tag = key, // found by it in tests
+        };
+    }
+
+    /// <summary>A face button's symbol in a 10-unit box, light strokes: □ left, △ top, ○ right, × bottom.</summary>
+    private static UIElement FaceGlyph(FaceButton button)
+    {
+        const double size = 10, stroke = 1.6;
+        Shape shape = button switch
+        {
+            FaceButton.Square => new Rectangle { Width = size - 1, Height = size - 1 },
+            FaceButton.Triangle => new Polygon { Points = [new Point(size / 2, 0.5), new Point(size - 0.3, size - 1), new Point(0.3, size - 1)], Width = size, Height = size },
+            FaceButton.Circle => new Ellipse { Width = size, Height = size },
+            _ => new Path { Data = Geometry.Parse("M 1,1 L 9,9 M 9,1 L 1,9"), Width = size, Height = size, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round },
+        };
+        shape.Stroke = ChipInk;
+        shape.StrokeThickness = stroke;
+        shape.HorizontalAlignment = HorizontalAlignment.Center;
+        shape.VerticalAlignment = VerticalAlignment.Center;
+        return shape;
     }
 
     /// <summary>A badge's height at 1080p, and its picture's.</summary>
