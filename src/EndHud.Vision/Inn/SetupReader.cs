@@ -76,22 +76,31 @@ public sealed partial class SetupReader(InnText text, InnData data, IReadOnlyLis
         if (screen is not (InnScreenKind.Setup or InnScreenKind.ThemeList)) return null;
         var layout = new InnLayout(frame);
         // Two layouts: on 营业设定 the details sit left and the kitchens right; on the theme list the details right.
+        // On a screen not 16:9 each part is looked for in each place the game may put it (InnLayout.Placements).
         var kitchens = await ReadKitchensAsync(frame, layout);
-        var area = layout.Centered(kitchens is null ? DetailsOnThemeList : DetailsOnSetup);
         Details? best = null;
-        await foreach (var lines in text.ReadPlacedLinesAttemptsAsync(frame, area, Ink, layout.Scale))
+        // The 热门 row, from the reading that found it naming the most (with the area read): not always the best reading,
+        // since in the wrong place a reading can find as much of the rest and miss the row (the panel's bottom, cut off).
+        (Details Details, PixelRect Area)? hot = null;
+        foreach (var placed in layout.Placements())
         {
-            if (Parse(lines) is not { } details) continue;
-            if (best is null || details.Score > best.Score) best = details;
-            // Every heading, the theme, its objective and two traits: nothing more to find.
-            if (best.Score >= 7) break;
+            var here = placed.Centered(kitchens is null ? DetailsOnThemeList : DetailsOnSetup);
+            await foreach (var lines in text.ReadPlacedLinesAttemptsAsync(frame, here, Ink, layout.Scale))
+            {
+                if (Parse(lines) is not { } details) continue;
+                if (best is null || details.Score > best.Score) best = details;
+                if (details.TraitsRow is not null && (hot is null || details.HotTraits.Count > hot.Value.Details.HotTraits.Count)) hot = (details, here);
+                // Every heading, the theme, its objective and two traits: nothing more to find.
+                if (best.Score >= 7) break;
+            }
+            if (best?.Score >= 7) break;
         }
         if (best is null) return null;
 
         // The trait chips' grey letters are light enough to be lost in a small window: read the chips
         // on their own, with a lighter bar for ink, at a few sizes, and keep the reading naming most.
-        var traits = best.HotTraits;
-        if (best.TraitsRow is { } row)
+        var traits = hot is { } found && found.Details.HotTraits.Count > best.HotTraits.Count ? found.Details.HotTraits : best.HotTraits;
+        if (hot is { Details.TraitsRow: { } row, Area: var area })
         {
             var chips = new PixelRect(row.Right, row.Y - row.Height / 2, area.Right - row.Right, row.Height * 2);
             await foreach (string attempt in text.ReadAttemptsAsync(frame, chips, ChipInk, layout.Scale))
@@ -107,8 +116,9 @@ public sealed partial class SetupReader(InnText text, InnData data, IReadOnlyLis
     /// <summary>Si's 品质把控 assist: the percent its line states; null when no reading finds the line.</summary>
     private async Task<int?> ReadAssistAsync(Frame frame, InnLayout layout)
     {
-        await foreach (string attempt in text.ReadAttemptsAsync(frame, layout.Centered(AssistArea), Ink, layout.Scale))
-            if (AssistPercent(attempt) is { } percent) return percent;
+        foreach (var placed in layout.Placements())
+            await foreach (string attempt in text.ReadAttemptsAsync(frame, placed.Centered(AssistArea), Ink, layout.Scale))
+                if (AssistPercent(attempt) is { } percent) return percent;
         return null;
     }
 
@@ -199,15 +209,21 @@ public sealed partial class SetupReader(InnText text, InnData data, IReadOnlyLis
     private const string DrinkName = "饮品";
 
     /// <summary>The kitchens of 营业设定, or null when there are none (the theme list).</summary>
-    private async Task<IReadOnlyList<SetupKitchen>?> ReadKitchensAsync(Frame frame, InnLayout layout)
+    private async Task<IReadOnlyList<SetupKitchen>?> ReadKitchensAsync(Frame frame, InnLayout screen)
     {
         IReadOnlyList<(string Text, PixelRect Place)>? lines = null;
         int found = -1;
-        // The reading with the most kitchen titles and chef names.
-        await foreach (var attempt in text.ReadPlacedLinesAttemptsAsync(frame, layout.Centered(KitchenArea), Ink, layout.Scale))
+        var layout = screen;
+        // The reading with the most kitchen titles and chef names, in the place it was found (the slots' bars are looked for there).
+        foreach (var placed in screen.Placements())
         {
-            int count = attempt.Count(l => KitchenNumber(l.Text) > 0) + attempt.Count(l => ChefName(l.Text) is { } n && Closest(n) is not null);
-            if (count > found) (lines, found) = (attempt, count);
+            await foreach (var attempt in text.ReadPlacedLinesAttemptsAsync(frame, placed.Centered(KitchenArea), Ink, placed.Scale))
+            {
+                int count = attempt.Count(l => KitchenNumber(l.Text) > 0) + attempt.Count(l => ChefName(l.Text) is { } n && Closest(n) is not null);
+                if (count > found) (lines, found, layout) = (attempt, count, placed);
+            }
+            // Three kitchens, each with two chefs named: nothing more to find.
+            if (found >= 9) break;
         }
         var titles = (lines ?? []).Select(l => (Number: KitchenNumber(l.Text), l.Place)).Where(t => t.Number > 0)
             .GroupBy(t => t.Number).Select(g => g.First()).OrderBy(t => t.Number).ToList();

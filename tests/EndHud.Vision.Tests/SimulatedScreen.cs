@@ -74,6 +74,22 @@ public sealed record SimulatedScreen(string Name, int Width, int Height)
         return new Frame(Width, Height, pixels);
     }
 
+    /// <summary>
+    /// The 3840×2160 <paramref name="source"/> scaled to fit this screen and placed whole in the margin it leaves:
+    /// <paramref name="along"/> 0 at the top or left, 0.5 centred, 1 at the bottom or right; the rest black. Another
+    /// layout the game may use for its full-screen panels (the inn's), beside <see cref="Render"/>'s corners.
+    /// </summary>
+    public Frame Placed(Frame source, double along)
+    {
+        double scale = Math.Min(Width / (double)UiScaler.ReferenceWidth, Height / (double)UiScaler.ReferenceHeight);
+        int w = (int)Math.Round(UiScaler.ReferenceWidth * scale), h = (int)Math.Round(UiScaler.ReferenceHeight * scale);
+        var scaled = w == source.Width && h == source.Height ? source : w > source.Width ? source.ResizeSmooth(w, h) : source.Resize(w, h);
+        var pixels = new byte[Width * Height * 4];
+        for (int i = 3; i < pixels.Length; i += 4) pixels[i] = 255;
+        Copy(scaled, 0, 0, w, h, pixels, (int)Math.Round((Width - w) * along), (int)Math.Round((Height - h) * along));
+        return new Frame(Width, Height, pixels);
+    }
+
     private void Copy(Frame from, int x, int y, int width, int height, byte[] to, int toX, int toY)
     {
         for (int row = 0; row < height; row++)

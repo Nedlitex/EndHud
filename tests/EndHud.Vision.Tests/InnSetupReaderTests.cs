@@ -110,6 +110,61 @@ public class InnSetupReaderTests(ITestOutputHelper output)
         Assert.Equal(["1:Entree", "1:Side", "1:Dessert", "1:Soup"], read.Rules.Select(r => $"{r.Count}:{string.Join("/", r.AnyOf)}"));
     }
 
+    /// <summary>
+    /// Screens not 16:9 (player diagnostics 2026-10-26, a 3840×2400 laptop: 营业设定 gave no kitchens and "厨房一" for the
+    /// theme, so no menu or kitchen advice). Where the game puts the setup panels in the extra height isn't known, so each
+    /// layout it may use: the HUD's corners (<see cref="SimulatedScreen.Render"/>) and the whole 16:9 screen at the top,
+    /// centred or at the bottom (<see cref="SimulatedScreen.Placed"/>). Each must give the theme, the kitchens and the chefs.
+    /// </summary>
+    public static TheoryData<string, string> OtherShapes()
+    {
+        var data = new TheoryData<string, string>();
+        var laptop = new SimulatedScreen("3840x2400 (16:10, 16-inch 4K laptop)", 3840, 2400);
+        foreach (var screen in new[] { laptop, SimulatedScreen.Wqxga, SimulatedScreen.Wuxga, SimulatedScreen.SurfaceLarge })
+            foreach (string layout in new[] { "corners", "top", "centred", "bottom" })
+                data.Add($"{screen.Width}x{screen.Height}", layout);
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(OtherShapes))]
+    [Trait("Category", "Slow")] // sweeps screen shapes, reading each place: left out of the fast lane
+    public Task The_setup_screen_is_read_on_a_screen_not_16_by_9(string size, string layout) => ReadOnOtherShape(size, layout);
+
+    /// <summary>The player's screen, as the diagnostics' symptom was reproduced (theme "厨房三", no kitchens): in the fast lane.</summary>
+    [Fact]
+    public Task The_setup_screen_is_read_on_the_players_16_by_10_laptop() => ReadOnOtherShape("3840x2400", "corners");
+
+    private async Task ReadOnOtherShape(string size, string layout)
+    {
+        var (w, h) = (int.Parse(size.Split('x')[0]), int.Parse(size.Split('x')[1]));
+        var screen = new SimulatedScreen(size, w, h);
+        var reader = await Reader.Value;
+        Frame Shaped(Frame frame) => layout switch
+        {
+            "corners" => screen.Render(frame),
+            "top" => screen.Placed(frame, 0),
+            "centred" => screen.Placed(frame, 0.5),
+            _ => screen.Placed(frame, 1),
+        };
+
+        var setup = await reader.ReadAsync(Shaped(await InnScreenTests.Load("setup-chefs-placed")), InnScreenKind.Setup);
+        var list = await reader.ReadAsync(Shaped(await InnScreenTests.Load("setup-theme")), InnScreenKind.ThemeList);
+        output.WriteLine($"{size} {layout}: theme {setup?.ThemeName}, traits {string.Join(" ", setup?.HotTraits ?? [])}, Si {setup?.SiChoicePercent}; list: theme {list?.ThemeName}");
+
+        Assert.Equal("养身心", setup?.ThemeName);
+        Assert.Equal("truly-wholesome", setup!.Theme?.Id);
+        Assert.Equal(["Veggy", "Rich"], setup.HotTraits);
+        Assert.Equal(5, setup.SiChoicePercent);
+        Assert.NotNull(setup.Kitchens);
+        Assert.Equal(
+            ["1: 2 places, 2 taken, Perlica Avywenna", "2: 2 places, 1 taken, Chen_Qianyu -", "3: 2 places, 0 taken, - -"],
+            setup.Kitchens.Select(k => $"{k.Number}: {k.ChefSlots} places, {k.ChefsPlaced} taken, {string.Join(" ", k.Chefs.Select(c => c ?? "-"))}"));
+        Assert.Equal("养身心", list?.ThemeName);
+        Assert.Equal(["Veggy", "Rich"], list!.HotTraits);
+        Assert.Null(list.Kitchens);
+    }
+
     [Fact]
     public async Task Only_the_setup_screens_are_read()
     {
