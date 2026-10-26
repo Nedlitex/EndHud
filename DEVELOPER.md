@@ -64,8 +64,8 @@ rotation charts.
   now, white when not yet. Cyan needs every check known to hold: a condition that can't be read now (the boss's
   statuses out of sight) keeps it white (owner, 2026-10-25). Nothing is ever skipped. When the phase's finish condition holds (by default:
   every step that lights up lit) the lights go out for a new round. Battle skills are seen by the
-  flash on their button and the skill point spent; the player's keys (`ReadSkillPresses`, off until
-  turned on) only assist. See [Following battle skills from the screen](#following-battle-skills-from-the-screen).
+  flash on their button and the skill point spent; the player's keys could assist, but key reading is not
+  offered in this build (see [Battle-skill key reading](#battle-skill-key-reading)). See [Following battle skills from the screen](#following-battle-skills-from-the-screen).
   The editor's preview and the menu's sample draw every step alike.
 - **Conditions are badges, never words** (owner, 2026-10-25: "can we show some condition hint in the rotation? like
   连击 icon >= 1, fire icon >= 1, etc? not text, this will make user confuse"). Every step with conditions (`expect`,
@@ -701,7 +701,7 @@ release.yml).
 | `GaugesEnabled` | `true` | Show the gauges in battle: team buffs (Link with its stacks, once seen in the battle), and each recognised operator's ultimate charge and own counters, as circles with the operator's avatar in the middle. While a lasting ultimate runs (Laevatain's, Zhuang Fangyi's, Yvonne's), its own operator's ultimate circle shows its time left instead, whoever is controlled: violet, glowing, draining anticlockwise, labelled 持续中 ("≈持续中" while it's carried on off the bar); see [Lasting ultimates](#lasting-ultimates). Counters are live for the whole squad in combat with keyboard and mouse (the switched-out operators' are read on their portraits). With Si in the squad: her damage stacks as a plain number, and while her battle skill lasts its time left (grey-white, "≈" when estimated); see [Gauges for Si](#gauges-for-si). |
 | `GaugesScale` | `1` | The gauges' size on top of following the game window (the menu's slider): 0.5–2; a value outside that is clamped when the file is read. |
 | `GaugesCenterX`, `GaugesBottomY` | `0.5`, `0.885` | Where the gauges sit, as a fraction of the game window: the middle of their width and their bottom edge (so a bigger size grows upwards): bottom middle, just above the game's HP and skill-point bars. |
-| `ReadSkillPresses` | `false` | Also read the battle-skill keys and controller chords, as an assist to the screen when it can't tell whose battle skill was cast (the strip follows the steps either way). The player's consent: with it off no input is read at all (Windows isn't even asked for it). Not a rollout flag; see [Battle-skill key reading](#battle-skill-key-reading). |
+| `ReadSkillPresses` | `false` | **Ignored while key reading isn't offered (`SkillKeyReading.Offered = false`, the current build): kept in the file, never cleared.** Also read the battle-skill keys and controller chords, as an assist to the screen when it can't tell whose battle skill was cast (the strip follows the steps either way). The player's consent: with it off no input is read at all (Windows isn't even asked for it). Not a rollout flag; see [Battle-skill key reading](#battle-skill-key-reading). |
 | `SkillKeys` | `[2, 3, 4, 5]` | The key that casts each slot's battle skill, slot 1 first, as the key's scan code (plus 256 for an extended key): the defaults are the top-row 1, 2, 3, 4. Chosen in the menu by pressing the key. A list that isn't four different real keys goes back to the defaults when the file is read. |
 | `ActiveRotations` | `{}` | The rotation chosen for each squad: squad key (the four operator ids, sorted, joined by `\|`) → rotation id. Set by saving in the editor. |
 
@@ -2334,6 +2334,31 @@ below). With the screen as the source the cast is the flash at 16.4 s of the rec
 
 ### Battle-skill key reading
 
+**Not offered in this build** (owner, 2026-10-25: "given we are able to rather reliably support reading battle
+skill without keyboard hook, hide that for now - we want to minimize risk that user is blamed by anticheat").
+The screen alone follows the battle skills well enough ([Following battle skills from the
+screen](#following-battle-skills-from-the-screen)), and holding the game's own keys as global hotkeys, opening
+the PlayStation pad and polling XInput while the game is in front is the kind of behaviour an anti-cheat may
+flag. One switch, [`SkillKeyReading.Offered`](src/EndHud/SkillInput/SkillKeyReading.cs), is `false`:
+
+- the menu card (switch, the four key pickers, reset, the controller hint, the occupied-key sentence) is
+  collapsed in the XAML and `InitSkillInput` wires none of it, so no row, key capture or click is reachable;
+- the reader is never asked to listen (`UpdateSkillInput` returns at once; `SkillInputListens` and `PressesFor`
+  answer false / no presses): no `RegisterHotKey` for any key, no HID device listed or opened, no XInput poll;
+- a `config.json` that says `ReadSkillPresses: true` is ignored, not rewritten, so turning the switch back on
+  restores each player's own choice;
+- the diagnostics summary says `battle-skill key reading: not offered in this build` (no per-slot tally);
+- `ScreenCastJudge` judges the screen's casts with no presses, which is how it runs with the consent off anyway.
+
+Held by `SkillKeyReadingNotOfferedTests` and `SkillKeyReadingHiddenWindowTests` (the real overlay window, built
+with a consenting config: the card collapsed, F13-F16 still free after refreshes with the game in front). The
+tests of the reader itself (`SkillInputReaderTests` and the others) still run: they test the code, and pass
+`offered: true` where they go through `SkillInputListens` / `PressesFor`.
+
+**To offer it again:** set `SkillKeyReading.Offered` to `true`, delete the two not-offered test classes (or flip
+their expectations), restore the README's 读取战技按键 paragraph (git history, before 2026-10-25), and drop this
+paragraph. Everything below describes the feature as it works when offered.
+
 Why: an assist to the screen. When the screen can't tell whose battle skill was cast (a fill against a bright
 scene, the controller layout), the player's key says it. With the player's consent EndHud reads the keys that cast
 battle skills, and nothing else. The strip follows the steps with it off as well.
@@ -2439,7 +2464,8 @@ battle-skill key reading: listening: keyboard (4 of 4 keys held), PlayStation pa
   ...
 ```
 
-The status is `off (not consented)` with the switch off, `off` while not listening (the game not in
+While key reading isn't offered the whole block is the single line `battle-skill key reading: not offered in this
+build`. When it is offered, the status is `off (not consented)` with the switch off, `off` while not listening (the game not in
 front), or `failed (Windows refused, error N)`. `N of 4 keys held` below 4 means another program
 holds a key; `not opened` counts PlayStation pads present that could not be opened for shared
 reading. The counts are since EndHud started.
