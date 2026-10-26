@@ -33,8 +33,10 @@ internal sealed class HudConfig
     public int? SettingsVersion { get; set; }
 
     /// <summary>Version 7 adds the show-in-open-world settings and the notice's mark: a file without them reads their
-    /// defaults (the rotation strip held back in open-world fights, the notice not shown yet), so nothing is rewritten.</summary>
-    public const int CurrentSettingsVersion = 7;
+    /// defaults (the rotation strip held back in open-world fights, the notice not shown yet), so nothing is rewritten.
+    /// Version 8 adds the alert pop-ups' size (<see cref="AlertScale"/>): nobody could choose one before, so a file
+    /// without it reads the new default, 150%, nothing rewritten.</summary>
+    public const int CurrentSettingsVersion = 8;
 
     /// <summary>UI language; picks the file i18n/&lt;Language&gt;.xaml.</summary>
     public string Language { get; set; } = "zh-CN";
@@ -74,10 +76,15 @@ internal sealed class HudConfig
     /// </summary>
     public bool AlertsEnabled { get; set; } = true;
 
-    /// <summary>The alert pop-ups' size on top of following the game window (1 = the combo hint's size), from the 战斗提示 card's slider.</summary>
+    /// <summary>
+    /// The alert pop-ups' size on top of following the game window (1 = the combo hint's size), from the alerts card's
+    /// size slider. 150% by default (owner, 2026-10-25: "the default notification should be larger, right now it is hard
+    /// to notice"): at 100% the pop-up's circle was the combo banner's height (72 units), under the rotation strip's skill
+    /// icons (80); at 150% it's 108, its words 30 tall. See <see cref="AlertLayout"/>.
+    /// </summary>
     public double AlertScale { get; set; } = DefaultAlertScale;
 
-    public const double MinAlertScale = 0.5, MaxAlertScale = 2, DefaultAlertScale = 1;
+    public const double MinAlertScale = 0.5, MaxAlertScale = 2, DefaultAlertScale = 1.5;
 
     /// <summary>Show the rotation strip (排轴) when the recognised squad has a rotation.</summary>
     public bool RotationEnabled { get; set; } = true;
@@ -315,6 +322,9 @@ internal static partial class ConfigStore
         config.RotationOpacity = double.IsFinite(config.RotationOpacity)
             ? Math.Clamp(config.RotationOpacity, HudConfig.MinRotationOpacity, HudConfig.MaxRotationOpacity)
             : 1;
+        config.AlertScale = double.IsFinite(config.AlertScale)
+            ? Math.Clamp(config.AlertScale, HudConfig.MinAlertScale, HudConfig.MaxAlertScale)
+            : HudConfig.DefaultAlertScale;
         config.InnStripScale = double.IsFinite(config.InnStripScale)
             ? Math.Clamp(config.InnStripScale, HudConfig.MinInnStripScale, HudConfig.MaxInnStripScale)
             : 1;

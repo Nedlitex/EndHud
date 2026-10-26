@@ -9,7 +9,7 @@ namespace EndHud.Tests;
 
 /// <summary>
 /// Owner, 2026-10-25: "the default notification should be larger, right now it is hard to notice, and notification
-/// should be able to adjust size". The alert pop-ups have a size (the 战斗提示 card's 大小 slider, 50–200%), 150% by
+/// should be able to adjust size". The alert pop-ups have a size (the alerts card's size slider, 50–200%), 150% by
 /// default; at every size, on 16:9, 16:10 and 21:9 game windows from 1080p to 4K, the stack of pop-ups stays on the
 /// window, clear of the game's centre (where the character stands) and off the combo hint it mirrors.
 /// </summary>
