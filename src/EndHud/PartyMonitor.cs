@@ -960,16 +960,20 @@ internal sealed class PartyMonitor : IDisposable
                     }
                     // The boss's stagger bar under its HP bar: cheap (about a hundred thousand pixel reads at any size), so
                     // read on every reading in battle, whatever asks; its node boxes carried through the swell the game
-                    // draws as the fill reaches one. Not in battle: unknown.
+                    // draws as the fill reaches one. Unread under the boss's HP bar: its last reading held (0 before any).
+                    // Not in battle, or no boss bar: unknown.
                     Enter("stagger");
                     var (stagger, staggerWhy, bossBar) = state.InCombat ? StaggerBar.Measure(gameFrame) : (null, "not in battle", false);
                     state = state with { Stagger = staggerMemory.Track(stagger, bossBar) };
-                    // Logged when its kind changes (building, staggered, unread), with why it's unread.
-                    string staggerKind = state.Stagger?.State.ToString() ?? "unread: " + staggerWhy;
+                    // Logged when its kind changes (building, staggered, held, unread), with why it's held or unread.
+                    string staggerKind = stagger is { } read ? read.State.ToString()
+                        : state.Stagger is not null ? "held" : "unread: " + staggerWhy;
                     if (staggerKind != staggerSeen)
                     {
                         staggerSeen = staggerKind;
-                        DiagnosticLog.Throttled("stagger", TimeSpan.FromSeconds(2), $"stagger bar: {state.Stagger?.ToString() ?? staggerKind}", "INFO");
+                        string staggerLine = stagger is not null ? state.Stagger!.ToString()
+                            : state.Stagger is { } held ? $"held {held} (unread: {staggerWhy})" : staggerKind;
+                        DiagnosticLog.Throttled("stagger", TimeSpan.FromSeconds(2), $"stagger bar: {staggerLine}", "INFO");
                     }
                     if (firstReading)
                     {

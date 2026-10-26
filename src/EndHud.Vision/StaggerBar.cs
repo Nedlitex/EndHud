@@ -304,41 +304,60 @@ public static class StaggerBar
 }
 
 /// <summary>
-/// Carries the stagger bar's node boxes across readings: the game draws a box swollen for about a second as the fill
-/// reaches it, and it isn't found as a box then, which would drop the count of nodes reached for that second (and make an
-/// alert on it fire twice). A box seen stays on the bar until no bar has been read for <see cref="ForgetAfterReadings"/>
-/// readings in a row (the fight over, or another boss's bar with its own nodes); one seen again where it was is the same.
+/// Carries the boss's stagger across readings, while its HP bar is there:
+/// <list type="bullet">
+/// <item>The node boxes: the game draws a box swollen for about a second as the fill reaches it, and it isn't found as a
+/// box then, which would drop the count of nodes reached for that second (and make an alert on it fire twice). A box seen
+/// stays on the bar; one seen again where it was is the same.</item>
+/// <item>The last reading, held while the stagger bar can't be read under the boss's HP bar (an effect or an on-screen
+/// display over it). Owner, 2026-10-25: "when stagger bar cannot be read, just use the last known value instead of
+/// hardcode that back to 0. only start from 0" (every boss has a stagger bar). Held unchanged: a countdown isn't run
+/// down, it can stand still in the game. Before any reading of this boss it is building, 0, with no node boxes (a boss
+/// may have none: none are made up).</item>
+/// </list>
+/// Both are forgotten once the boss's HP bar hasn't been seen for <see cref="ForgetAfterReadings"/> readings in a row (the
+/// fight over, the boss gone: the next boss starts from 0, with its own nodes). A shorter gap (an effect over the HP bar's
+/// end for a moment) keeps them.
 /// </summary>
 public sealed class StaggerMemory
 {
-    /// <summary>Readings in a row without a bar after which the boxes are forgotten (about 5 s at four readings a second).</summary>
+    /// <summary>Readings in a row without the boss's HP bar after which the stagger is forgotten (about 5 s at four readings a second).</summary>
     public const int ForgetAfterReadings = 20;
 
     /// <summary>Readings a box must be seen in before it counts: a box seen once may be something else for a frame.</summary>
     public const int SightingsNeeded = 2;
 
     private const double SameNode = 0.01;
+    private static readonly StaggerReading Start = new(StaggerState.Building, 0, [], null);
     private readonly List<(double Position, int Sightings)> _nodes = [];
+    private StaggerReading? _last;
     private int _missing;
 
-    /// <summary>The reading with the boxes seen in at least <see cref="SightingsNeeded"/> readings of this bar; null stays null.</summary>
+    /// <summary>
+    /// The stagger to show: the reading with the boxes seen in at least <see cref="SightingsNeeded"/> readings of this
+    /// bar; with the boss's HP bar there but the stagger bar unread, the last one (or 0 before any); null without a boss bar.
+    /// </summary>
     /// <param name="reading">The bar as read (<see cref="StaggerBar.Measure"/>), null when it isn't.</param>
     /// <param name="bossBar">Whether the boss's HP bar is there (<see cref="StaggerBar.Measure"/>).</param>
     public StaggerReading? Track(StaggerReading? reading, bool bossBar)
     {
-        _ = bossBar;
-        if (reading is null)
+        if (!bossBar)
         {
-            if (++_missing >= ForgetAfterReadings) _nodes.Clear();
+            if (++_missing >= ForgetAfterReadings)
+            {
+                _nodes.Clear();
+                _last = null;
+            }
             return null;
         }
         _missing = 0;
+        if (reading is null) return _last ?? Start;
         foreach (double node in reading.Nodes)
         {
             int i = _nodes.FindIndex(n => Math.Abs(n.Position - node) <= SameNode);
             if (i < 0) _nodes.Add((node, 1));
             else _nodes[i] = (_nodes[i].Position, _nodes[i].Sightings + 1);
         }
-        return reading with { Nodes = [.. _nodes.Where(n => n.Sightings >= SightingsNeeded).Select(n => n.Position).Order()] };
+        return _last = reading with { Nodes = [.. _nodes.Where(n => n.Sightings >= SightingsNeeded).Select(n => n.Position).Order()] };
     }
 }
