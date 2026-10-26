@@ -123,18 +123,162 @@ public class StaggerBarTests
         var wrong = new List<string>();
         foreach (var (size, frame) in new[] { ("4K", source), ("1080p", SimulatedScreen.FullHd.Render(source)) })
         {
-            var clean = Fields(StaggerBar.Read(frame));
+            var cleanReading = StaggerBar.Read(frame);
+            var clean = Fields(cleanReading);
             foreach (var position in SyntheticOsd.Positions)
             foreach (bool background in new[] { true, false })
             {
-                var (_, found) = OnScreenDisplayCombatGateTests.Compare(clean, Fields(StaggerBar.Read(SyntheticOsd.Draw(frame, position, background))));
+                var (covered, _, bossBar) = StaggerBar.Measure(SyntheticOsd.Draw(frame, position, background));
+                var (_, found) = OnScreenDisplayCombatGateTests.Compare(clean, Fields(covered));
                 wrong.AddRange(found.Select(w => $"{size} {position}{(background ? " bg" : "")} {w}"));
+
+                // What the app keeps (StaggerMemory): the clean frame read twice, then the covered one. Unread under the
+                // boss's bar it holds the clean reading, so it must be that or unknown (no boss bar seen), never another.
+                var memory = new StaggerMemory();
+                memory.Track(cleanReading, bossBar: true);
+                var known = Fields(memory.Track(cleanReading, bossBar: true));
+                var kept = memory.Track(covered, bossBar);
+                if (bossBar && kept is null) wrong.Add($"{size} {position}{(background ? " bg" : "")} kept nothing under the boss's bar");
+                var (_, keptWrong) = OnScreenDisplayCombatGateTests.Compare(known, Fields(kept));
+                wrong.AddRange(keptWrong.Select(w => $"{size} {position}{(background ? " bg" : "")} kept {w}"));
             }
         }
         Assert.True(wrong.Count == 0, string.Join("; ", wrong));
 
         static Dictionary<string, string?> Fields(StaggerReading? reading) =>
             OnScreenDisplayCombatGateTests.StaggerFields(reading).ToDictionary(f => f.Field, f => f.Value);
+    }
+
+    /// <summary>
+    /// fb-41s.jpg with a yellow block over the bar's right half (rows 150-175, 4K x 1945-2145): the boss's HP bar is still
+    /// there, the stagger bar no longer has its shape (pink from the left, yellow further on), so it can't be read.
+    /// </summary>
+    private static async Task<Frame> Covered41s()
+    {
+        var source = await Load("fb-41s.jpg");
+        var bgra = (byte[])source.Bgra.Clone();
+        var ui = new UiScaler(source.Width, source.Height);
+        int x0 = (int)(source.Width / 2.0 + 25 * ui.Scale), x1 = (int)(source.Width / 2.0 + 225 * ui.Scale);
+        for (int y = (int)(150 * ui.Scale); y <= (int)(175 * ui.Scale); y++)
+        for (int x = x0; x <= x1; x++)
+        {
+            int i = (y * source.Width + x) * 4;
+            (bgra[i], bgra[i + 1], bgra[i + 2]) = ((byte)85, (byte)200, (byte)230);
+        }
+        return new Frame(source.Width, source.Height, bgra);
+    }
+
+    private static readonly StaggerReading Zero = new(StaggerState.Building, 0, [], null);
+
+    /// <summary>The same state, fill, countdown and node boxes (a record compares its node list by reference).</summary>
+    private static void AssertSame(StaggerReading expected, StaggerReading? actual)
+    {
+        Assert.NotNull(actual);
+        Assert.Equal((expected.State, expected.Progress, expected.CountdownLeft), (actual.State, actual.Progress, actual.CountdownLeft));
+        Assert.Equal(expected.Nodes, actual.Nodes);
+    }
+
+    /// <summary>
+    /// Owner, 2026-10-25: "when stagger bar cannot be read, just use the last known value instead of hardcode that back to 0.
+    /// only start from 0". Read at 0.45 with its node box, then covered under the boss's HP bar: still 0.45, the box kept.
+    /// </summary>
+    [Fact]
+    public async Task Unread_under_a_boss_holds_the_last_reading()
+    {
+        var memory = new StaggerMemory();
+        var read = StaggerBar.Read(await Load("fb-41s.jpg"));
+        memory.Track(read, bossBar: true);
+        var seen = memory.Track(read, bossBar: true)!;
+        Assert.Single(seen.Nodes);
+
+        var (covered, why, bossBar) = StaggerBar.Measure(await Covered41s());
+        Assert.True(covered is null && bossBar, $"the covered frame should be unread under a boss bar: {covered} {why} {bossBar}");
+
+        for (int i = 0; i < 3 * StaggerMemory.ForgetAfterReadings; i++)
+        {
+            var held = memory.Track(covered, bossBar);
+            AssertSame(seen, held);
+            Assert.Equal(0, held!.NodesReached);
+        }
+    }
+
+    /// <summary>The boss's bar there but never read yet: building, 0, no node boxes (none made up).</summary>
+    [Fact]
+    public void Unread_from_the_start_under_a_boss_is_0()
+    {
+        var memory = new StaggerMemory();
+        AssertSame(Zero, memory.Track(null, bossBar: true));
+        AssertSame(Zero, memory.Track(null, bossBar: true));
+    }
+
+    /// <summary>A reading of 40 % then the bar unread: 40 %; a countdown held stays at its last length (not run down).</summary>
+    [Fact]
+    public void Unread_after_a_reading_holds_it_unchanged()
+    {
+        var memory = new StaggerMemory();
+        var forty = new StaggerReading(StaggerState.Building, 0.40, [], null);
+        memory.Track(forty, bossBar: true);
+        for (int i = 0; i < 5; i++) AssertSame(forty, memory.Track(null, bossBar: true));
+
+        var countdown = new StaggerReading(StaggerState.Staggered, 1, [], 0.56);
+        memory.Track(countdown, bossBar: true);
+        for (int i = 0; i < 5; i++) AssertSame(countdown, memory.Track(null, bossBar: true));
+
+        // A new reading replaces what was held.
+        var later = new StaggerReading(StaggerState.Building, 0.10, [], null);
+        AssertSame(later, memory.Track(later, bossBar: true));
+        AssertSame(later, memory.Track(null, bossBar: true));
+    }
+
+    /// <summary>
+    /// No boss bar: nothing (null). Gone for <see cref="StaggerMemory.ForgetAfterReadings"/> readings (the fight over, the
+    /// boss gone), the next boss starts from 0; a shorter gap (an effect over the HP bar's end for a moment) keeps it.
+    /// </summary>
+    [Fact]
+    public void Boss_gone_then_back_starts_from_0()
+    {
+        var memory = new StaggerMemory();
+        var forty = new StaggerReading(StaggerState.Building, 0.40, [0.5], null);
+        memory.Track(forty, bossBar: true);
+        memory.Track(forty, bossBar: true);
+
+        for (int i = 0; i < StaggerMemory.ForgetAfterReadings - 1; i++) Assert.Null(memory.Track(null, bossBar: false));
+        AssertSame(forty, memory.Track(null, bossBar: true));
+
+        for (int i = 0; i < StaggerMemory.ForgetAfterReadings; i++) Assert.Null(memory.Track(null, bossBar: false));
+        AssertSame(Zero, memory.Track(null, bossBar: true));
+    }
+
+    /// <summary>
+    /// A boss with no node boxes (owner: "a boss can have 0 nodes", only the large stagger): Typhoeus (reactions/
+    /// level-I-typhoeus-*). Building reads its fill with no nodes and none reached; the large stagger still reads, with
+    /// none reached; held while unread, none are made up.
+    /// </summary>
+    [Fact]
+    public async Task A_boss_without_node_boxes()
+    {
+        static Task<Frame> Typhoeus(string s) => ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("reactions", $"level-I-typhoeus-{s}.jpg")));
+
+        var building = StaggerBar.Read(await Typhoeus("24s"));
+        Assert.NotNull(building);
+        Assert.Equal(StaggerState.Building, building.State);
+        Assert.InRange(building.Progress, 0.08, 0.15);
+        Assert.Empty(building.Nodes);
+        Assert.Equal(0, building.NodesReached);
+
+        var staggered = StaggerBar.Read(await Typhoeus("98s"));
+        Assert.NotNull(staggered);
+        Assert.Equal(StaggerState.Staggered, staggered.State);
+        Assert.NotNull(staggered.CountdownLeft);
+        Assert.Empty(staggered.Nodes);
+        Assert.Equal(0, staggered.NodesReached);
+
+        var memory = new StaggerMemory();
+        memory.Track(building, bossBar: true);
+        memory.Track(building, bossBar: true);
+        var held = memory.Track(null, bossBar: true);
+        AssertSame(building, held);
+        Assert.Equal(0, held!.NodesReached);
     }
 
     /// <summary>The memory forgets a boss's nodes once no bar has been seen for a while (another boss may have others).</summary>

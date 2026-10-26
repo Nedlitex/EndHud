@@ -41,6 +41,25 @@ public class StaggerConditionTests
         Assert.Equal(true, Holds(new StaggerNodesCondition(Comparison.Exactly, 1), Countdown));
     }
 
+    /// <summary>
+    /// A boss with no node boxes (owner: "a boss can have 0 nodes", only the large stagger): "nodes reached at least 1" is
+    /// false, not unknown, building or staggered; "exactly 0" holds; the large stagger and its countdown still read.
+    /// </summary>
+    [Fact]
+    public void A_boss_without_node_boxes_has_none_reached()
+    {
+        var building = new StaggerReading(StaggerState.Building, 0.70, [], null);
+        var staggered = new StaggerReading(StaggerState.Staggered, 1, [], 0.43);
+        foreach (var s in new[] { building, staggered })
+        {
+            Assert.Equal(false, Holds(new StaggerNodesCondition(Comparison.AtLeast, 1), s));
+            Assert.Equal(true, Holds(new StaggerNodesCondition(Comparison.Exactly, 0), s));
+        }
+        Assert.Equal(true, Holds(new StaggerProgressCondition(Comparison.AtLeast, 70), building));
+        Assert.Equal(true, Holds(new StaggeredCondition(true), staggered));
+        Assert.Equal(true, Holds(new StaggerTimeLeftCondition(Comparison.AtMost, 50), staggered));
+    }
+
     [Fact]
     public void Staggered_is_the_large_stagger()
     {
