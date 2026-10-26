@@ -135,6 +135,36 @@ rotation charts.
   with four badges each, and every phase of the two rotations in `rotations/next-release`), `StripBadgesTests` (every
   kind) and `RotationStripViewTests`. The redraw key (`RotationStripView.Key`) carries each badge's look and whether
   it holds, so a condition coming true brightens its badge on that reading.
+- **A battle skill's key above its circle** (owner, 2026-10-25: "in the rotation, show the key for battle skill (1-4)
+  show above the circle"). Every battle-skill step (an empowered one too, 强化战技 being only its label) has a small dark
+  rounded square with a light mark, styled after the game's key hint boxes under its skill buttons
+  (`RotationStrip.KeyChip`, 18 units at 1080p), centred on the top of the circle, 1 unit under the label's row (the label
+  ends where the icon's 2-unit top margin begins), so it never reaches the label, and a step drawn overlapping its
+  neighbour keeps its chip over its own circle, clear of the neighbour's. The mark:
+
+  | Layout (`PartyState.Layout`, [`HudLayoutDetector`](src/EndHud.Vision/HudLayout.cs)) | Chip |
+  |---|---|
+  | Keyboard and mouse | the digit of the operator's squad slot, 1-4 (the owner: "a squad always fills pos1-4, so the skill button is always 1-4") |
+  | Controller, either diamond (LB/L1 held or not) | the face button in the slot's direction of the skill diamond, drawn as a vector shape: left □ slot 1, top △ 2, right ○ 3, bottom × 4 |
+
+  The PlayStation symbols are drawn for every controller: the layout reading tells controller from keyboard, not
+  Sony from Xbox (its "LB"/"L1" letters are matched only to tell the layout, `PartyState` carries no pad family), and
+  the shapes say the direction as plainly on an Xbox pad (X, Y, B, A in the same places). The digits are the game's
+  default keys; a player who rebound them in the game still sees 1-4.
+
+  **The slot is the operator's on this reading** (owner, 2026-10-25: "if the squad order changes, but the overall
+  operators are the same, the battle skill key will change based on squad"). A rotation is for its four operators in
+  any order, so the key is never the rotation file's order nor a value kept from an earlier reading:
+  [`StripKeys.Of`](src/EndHud/StripKeys.cs) takes the recognised squad slot by slot from each `PartyState`, and
+  `RotationStripView.Build` asks it for every battle skill. An operator not recognised in any slot gets no chip. The
+  redraw key (`RotationStripView.Key`) carries each step's key, so a reorder or a switch between keyboard and
+  controller redraws the strip. The menu's sample uses the last reading's squad; the editor's preview shows keys only
+  while the squad recognised now is the rotation's (`StripKeys.ForPreview`, by the game's slots and the last layout
+  read), none otherwise. Measured by `StripKeyChipTests`: the keys per slot, the same four reordered (keys and redraw
+  key change), the controller's glyphs, none for an operator not recognised, the preview, and no chip over any label,
+  chevrons, other circle, other chip or badge at 50, 100 and 200 % (a group of three overlapping battle skills with the
+  longest label, and every phase of the two rotations in `rotations/next-release`, keyboard and controller). Set
+  `ENDHUD_STRIP_RENDERS` to a folder to have that test save each strip as a PNG for review.
 - **Shown in battle only** ([`StripVisibility`](src/EndHud.Vision/StripVisibility.cs), `PartyState.InCombat`: the
   squad panel with a combo bar and the skill-point bar, whose segments seen count even when an effect leaves their
   fill unread; never while the mode switch says exploring or building). A reading that
