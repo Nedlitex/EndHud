@@ -280,7 +280,7 @@ public sealed class FinishConditionTests
     [Fact]
     public void A_rotation_from_before_finish_conditions_loads_with_none()
     {
-        string file = Path.Combine(OperatorCache.RepositoryRoot(), "rotations", "next-release", "si-last-rite-arcane-tangtang.json");
+        string file = Path.Combine(OperatorCache.RepositoryRoot(), "rotations", "si-last-rite-arcane-tangtang.json");
 
         var rotation = RotationFormat.FromJson(File.ReadAllText(file));
 

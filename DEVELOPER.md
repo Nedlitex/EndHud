@@ -159,7 +159,7 @@ rotation charts.
   wide shrinks (a down-only `Viewbox`), never overlapping a neighbour's at any size (the 50–200 % slider scales the
   whole strip). With any badge in the phase every step keeps the badge row, so the notes stay in line; the phase name
   is pinned to the line. Measured by `RotationStripTests.Badges_never_overlap_*` (a group of three overlapping steps
-  with four badges each, and every phase of the two rotations in `rotations/next-release`), `StripBadgesTests` (every
+  with four badges each, and every phase of the recommended rotations in `rotations/`), `StripBadgesTests` (every
   kind) and `RotationStripViewTests`. The redraw key (`RotationStripView.Key`) carries each badge's look and whether
   it holds, so a condition coming true brightens its badge on that reading.
 - **A battle skill's key above its circle** (owner, 2026-10-25: "in the rotation, show the key for battle skill (1-4)
@@ -190,7 +190,7 @@ rotation charts.
   read), none otherwise. Measured by `StripKeyChipTests`: the keys per slot, the same four reordered (keys and redraw
   key change), the controller's glyphs, none for an operator not recognised, the preview, and no chip over any label,
   chevrons, other circle, other chip or badge at 50, 100 and 200 % (a group of three overlapping battle skills with the
-  longest label, and every phase of the two rotations in `rotations/next-release`, keyboard and controller). Set
+  longest label, and every phase of the recommended rotations in `rotations/`, keyboard and controller). Set
   `ENDHUD_STRIP_RENDERS` to a folder to have that test save each strip as a PNG for review.
 - **Shown in battle only** ([`StripVisibility`](src/EndHud.Vision/StripVisibility.cs), `PartyState.InCombat`: the
   squad panel with a combo bar and the skill-point bar, whose segments seen count even when an effect leaves their

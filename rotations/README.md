@@ -15,10 +15,12 @@ fixed by committing a file, without a new release.
 | File | Squad | Source |
 |---|---|---|
 | `laevatain-arcane-ardelia-camille.json` | 莱万汀, 诀 (李织烟), 艾尔黛拉 (小羊), 卡缪 | a Bilibili guide's rotation charts (充能轴 I and II, the guide's 一阶段 and 二阶段); its 重击 steps are left out, since EndHud tracks only battle skills, combos and ultimates |
+| `si-last-rite-arcane-tangtang.json` | 祀, 别礼, 诀 (李织烟), 汤汤 | the owner's rotation charts (充能轴 I, 充能轴 II, 爆发轴 IV), phases approved by the owner on 2026-10-24; format 9 (read from v0.7.0) |
+| `camille-laevatain-si-arcane.json` | 卡缪, 莱万汀, 祀, 诀 (李织烟) | the owner's rotation charts (充能轴 I, 充能轴 II, 爆发轴 III) and the owner's notes of 2026-10-25 (技力, 熔火 = 4, 强化战技 with 连击 ≥ 1, the burst's ultimate order); format 12 (read from v0.7.0) |
 
 `dotnet test` checks every file here: it must be readable by this build, its id must match its file
-name, and every operator in it must exist. It must also be readable by the **released** EndHud (format 3
-or less), since every installed copy downloads it.
+name, and every operator in it must exist. It must also be readable by the **released** EndHud (format 13
+or less since v0.7.0), since every installed copy downloads it; older builds skip a file newer than they read.
 
 ## Waiting for a release: `next-release/`
 
@@ -28,7 +30,4 @@ checks it is valid for the current build (readable, id matching, no problems, sa
 needs, operators known). Once a release that reads its format is out, raise the limit in
 `Published_rotations_stay_readable_by_released_builds` to that format and move the file up here.
 
-| File | Squad | Format | Source |
-|---|---|---|---|
-| `next-release/si-last-rite-arcane-tangtang.json` | 祀, 别礼, 诀 (李织烟), 汤汤 | 9 (current phase, plunge attack by the controlled operator; also 7: Si's battle skill running, 6: priority) | the owner's rotation charts (充能轴 I, 充能轴 II, 爆发轴 IV), phases approved by the owner on 2026-10-24 |
-| `next-release/camille-laevatain-si-arcane.json` | 卡缪, 莱万汀, 祀, 诀 (李织烟) | 12 (连击层数; also 11: 战技已强化, 10: a finish condition, 9: condition steps, the current phase, attacks by the controlled operator) | the owner's rotation charts (充能轴 I, 充能轴 II, 爆发轴 III) and the owner's notes of 2026-10-25 (技力, 熔火 = 4, 强化战技 with 连击 ≥ 1, the burst's ultimate order) |
+Nothing is waiting now: the two that waited here were published with v0.7.0.

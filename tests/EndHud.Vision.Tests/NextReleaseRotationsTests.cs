@@ -15,6 +15,9 @@ public class NextReleaseRotationsTests
 {
     private static string Folder() => Path.Combine(OperatorCache.RepositoryRoot(), "rotations", "next-release");
 
+    /// <summary>The published recommended rotations (the Si and Camille ones moved here with v0.7.0, which reads them).</summary>
+    private static string Published() => Path.Combine(OperatorCache.RepositoryRoot(), "rotations");
+
     [Fact]
     public void Every_rotation_waiting_for_a_release_is_valid_for_this_build()
     {
@@ -22,7 +25,7 @@ public class NextReleaseRotationsTests
         string user = Path.Combine(Path.GetTempPath(), "endhud-tests", Guid.NewGuid().ToString("N"));
         var operators = OperatorCache.LoadAsync(user).GetAwaiter().GetResult();
 
-        Assert.NotEmpty(files);
+        // Empty between releases: every waiting rotation has been published.
         foreach (string file in files)
         {
             var rotation = RotationFormat.FromJson(File.ReadAllText(file));
@@ -104,7 +107,7 @@ public class NextReleaseRotationsTests
     }
 
     private static Rotation Si_rotation() =>
-        RotationFormat.FromJson(File.ReadAllText(Path.Combine(Folder(), "si-last-rite-arcane-tangtang.json")));
+        RotationFormat.FromJson(File.ReadAllText(Path.Combine(Published(), "si-last-rite-arcane-tangtang.json")));
 
     [Fact]
     public void The_phases_are_labelled_as_the_owners_charts()
@@ -347,7 +350,7 @@ public class NextReleaseRotationsTests
     }
 
     private static Rotation Camille_rotation() =>
-        RotationFormat.FromJson(File.ReadAllText(Path.Combine(Folder(), "camille-laevatain-si-arcane.json")));
+        RotationFormat.FromJson(File.ReadAllText(Path.Combine(Published(), "camille-laevatain-si-arcane.json")));
 
     /// <summary>The phases numbered as the owner's charts (充能轴 I, 充能轴 II, 爆发轴 III), and the owner's conditions on their steps.</summary>
     [Fact]

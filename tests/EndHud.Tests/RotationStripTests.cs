@@ -212,7 +212,7 @@ public class RotationStripTests
     [Fact]
     public void The_recommended_rotations_badges_never_overlap_a_neighbouring_steps()
     {
-        string folder = Path.Combine(RepositoryRoot(), "rotations", "next-release");
+        string folder = Path.Combine(RepositoryRoot(), "rotations");
         var picture = OnSta(() =>
         {
             var bitmap = new System.Windows.Media.Imaging.WriteableBitmap(4, 4, 96, 96, PixelFormats.Bgra32, null);

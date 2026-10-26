@@ -210,8 +210,9 @@ public sealed class RotationSyncTests : IDisposable
     }
 
     /// <summary>
-    /// The recommended rotations are downloaded by every EndHud, released ones included. Those read
-    /// up to format 3, so a published file stays at 3 or less until a release reads format 4.
+    /// The recommended rotations are downloaded by every EndHud, released ones included. v0.7.0 reads
+    /// up to format 13, so a published file stays at 13 or less until a release reads format 14 (older builds
+    /// skip a file newer than they read).
     /// </summary>
     [Fact]
     public void Published_rotations_stay_readable_by_released_builds()
@@ -222,7 +223,7 @@ public sealed class RotationSyncTests : IDisposable
         Assert.All(files, file =>
         {
             using var json = System.Text.Json.JsonDocument.Parse(File.ReadAllText(file));
-            Assert.True(json.RootElement.GetProperty("format").GetInt32() <= 3, $"{Path.GetFileName(file)} needs a newer EndHud than the released one");
+            Assert.True(json.RootElement.GetProperty("format").GetInt32() <= 13, $"{Path.GetFileName(file)} needs a newer EndHud than the released one");
         });
     }
 

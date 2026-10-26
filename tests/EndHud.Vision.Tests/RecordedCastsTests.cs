@@ -59,7 +59,7 @@ public sealed class RecordedCastsTests
     [Fact]
     public async Task The_burst_moves_past_tangtangs_battle_skill_when_she_casts_it()
     {
-        var rotation = RotationFormat.FromJson(File.ReadAllText(Path.Combine(OperatorCache.RepositoryRoot(), "rotations", "next-release", "si-last-rite-arcane-tangtang.json")));
+        var rotation = RotationFormat.FromJson(File.ReadAllText(Path.Combine(OperatorCache.RepositoryRoot(), "rotations", "si-last-rite-arcane-tangtang.json")));
         var selector = new PhaseSelector(rotation);
         var steps = new StepFollower(rotation);
         var visibility = new StripVisibility();

@@ -164,7 +164,7 @@ public class StripKeyChipTests
     [InlineData(2.0)]
     public void The_recommended_rotations_chips_never_overlap(double scale)
     {
-        string folder = Path.Combine(RepositoryRoot(), "rotations", "next-release");
+        string folder = Path.Combine(RepositoryRoot(), "rotations");
         var picture = OnSta(() =>
         {
             var bitmap = new WriteableBitmap(4, 4, 96, 96, PixelFormats.Bgra32, null);
