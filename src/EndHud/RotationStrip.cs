@@ -19,6 +19,9 @@ internal sealed record StripStep(ImageSource? Icon, BitmapSource? Avatar, string
     IReadOnlyList<StripBadge>? Badges = null)
 {
     public IReadOnlyList<StripBadge> Badges { get; init; } = Badges ?? [];
+
+    /// <summary>A battle skill's key (<see cref="StripKey"/>), in a chip above the circle; null for any other step, or an operator not in the recognised squad.</summary>
+    public StripKey? Key { get; init; }
 }
 
 /// <summary>

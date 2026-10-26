@@ -45,17 +45,19 @@ internal static class RotationStripView
         // An attack by whoever is controlled shows them: the operator under the chevron in this reading.
         var controlled = state?.ActiveSlot is int active && active >= 1 && active <= state.Slots.Count && state.Slots[active - 1].Operator?.Operator.Id is { } id
             ? library?.Find(id) : null;
-        return ForPhase(rotation, position.Step.PhaseIndex, library, skillIcon, avatar, steps, statusIcon, controlled, state, history);
+        // The battle skills' keys by where each operator is on this very reading: the squad's order may change at any time.
+        return ForPhase(rotation, position.Step.PhaseIndex, library, skillIcon, avatar, steps, statusIcon, controlled, state, history, StripKeys.Of(state));
     }
 
     /// <summary>
     /// What to drag and size while the menu is open, out of battle: the first phase of the rotation
     /// for the last squad seen, so it's the real size; a generic strip if there's none.
     /// </summary>
+    /// <param name="keys">The battle skills' keys by the last reading's squad (<see cref="StripKeys.Of"/>); null: none.</param>
     public static StripView Sample(Rotation? rotation, OperatorLibrary? library,
-        Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar)
+        Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, StripKeys? keys)
     {
-        if (rotation?.Played() is [var first, ..]) return ForPhase(rotation, first.PhaseIndex, library, skillIcon, avatar);
+        if (rotation?.Played() is [var first, ..]) return ForPhase(rotation, first.PhaseIndex, library, skillIcon, avatar, keys: keys);
         StripStep Step(StepAction action) =>
             new(null, null, Loc.Get($"Rotation.Action.{action}"), null, StripStepState.Plain, false);
         return new StripView(Loc.Get("Rotation.Sample"), [Step(StepAction.BattleSkill), Step(StepAction.Combo), Step(StepAction.Ultimate)], null, []);
@@ -71,11 +73,14 @@ internal static class RotationStripView
     /// <param name="controlled">The operator controlled now, for an attack by whoever is controlled; null when not known (the editor's preview).</param>
     /// <param name="state">The current reading, by which every badge is bright or dim; null (the editor's preview): all dim.</param>
     /// <param name="history">The phases shown and played this fight and this round's lights, for conditions on them.</param>
+    /// <param name="keys">Where each operator's battle-skill key is now (<see cref="StripKeys"/>): a chip above each battle skill;
+    /// null (no squad recognised, the editor's preview of another squad's rotation): none.</param>
     public static StripView ForPhase(Rotation rotation, int phase, OperatorLibrary? library,
         Func<OperatorInfo, StepAction, BitmapSource?> skillIcon, Func<OperatorInfo, BitmapSource?> avatar, StepPosition? steps = null,
-        Func<string, BitmapSource?>? statusIcon = null, OperatorInfo? controlled = null, PartyState? state = null, IPhaseHistory? history = null)
+        Func<string, BitmapSource?>? statusIcon = null, OperatorInfo? controlled = null, PartyState? state = null, IPhaseHistory? history = null,
+        StripKeys? keys = null)
     {
-        var look = new Look(library, skillIcon, avatar, statusIcon ?? (_ => null), PhaseName(rotation), controlled);
+        var look = new Look(library, skillIcon, avatar, statusIcon ?? (_ => null), PhaseName(rotation), controlled, keys);
         var played = rotation.Played();
         var current = played.Where(p => p.PhaseIndex == phase).ToList();
         // Marks for another phase (or a different count of steps) aren't this phase's: drawn alike.
@@ -122,7 +127,7 @@ internal static class RotationStripView
 
     /// <summary>Where a step's pictures and words come from.</summary>
     private sealed record Look(OperatorLibrary? Library, Func<OperatorInfo, StepAction, BitmapSource?> SkillIcon, Func<OperatorInfo, BitmapSource?> Avatar,
-        Func<string, BitmapSource?> StatusIcon, Func<string, string?> PhaseName, OperatorInfo? Controlled);
+        Func<string, BitmapSource?> StatusIcon, Func<string, string?> PhaseName, OperatorInfo? Controlled, StripKeys? Keys);
 
     /// <summary>How the <paramref name="index"/>th step of the phase is drawn.</summary>
     private static StripStepState State(StepPosition? steps, int index) => steps is null ? StripStepState.Plain : steps.Marks[index] switch
@@ -150,7 +155,11 @@ internal static class RotationStripView
         bool basic = p.Step.Action.IsDisplayOnly();
         var icon = op is null ? null : basic ? avatar(op) : skillIcon(op, p.Step.Action);
         return new StripStep(icon, op is null || basic ? null : avatar(op),
-            p.Step.Label ?? Loc.Get($"Rotation.Action.{p.Step.Action}"), p.Step.Note, state, mayOverlap && p.Step.WithPrevious);
+            p.Step.Label ?? Loc.Get($"Rotation.Action.{p.Step.Action}"), p.Step.Note, state, mayOverlap && p.Step.WithPrevious)
+        {
+            // A battle skill (an empowered one too, 强化战技 being its label): the key for its operator's slot now.
+            Key = p.Step.Action == StepAction.BattleSkill ? look.Keys?.For(p.Step.OperatorId) : null,
+        };
     }
 
     /// <summary>A rotation's phases by the strip's names ("充能轴 II"), by id; null for one it doesn't have.</summary>

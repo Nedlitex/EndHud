@@ -1489,7 +1489,7 @@ public sealed class RotationEditorTests : IDisposable
             try
             {
                 if (Application.Current is null) _ = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-                var editor = new RotationEditor(library, operators, [null, null, null, null], null, () => Task.FromResult<RotationSyncResult?>(null), changed);
+                var editor = new RotationEditor(library, operators, [null, null, null, null], Vision.HudLayout.KeyboardMouse, null, () => Task.FromResult<RotationSyncResult?>(null), changed);
                 act(editor);
             }
             catch (Exception ex)

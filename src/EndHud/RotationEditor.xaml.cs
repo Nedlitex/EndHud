@@ -4,6 +4,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
+using EndHud.Vision;
 using EndHud.Vision.Operators;
 using EndHud.Vision.Rotations;
 using Microsoft.Win32;
@@ -22,6 +23,7 @@ public partial class RotationEditor : Window
     private readonly Func<Task<RotationSyncResult?>> _restorePublished;
     private readonly OperatorLibrary _library;
     private readonly IReadOnlyList<string?> _currentSquad;
+    private readonly HudLayout _currentLayout;
     private readonly Action<Rotation?> _changed;
     private readonly Dictionary<string, BitmapSource?> _icons = [];
     private IReadOnlyList<LibraryRotation> _rotations = [];
@@ -34,16 +36,18 @@ public partial class RotationEditor : Window
     private readonly ConditionEditor _gateConditions, _ruleConditions, _stepConditions, _conditionStepConditions, _finishConditions;
 
     /// <param name="currentSquad">The squad EndHud recognises now (for "use the current squad"), null slots unknown.</param>
+    /// <param name="currentLayout">The HUD layout EndHud read last (keyboard or controller): the preview's battle-skill keys are drawn for it.</param>
     /// <param name="select">The rotation to open with, if any.</param>
     /// <param name="restorePublished">Bring back deleted recommended rotations and download them again.</param>
     /// <param name="changed">Called after a rotation is saved (with it) or deleted (with null).</param>
-    internal RotationEditor(RotationLibrary store, OperatorLibrary library, IReadOnlyList<string?> currentSquad, string? select,
+    internal RotationEditor(RotationLibrary store, OperatorLibrary library, IReadOnlyList<string?> currentSquad, HudLayout currentLayout, string? select,
         Func<Task<RotationSyncResult?>> restorePublished, Action<Rotation?> changed)
     {
         _store = store;
         _restorePublished = restorePublished;
         _library = library;
         _currentSquad = currentSquad;
+        _currentLayout = currentLayout;
         _changed = changed;
         // Conditions offer the rotation's squad, its counters and its phases (by the strip's names).
         ConditionEditor Conditions(ConditionHostKind host) => new(library, SquadOperators, Counters, PhaseChoices, host, Avatar,
@@ -744,7 +748,10 @@ public partial class RotationEditor : Window
         }
         if (_draft is null) return;
         // Built as the game's strip is, so it shows the same: this phase, then where the flow goes next.
-        PreviewHost.Content = RotationStrip.Build(RotationStripView.ForPhase(_draft.ToRotation(), _draft.Phases.IndexOf(_phase), _library, SkillIcon, Avatar, statusIcon: StatusIcon));
+        // The battle skills' keys only while the squad recognised now is this rotation's, by its slots in the game.
+        var rotation = _draft.ToRotation();
+        PreviewHost.Content = RotationStrip.Build(RotationStripView.ForPhase(rotation, _draft.Phases.IndexOf(_phase), _library, SkillIcon, Avatar, statusIcon: StatusIcon,
+            keys: StripKeys.ForPreview(rotation, _currentSquad, _currentLayout)));
     }
 
     private BitmapSource? Avatar(OperatorInfo op)

@@ -198,7 +198,7 @@ public class RotationStripViewTests
     [Fact]
     public void Out_of_battle_the_sample_is_the_squads_rotation_from_its_first_phase()
     {
-        var view = RotationStripView.Sample(Rotation, null, (_, _) => null, _ => null);
+        var view = RotationStripView.Sample(Rotation, null, (_, _) => null, _ => null, null);
 
         Assert.Equal("充能轴 I", view.Phase);
         Assert.Equal(3, view.Steps.Count);
@@ -207,7 +207,7 @@ public class RotationStripViewTests
     [Fact]
     public void Without_a_rotation_for_the_squad_the_sample_is_a_generic_strip()
     {
-        var view = RotationStripView.Sample(null, null, (_, _) => null, _ => null);
+        var view = RotationStripView.Sample(null, null, (_, _) => null, _ => null, null);
 
         Assert.Equal("Rotation.Sample", view.Phase);
         Assert.Equal(["Rotation.Action.BattleSkill", "Rotation.Action.Combo", "Rotation.Action.Ultimate"], view.Steps.Select(s => s.Action));

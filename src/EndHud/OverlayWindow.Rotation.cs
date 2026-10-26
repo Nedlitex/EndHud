@@ -112,7 +112,7 @@ public partial class OverlayWindow
     private StripView SampleView()
     {
         var squad = _lastState?.Slots.Select(s => s.Operator?.Operator.Id).ToList();
-        return RotationStripView.Sample(squad is null ? null : RotationFor(squad), _party.Identifier?.Library, SkillIcon, Avatar);
+        return RotationStripView.Sample(squad is null ? null : RotationFor(squad), _party.Identifier?.Library, SkillIcon, Avatar, StripKeys.Of(_lastState));
     }
 
     private StripView View(Rotation rotation, RotationPosition position) =>
@@ -235,7 +235,7 @@ public partial class OverlayWindow
             return;
         }
         var squad = _lastState?.Slots.Select(s => s.Operator?.Operator.Id).ToList() ?? [null, null, null, null];
-        _editor = new RotationEditor(_rotationLibrary, library, squad, RotationFor(squad)?.Id, RestorePublishedAsync, saved =>
+        _editor = new RotationEditor(_rotationLibrary, library, squad, _lastState?.Layout ?? HudLayout.KeyboardMouse, RotationFor(squad)?.Id, RestorePublishedAsync, saved =>
         {
             // A saved rotation becomes the one used for its squad.
             if (saved is not null)
