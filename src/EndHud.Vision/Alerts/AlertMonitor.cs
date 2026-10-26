@@ -6,7 +6,9 @@ namespace EndHud.Vision.Alerts;
 /// Which alerts pop up on a reading. A rule pops when its conditions are seen holding after being
 /// seen not holding, or not seen at all yet this fight. A reading where it can't be told (unknown:
 /// a cutscene, a count that isn't read, an operator not in the squad) neither pops it nor re-arms it,
-/// so a flickering reading can't make it pop again and again. <see cref="EndFight"/> forgets everything.
+/// so a flickering reading can't make it pop again and again. A rule tied to a squad (<see cref="AlertRule.Squad"/>)
+/// isn't holding while another squad is recognised, and can't be told while the squad isn't recognised yet.
+/// <see cref="EndFight"/> forgets everything.
 /// </summary>
 public sealed class AlertMonitor
 {
@@ -19,11 +21,17 @@ public sealed class AlertMonitor
     public IReadOnlyList<AlertRule> Update(PartyState state, IReadOnlyList<AlertRule> rules, IPhaseHistory history)
     {
         var popped = new List<AlertRule>();
+        var squad = state.Slots.Where(s => !s.Empty).Select(s => s.Operator?.Operator.Id).ToList();
         foreach (var rule in rules)
         {
             if (rule.When.Count == 0) continue;
-            var when = new AllCondition(rule.When);
-            bool? now = RotationTracker.Evaluate(when, state, history);
+            // Tied to another squad: not holding (its pop-up comes down, it re-arms). The squad not told yet: unknown.
+            bool? now = rule.ForSquad(squad) switch
+            {
+                true => RotationTracker.Evaluate(new AllCondition(rule.When), state, history),
+                false => false,
+                null => null,
+            };
             if (now is not { } holds) continue;
             bool was = _lastSeen.TryGetValue(rule.Id, out bool seen) && seen;
             _lastSeen[rule.Id] = holds;

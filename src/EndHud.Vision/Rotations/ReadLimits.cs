@@ -30,7 +30,15 @@ public static class ReadLimits
     /// <summary>Alert rules read from one file or code (EndHud keeps at most <see cref="Alerts.AlertFile.MaxRules"/>; a file over that still reads).</summary>
     public const int MaxAlertRulesRead = 1000;
 
+    /// <summary>The longest operator id read in an alert rule's squad (real ones are a word or two).</summary>
     public const int MaxOperatorIdChars = 100;
+
+    /// <summary>The most operators an alert rule's squad names: a squad's size.</summary>
+    public const int MaxAlertSquad = 4;
+
+    /// <summary>An alert rule's squad: none, or at most <see cref="MaxAlertSquad"/> non-empty ids of at most <see cref="MaxOperatorIdChars"/> characters.</summary>
+    public static bool SquadFits(IReadOnlyList<string?>? squad) =>
+        squad is null || (squad.Count <= MaxAlertSquad && squad.All(id => !string.IsNullOrEmpty(id) && id.Length <= MaxOperatorIdChars));
 
     /// <summary>
     /// Every condition present (no null in a list, no empty "not"), nested at most <see cref="MaxConditionDepth"/>,
