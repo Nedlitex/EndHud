@@ -8,6 +8,22 @@ namespace EndHud.Vision;
 /// can't be told (an effect over it).</param>
 public sealed record TeamBuff(string Id, int? Stacks);
 
+/// <summary>What one frame tells of a team buff (<see cref="TeamBuffReader.Look"/>).</summary>
+public enum BuffSight
+{
+    /// <summary>Its icon is there: matched, its white sword lit.</summary>
+    Shown,
+    /// <summary>Clearly not there: nothing in the band is shaped like the icon, and nothing where it best fits is white.</summary>
+    Absent,
+    /// <summary>Can't be told from this frame: something like the icon is there, but not clearly enough (the icon at the
+    /// dim end of its pulse over a light floor, an effect or a flash over or behind it, the HUD jolted and dimmed).</summary>
+    Unclear,
+}
+
+/// <summary>One frame's verdict on a team buff, with its stacks when <see cref="BuffSight.Shown"/> (null: a number is
+/// there but can't be told).</summary>
+public sealed record TeamBuffSighting(string Id, BuffSight Sight, int? Stacks = null);
+
 /// <summary>
 /// Team buffs the game draws left of the controlled operator's HP bar, left of their own counter:
 /// so far Link (the game's combo buff: a white sword with grey feathers), seen in the owner's Laevatain
@@ -58,48 +74,62 @@ public sealed class TeamBuffReader(OperatorLibrary library)
 
     private readonly Dictionary<(string Id, int Size), Template> _templates = new();
 
+    // Clearly absent (BuffSight.Absent): the best match in the band scores under this and is under AbsentWhiteBelow
+    // white. Measured on test_battle_debug (Link shown throughout 81.8-95.8 s, every frame): the icon scores 0.60 or
+    // more wherever it is matched, at the dim end of its pulse over a light floor 0.67-0.72, and its sword is at least 0.17
+    // white, except under a flash or beam over it (then the white share is high) or with the HUD jolted and dimmed (0.04
+    // white, but matched at 0.77). Before it appeared (80-81.7 s) the best match was 0.38-0.66 and 0-0.03 white.
+    internal const double AbsentBelow = 0.6;
+    internal const double AbsentWhiteBelow = 0.1;
+
     /// <summary>The buffs shown now, with their stacks (empty when none, or when the band can't be read).</summary>
     public IReadOnlyList<TeamBuff> Read(Frame frame) =>
-        Locate(frame).Select(b => new TeamBuff(b.Id, StackBadge(frame, b.Square) is { } badge ? Stacks(StackDigits.Read(frame, badge)) : 1)).ToList();
+        Look(frame).Where(s => s.Sight == BuffSight.Shown).Select(s => new TeamBuff(s.Id, s.Stacks)).ToList();
 
-    /// <summary>A digit Link can show (2 to <see cref="MaxStacks"/>); anything else isn't a reading of it.</summary>
-    internal static int? Stacks(int? digit) => digit is >= 2 and <= MaxStacks ? digit : null;
-
-    private List<(string Id, PixelRect Square)> Locate(Frame frame)
+    /// <summary>
+    /// Each buff looked for (<see cref="Buffs"/>), with what this frame tells of it: shown (with its stacks), clearly
+    /// absent, or unclear. One frame alone is never the last word: <see cref="TeamBuffHold"/> carries the verdicts.
+    /// </summary>
+    public IReadOnlyList<TeamBuffSighting> Look(Frame frame)
     {
         var ui = new UiScaler(frame.Width, frame.Height);
         var band = ui.BottomCenter(Band).ClampTo(frame.Width, frame.Height);
-        if (band.IsEmpty) return [];
+        if (band.IsEmpty) return [.. Buffs.Select(id => new TeamBuffSighting(id, BuffSight.Unclear))];
 
-        // Most of the time there's nothing white here at all: no need to look further.
         var grey = new float[band.Width * band.Height];
-        int white = 0;
         for (int y = 0; y < band.Height; y++)
         for (int x = 0; x < band.Width; x++)
         {
             var (r, g, b) = frame.GetPixel(band.X + x, band.Y + y);
             grey[y * band.Width + x] = (r + g + b) / 3f;
-            if (IsWhite(r, g, b)) white++;
         }
-        int smallest = Math.Max(8, (int)Math.Round(Sizes[0] * ui.Scale));
-        if (white < smallest * smallest * MinWhiteShare) return [];
 
-        var found = new List<(string, PixelRect)>();
+        var seen = new List<TeamBuffSighting>();
         foreach (string id in Buffs)
         {
-            if (library.StatusIcon(id) is not { } icon) continue;
-            if (Find(frame, band, grey, icon, id, ui.Scale) is not { } at || WhiteShare(frame, at.Square) < MinWhiteShare) continue;
+            if (library.StatusIcon(id) is not { } icon || Find(frame, band, grey, icon, id, ui.Scale) is not { } at)
+            {
+                seen.Add(new TeamBuffSighting(id, BuffSight.Unclear));
+                continue;
+            }
+            double white = WhiteShare(frame, at.Square);
             double score = at.Score;
-            if (score < MatchAt && score >= MatchWithBadgeFrom && StackBadge(frame, at.Square) is { } badge)
+            var badge = StackBadge(frame, at.Square);
+            if (score < MatchAt && score >= MatchWithBadgeFrom && badge is { } b)
             {
                 var t = TemplateFor(id, icon, at.Square.Width);
-                var hidden = new PixelRect(badge.X - at.Square.X, badge.Y - at.Square.Y, badge.Width, badge.Height);
+                var hidden = new PixelRect(b.X - at.Square.X, b.Y - at.Square.Y, b.Width, b.Height);
                 score = Correlate(grey, band.Width, t, at.Square.X - band.X, at.Square.Y - band.Y, hidden);
             }
-            if (score >= MatchAt) found.Add((id, at.Square));
+            seen.Add(score >= MatchAt && white >= MinWhiteShare
+                ? new TeamBuffSighting(id, BuffSight.Shown, badge is { } shownBadge ? Stacks(StackDigits.Read(frame, shownBadge)) : 1)
+                : new TeamBuffSighting(id, BuffSight.Absent));
         }
-        return found;
+        return seen;
     }
+
+    /// <summary>A digit Link can show (2 to <see cref="MaxStacks"/>); anything else isn't a reading of it.</summary>
+    internal static int? Stacks(int? digit) => digit is >= 2 and <= MaxStacks ? digit : null;
 
     /// <summary>
     /// The dark square holding the stack count at the icon's bottom right, or null when there's none
