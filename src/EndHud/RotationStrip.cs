@@ -154,7 +154,8 @@ internal static class RotationStrip
     internal static readonly Color MetFlashColor = Color.FromRgb(0xFF, 0xF2, 0xB8);
 
     /// <summary>A met badge's or condition step's edge: brighter than a lit step's amber.</summary>
-    private static readonly Brush MetEdge = Frozen(Color.FromRgb(0xFF, 0xE0, 0x78));
+    internal static readonly Color MetEdgeColor = Color.FromRgb(0xFF, 0xE0, 0x78);
+    private static readonly Brush MetEdge = Frozen(MetEdgeColor);
 
     /// <summary>A holding badge's pill: a warm fill, brighter than the dark one of a badge not holding.</summary>
     private static readonly Brush MetBadgeFill = Frozen(Color.FromArgb(0xF0, 0x6A, 0x4A, 0x0C));

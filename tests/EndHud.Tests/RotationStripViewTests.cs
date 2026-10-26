@@ -387,7 +387,8 @@ public class RotationStripViewTests
         var view = RotationStripView.Build(rotation, new RotationPosition(rotation.Played()[0], true, []), Cryo(0), null, (_, _) => null, _ => null, steps);
 
         var condition = Drawn(view)[0];
-        Assert.Equal((StripStepState.Lit, 1.0, RotationStrip.LitColor), (condition.State, condition.Opacity, condition.Ring));
+        // Met: the gold edge of a condition met (and its glow, MetGlowTests), brighter than a skill step's lit amber.
+        Assert.Equal((StripStepState.Lit, 1.0, RotationStrip.MetEdgeColor), (condition.State, condition.Opacity, condition.Ring));
     }
 
     /// <summary>
