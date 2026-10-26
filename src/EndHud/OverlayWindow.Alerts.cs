@@ -22,7 +22,9 @@ public partial class OverlayWindow
     private IReadOnlyList<AlertRule> _alertRules = [];
     private (Grid Holder, Grid PopUp)? _alertSample;
     private AlertEditor? _alertEditor;
-    private bool _loadingAlertSettings;
+    // True until InitAlertSettings has put the saved size in the slider: WPF attaches the slider's ValueChanged before
+    // applying Minimum="0.5", which would otherwise save 50% at every start (see OverlayWindow.Gauges).
+    private bool _loadingAlertSettings = true;
 
     /// <summary>(Re)load the rules, at start and after the alert editor saved them.</summary>
     internal void ReloadAlerts()
@@ -39,10 +41,24 @@ public partial class OverlayWindow
     {
         _loadingAlertSettings = true;
         AlertsCheckBox.IsChecked = _config.AlertsEnabled;
+        AlertsSizeSlider.Value = _config.AlertScale;
+        AlertsSizeText.Text = Loc.Format("Menu.Gauges.SizeValue", _config.AlertScale * 100);
         _loadingAlertSettings = false;
         ReloadAlerts();
         ApplyAlertSettings();
     }
+
+    /// <summary>The Size slider: the pop-ups (and, with the menu open, the sample) resize as it's dragged.</summary>
+    private void AlertsSizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_loadingAlertSettings || AlertsSizeText is null) return;
+        _config.AlertScale = Math.Clamp(Math.Round(e.NewValue, 2), HudConfig.MinAlertScale, HudConfig.MaxAlertScale);
+        AlertsSizeText.Text = Loc.Format("Menu.Gauges.SizeValue", _config.AlertScale * 100);
+        ConfigStore.Save(_config);
+    }
+
+    /// <summary>The card's reset button: back to the default size (the pop-ups have no place of their own to reset).</summary>
+    private void AlertsResetSizeButton_Click(object sender, RoutedEventArgs e) => AlertsSizeSlider.Value = HudConfig.DefaultAlertScale;
 
     private void AlertsCheckBox_Click(object sender, RoutedEventArgs e)
     {
@@ -126,7 +142,7 @@ public partial class OverlayWindow
     }
 
     /// <summary>While the menu is open: a sample pop-up shows where alerts appear (drag the combo hint to move both).</summary>
-    private void SetAlertsEditing(bool editing)
+    internal void SetAlertsEditing(bool editing)
     {
         if (editing && _alertSample is null)
         {

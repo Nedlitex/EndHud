@@ -413,9 +413,23 @@
                     <TextBlock Text="{DynamicResource Menu.OpenWorld.Hint}" Foreground="#99FFFFFF" FontSize="11"
                                TextWrapping="Wrap" Margin="0,2,0,4" />
                     <TextBlock x:Name="AlertsCountText" Foreground="#CCFFFFFF" Margin="0,2,0,4" />
-                    <!-- Editing works with the pop-ups off: rules can be prepared before turning them on. -->
-                    <Button x:Name="EditAlertsButton" HorizontalAlignment="Left" Padding="10,2"
-                            Content="{DynamicResource Menu.Alerts.Edit}" Click="EditAlertsButton_Click" />
+                    <!-- Size: on top of following the game window (AlertLayout), 150% by default. Applied while dragging:
+                         the menu's sample pop-up follows. -->
+                    <DockPanel x:Name="AlertsSizeRow" Margin="0,4,0,0">
+                        <TextBlock Text="{DynamicResource Menu.Gauges.Size}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock x:Name="AlertsSizeText" DockPanel.Dock="Right" Width="44" TextAlignment="Right"
+                                   VerticalAlignment="Center" />
+                        <Slider x:Name="AlertsSizeSlider" Minimum="0.5" Maximum="2" TickFrequency="0.05"
+                                IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                                ValueChanged="AlertsSizeSlider_ValueChanged" />
+                    </DockPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                        <!-- Editing works with the pop-ups off: rules can be prepared before turning them on. -->
+                        <Button x:Name="EditAlertsButton" Padding="10,2" Margin="0,0,6,0"
+                                Content="{DynamicResource Menu.Alerts.Edit}" Click="EditAlertsButton_Click" />
+                        <Button x:Name="AlertsResetSizeButton" Padding="10,2"
+                                Content="{DynamicResource Menu.Alerts.ResetSize}" Click="AlertsResetSizeButton_Click" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
 

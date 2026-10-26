@@ -174,3 +174,64 @@ public class AlertSizeTests(ITestOutputHelper output)
                 }
     }
 }
+
+/// <summary>
+/// The real overlay window: the alerts card's size slider resizes the pop-ups as it's dragged (with the menu open, the
+/// sample pop-up shows it live), saves the size, and the card's reset button brings back the default.
+/// </summary>
+[Collection(WpfCollection.Name)]
+public sealed class AlertSizeWindowTests
+{
+    private static T OnSta<T>(Func<T> work)
+    {
+        T result = default!;
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try { result = work(); }
+            catch (Exception ex) { failure = ex; }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        if (failure is not null) throw failure;
+        return result;
+    }
+
+    [Fact]
+    public void The_menus_sample_follows_the_size_slider_live_and_the_reset_brings_back_the_default()
+    {
+        var seen = OnSta(() =>
+        {
+            var config = new HudConfig();
+            var window = new OverlayWindow(HudOptions.Parse([]), config);
+            try
+            {
+                // Not shown, so the window's own scale is 1: the frame is drawn at the player's size alone.
+                double Drawn() => (window.AlertFrame.LayoutTransform as ScaleTransform)?.ScaleX ?? 1;
+                window.SetAlertsEditing(true);
+                var start = (Samples: window.AlertStack.Children.Count, Scale: Drawn(), Text: window.AlertsSizeText.Text);
+                window.AlertsSizeSlider.Value = 2;
+                var dragged = (Scale: Drawn(), Saved: config.AlertScale, Text: window.AlertsSizeText.Text, OnDisk: ConfigStore.Load().AlertScale);
+                window.AlertsResetSizeButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                var reset = (Scale: Drawn(), Saved: config.AlertScale, Slider: window.AlertsSizeSlider.Value);
+                return (start, dragged, reset);
+            }
+            finally
+            {
+                window.SkillInput.Dispose();
+            }
+        });
+
+        Assert.Equal(1, seen.start.Samples);
+        Assert.Equal(1.5, seen.start.Scale, 3);
+        Assert.Equal("150%", seen.start.Text);
+        Assert.Equal(2, seen.dragged.Scale, 3);
+        Assert.Equal(2, seen.dragged.Saved);
+        Assert.Equal(2, seen.dragged.OnDisk);
+        Assert.Equal("200%", seen.dragged.Text);
+        Assert.Equal(1.5, seen.reset.Scale, 3);
+        Assert.Equal(1.5, seen.reset.Saved);
+        Assert.Equal(1.5, seen.reset.Slider);
+    }
+}
