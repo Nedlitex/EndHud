@@ -74,6 +74,11 @@ internal sealed class HudConfig
     /// </summary>
     public bool AlertsEnabled { get; set; } = true;
 
+    /// <summary>The alert pop-ups' size on top of following the game window (1 = the combo hint's size), from the 战斗提示 card's slider.</summary>
+    public double AlertScale { get; set; } = DefaultAlertScale;
+
+    public const double MinAlertScale = 0.5, MaxAlertScale = 2, DefaultAlertScale = 1;
+
     /// <summary>Show the rotation strip (排轴) when the recognised squad has a rotation.</summary>
     public bool RotationEnabled { get; set; } = true;
 

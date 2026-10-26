@@ -21,10 +21,14 @@ internal static class AlertPopUp
     /// <summary>The icon inside the circle.</summary>
     public const double IconSize = 46;
 
-    /// <summary>The panel's widest text before it wraps (two lines at most).</summary>
+    /// <summary>The panel's widest text before it wraps (two lines at most), where there's room for it (<see cref="AlertLayout.TextMaxWidth"/>).</summary>
     public const double TextMaxWidth = 380;
 
     private const double PanelHeight = 58, RingWidth = 3, Tuck = CircleSize / 2;
+    private const double PadLeft = 24, PadRight = Tuck + 14;
+
+    /// <summary>A pop-up's width around its text: the panel's padding, less the part tucked under the circle, plus the circle.</summary>
+    public const double Chrome = PadLeft + PadRight - Tuck + CircleSize;
     private const double SlideDistance = 120;
     private static readonly TimeSpan PopTime = TimeSpan.FromMilliseconds(220), SlideTime = TimeSpan.FromMilliseconds(320),
         SlideStart = TimeSpan.FromMilliseconds(120), OutTime = TimeSpan.FromMilliseconds(200), GapTime = TimeSpan.FromMilliseconds(220);
@@ -69,13 +73,13 @@ internal static class AlertPopUp
     }
 
     /// <summary>The pop-up: the text panel, then the circle on its right, drawn over the panel's tucked-in end.</summary>
-    public static Grid Create(UIElement icon, string text)
+    public static Grid Create(UIElement icon, string text, double textMaxWidth = TextMaxWidth)
     {
         var words = new TextBlock
         {
             Text = text, FontSize = 20, FontWeight = FontWeights.Bold, Foreground = TextBrush, FontFamily = Font,
             // Two lines at most: a longer text ends in "…" rather than being cut off by the panel.
-            TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = TextMaxWidth, MaxHeight = 56, TextAlignment = TextAlignment.Right,
+            TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = textMaxWidth, MaxHeight = 56, TextAlignment = TextAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center,
             // The panel is slanted like the game's banners; its words are slanted back upright.
             RenderTransform = new SkewTransform(-12, 0),
@@ -89,7 +93,7 @@ internal static class AlertPopUp
             Background = new LinearGradientBrush(Color.FromArgb(0x30, 0x10, 0x14, 0x18), Color.FromArgb(0xE6, 0x10, 0x14, 0x18), 0),
             BorderBrush = ComboBanner.AlertEdge,
             BorderThickness = new Thickness(0, 0, 0, 2),
-            Padding = new Thickness(24, 0, Tuck + 14, 0),
+            Padding = new Thickness(PadLeft, 0, PadRight, 0),
             Margin = new Thickness(0, 0, -Tuck, 0),
             RenderTransformOrigin = new Point(1, 0.5),
             RenderTransform = new TransformGroup { Children = { new SkewTransform(12, 0), new TranslateTransform() } },
@@ -117,6 +121,9 @@ internal static class AlertPopUp
             Children = { panel, circle },
         };
     }
+
+    /// <summary>Narrows or widens the text of a pop-up already up (the size changed, or the combo hint moved).</summary>
+    public static void SetTextMaxWidth(Grid popUp, double textMaxWidth) => ((TextBlock)PanelOf(popUp).Child).MaxWidth = textMaxWidth;
 
     private static Border PanelOf(Grid popUp) => popUp.Children.OfType<Border>().First();
 
