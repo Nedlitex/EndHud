@@ -32,7 +32,7 @@ public partial class OverlayWindow
 
     /// <summary>The phases shown and played this fight, of the rotation followed (for the strip's reasons and the alerts).</summary>
     private IPhaseHistory _phaseHistory = PhaseHistory.None;
-    private readonly DrawnKey _stripKey = new();
+    private readonly StripRedraw _strip = new();
     private Point? _rotationDragOffset;
 
     /// <summary>Keeps the recommended rotations up to date from GitHub (started by App).</summary>
@@ -104,8 +104,9 @@ public partial class OverlayWindow
             : _menuOpen && _config.RotationEnabled && _config.PartyOcrEnabled ? SampleView()
             : null;
 
-        if (!_stripKey.Changed(RotationStripView.Key(view))) return;
-        RotationContent.Content = view is null ? null : RotationStrip.Build(view);
+        // Drawn again on any change: only what has just become met pulses, what stays met glows steadily.
+        if (!_strip.Next(view, out var content)) return;
+        RotationContent.Content = content;
         RotationFrame.Visibility = view is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
@@ -266,7 +267,7 @@ public partial class OverlayWindow
         RotationFrame.BorderBrush = editing ? (Brush)FindResource("Accent") : Brushes.Transparent;
         RotationDragLabel.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
         RotationFrame.Cursor = editing ? Cursors.SizeAll : null;
-        _stripKey.Invalidate();
+        _strip.Invalidate();
         RenderRotation();
     }
 

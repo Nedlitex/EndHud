@@ -113,6 +113,39 @@ public class MetGlowTests(ITestOutputHelper output)
         Assert.All(Glows(own, before: both), pulsing => Assert.False(pulsing));
     }
 
+    /// <summary>
+    /// The overlay's redraws (<see cref="StripRedraw"/>): a badge pulses on the reading it comes true, and the strip drawn
+    /// again for another reason (a step lit, the frame's look changed) keeps it glowing steadily; hidden and shown again,
+    /// it is new on screen and pulses.
+    /// </summary>
+    [Fact]
+    public void The_overlays_redraws_pulse_once_per_becoming_met()
+    {
+        var steps = OnSta(() =>
+        {
+            var redraw = new StripRedraw();
+            List<bool>? Draw(StripView? view) => redraw.Next(view, out var content)
+                ? content is null ? [] : Descendants(content).OfType<UIElement>().Select(e => e.Effect)
+                    .OfType<System.Windows.Media.Effects.DropShadowEffect>().Where(e => e.Color == RotationStrip.MetGlowColor)
+                    .Select(e => e.HasAnimatedProperties).ToList()
+                : null;
+            var drawn = new List<List<bool>?>
+            {
+                Draw(Mixed(false, false)),
+                Draw(Mixed(true, false)), // comes true
+                Draw(Mixed(true, false)), // the same: not drawn again
+                Draw(Mixed(true, false, StripStepState.Lit)), // a step lit
+            };
+            redraw.Invalidate();
+            drawn.Add(Draw(Mixed(true, false, StripStepState.Lit))); // the frame's look changed
+            drawn.Add(Draw(null)); // hidden
+            drawn.Add(Draw(Mixed(true, false, StripStepState.Lit))); // shown again
+            return drawn;
+        });
+
+        Assert.Equal<List<bool>?>([[], [true, true], null, [false, false], [false, false], [], [true, true]], steps);
+    }
+
     /// <summary>The glow is outside the layout: every step, badge and the strip are the same size and place met or not, at 50, 100 and 200 %.</summary>
     [Theory]
     [InlineData(0.5)]
