@@ -108,7 +108,7 @@ internal sealed record StripNext(string Phase, IReadOnlyList<StripStep> Steps);
 /// fades out at both ends, a line through the skill icons, the phase's name large on the left. The
 /// current step has stacked chevrons above it: cyan when it's time to use it, white when it isn't
 /// yet. A step's conditions are small badges right under its circle (a picture and "≥1"-style signs, never words;
-/// amber-edged and bright while they hold, dim while not), kept inside the step's own column so they never reach a
+/// glowing gold while they hold, pulsing the moment they come true, dim while not), kept inside the step's own column so they never reach a
 /// neighbour's; the finish condition's, once every step is lit, follow the last step. Steps seen used are lit (an amber ring on a filled disc),
 /// the others dim, attacks (never seen) half dim with a dashed ring. Text has a dark outline so it reads
 /// over any scene. Drawn at the size for a 1080p game window and scaled with the window (see
@@ -568,7 +568,7 @@ internal static class RotationStrip
     /// <summary>
     /// One condition's badge: a dark pill with its picture (the shared icon rule: <see cref="AlertPopUp.Icon"/>'s picture,
     /// skill-point glyph or "!"; an amber ring for steps lit), a slash across it for "not", a small triangle (running) or
-    /// star (empowered), and the comparison with its number. Amber-edged and bright while it holds, grey-edged and dim
+    /// star (empowered), and the comparison with its number. Gold-edged, warm and glowing while it holds, grey-edged and dim
     /// while not. After a "/" when it is one of several where any is enough.
     /// </summary>
     /// <param name="pulse">It has just come true: its glow pulses first.</param>
