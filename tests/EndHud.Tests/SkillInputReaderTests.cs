@@ -184,7 +184,7 @@ public sealed class SkillInputReaderTests : IDisposable
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
     /// <summary>One of these tests at a time across every test run on this desktop (worktrees run side by side).</summary>
-    private static readonly Semaphore KeyTurn = new(1, 1, @"Local\EndHud.Tests.SkillInputReader.Keys");
+    internal static readonly Semaphore KeyTurn = new(1, 1, @"Local\EndHud.Tests.SkillInputReader.Keys");
 
     private readonly int[] _keys;   // the four keys the reader is given (stored codes), slots 1-4
     private readonly uint[] _vks;   // their virtual keys

@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text;
 using System.Windows;
+using EndHud.SkillInput;
 using EndHud.Vision.Rotations;
 
 namespace EndHud;
@@ -44,7 +45,7 @@ public partial class OverlayWindow
         }
         foreach (string line in CastLines(_rotationFollower.CastTally))
             sb.AppendLine(line);
-        foreach (string line in PressLines(_config.ReadSkillPresses ? _skillInput.Describe() : "off (not consented)", _rotationFollower.PressTally))
+        foreach (string line in SkillReadingLines(SkillKeyReading.Offered, _config.ReadSkillPresses, _skillInput.Describe, _rotationFollower.PressTally))
             sb.AppendLine(line);
         sb.AppendLine();
         sb.Append(DiagnosticExport.DescribeLibrary(PartyMonitor.LibraryFolder));
@@ -66,6 +67,10 @@ public partial class OverlayWindow
                 $"by key press {Count(slot, CastSource.Press)}, empowered without a point {Count(slot, CastSource.Empowered)}";
         yield return $"  skill points spent with nobody named: {Count(4, CastSource.Unattributed)}";
     }
+
+    /// <summary>The summary's key-reading lines: the reader's status and its tally while it is offered.</summary>
+    internal static IEnumerable<string> SkillReadingLines(bool offered, bool consented, Func<string> describe, int[,] tally) =>
+        PressLines(consented ? describe() : "off (not consented)", tally);
 
     /// <summary>
     /// The summary's lines about battle-skill key reading: whether it reads, then for each slot how

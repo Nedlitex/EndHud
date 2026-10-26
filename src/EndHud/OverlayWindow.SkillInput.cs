@@ -16,6 +16,9 @@ public partial class OverlayWindow
 {
     private readonly SkillInputReader _skillInput = new();
 
+    /// <summary>The reader, for the tests that prove it never starts while key reading isn't offered.</summary>
+    internal SkillInputReader SkillInput => _skillInput;
+
     /// <summary>The slot whose key is being chosen (Change clicked, no key pressed yet); null otherwise.</summary>
     private int? _capturingSlot;
 
@@ -37,7 +40,7 @@ public partial class OverlayWindow
     }
 
     /// <summary>Called on every refresh: listen or not, and show whether Windows refused.</summary>
-    private void UpdateSkillInput(bool gameInFront)
+    internal void UpdateSkillInput(bool gameInFront)
     {
         _skillInput.SetListening(SkillInputListens(_config, gameInFront), _config.SkillKeys);
         ApplySkillInputSettings();

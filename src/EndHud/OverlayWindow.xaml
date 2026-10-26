@@ -338,7 +338,7 @@
                                 Content="{DynamicResource Menu.Rotation.ResetPosition}" Click="RotationResetButton_Click" />
                     </StackPanel>
                     <!-- Battle-skill key reading: the player's consent, off until ticked (OverlayWindow.SkillInput). -->
-                    <Border BorderBrush="#33FFFFFF" BorderThickness="0,1,0,0" Margin="0,8,0,0" Padding="0,6,0,0">
+                    <Border x:Name="SkillInputCard" BorderBrush="#33FFFFFF" BorderThickness="0,1,0,0" Margin="0,8,0,0" Padding="0,6,0,0">
                         <StackPanel>
                             <DockPanel>
                                 <CheckBox x:Name="SkillInputCheckBox" DockPanel.Dock="Right" Click="SkillInputCheckBox_Click" Margin="0">
