@@ -211,7 +211,10 @@ public class StripKeyChipTests
     private static int AssertNoOverlap(StripView view, double scale, string name) => OnSta(() =>
     {
         var strip = (FrameworkElement)RotationStrip.Build(view);
-        var root = new Border { Child = strip, LayoutTransform = new ScaleTransform(scale, scale), Background = Brushes.DimGray };
+        // Measured in the space around the scaled strip, so the bounds are the scaled ones (a transform to the scaled
+        // element itself leaves its own scale out).
+        var root = new Grid { Background = Brushes.DimGray };
+        root.Children.Add(new Border { Child = strip, LayoutTransform = new ScaleTransform(scale, scale) });
         root.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         root.Arrange(new Rect(root.DesiredSize));
         root.UpdateLayout();
