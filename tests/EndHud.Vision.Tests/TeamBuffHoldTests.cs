@@ -70,7 +70,7 @@ public sealed class TeamBuffHoldTests : IDisposable
     {
         var reader = await ReaderAsync();
         var absent = new List<string>();
-        foreach (string file in Pulse("frames").Concat(Pulse("readings")))
+        foreach (string file in Pulse("frames"))
         {
             var look = Assert.Single(reader.Look(await PulseFrameAsync(file)));
             Assert.Equal("Link", look.Id);
@@ -78,6 +78,39 @@ public sealed class TeamBuffHoldTests : IDisposable
             if (look.Sight == BuffSight.Shown) Assert.Equal(1, look.Stacks);
         }
         Assert.True(absent.Count == 0, $"read as clearly absent: {string.Join(", ", absent)}");
+    }
+
+    /// <summary>
+    /// The same stretch under the synthetic on-screen display (<see cref="SyntheticOsd"/>) at each position, with and
+    /// without its backdrop: every frame's verdict is the clean one or unclear, never clearly absent for shown (or back),
+    /// and the hold keeps Link on every reading. (A display moved onto the icon itself is not told apart: it reads as
+    /// absent, as it did before the hold.)
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Slow")] // sweeps synthetic on-screen displays: left out of the fast lane
+    public async Task Under_an_on_screen_display_link_reads_the_same_or_unclear_and_stays()
+    {
+        var reader = await ReaderAsync();
+        int px = SyntheticOsd.PixelFor(Height);
+        var places = SyntheticOsd.Positions.Select(p => (Name: p.ToString(), At: SyntheticOsd.Place(p, Width, Height, px))).ToList();
+        var variants = places.SelectMany(p => new[] { (p.Name, p.At, Background: true), (p.Name, p.At, Background: false) }).ToList();
+        var holds = variants.Select(_ => new TeamBuffHold()).ToList();
+        var wrong = new List<string>();
+        foreach (string file in Pulse("readings"))
+        {
+            var frame = await PulseFrameAsync(file);
+            var clean = Assert.Single(reader.Look(frame));
+            for (int v = 0; v < variants.Count; v++)
+            {
+                var (name, (x, y), background) = variants[v];
+                var covered = reader.Look(SyntheticOsd.Draw(frame, x, y, px, background));
+                string where = $"{Path.GetFileNameWithoutExtension(file)} {name}{(background ? " bg" : "")}";
+                var seen = Assert.Single(covered);
+                if (seen.Sight != BuffSight.Unclear && seen != clean) wrong.Add($"{where}: {clean.Sight}:{clean.Stacks} read {seen.Sight}:{seen.Stacks}");
+                if (!holds[v].Track(covered).SequenceEqual(LinkOne)) wrong.Add($"{where}: Link not kept");
+            }
+        }
+        Assert.True(wrong.Count == 0, string.Join("; ", wrong));
     }
 
     /// <summary>Frames of the owner's Laevatain fight without Link (Fixtures/buffs, labelled by eye) end a buff that was shown.</summary>

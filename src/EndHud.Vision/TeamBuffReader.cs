@@ -5,7 +5,8 @@ namespace EndHud.Vision;
 /// <summary>A team buff shown now.</summary>
 /// <param name="Stacks">How many are active: 1 when the icon has no number; otherwise the number in its
 /// corner (Link stacks up to <see cref="TeamBuffReader.MaxStacks"/>); null when a number is there but
-/// can't be told (an effect over it).</param>
+/// can't be told (an effect over it), or, carried by <see cref="TeamBuffHold"/>, when the buff seen has been unclear
+/// for longer than <see cref="TeamBuffHold.HoldReadings"/> readings.</param>
 public sealed record TeamBuff(string Id, int? Stacks);
 
 /// <summary>What one frame tells of a team buff (<see cref="TeamBuffReader.Look"/>).</summary>

@@ -135,7 +135,8 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
     public IReadOnlyList<Operators.CounterReading> Counters { get; init; } = [];
 
     /// <summary>Team buffs shown left of the HP bar, by the wiki's names, with their stacks (see
-    /// <see cref="TeamBuffReader"/>); empty when none, or out of combat (not read then).</summary>
+    /// <see cref="TeamBuffReader"/>, carried across readings by <see cref="TeamBuffHold"/>: a buff seen stays while a
+    /// frame can't tell, and goes once clearly absent); empty when none, or out of combat (not read then).</summary>
     public IReadOnlyList<TeamBuff> Buffs { get; init; } = [];
 
     /// <summary>
