@@ -203,7 +203,11 @@ public class OnScreenDisplayCombatGateTests(ITestOutputHelper output)
             r[p + "ultimate"] = s.Ultimate is { } u ? u.Ready ? "ready" : F(u.Progress) : null;
             r[p + "battle skill"] = s.BattleSkill?.ToString();
         }
-        if (state.InCombat) r["buffs"] = string.Join(" ", buffs.Read(frame).Select(b => $"{b.Id}:{b.Stacks}"));
+        // Each team buff as the frame tells it (TeamBuffReader.Look): its stacks when shown, 0 when clearly absent, unknown
+        // when unclear (TeamBuffHold keeps the last verdict then). A display must never turn shown into absent, or back.
+        if (state.InCombat)
+            foreach (var b in buffs.Look(frame))
+                r[$"buff {b.Id}"] = b.Sight switch { BuffSight.Shown => b.Stacks?.ToString(CultureInfo.InvariantCulture), BuffSight.Absent => "0", _ => null };
         foreach (var st in boss.Read(frame)) r[$"boss {st.Position}"] = $"{st.StatusId}:{st.Stacks}";
         foreach (var (field, value) in StaggerFields(StaggerBar.Read(frame))) r[field] = value;
 

@@ -709,6 +709,7 @@ internal sealed class PartyMonitor : IDisposable
         int silentCaptures = 0;
         OperatorMatch?[] lastNames = [];
         IReadOnlyList<TeamBuff> lastBuffs = []; // kept while the panel is out of sight (a cutscene over the HUD)
+        var buffHold = new TeamBuffHold(); // a buff seen kept through readings that can't tell (its pulse, effects over it)
         var staggerMemory = new StaggerMemory(); // the stagger bar's node boxes, through the swell as the fill reaches one
         string? staggerSeen = null; // the stagger bar's kind last logged
         var panelReadAt = DateTime.MinValue; // when a reading last saw the squad panel
@@ -945,10 +946,16 @@ internal sealed class PartyMonitor : IDisposable
                         state = state with { SkillRings = SkillRing.Read(gameFrame, state) };
                         // Team buffs (Link) beside it: drawn in combat only. While the panel is out of
                         // sight the frame is something else (an ultimate's cutscene): the last ones stay.
+                        // A frame that can't tell (Link's pulse over a light floor, an effect over it) keeps
+                        // what was seen; only clearly absent readings end a buff (TeamBuffHold).
                         Enter("buffs");
                         if (!raw.PanelVisible) state = state with { Buffs = state.InCombat ? lastBuffs : [] };
-                        else if (state.InCombat && _teamBuffs is { } buffs) state = state with { Buffs = lastBuffs = buffs.Read(gameFrame) };
-                        else lastBuffs = [];
+                        else if (state.InCombat && _teamBuffs is { } buffs) state = state with { Buffs = lastBuffs = buffHold.Track(buffs.Look(gameFrame)) };
+                        else
+                        {
+                            lastBuffs = [];
+                            buffHold.Reset();
+                        }
                         // The boss's statuses take ~70 ms to read at 4K: only when the rotation asks,
                         // and at most once a second (they change far more slowly than skill points).
                         if (ReadBossStatuses && _bossStatuses is { } boss && bossClock.Elapsed >= BossStatusEvery)
