@@ -6,8 +6,7 @@
 //   rotation-editor.png  the rotation editor on the published rotation 卡缪 莱万汀 祀 诀, its burst phase selected
 //                        (entry condition, priority, finish condition) and the preview with the squad recognised;
 //   alert-editor.png     the alert editor with a few sample rules, the first tied to that squad (指定小队);
-//   menu-rotation.png    the menu's 排轴 card (with "show in open-world battles too");
-//   menu-alerts.png      the menu's 战斗提示 card (with the pop-ups' size).
+//   menu-rotation.png    the menu's 排轴 card (with "show in open-world battles too").
 // No window is opened: each window is built, laid out and rendered to a bitmap. Everything EndHud writes goes to
 // this tool's own folder (Program.cs: AppFolders.UseRoot), never the developer's %APPDATA%\EndHud. The operator
 // pictures come from the package EndHud ships (operators/operator-library.zip).
@@ -92,7 +91,6 @@ static class WindowShots
                 menu.Arrange(new Rect(menu.DesiredSize));
                 menu.UpdateLayout();
                 Save(Card(menu, (FrameworkElement)overlay.FindName("RotationOpenWorldCheckBox")), Path.Combine(outDir, "menu-rotation.png"));
-                Save(Card(menu, (FrameworkElement)overlay.FindName("AlertsOpenWorldCheckBox")), Path.Combine(outDir, "menu-alerts.png"));
             }
             catch (Exception ex)
             {

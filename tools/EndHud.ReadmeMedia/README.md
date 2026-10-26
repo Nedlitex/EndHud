@@ -64,6 +64,41 @@ only, since in the controller layout slot 4's HP bar sits just above it:
 ffmpeg -ss 79.5 -t 6 -i battle_controller_test_fullbattle2.mp4 -an   -vf "drawbox=x=205:y=2100:w=285:h=30:color=black:t=fill,fps=15,scale=1280:-2:flags=lanczos"   -c:v libwebp_anim -lossless 0 -q:v 62 -compression_level 6 -loop 0 docs/images/controller-battle.webp
 ```
 
+## EndHud's own windows
+
+```powershell
+dotnet run --project tools/EndHud.ReadmeMedia -c Release -- windows out/windows
+```
+
+Writes `rotation-editor.png`, `alert-editor.png` and `menu-rotation.png` (the README's pictures of
+the same names) from the real windows, in the Chinese UI: the rotation editor on the published
+`rotations/camille-laevatain-si-arcane.json` with its burst phase selected (entry condition,
+priority, finish condition, and the preview with that squad recognised, so the battle-skill keys
+show), the alert editor with four sample rules (the first tied to that squad, 指定小队), and the
+menu's 排轴 card with "show in open-world battles too". Each window is built, laid out at full height
+and rendered to a bitmap: no window is opened. The operator pictures come from
+`operators/operator-library.zip`.
+
+## The README's newer gameplay pictures
+
+Cut from the owner's 4K recording `test_battle_full5.mp4` (3838x2158, squad 卡缪 莱万汀 祀 诀 on the
+published rotation, EndHud running). The UID is blacked out on every frame before any crop
+(`x 0-700, y 2040-2158`), and nothing from the recording's last 5 s is used:
+
+```bash
+UIDBOX="drawbox=x=0:y=2040:w=700:h=118:color=black:t=fill"
+# demo-battle.webp: the whole screen, 37-45 s (充能轴 II lighting up, the condition step's glow, hints, gauges)
+ffmpeg -ss 37 -t 8 -i test_battle_full5.mp4 -an -vf "$UIDBOX,fps=15,scale=960:-2:flags=lanczos" \
+  -c:v libwebp_anim -lossless 0 -q:v 70 -compression_level 6 -loop 0 docs/images/demo-battle.webp
+# rotation-burst.webp: the strip, 43-48.5 s (充能轴 II, then the switch to 爆发轴 III)
+ffmpeg -ss 43 -t 5.5 -i test_battle_full5.mp4 -an -vf "$UIDBOX,crop=3160:310:360:400,fps=15,scale=1400:-2:flags=lanczos" \
+  -c:v libwebp_anim -lossless 0 -q:v 75 -compression_level 6 -loop 0 docs/images/rotation-burst.webp
+```
+
+`rotation-badges.png` is the 44 s frame cropped to `x 1480, y 450, 1100x230` (the met condition
+step's glow, condition badges, key chips) and `gauges.png` the 66 s frame cropped to
+`x 1060, y 1640, 1740x270`, scaled to 1160 wide.
+
 ## The counter glyphs beside the game's counters
 
 ```powershell
