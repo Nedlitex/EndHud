@@ -97,7 +97,9 @@ ffmpeg -ss 43 -t 5.5 -i test_battle_full5.mp4 -an -vf "$UIDBOX,crop=3160:310:360
 
 `rotation-badges.png` is the 44 s frame cropped to `x 1480, y 450, 1100x230` (the met condition
 step's glow, condition badges, key chips) and `gauges.png` the 66 s frame cropped to
-`x 1060, y 1640, 1740x270`, scaled to 1160 wide.
+`x 1060, y 1640, 1740x270`, scaled to 1160 wide. `stagger-alert.jpg` is the 66 s frame cropped to
+`x 1250, y 30, 1900x1060` (the boss's yellow stagger countdown and the alert it set off), scaled to
+900 wide, JPEG quality 88.
 
 ## The counter glyphs beside the game's counters
 
