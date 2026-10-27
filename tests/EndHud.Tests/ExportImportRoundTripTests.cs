@@ -52,6 +52,10 @@ public sealed class ExportImportRoundTripTests : IDisposable
     /// <summary>A file of the frozen corpus (tests/EndHud.Vision.Tests/Compat), named after this.</summary>
     private const string CompatSource = "compat:";
 
+    /// <summary>A corpus file's reviewed output (its .expected.json); null for any other source.</summary>
+    private static string? CompatExpected(string source) =>
+        source.StartsWith(CompatSource, StringComparison.Ordinal) ? CompatCorpus.Text(CompatCorpus.ExpectedOf(source[CompatSource.Length..])) : null;
+
     private static Rotation Load(string source) =>
         source == Everything ? EverythingRotation.Build()
         : source.StartsWith(CompatSource, StringComparison.Ordinal) ? RotationFormat.FromJson(CompatCorpus.Text(source[CompatSource.Length..]))
@@ -84,6 +88,8 @@ public sealed class ExportImportRoundTripTests : IDisposable
 
         Assert.True(json is not null && code is not null, $"the editor refused to export: {said}");
         Assert.Equal(RotationFormat.ToJson(original), json);
+        // A corpus file: what goes out is also what was reviewed when it was frozen (a field the reader drops is caught here too).
+        if (CompatExpected(source) is { } expected) Assert.Equal(expected, json.ReplaceLineEndings("\n"));
         foreach (var (how, import) in new (string, Action<RotationEditor>)[] { ("file", e => e.ImportJson(json!)), ("code", e => e.ImportCode(code!)) })
         {
             var into = new RotationLibrary(Path.Combine(_folder, how));
@@ -136,6 +142,7 @@ public sealed class ExportImportRoundTripTests : IDisposable
 
         Assert.True(json is not null && code is not null, $"the editor refused to export: {said}");
         Assert.Equal(AlertFormat.ToJson(rules), json);
+        if (CompatExpected(source) is { } expected) Assert.Equal(expected, json.ReplaceLineEndings("\n"));
         static AlertRule WithoutId(AlertRule rule) => rule with { Id = "" };
         foreach (var (how, import) in new (string, Action<AlertEditor>)[] { ("file", e => e.ImportJson(json!)), ("code", e => e.ImportCode(code!)) })
         {
