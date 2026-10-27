@@ -34,20 +34,32 @@ public class ConditionCatalogueTests
     }
 
     /// <summary>
-    /// The same full set is offered wherever conditions are written ("phase shown" in alerts included). One kind is
-    /// about a phase's own round, so it is offered in a finish condition only: "the phase's steps lit" (2026-10-24;
-    /// elsewhere it would name another phase's steps, or a condition step's own light).
+    /// The same full set is offered wherever conditions are written ("phase shown" in alerts included). Two kinds are
+    /// about a phase's own round: "the phase's steps lit", offered in a finish condition only (2026-10-24; elsewhere it
+    /// would name another phase's steps, or a condition step's own light), and "time in phase", offered in the phase's own
+    /// hosts (its finish condition, a condition step, a step's expected state; owner, 2026-10-27).
     /// </summary>
     [Fact]
-    public void Every_host_offers_the_same_full_set_and_steps_lit_only_in_a_finish_condition()
+    public void Every_host_offers_the_same_full_set_but_the_kinds_about_a_phases_own_round()
     {
         var everything = ConditionCatalogue.EditorKinds;
 
         Assert.Contains("PhaseShown", everything);
         Assert.Contains("Group", everything);
         Assert.Equal(everything, ConditionCatalogue.OfferedIn(ConditionHostKind.PhaseFinish));
-        foreach (var host in Enum.GetValues<ConditionHostKind>().Where(h => h != ConditionHostKind.PhaseFinish))
+        foreach (var host in new[] { ConditionHostKind.ConditionStep, ConditionHostKind.StepExpect })
             Assert.Equal(everything.Where(k => k != "StepsLit"), ConditionCatalogue.OfferedIn(host));
+        foreach (var host in new[] { ConditionHostKind.PhaseGate, ConditionHostKind.PriorityRule, ConditionHostKind.Alert })
+            Assert.Equal(everything.Where(k => k is not "StepsLit" and not "TimeInPhase"), ConditionCatalogue.OfferedIn(host));
+    }
+
+    [Fact]
+    public void Time_in_phase_is_offered_only_in_the_phases_own_hosts()
+    {
+        foreach (var host in new[] { ConditionHostKind.PhaseFinish, ConditionHostKind.ConditionStep, ConditionHostKind.StepExpect })
+            Assert.Contains("TimeInPhase", ConditionCatalogue.OfferedIn(host));
+        foreach (var host in new[] { ConditionHostKind.PhaseGate, ConditionHostKind.PriorityRule, ConditionHostKind.Alert })
+            Assert.DoesNotContain("TimeInPhase", ConditionCatalogue.OfferedIn(host));
     }
 
     /// <summary>The catalogue knows whom each kind is about and its comparison, for every kind that has one.</summary>

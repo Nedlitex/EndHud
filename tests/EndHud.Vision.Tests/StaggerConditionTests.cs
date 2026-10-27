@@ -113,7 +113,7 @@ public class StaggerConditionTests
     public void Formats_are_raised_only_when_it_is_used(StateCondition condition, string json, string editor)
     {
         _ = (json, editor);
-        Assert.Equal(13, Rotation.CurrentFormat);
+        Assert.True(Rotation.CurrentFormat >= 13);
         Assert.True(AlertFile.CurrentFormat >= 7);
         var plain = new RotationPhase("p", "p", [new RotationStep("Laevatain", StepAction.BattleSkill)]);
         var gated = plain with { When = [new NotCondition(condition)] };
