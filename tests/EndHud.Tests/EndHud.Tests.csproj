@@ -31,6 +31,8 @@
     <Compile Include="..\EndHud.Vision.Tests\Support\SyntheticOsd.cs" Link="Support\SyntheticOsd.cs" />
     <!-- This run's folder for the app's data: never the player's real %APPDATA%\EndHud (TestDataFolderTests). -->
     <Compile Include="..\EndHud.Vision.Tests\Support\TestRoot.cs" Link="Support\TestRoot.cs" />
+    <!-- The rotation and alert rules that hold everything, for the editors' export-then-import round trips (ExportImportRoundTripTests). -->
+    <Compile Include="..\EndHud.Vision.Tests\Support\EverythingRotation.cs" Link="Support\EverythingRotation.cs" />
   </ItemGroup>
 
   <ItemGroup>
