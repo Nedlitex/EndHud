@@ -90,6 +90,7 @@ rotation charts.
   | `staggered` / `staggerTimeLeft` | the drawn yellow countdown; not staggered: slashed / with the triangle, "≤30%" |
   | `phaseShown`, `phasePlayed` / `phaseCurrent` | "!" with "≥2" / "!" alone (nothing to picture) |
   | `stepsLit` all / at least N / these | an amber ring / the ring, "≥N" / each named step's own icon |
+  | `timeInPhase` | a drawn clock ([`ClockGlyph`](src/EndHud/ClockGlyph.cs)), "≥4" and the seconds unit (`Rotation.Badge.Seconds`) |
   | `not` | its condition's badge with the slash toggled; over a group, pushed down (not (a and b) = not a / not b) |
   | `all` / `any` | a badge per part / the same, a "/" before each later part |
 
@@ -1905,6 +1906,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   | `staggerNodes` | `is`, `count` (0–9 in the editor) (format 13) | how many of the bar's node boxes the fill has passed, each a small stagger (`StaggerReading.NodesReached`); all of them while staggered. A boss without boxes has 0. Unknown as above |
   | `staggered` | `staggered` (format 13) | the boss is in the large stagger (the bar a yellow countdown, `true`) or not. Unknown as above |
   | `staggerTimeLeft` | `is`, `percent` (0–100) (format 13) | how much of the large stagger is left, as a percentage of the bar (`PartyState.StaggerTimeLeftPercent`); 0 while not staggered. **No seconds**: the countdown stands still in some moments, so its length can't be turned into time. Unknown as above; tests: `StaggerConditionTests` |
+  | `timeInPhase` | `is` (`AtLeast`/`Below` in the editor; a file's other comparison is kept), `seconds` (0.5–120 by 0.5 in the editor) (format 14) | how long the phase on the strip has run this round: since it came onto the strip, or since it was last played through (`StepFollower.TimeInPhase`, from the readings' own times, `PartyState.ReadAt`). A reading that didn't see the squad panel (`ReadingsSinceSeen` above 0, or the panel not visible: a cutscene, a menu, an ultimate's animation) adds nothing (owner, 2026-10-27), nor does a gap over 1 s between readings (the strip off, the squad not recognised); back to 0 at the fight's end. Unknown before the first reading and, for the rest of the round, after a reading without a time. Only in a phase's `finish`, a condition step and a step's `expect` (it is about the phase's own round); refused in a `when`, a priority rule (`TimeInPhaseOutsideItsPhase`) and an alert (`AlertProblem.TimeInPhaseNotForAlerts`). The player's case: a closing phase after the burst whose effects land seconds later, each a condition step "at least N s"; the last one lit plays the phase through. No seconds are shipped in any rotation: they are the player's own measurements. Tests: `TimeInPhaseConditionTests` |
   | `ultimateActive` | `operatorId`, `active` (format 3) | that operator's lasting ultimate is running (`true`) or not, whoever is controlled: one of the running ones from [Lasting ultimates](#lasting-ultimates) (`PartyState.RunningUltimates`), on the time bar or carried on in the background. Unknown while the skill points can't be read, and, for an operator whose ultimate isn't one of the known lasting ones, while a bar shows (it could be hers); with no bar, false |
   | `ultimateTimeLeft` | `operatorId`, `is`, `percent` (0–100) (format 9) | how much of that operator's lasting ultimate is left to run, as a % of its time bar (`LastingUltimateView.LeftShare` of the running ones from [Lasting ultimates](#lasting-ultimates), on the bar or carried on in the background); 0 while it isn't running (as a ready ultimate's charge is 100). Unknown while the skill points can't be read. Only Laevatain, Zhuang Fangyi and Yvonne (`LastingUltimates.Operators`); anyone else is refused (`UltimateTimeNotRead`), and the editors offer only them, greyed out without any. No seconds: no ultimate's length has been measured |
   | `counter` | `operatorId`, `counterId`, `is`, `value` | an operator's own resource compares so (see below) |
@@ -1933,7 +1935,8 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   its name in the editor's kind picker, the rotation and alert formats that hold it, the operator it
   is about, its comparison, the phase it names, what it needs (a phase, boss
   statuses, an operator whose time is read) and where it may be used (every host, except `stepsLit`:
-  a phase's `finish` only, see above; a kind used outside its hosts is refused, `NotOfferedHere`).
+  a phase's `finish` only, see above, and `timeInPhase`: a phase's `finish`, a condition step and a step's
+  `expect`; a kind used outside its hosts is refused, `NotOfferedHere`).
   Wherever conditions are written (a phase's `when`, a priority rule, its `finish`, a step's
   `expect`, an alert's `when`) the same full set is offered and the same checks run
   ([`ConditionRules.Check`](src/EndHud.Vision/Rotations/ConditionCatalogue.cs), given a
@@ -1967,7 +1970,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   that machinery (`PhaseHistory.KeysNotRead`, `IPhaseHistory.PlayedIgnored`,
   `RotationTracker.Ignored`, `ConditionWalk.OnlyPlayed`, `ConditionNeeds.KeysRead`) is gone.
 
-- `format`: 13 when it uses a stagger condition (`staggerProgress`, `staggerNodes`, `staggered`, `staggerTimeLeft`); else 12 when it uses `teamBuff` or a `Condition` step in a group (`withPrevious` on it or on the step after it); else 11 when it uses `battleSkillEmpowered`; else 10 when a phase has a `finish` condition (and so for `stepsLit`); else 9 when it uses `ultimateTimeLeft`, `phaseCurrent`, a `Condition` or `PlungeAttack` step, or the `"controlled"` operator; else 8 when it uses a `HeavyAttack` step; else 7 when it uses `battleSkillActive`; else 6 when a phase sets `priority` (other than 0) or `priorityRules`; else 5 when it uses `phasePlayed`; else 4 when it uses a `BasicAttack` step, `Below`/`Above` or `phaseShown`; else 3 when it
+- `format`: 14 when it uses `timeInPhase`; else 13 when it uses a stagger condition (`staggerProgress`, `staggerNodes`, `staggered`, `staggerTimeLeft`); else 12 when it uses `teamBuff` or a `Condition` step in a group (`withPrevious` on it or on the step after it); else 11 when it uses `battleSkillEmpowered`; else 10 when a phase has a `finish` condition (and so for `stepsLit`); else 9 when it uses `ultimateTimeLeft`, `phaseCurrent`, a `Condition` or `PlungeAttack` step, or the `"controlled"` operator; else 8 when it uses a `HeavyAttack` step; else 7 when it uses `battleSkillActive`; else 6 when a phase sets `priority` (other than 0) or `priorityRules`; else 5 when it uses `phasePlayed`; else 4 when it uses a `BasicAttack` step, `Below`/`Above` or `phaseShown`; else 3 when it
   uses `not`, `ultimateActive` or `lastMatchWins`; else 2. A rotation is saved in the lowest
   format that holds it (`Rotation.FormatNeeded`), so one using nothing new stays readable by older
   builds, and the published `rotations/*.json` stay at format 3 or lower (a test checks). A
@@ -2574,7 +2577,9 @@ One file for every rule (every fight; every squad, or the rule's own squad): `%A
 
 - `id`: kept for the rule's whole life. `when`: every condition must hold; the same condition
   kinds as rotations, groups and `not` included (all but `stepsLit`, which is a rotation phase's finish
-  condition only: not offered, and refused in a file, `AlertProblem.NotForAlerts`; "the phase I follow
+  condition only: not offered, and refused in a file, `AlertProblem.NotForAlerts`; and `timeInPhase`, which is
+  about a rotation phase's own round: not offered, refused in a file with its own sentence,
+  `AlertProblem.TimeInPhaseNotForAlerts`; "the phase I follow
   is finished" is `phaseCurrent` with `playedThrough`), with the same checks (see
   [One condition language](#the-file)). `phaseShown` and `phasePlayed` are offered: an alert has
   no rotation of its own, so they name a phase of any of the player's rotations (listed as

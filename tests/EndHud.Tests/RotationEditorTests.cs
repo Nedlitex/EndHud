@@ -1121,7 +1121,7 @@ public sealed class RotationEditorTests : IDisposable
     // ---- Time in phase (a player's request, 2026-10-27: end a phase after a set delay) ----
 
     /// <summary>
-    /// 本轴段已进行时间 is about the phase's own round: offered in its finish condition and in a condition step, never in its
+    /// Time in phase is about the phase's own round: offered in its finish condition and in a condition step, never in its
     /// entry condition or a priority rule.
     /// </summary>
     [Fact]
@@ -1151,7 +1151,7 @@ public sealed class RotationEditorTests : IDisposable
     }
 
     /// <summary>
-    /// Picked, never typed: the kind, then 至少 or 小于, then the seconds, 0.5 to 120 by half a second, with a hint saying
+    /// Picked, never typed: the kind, then at least or less than, then the seconds, 0.5 to 120 by half a second, with a hint saying
     /// what the clock counts. 4.5 s picked is saved as 4.5, in format 14.
     /// </summary>
     [Fact]
@@ -1190,7 +1190,7 @@ public sealed class RotationEditorTests : IDisposable
         Assert.Equal(14, saved.Format);
     }
 
-    /// <summary>A hand-written file's other comparison (至多) and seconds off the list (7.25) are kept in their place, never swapped.</summary>
+    /// <summary>A hand-written file's other comparison (at most) and seconds off the list (7.25) are kept in their place, never swapped.</summary>
     [Fact]
     public void A_files_other_comparison_and_seconds_are_kept()
     {

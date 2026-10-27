@@ -105,7 +105,7 @@ internal static class StripBadges
                 // Staggered and its time left share the countdown's picture: the time left carries the running sign.
                 StaggeredCondition c => (null, BadgeSign.None, !c.Staggered),
                 StaggerTimeLeftCondition c => (Compare(c.Is, $"{c.Percent}%"), BadgeSign.Running, false),
-                // Seconds, with the strings' unit ("≥4秒").
+                // Seconds, with the unit from the strings (Rotation.Badge.Seconds).
                 TimeInPhaseCondition c => (Compare(c.Is, string.Format(CultureInfo.InvariantCulture, text("Rotation.Badge.Seconds"), ConditionWords.Seconds(c.Seconds))), BadgeSign.None, false),
                 // Present: its stacks (a reaction's level in the game's numerals). Absent: a slash; "not absent" is present, at least 1.
                 BossStatusCondition { Present: true } c => (Stacks(c), BadgeSign.None, false),
