@@ -33,6 +33,9 @@
     <Compile Include="..\EndHud.Vision.Tests\Support\TestRoot.cs" Link="Support\TestRoot.cs" />
     <!-- The rotation and alert rules that hold everything, for the editors' export-then-import round trips (ExportImportRoundTripTests). -->
     <Compile Include="..\EndHud.Vision.Tests\Support\EverythingRotation.cs" Link="Support\EverythingRotation.cs" />
+    <!-- The frozen backward-compatibility corpus (tests/EndHud.Vision.Tests/Compat), read from the source folder: every file
+         also goes out through the editors' export and back in through their import (ExportImportRoundTripTests). -->
+    <Compile Include="..\EndHud.Vision.Tests\Support\CompatCorpus.cs" Link="Support\CompatCorpus.cs" />
   </ItemGroup>
 
   <ItemGroup>

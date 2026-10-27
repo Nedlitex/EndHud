@@ -43,11 +43,19 @@ public sealed class ExportImportRoundTripTests : IDisposable
         var data = new TheoryData<string> { Everything };
         foreach (string file in Directory.GetFiles(Path.Combine(RepositoryRoot(), "rotations"), "*.json", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
             data.Add(Path.GetRelativePath(RepositoryRoot(), file));
+        // Every rotation file of the frozen backward-compatibility corpus (every format, from 1), enumerated: a file
+        // added for a new format is picked up without a change here.
+        foreach (string name in CompatCorpus.RotationFiles()) data.Add(CompatSource + name);
         return data;
     }
 
+    /// <summary>A file of the frozen corpus (tests/EndHud.Vision.Tests/Compat), named after this.</summary>
+    private const string CompatSource = "compat:";
+
     private static Rotation Load(string source) =>
-        source == Everything ? EverythingRotation.Build() : RotationFormat.FromJson(File.ReadAllText(Path.Combine(RepositoryRoot(), source)));
+        source == Everything ? EverythingRotation.Build()
+        : source.StartsWith(CompatSource, StringComparison.Ordinal) ? RotationFormat.FromJson(CompatCorpus.Text(source[CompatSource.Length..]))
+        : RotationFormat.FromJson(File.ReadAllText(Path.Combine(RepositoryRoot(), source)));
 
     private static string Said(Window editor) => ((TextBlock)editor.FindName("StatusText")).Text + ((TextBlock)editor.FindName("ProblemsText")).Text;
 
@@ -94,16 +102,25 @@ public sealed class ExportImportRoundTripTests : IDisposable
         }
     }
 
+    /// <summary>The alert rules that hold everything, and every alerts file of the frozen corpus (every format, from 1), enumerated.</summary>
+    public static TheoryData<string> AlertSources()
+    {
+        var data = new TheoryData<string> { Everything };
+        foreach (string name in CompatCorpus.AlertFiles()) data.Add(CompatSource + name);
+        return data;
+    }
+
     /// <summary>
     /// Alert rules (one per kind offered in alerts, rules tied to a squad, as many as are kept) exported from the alert
     /// editor (what "export to file" writes and "copy all as share code" copies), then imported in another editor with no
     /// rules: all of them added, none skipped, and the same rules in the same order. Only their ids differ: an import
     /// gives every rule a new one (it never replaces a rule).
     /// </summary>
-    [Fact]
-    public void Alert_rules_exported_from_the_editor_import_into_another_unchanged()
+    [Theory]
+    [MemberData(nameof(AlertSources))]
+    public void Alert_rules_exported_from_the_editor_import_into_another_unchanged(string source)
     {
-        var rules = EverythingRotation.AlertRules();
+        var rules = source == Everything ? EverythingRotation.AlertRules() : AlertFormat.FromJson(CompatCorpus.Text(source[CompatSource.Length..]));
         Assert.All(rules, r => Assert.Empty(r.Problems()));
         var from = new AlertStore(Path.Combine(_folder, "from", "alerts.json"));
         from.Save(rules);
