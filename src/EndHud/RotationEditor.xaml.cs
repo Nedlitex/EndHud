@@ -835,8 +835,12 @@ public partial class RotationEditor : Window
             Error(Loc.Get("Editor.ClipboardEmpty"));
             return;
         }
-        Import(() => RotationFormat.FromShareCode(text));
+        ImportCode(text);
     }
+
+    internal void ImportCode(string code) => Import(() => RotationFormat.FromShareCode(code));
+
+    internal void ImportJson(string json) => Import(() => RotationFormat.FromJson(json));
 
     private void Import(Func<Rotation> read)
     {

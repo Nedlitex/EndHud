@@ -24,6 +24,48 @@ public sealed class RotationEditorTests : IDisposable
     private static Rotation Published() => new(Rotation.CurrentFormat, "laevatain-standard", "标准轴", ["Laevatain", "Camille", "Arcane", "Ardelia"],
         [new RotationPhase("p", "充能轴", [new RotationStep("Ardelia", StepAction.BattleSkill)])]);
 
+    private static string RepositoryRoot()
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+            if (File.Exists(Path.Combine(dir.FullName, "EndHud.sln"))) return dir.FullName;
+        throw new DirectoryNotFoundException("EndHud.sln");
+    }
+
+    public static TheoryData<string> PublishedFiles()
+    {
+        var files = new TheoryData<string>();
+        foreach (string file in Directory.GetFiles(Path.Combine(RepositoryRoot(), "rotations"), "*.json", SearchOption.AllDirectories))
+            files.Add(Path.GetRelativePath(RepositoryRoot(), file));
+        return files;
+    }
+
+    /// <summary>
+    /// A player's report (2026-10-27): "导出的 json 再导入就会报错". Condition steps (no operator) and attacks by whoever
+    /// is controlled were taken for operators missing from the library, so a rotation with either couldn't come back in.
+    /// Every recommended rotation, exported as a file and as a share code, imports again.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(PublishedFiles))]
+    public void An_exported_rotation_imports_again(string file)
+    {
+        var rotation = RotationFormat.FromJson(File.ReadAllText(Path.Combine(RepositoryRoot(), file)));
+        string asFile = "", asCode = "";
+
+        OnEditor(new RotationLibrary(Path.Combine(_folder, "file")), _ => { }, editor =>
+        {
+            editor.ImportJson(RotationFormat.ToJson(rotation));
+            asFile = ((TextBlock)editor.FindName("ProblemsText")).Text + ((TextBlock)editor.FindName("StatusText")).Text;
+        }, [.. rotation.Squad]);
+        OnEditor(new RotationLibrary(Path.Combine(_folder, "code")), _ => { }, editor =>
+        {
+            editor.ImportCode(RotationFormat.ToShareCode(rotation));
+            asCode = ((TextBlock)editor.FindName("ProblemsText")).Text + ((TextBlock)editor.FindName("StatusText")).Text;
+        }, [.. rotation.Squad]);
+
+        Assert.StartsWith("Editor.Imported", asFile);
+        Assert.StartsWith("Editor.Imported", asCode);
+    }
+
     [Fact]
     public void Saving_a_recommended_rotation_saves_the_players_own_copy_and_leaves_it_as_it_was()
     {
