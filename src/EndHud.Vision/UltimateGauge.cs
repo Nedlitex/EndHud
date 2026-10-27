@@ -93,23 +93,29 @@ public static class UltimateGauge
             : circle.ReadyRingRadius is { } ring && WhiteRingShare(frame, cx, cy, ring * s, s) >= WhiteRingMinShare && coloured >= PlainDiscColourShare;
         if (coloured >= ReadyColourShare && marked)
             return new UltimateReading(Ready: true, Progress: 1);
-        // A Physical ultimate is ready in grey: the disc lit a light, unsaturated grey behind the
-        // white icon, in a light ring just outside the circle. Grey scenery has no icon and no ring;
-        // a coloured effect isn't grey.
-        if (circle.ReadsNeutral && marked
+        // A Physical ultimate is ready in grey: the disc lit a light, unsaturated grey behind a
+        // large white icon, in a light ring just outside the circle. Grey scenery and light effects
+        // have no icon that big; a coloured effect isn't grey.
+        if (circle.ReadsNeutral && circle.IconRadius is { } neutralIcon
+            && WhiteShare(frame, cx, cy, neutralIcon * s) >= NeutralReadyIconShare
             && NeutralLitShare(frame, cx, cy, circle.DiscRadius * s) >= NeutralReadyDiscShare
             && LightRingShare(frame, cx, cy, s) >= NeutralReadyRingShare)
             return new UltimateReading(Ready: true, Progress: 1);
         return null;
     }
 
-    // Measured on test_mifu (four Physical operators), share of the disc with channel spread <= 20 and
-    // darkest channel >= 90: 0.93-0.99 on every ready circle; 0.03-0.46 on charging ones (their dark
-    // disc and cream arc). The light ring, 36-44 px out: lightest unsaturated pixel >= 150 at 1.00 of
-    // the way round when ready (median 206-210), at most 0.22 round a charging circle, 0.00-0.01 on the
-    // frames where the circle flashes plain white as it fills (those read nothing, like a cutscene).
+    // Measured on two recordings with Physical ultimates (test_mifu: four of them; test_rossi_mifu_si:
+    // Mi Fu in slot 4, over a light floor). The icon, white share as above: 0.45-0.59 on every ready
+    // circle; at most 0.15 on charging ones, 0.12 under a light cyan effect that the disc and ring
+    // tests alone took for ready. The disc, share with channel spread <= 20 and darkest channel >= 90:
+    // 0.88-0.99 ready; 0.03-0.46 charging over a dark floor, but up to 1.00 over a light one. The
+    // light ring, 36-44 px out (lightest unsaturated pixel >= 150): all the way round when ready
+    // (median 200-210); up to 0.68 round a charging circle over a light floor, 0.86 under the effect;
+    // 0.00-0.01 on the frames where the circle flashes plain white as it fills (those read nothing,
+    // like a cutscene).
+    private const double NeutralReadyIconShare = 0.3;
     private const double NeutralReadyDiscShare = 0.6;
-    private const double NeutralReadyRingShare = 0.8;
+    private const double NeutralReadyRingShare = 0.9;
 
     private static double NeutralLitShare(Frame frame, double cx, double cy, double radius)
     {
@@ -317,12 +323,12 @@ public static class UltimateGauge
 
     /// <summary>
     /// A pixel of a Physical ultimate's cream arc: light, hardly any colour, and much lighter than
-    /// the circle's empty centre. Measured on test_mifu: the arc's darkest channel 182-200 (10th
-    /// percentile) and channel spread up to 25 (90th), against the grey charging ring's 72 and the
-    /// dark disc's 60 or less. The empty centre's mean darkest channel was 2-85 on charging circles
-    /// and 109 over a light floor, so the arc stands 80+ above it; in a white-out (the screen washed
-    /// out to grey, 66 s) the centre was 178 and the "arc" 176, nothing above it, and accepting any
-    /// light grey read that circle as full.
+    /// the circle's empty centre. Measured on test_mifu and test_rossi_mifu_si, per 5° band: the arc's
+    /// darkest channel 189-202 (10th percentile) and channel spread up to 34 (90th), against the grey
+    /// charging ring's 72 and the dark disc's 60 or less. The empty centre's mean darkest channel was
+    /// 12-109 (the highest over light floors), and the arc stood at least 90 above it; in a white-out
+    /// (test_mifu 66 s, the screen washed out to grey) the centre was 178 and the "arc" 178, nothing
+    /// above it, and accepting any light grey read that circle as full.
     /// </summary>
     private static bool IsNeutralArc(byte r, byte g, byte b, double centreBrightness)
     {
