@@ -95,6 +95,28 @@ public class PhysicalUltimateTests
     }
 
     [Fact]
+    public async Task Nearly_full_beside_a_coloured_ready_circle()
+    {
+        var frame = await LoadAsync("rms-100s.png");
+
+        Assert.True(Read(frame, 0).Ready, "slot 1 (red) should read ready");
+        var reading = Read(frame, 3);
+        Assert.False(reading.Ready);
+        Assert.InRange(reading.Progress, 0.9, 1.0);
+    }
+
+    [Fact]
+    public async Task Empty_after_its_cast_beside_coloured_circles()
+    {
+        var frame = await LoadAsync("rms-111_5s.png");
+
+        var reading = Read(frame, 3);
+        Assert.False(reading.Ready);
+        Assert.InRange(reading.Progress, 0, 0.05);
+        Assert.InRange(Read(frame, 1).Progress, 0.22, 0.38);
+    }
+
+    [Fact]
     public async Task Charging_over_a_light_floor()
     {
         var reading = Read(await LoadAsync("rms-140s.png"), 3);
