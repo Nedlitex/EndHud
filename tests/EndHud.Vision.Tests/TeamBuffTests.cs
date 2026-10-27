@@ -137,8 +137,8 @@ public sealed class TeamBuffTests : IDisposable
     public static TheoryData<string, int?> NoCounter() => new()
     {
         { "link-062_75.jpg", null },
-        { "link-064_00.jpg", 1 },
-        { "link-065_00.jpg", 1 },
+        { "link-064_10.jpg", 1 },
+        { "link-065_10.jpg", 1 },
         { "link-065_50.jpg", 1 },
         { "link-067_25.jpg", null },
     };
@@ -150,6 +150,20 @@ public sealed class TeamBuffTests : IDisposable
         var frame = await NoCounterFrameAsync(file);
 
         Assert.Equal(stacks is { } n ? [new TeamBuff("Link", n)] : [], (await ReaderAsync()).Read(frame));
+    }
+
+    /// <summary>
+    /// The dim ends of its pulse there (64.00 s: the sword grey; 65.00 s): one frame alone can't tell, but nothing says
+    /// Link is clearly gone, so <see cref="TeamBuffHold"/> keeps it.
+    /// </summary>
+    [Theory]
+    [InlineData("link-064_00.jpg")]
+    [InlineData("link-065_00.jpg")]
+    public async Task Links_dim_frames_beside_the_hp_bar_are_never_clearly_absent(string file)
+    {
+        var look = Assert.Single((await ReaderAsync()).Look(await NoCounterFrameAsync(file)));
+
+        Assert.NotEqual(BuffSight.Absent, look.Sight);
     }
 
     public static TheoryData<string> OtherSquads() =>
