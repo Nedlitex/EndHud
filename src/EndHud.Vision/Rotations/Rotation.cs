@@ -96,6 +96,7 @@ public enum Comparison
 [JsonDerivedType(typeof(StaggerNodesCondition), "staggerNodes")]
 [JsonDerivedType(typeof(StaggeredCondition), "staggered")]
 [JsonDerivedType(typeof(StaggerTimeLeftCondition), "staggerTimeLeft")]
+[JsonDerivedType(typeof(TimeInPhaseCondition), "timeInPhase")]
 public abstract record StateCondition;
 
 /// <summary>Which steps a <see cref="StepsLitCondition"/> asks to be lit.</summary>
@@ -225,6 +226,14 @@ public sealed record StaggeredCondition(bool Staggered) : StateCondition;
 public sealed record StaggerTimeLeftCondition(Comparison Is, int Percent) : StateCondition;
 
 /// <summary>
+/// How long the phase on the strip has been running this round (time in phase), in seconds: since it came onto the strip,
+/// or since it was last played through. Time while the squad panel is out of sight does not count; the fight ending
+/// sets it back to 0 (<see cref="StepFollower.TimeInPhase"/>). Only in the phase's own hosts: its finish condition, a
+/// condition step, a step's expected state. Format 14.
+/// </summary>
+public sealed record TimeInPhaseCondition(Comparison Is, double Seconds) : StateCondition;
+
+/// <summary>
 /// How much of an operator's lasting ultimate is left to run, as a percentage of its time bar
 /// (<see cref="LastingUltimateView.LeftShare"/>), e.g. "Laevatain's ultimate has at most 30% of its
 /// time left". 0% while it isn't running. Only operators whose lasting ultimate is read
@@ -280,6 +289,12 @@ public interface IPhaseHistory
     /// false not yet, null a step that never lights (a basic, heavy or plunge attack). Null when it can't be told.
     /// </summary>
     IReadOnlyList<bool?>? StepsLit => null;
+
+    /// <summary>
+    /// How long the phase on the strip has run this round, the squad panel's hidden time left out
+    /// (<see cref="TimeInPhaseCondition"/>); null when it can't be told.
+    /// </summary>
+    TimeSpan? TimeInPhase => null;
 }
 
 public static class PhaseHistory
@@ -417,6 +432,7 @@ public sealed record Rotation(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool LastMatchWins = false)
 {
     /// <summary>
+    /// 14: "time in phase" conditions (<see cref="TimeInPhaseCondition"/>).
     /// 13: the boss's stagger conditions (<see cref="StaggerProgressCondition"/>, <see cref="StaggerNodesCondition"/>,
     /// <see cref="StaggeredCondition"/>, <see cref="StaggerTimeLeftCondition"/>).
     /// 12: "team buff stacks" conditions (<see cref="TeamBuffCondition"/>), and condition steps in a group (marked
@@ -437,7 +453,7 @@ public sealed record Rotation(
     /// holds it (<see cref="FormatNeeded"/>), so one that uses nothing new stays readable by builds
     /// from before format 3.
     /// </summary>
-    public const int CurrentFormat = 13;
+    public const int CurrentFormat = 14;
 
     /// <summary>The lowest format that holds these phases and options.</summary>
     public static int FormatNeeded(IEnumerable<RotationPhase> phases, bool lastMatchWins)
@@ -582,7 +598,8 @@ public sealed record Rotation(
                 ConditionProblemKind.MissingPhase => RotationProblemKind.PhaseShownMissingPhase,
                 ConditionProblemKind.PhaseShownOwnGate => RotationProblemKind.PhaseShownOwnGate,
                 ConditionProblemKind.PhasePlayedOwnGateNeverOpens => RotationProblemKind.PhasePlayedOwnGateNeverOpens,
-                // The only kind not offered somewhere: "the phase's steps lit", for a finish condition only.
+                // The kinds not offered somewhere: "time in phase" (the phase's own hosts) and "the phase's steps lit" (a finish only).
+                ConditionProblemKind.NotOfferedHere when problem.Condition is TimeInPhaseCondition => RotationProblemKind.TimeInPhaseOutsideItsPhase,
                 ConditionProblemKind.NotOfferedHere => RotationProblemKind.StepsLitOutsideFinish,
                 ConditionProblemKind.StepsLitNoSteps => RotationProblemKind.StepsLitNoSteps,
                 ConditionProblemKind.StepsLitNotCountable => RotationProblemKind.StepsLitNotCountable,
@@ -671,6 +688,12 @@ public enum RotationProblemKind
 
     /// <summary>"At least N steps lit" with N below 1 or above the steps that light up: always or never holds.</summary>
     StepsLitCountOutOfRange,
+
+    /// <summary>
+    /// "Time in phase" in an entry condition or a priority rule: it is about the phase's own round, so it is only for its
+    /// finish condition, condition steps and steps' expected state.
+    /// </summary>
+    TimeInPhaseOutsideItsPhase,
 }
 
 /// <param name="Phase">The phase concerned (its name), if any.</param>

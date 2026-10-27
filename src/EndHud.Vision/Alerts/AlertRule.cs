@@ -102,6 +102,12 @@ public enum AlertProblem
     /// </summary>
     NotForAlerts,
 
+    /// <summary>
+    /// "Time in phase" in an alert: it is about a rotation phase's own round, which an alert doesn't have. Only a
+    /// hand-written file can hold one; the editor doesn't offer it.
+    /// </summary>
+    TimeInPhaseNotForAlerts,
+
     /// <summary>Tied to a squad with no operator named: it could never run.</summary>
     EmptySquad,
 
