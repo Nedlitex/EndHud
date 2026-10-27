@@ -67,4 +67,39 @@ public class PhysicalUltimateTests
         Assert.False(reading?.Ready ?? false, "slot 1 read as ready");
         Assert.True(reading is null || reading.Progress <= 0.9, $"slot 1 read as {reading?.Progress:F2} charged");
     }
+
+    // A second recording (rms-): Mi Fu in slot 4 next to coloured ultimates, over a light floor.
+
+    [Fact]
+    public async Task A_light_effect_over_a_charging_circle_is_not_ready()
+    {
+        // A pale cyan figure (another operator's ultimate) over the corner: it lights the disc and
+        // the ring round it, and leaves a little white where the icon would be.
+        var reading = UltimateGauge.Measure(await LoadAsync("rms-94s.png"), 3);
+
+        Assert.False(reading?.Ready ?? false, "slot 4 read as ready");
+    }
+
+    [Fact]
+    public async Task Ready_next_to_coloured_circles_charging()
+    {
+        var frame = await LoadAsync("rms-107_5s.png");
+
+        Assert.True(Read(frame, 3).Ready, "slot 4 should read ready");
+        var cyan = Read(frame, 1);
+        Assert.False(cyan.Ready);
+        Assert.InRange(cyan.Progress, 0.22, 0.38);
+        var red = Read(frame, 2);
+        Assert.False(red.Ready);
+        Assert.InRange(red.Progress, 0.42, 0.60);
+    }
+
+    [Fact]
+    public async Task Charging_over_a_light_floor()
+    {
+        var reading = Read(await LoadAsync("rms-140s.png"), 3);
+
+        Assert.False(reading.Ready);
+        Assert.InRange(reading.Progress, 0.10, 0.25);
+    }
 }
