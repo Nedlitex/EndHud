@@ -332,6 +332,36 @@ public class RotationStripViewTests
         OnSta(() => RotationStrip.Build(waiting));
     }
 
+    /// <summary>The phase's clock as the selector reports it.</summary>
+    private sealed class InPhase(double seconds) : IPhaseHistory
+    {
+        public int? TimesShown(string phaseId) => null;
+
+        public int? TimesPlayed(string phaseId) => null;
+
+        public TimeSpan? TimeInPhase => TimeSpan.FromSeconds(seconds);
+    }
+
+    /// <summary>
+    /// A player's closing phase (2026-10-27): a timed effect is a condition step on "time in phase". Its circle shows a
+    /// drawn clock, its badge the seconds, dim until the time comes and bright after; it draws.
+    /// </summary>
+    [Fact]
+    public void A_timed_condition_step_shows_the_clock()
+    {
+        var rotation = WithConditionStep(new TimeInPhaseCondition(Comparison.AtLeast, 4));
+        var position = new RotationPosition(rotation.Played()[0], true, []);
+        string value = "≥" + Loc.Format("Rotation.Badge.Seconds", "4");
+
+        var early = RotationStripView.Build(rotation, position, Cryo(0), null, (_, _) => null, _ => null, history: new InPhase(3.75));
+        var time = RotationStripView.Build(rotation, position, Cryo(0), null, (_, _) => null, _ => null, history: new InPhase(4));
+
+        Assert.Same(ClockGlyph.Image, time.Steps[0].Icon);
+        Assert.Equal([new StripBadge(ClockGlyph.Image, BadgeGlyph.Picture, value, BadgeSign.None, Not: false, Holds: false)], early.Steps[0].Badges);
+        Assert.Equal([new StripBadge(ClockGlyph.Image, BadgeGlyph.Picture, value, BadgeSign.None, Not: false, Holds: true)], time.Steps[0].Badges);
+        OnSta(() => RotationStrip.Build(time));
+    }
+
     /// <summary>
     /// Owner, 2026-10-25: a counter in a condition is "the actual counter icon, not the character icon". A condition
     /// step waiting on Laevatain's 熔火 shows the flower's glyph in its circle and on its badge, not her face; it draws.

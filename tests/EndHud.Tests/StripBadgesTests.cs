@@ -29,7 +29,10 @@ public class StripBadgesTests
         n => n switch { 1 => Step1, 3 => Step3, _ => null }));
 
     private static List<StripBadge> Of(StateCondition condition, Func<StateCondition, bool?>? holds = null) =>
-        [.. StripBadges.Of([condition], holds ?? (_ => true), Pictures.Value)];
+        [.. StripBadges.Of([condition], holds ?? (_ => true), Pictures.Value, ConditionWordsTests.S)];
+
+    /// <summary>Seconds as a badge shows them, in the strings' words (zh-CN).</summary>
+    private static string Seconds(string number) => string.Format(ConditionWordsTests.S("Rotation.Badge.Seconds"), number);
 
     private static StripBadge B(ImageSource? picture, string? value = null, BadgeSign sign = BadgeSign.None, bool not = false, bool or = false, BadgeGlyph? glyph = null) =>
         new(picture, glyph ?? BadgeGlyph.Picture, value, sign, not, Holds: true, or);
@@ -64,6 +67,7 @@ public class StripBadgesTests
         [B(StaggerGlyphs.Node, "≥1")], // at least one node reached: a drawn node box
         [B(StaggerGlyphs.Countdown)], // staggered: the yellow countdown bar
         [B(StaggerGlyphs.Countdown, "≤30%", BadgeSign.Running)], // its time left
+        [B(ClockGlyph.Image, "≥" + Seconds("4"))], // time in phase at least 4 s: a drawn clock
     ];
 
     [Fact]
@@ -74,7 +78,7 @@ public class StripBadgesTests
             Assert.True(Expected[i].SequenceEqual(Of(ConditionWordsTests.EveryKind[i])), $"{ConditionWordsTests.EveryKind[i]}: {string.Join(", ", Of(ConditionWordsTests.EveryKind[i]))}");
         // Only comparisons, numbers and roman numerals: nothing a player has to read as a word.
         foreach (var badge in ConditionWordsTests.EveryKind.SelectMany(c => Of(c)))
-            Assert.Matches("^[≥≤=<>][0-9IVX.]+%?$", badge.Value ?? "=0");
+            Assert.Matches($"^[≥≤=<>][0-9IVX.]+(%|{System.Text.RegularExpressions.Regex.Escape(Seconds(""))})?$", badge.Value ?? "=0");
     }
 
     [Fact]

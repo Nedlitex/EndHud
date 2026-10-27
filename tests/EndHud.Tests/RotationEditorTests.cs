@@ -1115,7 +1115,123 @@ public sealed class RotationEditorTests : IDisposable
 
         Assert.DoesNotContain("StepsLit", gate);
         Assert.Contains("StepsLit", finish);
-        Assert.Equal(gate, finish.Where(k => !Equals(k, "StepsLit")));
+        Assert.Equal(gate, finish.Where(k => k is not "StepsLit" and not "TimeInPhase"));
+    }
+
+    // ---- Time in phase (a player's request, 2026-10-27: end a phase after a set delay) ----
+
+    /// <summary>
+    /// 本轴段已进行时间 is about the phase's own round: offered in its finish condition and in a condition step, never in its
+    /// entry condition or a priority rule.
+    /// </summary>
+    [Fact]
+    public void Time_in_phase_is_offered_in_the_finish_and_condition_step_rows_only()
+    {
+        var library = Ranked();
+
+        List<object> gate = [], rule = [], finish = [], conditionStep = [];
+        OnEditor(library, _ => { }, editor =>
+        {
+            ((ListBox)editor.FindName("PhaseList")).SelectedIndex = 1; // Burst: it has an entry condition, so it takes rules
+            static List<object> Kinds(UIElement row) => RowOf(row).Children.OfType<ComboBox>().First().Items.Cast<ComboBoxItem>().Select(i => i.Tag).ToList();
+            gate = Kinds(((StackPanel)editor.FindName("GateRows")).Children[0]);
+            Click(editor, "AddPriorityRuleButton");
+            rule = Kinds((UIElement)RuleConditions(Assert.Single(Rules(editor))).Children[0]);
+            Click(editor, "AddFinishButton");
+            finish = Kinds(((StackPanel)editor.FindName("FinishRows")).Children[0]);
+            Click(editor, "AddStepButton");
+            Pick((ComboBox)editor.FindName("StepActionPicker"), StepAction.Condition);
+            conditionStep = Kinds(((StackPanel)editor.FindName("ConditionRows")).Children[0]);
+        });
+
+        Assert.Contains("TimeInPhase", finish);
+        Assert.Contains("TimeInPhase", conditionStep);
+        Assert.DoesNotContain("TimeInPhase", gate);
+        Assert.DoesNotContain("TimeInPhase", rule);
+    }
+
+    /// <summary>
+    /// Picked, never typed: the kind, then 至少 or 小于, then the seconds, 0.5 to 120 by half a second, with a hint saying
+    /// what the clock counts. 4.5 s picked is saved as 4.5, in format 14.
+    /// </summary>
+    [Fact]
+    public void Time_in_phase_offers_at_least_and_less_than_and_picked_seconds_are_saved()
+    {
+        var library = FourSteps();
+
+        string said = "";
+        List<object> compares = [], seconds = [];
+        (object? Compare, object? Seconds) started = default;
+        bool hint = false;
+        OnEditor(library, _ => { }, editor =>
+        {
+            Click(editor, "AddFinishButton");
+            Pick(FinishRow(editor).Pickers[0], "TimeInPhase");
+            var pickers = FinishRow(editor).Pickers; // kind, compare, seconds
+            compares = pickers[1].Items.Cast<ComboBoxItem>().Select(i => i.Tag).ToList();
+            seconds = pickers[2].Items.Cast<ComboBoxItem>().Select(i => i.Tag).ToList();
+            started = (((ComboBoxItem)pickers[1].SelectedItem).Tag, ((ComboBoxItem)pickers[2].SelectedItem).Tag);
+            hint = ((StackPanel)editor.FindName("FinishRows")).Children[0] is StackPanel { Children: [_, TextBlock { Text: "Editor.TimeInPhaseHint" }] };
+            Pick(pickers[1], Comparison.Below);
+            Pick(FinishRow(editor).Pickers[2], 4.5);
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        });
+
+        Assert.Equal([Comparison.AtLeast, Comparison.Below], compares.Cast<Comparison>());
+        Assert.Equal(240, seconds.Count);
+        Assert.Equal((0.5, 120.0), ((double)seconds[0], (double)seconds[^1]));
+        Assert.Equal((Comparison.AtLeast, 3.0), ((Comparison)started.Compare!, (double)started.Seconds!));
+        Assert.True(hint);
+        Assert.True(Translated("Editor.TimeInPhase.Seconds"));
+        var saved = Assert.Single(library.Own.Load().Rotations);
+        Assert.True(saved.Phases[0].Finish.Count == 1, $"editor said: {said}");
+        Assert.Equal(new TimeInPhaseCondition(Comparison.Below, 4.5), saved.Phases[0].Finish[0]);
+        Assert.Equal(14, saved.Format);
+    }
+
+    /// <summary>A hand-written file's other comparison (至多) and seconds off the list (7.25) are kept in their place, never swapped.</summary>
+    [Fact]
+    public void A_files_other_comparison_and_seconds_are_kept()
+    {
+        var library = FourSteps(new TimeInPhaseCondition(Comparison.AtMost, 7.25));
+
+        List<object> compares = [], seconds = [];
+        OnEditor(library, _ => { }, editor =>
+        {
+            var pickers = FinishRow(editor).Pickers;
+            compares = pickers[1].Items.Cast<ComboBoxItem>().Select(i => i.Tag).ToList();
+            seconds = pickers[2].Items.Cast<ComboBoxItem>().Select(i => i.Tag).ToList();
+            Assert.Equal(Comparison.AtMost, ((ComboBoxItem)pickers[1].SelectedItem).Tag);
+            Assert.Equal(7.25, ((ComboBoxItem)pickers[2].SelectedItem).Tag);
+            Pick(pickers[1], Comparison.AtMost); // touched, not changed
+            Click(editor, "SaveButton");
+        });
+
+        Assert.Equal([Comparison.AtLeast, Comparison.Below, Comparison.AtMost], compares.Cast<Comparison>());
+        Assert.Equal([7.0, 7.25, 7.5], seconds.Cast<double>().Where(s => s is >= 7 and <= 7.5));
+        Assert.Equal(new TimeInPhaseCondition(Comparison.AtMost, 7.25), Assert.Single(Assert.Single(library.Own.Load().Rotations).Phases[0].Finish));
+    }
+
+    /// <summary>In a hand-written entry condition it is refused with a sentence saying where it belongs; nothing is saved.</summary>
+    [Fact]
+    public void A_time_in_phase_entry_condition_is_refused_with_its_sentence()
+    {
+        var library = Ranked();
+        var rotation = Assert.Single(library.Own.Load().Rotations);
+        library.Own.Save(rotation with { Phases = [rotation.Phases[0], rotation.Phases[1] with { When = [new TimeInPhaseCondition(Comparison.AtLeast, 2)] }] });
+
+        string said = "";
+        OnEditor(library, _ => { }, editor =>
+        {
+            ((TextBox)editor.FindName("NameBox")).Text = "changed";
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+        });
+
+        Assert.Contains("Rotation.Problem.TimeInPhaseOutsideItsPhase", said);
+        Assert.True(Translated("Rotation.Problem.TimeInPhaseOutsideItsPhase"));
+        Assert.NotEqual("changed", Assert.Single(library.Own.Load().Rotations).Name);
     }
 
     [Fact]

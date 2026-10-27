@@ -28,7 +28,7 @@ public class ConditionWordsTests
         throw new DirectoryNotFoundException("src/EndHud/i18n");
     });
 
-    private static string S(string key) => Strings.Value.TryGetValue(key, out var value) ? value : throw new KeyNotFoundException(key);
+    internal static string S(string key) => Strings.Value.TryGetValue(key, out var value) ? value : throw new KeyNotFoundException(key);
 
     private static string F(string key, params object[] args) => string.Format(S(key), args);
 
@@ -94,7 +94,34 @@ public class ConditionWordsTests
         new StaggerNodesCondition(Comparison.AtLeast, 1),
         new StaggeredCondition(true),
         new StaggerTimeLeftCondition(Comparison.AtMost, 30),
+        new TimeInPhaseCondition(Comparison.AtLeast, 4),
     ];
+
+    private sealed class Clock(double seconds) : IPhaseHistory
+    {
+        public int? TimesShown(string phaseId) => null;
+
+        public int? TimesPlayed(string phaseId) => null;
+
+        public TimeSpan? TimeInPhase => TimeSpan.FromSeconds(seconds);
+    }
+
+    /// <summary>
+    /// Time in phase in words, in seconds; its need with the time so far, rounded down to a tenth (3.96 s reads 3.9, never
+    /// a 4 that looks reached).
+    /// </summary>
+    [Fact]
+    public void Time_in_phase_reads_as_seconds()
+    {
+        string four = F("Alert.Describe.TimeInPhase", "≥", "4");
+        Assert.Equal(four, Statement(new TimeInPhaseCondition(Comparison.AtLeast, 4)));
+        Assert.Equal(F("Alert.Describe.TimeInPhase", "<", "4.5"), Statement(new TimeInPhaseCondition(Comparison.Below, 4.5)));
+        Assert.Equal(F("Rotation.Reason.NeedNow", four, "3.9"), Need(new TimeInPhaseCondition(Comparison.AtLeast, 4), Reading(), new Clock(3.96)));
+        Assert.Equal(F("Rotation.Reason.NeedNow", four, "0.0"), Need(new TimeInPhaseCondition(Comparison.AtLeast, 4), Reading(), new Clock(0)));
+        Assert.Equal(F("Rotation.Reason.Need", four), Need(new TimeInPhaseCondition(Comparison.AtLeast, 4), Reading(), PhaseHistory.None));
+        Assert.Matches("[\u4e00-\u9fff]", S("Editor.Condition.TimeInPhase"));
+        Assert.DoesNotMatch("[A-Za-z]", S("Editor.Condition.TimeInPhase") + S("Editor.TimeInPhaseHint") + S("Editor.TimeInPhase.Seconds") + four);
+    }
 
     /// <summary>本轴段步骤已点亮 in words, each of its three choices; "at least" with how many are lit now.</summary>
     [Fact]

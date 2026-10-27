@@ -190,6 +190,29 @@ public sealed class AlertEditorTests : IDisposable
         Assert.True(Translated("Alerts.Problem.NoConditions", withPlaceholder: true));
     }
 
+    /// <summary>
+    /// A hand-written alert file holding "time in phase" (the editor never offers it): refused with its own sentence, not
+    /// the one naming "the phase's steps lit".
+    /// </summary>
+    [Fact]
+    public void An_alert_on_time_in_phase_is_refused_with_its_own_sentence()
+    {
+        Store().Save([AlertRule.New([new TimeInPhaseCondition(Comparison.AtLeast, 3)], "x")]);
+        string written = File.ReadAllText(Store().File);
+
+        string said = "";
+        OnEditor(Store(), () => { }, editor =>
+        {
+            Click(editor, "SaveButton");
+            said = Said(editor);
+        });
+
+        Assert.Contains("Alerts.Problem.TimeInPhaseNotForAlerts", said);
+        Assert.DoesNotContain("Alerts.Problem.NotForAlerts", said);
+        Assert.True(Translated("Alerts.Problem.TimeInPhaseNotForAlerts", withPlaceholder: true));
+        Assert.Equal(written, File.ReadAllText(Store().File)); // nothing written
+    }
+
     [Fact]
     public void Paste_code_adds_and_reports_the_count()
     {
@@ -241,9 +264,10 @@ public sealed class AlertEditorTests : IDisposable
             kinds = Pickers(editor)[0].Items.Cast<ComboBoxItem>().Select(i => i.Tag).ToList();
         });
 
-        // Every kind but the phase's steps lit, which is a rotation phase's finish condition only.
-        Assert.Equal(ConditionCatalogue.EditorKinds.Where(k => k != "StepsLit"), kinds.Cast<string>());
+        // Every kind but those about a rotation phase's own round: the phase's steps lit, and time in phase.
+        Assert.Equal(ConditionCatalogue.EditorKinds.Where(k => k is not "StepsLit" and not "TimeInPhase"), kinds.Cast<string>());
         Assert.DoesNotContain("StepsLit", kinds);
+        Assert.DoesNotContain("TimeInPhase", kinds);
         Assert.Contains("PhaseShown", kinds);
         Assert.Contains("BossStatus", kinds);
         Assert.Contains("Counter", kinds);

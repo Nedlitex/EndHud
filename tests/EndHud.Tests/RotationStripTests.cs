@@ -208,6 +208,27 @@ public class RotationStripTests
         AssertNoOverlap(view);
     }
 
+    /// <summary>
+    /// Timed condition steps (a player's closing phase, 2026-10-27): their badges carry seconds in the strings' words, the
+    /// widest the editor offers ("&lt;120 s", "≥0.5 s" from a file's other comparison), side by side and grouped; none reaches a neighbour's.
+    /// </summary>
+    [Fact]
+    public void Seconds_badges_never_overlap_a_neighbouring_steps()
+    {
+        string Seconds(string number) => string.Format(ConditionWordsTests.S("Rotation.Badge.Seconds"), number);
+        StripBadge B(string value, bool not = false) => new(ClockGlyph.Image, BadgeGlyph.Picture, value, BadgeSign.None, not, Holds: true);
+        IReadOnlyList<StripBadge> Two() => [B("<" + Seconds("120")), B("≥" + Seconds("119.5"), not: true) with { Or = true }];
+        var view = new StripView("Closing",
+        [
+            new StripStep(ClockGlyph.Image, null, "Condition", null, StripStepState.Lit, false, Badges: Two()),
+            new StripStep(ClockGlyph.Image, null, "Condition", null, StripStepState.Ready, false, Badges: Two()),
+            new StripStep(ClockGlyph.Image, null, "Condition", null, StripStepState.Unlit, true, Badges: Two()),
+            new StripStep(ClockGlyph.Image, null, "Condition", null, StripStepState.Unlit, false, Badges: [B("≥" + Seconds("0.5"))]),
+        ], null, Two());
+
+        AssertNoOverlap(view);
+    }
+
     /// <summary>The two recommended rotations waiting for the next release, every phase, as the overlay would draw them mid-round.</summary>
     [Fact]
     public void The_recommended_rotations_badges_never_overlap_a_neighbouring_steps()
