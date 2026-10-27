@@ -128,6 +128,10 @@
     <sys:String x:Key="Editor.Staggered">处于失衡</sys:String>
     <sys:String x:Key="Editor.NotStaggered">未处于失衡</sys:String>
     <sys:String x:Key="Editor.StaggerHint">按敌人血条下方的失衡条判断：粉色部分填到多少就是失衡进度；条上的小方框是失衡节点，填过一个就是一次小失衡；填满后变成黄色倒计时条，就是处于失衡。看不到敌人血条（过场动画、血条被遮住）时无法判断；看得到血条但失衡条被挡住、读不出时，沿用最后一次读到的数值，这个敌人还没读到过时按 0 算。有的敌人没有失衡节点，这时“失衡节点已达到”为 0。</sys:String>
+    <sys:String x:Key="Editor.Condition.TimeInPhase">本轴段已进行时间</sys:String>
+    <sys:String x:Key="Editor.TimeInPhase.Seconds">{0} 秒</sys:String>
+    <sys:String x:Key="Editor.TimeInPhaseHint">从这个轴段出现在排轴条上（或上一轮打完）开始计时。看不到小队面板的时候（过场、菜单、终结技演出）不计时，离开战斗后归零。秒数请按你在游戏里实测的填写。</sys:String>
+    <sys:String x:Key="Rotation.Badge.Seconds">{0}秒</sys:String>
     <sys:String x:Key="Editor.StaggerTimeHint">按失衡时黄色倒计时条剩下的长度占整条的百分比判断；没有处于失衡时算 0%。不提供秒数：倒计时在部分技能演出时会暂停。看不到敌人血条时无法判断；看得到血条但失衡条被挡住、读不出时，沿用最后一次读到的剩余长度（不会自己往下减）。</sys:String>
     <sys:String x:Key="Editor.Condition.BossStatus">敌人状态</sys:String>
     <sys:String x:Key="Editor.Condition.Controlling">当前操控</sys:String>
@@ -240,6 +244,7 @@
     <sys:String x:Key="Rotation.Problem.StepsLitOutsideFinish">轴段“{0}”在完成条件以外用了“本轴段步骤已点亮”：它只能用在完成条件里。请删除这个条件。</sys:String>
     <sys:String x:Key="Rotation.Problem.StepsLitNoSteps">轴段“{0}”的完成条件“指定步骤已点亮”还没有勾选步骤，请至少勾选一步。</sys:String>
     <sys:String x:Key="Rotation.Problem.StepsLitNotCountable">轴段“{0}”的完成条件“指定步骤已点亮”勾选了已不存在或不会点亮的步骤（普攻、重击、下落攻击不会点亮），请取消勾选它们。</sys:String>
+    <sys:String x:Key="Rotation.Problem.TimeInPhaseOutsideItsPhase">轴段“{0}”在进入条件或条件优先级里用了“本轴段已进行时间”：它只算正在排轴条上的这个轴段自己这一轮的时间，只能用在完成条件、条件步骤和步骤的预期状态里。请删除这个条件。</sys:String>
     <sys:String x:Key="Rotation.Problem.StepsLitCountOutOfRange">轴段“{0}”的完成条件“至少 N 步”超出了这个轴段会点亮的步骤数，请重新选择步数。</sys:String>
     <sys:String x:Key="Editor.OwnItem">{0}（{1}）</sys:String>
     <sys:String x:Key="Editor.PublishedItem">【推荐】{0}（{1}）</sys:String>
@@ -496,6 +501,7 @@
     <sys:String x:Key="Alert.Describe.Staggered">敌人处于失衡</sys:String>
     <sys:String x:Key="Alert.Describe.NotStaggered">敌人未处于失衡</sys:String>
     <sys:String x:Key="Alert.Describe.StaggerTimeLeft">失衡剩余时间 {0} {1}%</sys:String>
+    <sys:String x:Key="Alert.Describe.TimeInPhase">本轴段已进行 {0} {1} 秒</sys:String>
     <sys:String x:Key="Alert.Describe.Status.Has">敌人有 {0}</sys:String>
     <sys:String x:Key="Alert.Describe.Status.HasNot">敌人没有 {0}</sys:String>
     <sys:String x:Key="Alert.Describe.Status.Stacks">{0} {1} {2} 层</sys:String>
@@ -512,6 +518,7 @@
     <sys:String x:Key="Alert.Describe.PhaseCurrent.Played">当前轴段 是 {0} 且本次已打完</sys:String>
     <sys:String x:Key="Alert.Describe.PhaseCurrent.NotPlayed">当前轴段 是 {0} 且本次未打完</sys:String>
     <sys:String x:Key="Alerts.Problem.UltimateTimeNotRead">提示“{0}”的条件中“终结技剩余持续时间”选了莱万汀、庄方宜、伊冯以外的干员：目前只读取她们的终结技持续时间，这个条件永远无法判断。请改选她们之一，或删除这个条件。</sys:String>
+    <sys:String x:Key="Alerts.Problem.TimeInPhaseNotForAlerts">提示“{0}”的条件中有“本轴段已进行时间”：它只算排轴里某个轴段自己这一轮的时间，战斗提示里无法判断。请删除这个条件。</sys:String>
     <sys:String x:Key="Alerts.Problem.NotForAlerts">提示“{0}”的条件中有“本轴段步骤已点亮”：它只能用在排轴轴段的完成条件里，战斗提示里无法判断。请删除这个条件（想在轴段打完时提示，可以用“当前轴段 是 … 且本次已打完”）。</sys:String>
     <sys:String x:Key="Alert.Sample">战斗提示会在这里弹出</sys:String>
     <sys:String x:Key="Alerts.Title">战斗提示</sys:String>

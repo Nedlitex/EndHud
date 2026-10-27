@@ -89,6 +89,9 @@ internal static class ConditionWords
                 return history?.CurrentPhase is { } current ? phaseName?.Invoke(current) ?? current : null;
             case StepsLitCondition { Which: StepsLitWhich.AtLeast }:
                 return history?.StepsLit is { } lit ? Number(lit.Count(l => l == true)) : null;
+            case TimeInPhaseCondition:
+                // Seconds so far, rounded down to a tenth: never a "4" that looks reached at 3.96.
+                return history?.TimeInPhase is { } inPhase ? (Math.Floor(inPhase.TotalSeconds * 10 + 1e-9) / 10).ToString("0.0", CultureInfo.InvariantCulture) : null;
             default:
                 return null;
         }
@@ -137,6 +140,7 @@ internal static class ConditionWords
             StaggerNodesCondition c => F("Alert.Describe.StaggerNodes", Symbol(c.Is), c.Count),
             StaggeredCondition c => F(c.Staggered ? "Alert.Describe.Staggered" : "Alert.Describe.NotStaggered"),
             StaggerTimeLeftCondition c => F("Alert.Describe.StaggerTimeLeft", Symbol(c.Is), Percent(c.Percent)),
+            TimeInPhaseCondition c => F("Alert.Describe.TimeInPhase", Symbol(c.Is), Seconds(c.Seconds)),
             ControllingCondition c => F("Alert.Describe.Controlling", Who(c.OperatorId)),
             NotCondition c => F("Alert.Describe.Not", One(c.Of, library, phaseName, text, nested: false)),
             AnyCondition c => Group(c.Of, "Alert.Describe.Or"),
@@ -169,6 +173,9 @@ internal static class ConditionWords
             : format("Alert.Describe.Status.Stacks", [name, Symbol(Comparison.AtLeast), c.MinStacks]);
         return c.Present ? count : format("Alert.Describe.Not", [count]);
     }
+
+    /// <summary>Seconds as they are written: "4", "4.5", a file's "7.25".</summary>
+    internal static string Seconds(double seconds) => seconds.ToString("0.##", CultureInfo.InvariantCulture);
 
     internal static string Symbol(Comparison comparison) => comparison switch
     {

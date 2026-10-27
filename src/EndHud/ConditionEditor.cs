@@ -71,6 +71,8 @@ internal sealed class ConditionEditor(
             "StaggerNodes" => new StaggerNodesCondition(Comparison.AtLeast, 1),
             "Staggered" => new StaggeredCondition(true),
             "StaggerTimeLeft" => new StaggerTimeLeftCondition(Comparison.AtMost, 30),
+            // A starting pick; the player sets the seconds they measured.
+            "TimeInPhase" => new TimeInPhaseCondition(Comparison.AtLeast, 3),
             "Controlling" => new ControllingCondition(first),
             // Another phase's count by default: a phase's entry condition can't use its own (Rotation.Problems).
             "PhaseShown" => new PhaseShownCondition(defaultPhaseId?.Invoke() ?? phases().FirstOrDefault().Id ?? "", Comparison.AtLeast, 1),
@@ -92,6 +94,9 @@ internal sealed class ConditionEditor(
 
     /// <summary>The kind picker's name for a condition (a "not" is its condition with the box ticked).</summary>
     private static string KindOf(StateCondition c) => ConditionCatalogue.Of(c is NotCondition not ? not.Of : c).EditorKind ?? "SkillPoints";
+
+    /// <summary>The seconds offered for "time in phase": half a second to this many half seconds (120 s).</summary>
+    public const int TimeInPhaseChoices = 240;
 
     /// <summary>The node-box counts offered for "stagger nodes reached": 0 to one less than this.</summary>
     public const int StaggerNodeChoices = 10;
@@ -370,6 +375,21 @@ internal sealed class ConditionEditor(
                 hint = Loc.Get("Editor.StepsLitHint");
                 kind.ToolTip = hint;
                 rebuildOnPick = true; // the count picker or the ticks follow the choice
+                break;
+            }
+            case TimeInPhaseCondition c:
+            {
+                // At least / less than only (owner, 2026-10-27); a file's other comparison is kept as a third item, never swapped.
+                var compare = Picker([Comparison.AtLeast, Comparison.Below], x => Loc.Get($"Editor.Compare.{x}"), c.Is);
+                // 0.5 s to 120 s by half a second; a file's value off the list is kept, in its place.
+                var seconds = Enumerable.Range(1, TimeInPhaseChoices).Select(i => i * 0.5).ToList();
+                if (!seconds.Contains(c.Seconds)) seconds = [.. seconds.Append(c.Seconds).Order()];
+                var value = Picker(seconds, s => Loc.Format("Editor.TimeInPhase.Seconds", s.ToString("0.##", CultureInfo.InvariantCulture)), c.Seconds);
+                row.Children.Add(compare);
+                row.Children.Add(value);
+                read = () => new TimeInPhaseCondition((Comparison)Picked(compare), (double)Picked(value));
+                hint = Loc.Get("Editor.TimeInPhaseHint");
+                kind.ToolTip = hint;
                 break;
             }
             case UltimateChargeCondition c:

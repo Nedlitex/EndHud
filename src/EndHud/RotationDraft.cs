@@ -91,6 +91,7 @@ internal sealed class RotationDraft
                 RotationProblemKind.StepsLitNoSteps => Loc.Format("Rotation.Problem.StepsLitNoSteps", problem.Phase ?? ""),
                 RotationProblemKind.StepsLitNotCountable => Loc.Format("Rotation.Problem.StepsLitNotCountable", problem.Phase ?? ""),
                 RotationProblemKind.StepsLitCountOutOfRange => Loc.Format("Rotation.Problem.StepsLitCountOutOfRange", problem.Phase ?? ""),
+                RotationProblemKind.TimeInPhaseOutsideItsPhase => Loc.Format("Rotation.Problem.TimeInPhaseOutsideItsPhase", problem.Phase ?? ""),
                 // A priority rule's condition: the same problems as an entry condition's, naming the rule.
                 RotationProblemKind.ConditionOperatorNotInSquad when problem.Rule is { } rule => Loc.Format("Rotation.Problem.RuleOperator", problem.Phase ?? "", rule),
                 RotationProblemKind.EmptyConditionGroup when problem.Rule is { } rule => Loc.Format("Rotation.Problem.EmptyRuleGroup", problem.Phase ?? "", rule),

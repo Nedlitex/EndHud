@@ -37,6 +37,9 @@ internal enum AlertSubjectKind
 
     /// <summary>The boss's stagger (<see cref="AlertSubject.Id"/>: which part, <see cref="StaggerGlyphs"/>): a drawn piece of its bar.</summary>
     Stagger,
+
+    /// <summary>Time in phase: a drawn clock (<see cref="ClockGlyph"/>).</summary>
+    Clock,
 }
 
 /// <param name="Id">The status id or operator id; null for <see cref="AlertSubjectKind.SkillPoints"/> and <see cref="AlertSubjectKind.None"/>.</param>
@@ -73,6 +76,8 @@ internal static class ConditionIcon
             StaggerProgressCondition => new AlertSubject(AlertSubjectKind.Stagger, StaggerGlyphs.BarId),
             StaggerNodesCondition => new AlertSubject(AlertSubjectKind.Stagger, StaggerGlyphs.NodeId),
             StaggeredCondition or StaggerTimeLeftCondition => new AlertSubject(AlertSubjectKind.Stagger, StaggerGlyphs.CountdownId),
+            // The phase's time: a drawn clock.
+            TimeInPhaseCondition => new AlertSubject(AlertSubjectKind.Clock),
             NotCondition n => SubjectOf(n.Of),
             AllCondition { Of.Count: > 0 } all => SubjectOf(all.Of[0]),
             AnyCondition { Of.Count: > 0 } any => SubjectOf(any.Of[0]),
@@ -110,6 +115,7 @@ internal static class ConditionIcon
         { Kind: AlertSubjectKind.Operator, Id: { } op } when library?.Find(op) is { } info => avatar(info),
         { Kind: AlertSubjectKind.Counter, Counter: { } counter } when CounterGlyphs.For(counter) is { } glyph => glyph,
         { Kind: AlertSubjectKind.Stagger, Id: var part } => StaggerGlyphs.For(part),
+        { Kind: AlertSubjectKind.Clock } => ClockGlyph.Image,
         { Kind: AlertSubjectKind.Counter, Id: { } op } when library?.Find(op) is { } info => avatar(info),
         { Kind: AlertSubjectKind.BattleSkill, Id: { } op } when library?.Find(op) is { } info => skillIcon(info, StepAction.BattleSkill) ?? avatar(info),
         { Kind: AlertSubjectKind.Skill, Id: { } op, Action: { } action } when library?.Find(op) is { } info => skillIcon(info, action) ?? avatar(info),
