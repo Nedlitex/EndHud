@@ -21,18 +21,32 @@ public enum BuffSight
     Unclear,
 }
 
+/// <summary>
+/// Whether the controlled operator draws a counter of their own left of the HP bar (<see cref="OperatorCounters"/>):
+/// the game draws team buffs left of it when there is one, and right beside the HP bar when there isn't.
+/// </summary>
+public enum HpBarCounter
+{
+    /// <summary>The controlled operator has a counter (Laevatain's flower, Si's stacks, ...): buffs are left of it.</summary>
+    Drawn,
+    /// <summary>The controlled operator has none: buffs are right beside the HP bar.</summary>
+    None,
+    /// <summary>Not known (no operator clearly controlled, or not recognised): both places are searched.</summary>
+    Unknown,
+}
+
 /// <summary>One frame's verdict on a team buff, with its stacks when <see cref="BuffSight.Shown"/> (null: a number is
 /// there but can't be told).</summary>
 public sealed record TeamBuffSighting(string Id, BuffSight Sight, int? Stacks = null);
 
 /// <summary>
-/// Team buffs the game draws left of the controlled operator's HP bar, left of their own counter:
-/// so far Link (the game's combo buff: a white sword with grey feathers), seen in the owner's Laevatain
-/// fight (Fixtures/buffs). Drawn without a frame. One stack shows no number; more show the count,
-/// white on a small dark square at the icon's bottom right. The icon is the wiki's
-/// (<see cref="OperatorLibrary.StatusIcon"/>); one is reported only when the icon
-/// matches and its white sword is really there (dark, flat scenery can correlate with the
-/// icon's shape alone).
+/// Team buffs the game draws left of the controlled operator's HP bar: left of their own counter, or right
+/// beside the HP bar when they have none (<see cref="HpBarCounter"/>). So far Link (the game's combo buff: a
+/// white sword with grey feathers), seen in the owner's Laevatain fight and others (Fixtures/buffs). Drawn
+/// without a frame. One stack shows no number; more show the count, white on a small dark square at the
+/// icon's bottom right. The icon is the wiki's (<see cref="OperatorLibrary.StatusIcon"/>); one is reported
+/// only when the icon matches and its white sword is really there (dark, flat scenery can correlate with
+/// the icon's shape alone).
 /// </summary>
 public sealed class TeamBuffReader(OperatorLibrary library)
 {
@@ -42,10 +56,19 @@ public sealed class TeamBuffReader(OperatorLibrary library)
     /// <summary>Link's most stacks (the wiki's Link page lists its bonus for 1 to 4 active buffs).</summary>
     public const int MaxStacks = 4;
 
-    // Where the icon can be, at 4K, bottom-centre anchored: seen at x 1395–1475, y 1945–2025 beside
-    // Laevatain's flower; wider counters (Typhoeus's bars, Zhuang Fangyi's grid) start further left,
-    // so the band reaches left of that.
+    // Where the icon can be, at 4K, bottom-centre anchored. With a counter drawn: seen at x 1395–1475,
+    // y 1945–2025 beside Laevatain's flower (the controller recordings the same); wider counters
+    // (Typhoeus's bars, Zhuang Fangyi's grid) start further left, so the band reaches left of that. It
+    // stops short of the counter itself: on a frame without Link, Laevatain's white flower scores 0.57
+    // and 0.23 white, which is "unclear", not "absent" (laevatain-40s).
     internal static readonly PixelRect Band = new(1240, 1925, 280, 105);
+    // With no counter drawn (test_rossi_mifu_si, Fixtures/buffs/no-counter): right beside the HP bar, at
+    // x 1496–1571, y 1945–2017, matched at x 1500, y 1953 (size 62: 0.74–0.78, as with a counter; down
+    // to 0.70 at the dim end of its pulse). The HP bar starts at x 1600. Nothing else of the HUD is
+    // there: without Link the best match scores 0.28–0.38, 0.02 white at most.
+    internal static readonly PixelRect BesideHpBar = new(1470, 1925, 130, 105);
+    // Not knowing which: both, as one band.
+    internal static readonly PixelRect EitherPlace = new(Band.X, Band.Y, BesideHpBar.Right - Band.X, Band.Height);
     // The icon's size at 4K: about 55 px.
     private static readonly int[] Sizes = [50, 56, 62];
     // Normalised correlation (grey, over the icon's opaque part). Measured on the fixtures (Fixtures/
@@ -83,18 +106,35 @@ public sealed class TeamBuffReader(OperatorLibrary library)
     internal const double AbsentBelow = 0.6;
     internal const double AbsentWhiteBelow = 0.1;
 
+    /// <summary>
+    /// Whether the controlled operator in <paramref name="state"/> draws a counter beside the HP bar: known once a slot
+    /// is clearly controlled and its operator recognised (as <see cref="OperatorCounters.ReadControlled"/> reads it).
+    /// </summary>
+    public static HpBarCounter CounterBesideHpBar(PartyState state) =>
+        state.ReadingsSinceSeen > 0 || state.ActiveSlot is not { } slot || slot > state.Slots.Count
+            || state.Slots[slot - 1].Operator?.Operator.Id is not { } id ? HpBarCounter.Unknown
+        : OperatorCounters.For(id).Any() ? HpBarCounter.Drawn
+        : HpBarCounter.None;
+
     /// <summary>The buffs shown now, with their stacks (empty when none, or when the band can't be read).</summary>
-    public IReadOnlyList<TeamBuff> Read(Frame frame) =>
-        Look(frame).Where(s => s.Sight == BuffSight.Shown).Select(s => new TeamBuff(s.Id, s.Stacks)).ToList();
+    public IReadOnlyList<TeamBuff> Read(Frame frame, HpBarCounter counter) =>
+        Look(frame, counter).Where(s => s.Sight == BuffSight.Shown).Select(s => new TeamBuff(s.Id, s.Stacks)).ToList();
 
     /// <summary>
     /// Each buff looked for (<see cref="Buffs"/>), with what this frame tells of it: shown (with its stacks), clearly
     /// absent, or unclear. One frame alone is never the last word: <see cref="TeamBuffHold"/> carries the verdicts.
+    /// Searched where <paramref name="counter"/> puts them (<see cref="CounterBesideHpBar"/>).
     /// </summary>
-    public IReadOnlyList<TeamBuffSighting> Look(Frame frame)
+    public IReadOnlyList<TeamBuffSighting> Look(Frame frame, HpBarCounter counter)
     {
         var ui = new UiScaler(frame.Width, frame.Height);
-        var band = ui.BottomCenter(Band).ClampTo(frame.Width, frame.Height);
+        var place = counter switch
+        {
+            HpBarCounter.Drawn => Band,
+            HpBarCounter.None => BesideHpBar,
+            _ => EitherPlace,
+        };
+        var band = ui.BottomCenter(place).ClampTo(frame.Width, frame.Height);
         if (band.IsEmpty) return [.. Buffs.Select(id => new TeamBuffSighting(id, BuffSight.Unclear))];
 
         var grey = new float[band.Width * band.Height];

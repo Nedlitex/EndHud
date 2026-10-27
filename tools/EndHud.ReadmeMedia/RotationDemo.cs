@@ -88,7 +88,7 @@ static class RotationDemo
             var state = tracker.Track(await reader.ReadAsync(frame));
             state = await identifier.IdentifyAsync(state);
             state = state with { Counters = OperatorCounters.ReadControlled(frame, state) };
-            if (state.InCombat) state = state with { Buffs = teamBuffs.Read(frame) };
+            if (state.InCombat) state = state with { Buffs = teamBuffs.Read(frame, TeamBuffReader.CounterBesideHpBar(state)) };
             if (readBoss && t - lastBoss >= 1)
             {
                 state = state with { BossStatuses = boss.Read(frame) };

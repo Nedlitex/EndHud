@@ -205,20 +205,25 @@ public class OnScreenDisplayCombatGateTests(ITestOutputHelper output)
         }
         // Each team buff as the frame tells it (TeamBuffReader.Look): its stacks when shown, 0 when clearly absent, unknown
         // when unclear (TeamBuffHold keeps the last verdict then). A display must never turn shown into absent, or back.
+        // Searched where the controlled operator's counter puts them, with the squad known (as once named); the counters
+        // fixtures' controlled operators (Typhoeus, Zhuang Fangyi) have one.
+        var squad = Squad(fixture);
+        var named = squad is null ? null : state with
+        {
+            Slots = [.. state.Slots.Select(s => squad[s.Number - 1] is { Length: > 0 } id && !s.Empty
+                ? s with { Operator = new OperatorMatch(new OperatorInfo(id, id, id, id + ".png"), 1, true) } : s)],
+        };
+        var counter = fixture.StartsWith("counters/", StringComparison.Ordinal) ? HpBarCounter.Drawn
+            : named is null ? HpBarCounter.Unknown : TeamBuffReader.CounterBesideHpBar(named);
         if (state.InCombat)
-            foreach (var b in buffs.Look(frame))
+            foreach (var b in buffs.Look(frame, counter))
                 r[$"buff {b.Id}"] = b.Sight switch { BuffSight.Shown => b.Stacks?.ToString(CultureInfo.InvariantCulture), BuffSight.Absent => "0", _ => null };
         foreach (var st in boss.Read(frame)) r[$"boss {st.Position}"] = $"{st.StatusId}:{st.Stacks}";
         foreach (var (field, value) in StaggerFields(StaggerBar.Read(frame))) r[field] = value;
 
         // The counters and Si's button, with the squad known (as once named).
-        if (Squad(fixture) is { } squad)
+        if (named is not null)
         {
-            var named = state with
-            {
-                Slots = [.. state.Slots.Select(s => squad[s.Number - 1] is { Length: > 0 } id && !s.Empty
-                    ? s with { Operator = new OperatorMatch(new OperatorInfo(id, id, id, id + ".png"), 1, true) } : s)],
-            };
             foreach (var c in OperatorCounters.ReadSquad(frame, named)) r[$"counter {c.OperatorId} {c.CounterId}"] = c.Value?.ToString(CultureInfo.InvariantCulture);
             foreach (var ring in SkillRing.Read(frame, named))
             {

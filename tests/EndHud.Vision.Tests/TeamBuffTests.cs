@@ -38,7 +38,7 @@ public sealed class TeamBuffTests : IDisposable
     {
         var frame = await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("buffs", file)));
 
-        Assert.Equal(shown ? ["Link"] : [], (await ReaderAsync()).Read(frame).Select(b => b.Id));
+        Assert.Equal(shown ? ["Link"] : [], (await ReaderAsync()).Read(frame, HpBarCounter.Drawn).Select(b => b.Id));
     }
 
     /// <summary>
@@ -64,7 +64,7 @@ public sealed class TeamBuffTests : IDisposable
     {
         var frame = await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("buffs", file)));
 
-        Assert.Equal([new TeamBuff("Link", stacks)], (await ReaderAsync()).Read(frame));
+        Assert.Equal([new TeamBuff("Link", stacks)], (await ReaderAsync()).Read(frame, HpBarCounter.Drawn));
     }
 
     /// <summary>A 3 hasn't been seen yet; rendered in Segoe UI Bold it reads as 5, which Link can't have: not a reading.</summary>
@@ -93,7 +93,7 @@ public sealed class TeamBuffTests : IDisposable
     {
         var frame = SimulatedScreen.Named(screenName).Render(await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("buffs", file))));
 
-        Assert.Equal([new TeamBuff("Link", stacks)], (await ReaderAsync()).Read(frame));
+        Assert.Equal([new TeamBuff("Link", stacks)], (await ReaderAsync()).Read(frame, HpBarCounter.Drawn));
     }
 
     public static TheoryData<string, bool, string> OnSmallerScreens()
@@ -115,7 +115,7 @@ public sealed class TeamBuffTests : IDisposable
         var screen = SimulatedScreen.Named(screenName);
         var frame = screen.Render(await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("buffs", file))));
 
-        Assert.Equal(shown ? ["Link"] : [], (await ReaderAsync()).Read(frame).Select(b => b.Id));
+        Assert.Equal(shown ? ["Link"] : [], (await ReaderAsync()).Read(frame, HpBarCounter.Drawn).Select(b => b.Id));
     }
 
     // The no-counter crops' place in the recording's 3836x2158 frames (Fixtures/buffs/no-counter/README.md).
@@ -149,7 +149,7 @@ public sealed class TeamBuffTests : IDisposable
     {
         var frame = await NoCounterFrameAsync(file);
 
-        Assert.Equal(stacks is { } n ? [new TeamBuff("Link", n)] : [], (await ReaderAsync()).Read(frame));
+        Assert.Equal(stacks is { } n ? [new TeamBuff("Link", n)] : [], (await ReaderAsync()).Read(frame, HpBarCounter.None));
     }
 
     /// <summary>
@@ -161,9 +161,58 @@ public sealed class TeamBuffTests : IDisposable
     [InlineData("link-065_00.jpg")]
     public async Task Links_dim_frames_beside_the_hp_bar_are_never_clearly_absent(string file)
     {
-        var look = Assert.Single((await ReaderAsync()).Look(await NoCounterFrameAsync(file)));
+        var look = Assert.Single((await ReaderAsync()).Look(await NoCounterFrameAsync(file), HpBarCounter.None));
 
         Assert.NotEqual(BuffSight.Absent, look.Sight);
+    }
+
+    /// <summary>
+    /// Not knowing whether a counter is drawn (the controlled operator not recognised), both places are searched: Link is
+    /// read in either.
+    /// </summary>
+    [Theory]
+    [InlineData("no-counter", "link-064_10.jpg")]
+    [InlineData("no-counter", "link-065_50.jpg")]
+    [InlineData("", "laevatain-95s.jpg")]
+    [InlineData("", "controller-link-two-113s.jpg")]
+    public async Task Link_is_read_in_either_place_when_the_counter_is_unknown(string folder, string file)
+    {
+        var frame = folder.Length > 0 ? await NoCounterFrameAsync(file)
+            : await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("buffs", file)));
+
+        Assert.Equal(["Link"], (await ReaderAsync()).Read(frame, HpBarCounter.Unknown).Select(b => b.Id));
+    }
+
+    /// <summary>
+    /// With Laevatain controlled, her white flower beside the HP bar isn't searched: frames without Link stay clearly
+    /// absent (searched, the flower is only "unclear", which would keep a Link that has ended on the gauge).
+    /// </summary>
+    [Theory]
+    [InlineData("laevatain-40s.jpg")]
+    [InlineData("laevatain-90s.jpg")]
+    [InlineData("laevatain-130s.jpg")]
+    public async Task Laevatains_flower_isnt_taken_for_link(string file)
+    {
+        var frame = await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("buffs", file)));
+
+        Assert.Equal(BuffSight.Absent, Assert.Single((await ReaderAsync()).Look(frame, HpBarCounter.Drawn)).Sight);
+    }
+
+    private static PartyState Controlling(string? operatorId, int? activeSlot = 1, int readingsSinceSeen = 0) =>
+        new([new PartySlot(1, null, 1.0, "", new Frame(1, 1, new byte[4]),
+            Operator: operatorId is null ? null : new OperatorMatch(new OperatorInfo(operatorId, operatorId, operatorId, operatorId + ".png"), 1, false))],
+            ReadingsSinceSeen: readingsSinceSeen) { ActiveSlot = activeSlot };
+
+    [Fact]
+    public void Where_link_is_follows_the_controlled_operators_counter()
+    {
+        Assert.Equal(HpBarCounter.Drawn, TeamBuffReader.CounterBesideHpBar(Controlling("Laevatain")));
+        Assert.Equal(HpBarCounter.Drawn, TeamBuffReader.CounterBesideHpBar(Controlling("Si")));
+        // An operator with no counter in OperatorCounters.
+        Assert.Equal(HpBarCounter.None, TeamBuffReader.CounterBesideHpBar(Controlling("Rossi")));
+        Assert.Equal(HpBarCounter.Unknown, TeamBuffReader.CounterBesideHpBar(Controlling(null)));
+        Assert.Equal(HpBarCounter.Unknown, TeamBuffReader.CounterBesideHpBar(Controlling("Laevatain", activeSlot: null)));
+        Assert.Equal(HpBarCounter.Unknown, TeamBuffReader.CounterBesideHpBar(Controlling("Laevatain", readingsSinceSeen: 1)));
     }
 
     public static TheoryData<string> OtherSquads() =>
@@ -178,6 +227,6 @@ public sealed class TeamBuffTests : IDisposable
     {
         var frame = await ImageFile.LoadAsync(CombatFrameTests.Fixture(file));
 
-        Assert.Empty((await ReaderAsync()).Read(frame));
+        Assert.Empty((await ReaderAsync()).Read(frame, HpBarCounter.Drawn));
     }
 }

@@ -944,13 +944,14 @@ internal sealed class PartyMonitor : IDisposable
                         // and how much of the ring is left, for the gauge row's timer.
                         Enter("skill rings");
                         state = state with { SkillRings = SkillRing.Read(gameFrame, state) };
-                        // Team buffs (Link) beside it: drawn in combat only. While the panel is out of
-                        // sight the frame is something else (an ultimate's cutscene): the last ones stay.
+                        // Team buffs (Link): left of the controlled operator's counter, or right beside the HP
+                        // bar when they have none. Drawn in combat only. While the panel is out of sight the
+                        // frame is something else (an ultimate's cutscene): the last ones stay.
                         // A frame that can't tell (Link's pulse over a light floor, an effect over it) keeps
                         // what was seen; only clearly absent readings end a buff (TeamBuffHold).
                         Enter("buffs");
                         if (!raw.PanelVisible) state = state with { Buffs = state.InCombat ? lastBuffs : [] };
-                        else if (state.InCombat && _teamBuffs is { } buffs) state = state with { Buffs = lastBuffs = buffHold.Track(buffs.Look(gameFrame)) };
+                        else if (state.InCombat && _teamBuffs is { } buffs) state = state with { Buffs = lastBuffs = buffHold.Track(buffs.Look(gameFrame, TeamBuffReader.CounterBesideHpBar(state))) };
                         else
                         {
                             lastBuffs = [];

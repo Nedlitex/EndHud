@@ -54,8 +54,8 @@ public sealed class TeamBuffHoldTests : IDisposable
         foreach (string file in Pulse("readings"))
         {
             var frame = await PulseFrameAsync(file);
-            if (!reader.Read(frame).SequenceEqual(LinkOne)) missedAlone++;
-            var shown = hold.Track(reader.Look(frame));
+            if (!reader.Read(frame, HpBarCounter.Drawn).SequenceEqual(LinkOne)) missedAlone++;
+            var shown = hold.Track(reader.Look(frame, HpBarCounter.Drawn));
             if (!shown.SequenceEqual(LinkOne))
                 wrong.Add($"{Path.GetFileNameWithoutExtension(file)}: {string.Join(",", shown.Select(b => $"{b.Id}x{b.Stacks?.ToString() ?? "?"}"))}");
         }
@@ -72,7 +72,7 @@ public sealed class TeamBuffHoldTests : IDisposable
         var absent = new List<string>();
         foreach (string file in Pulse("frames"))
         {
-            var look = Assert.Single(reader.Look(await PulseFrameAsync(file)));
+            var look = Assert.Single(reader.Look(await PulseFrameAsync(file), HpBarCounter.Drawn));
             Assert.Equal("Link", look.Id);
             if (look.Sight == BuffSight.Absent) absent.Add(Path.GetFileNameWithoutExtension(file));
             if (look.Sight == BuffSight.Shown) Assert.Equal(1, look.Stacks);
@@ -99,11 +99,11 @@ public sealed class TeamBuffHoldTests : IDisposable
         foreach (string file in Pulse("readings"))
         {
             var frame = await PulseFrameAsync(file);
-            var clean = Assert.Single(reader.Look(frame));
+            var clean = Assert.Single(reader.Look(frame, HpBarCounter.Drawn));
             for (int v = 0; v < variants.Count; v++)
             {
                 var (name, (x, y), background) = variants[v];
-                var covered = reader.Look(SyntheticOsd.Draw(frame, x, y, px, background));
+                var covered = reader.Look(SyntheticOsd.Draw(frame, x, y, px, background), HpBarCounter.Drawn);
                 string where = $"{Path.GetFileNameWithoutExtension(file)} {name}{(background ? " bg" : "")}";
                 var seen = Assert.Single(covered);
                 if (seen.Sight != BuffSight.Unclear && seen != clean) wrong.Add($"{where}: {clean.Sight}:{clean.Stacks} read {seen.Sight}:{seen.Stacks}");
@@ -121,9 +121,9 @@ public sealed class TeamBuffHoldTests : IDisposable
     {
         var reader = await ReaderAsync();
         var hold = new TeamBuffHold();
-        Assert.Equal(LinkOne, hold.Track(reader.Look(await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("buffs", "laevatain-95s.jpg"))))));
-        hold.Track(reader.Look(await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("buffs", first)))));
-        Assert.Empty(hold.Track(reader.Look(await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("buffs", second))))));
+        Assert.Equal(LinkOne, hold.Track(reader.Look(await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("buffs", "laevatain-95s.jpg"))), HpBarCounter.Drawn)));
+        hold.Track(reader.Look(await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("buffs", first))), HpBarCounter.Drawn));
+        Assert.Empty(hold.Track(reader.Look(await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("buffs", second))), HpBarCounter.Drawn)));
     }
 
     private static TeamBuffSighting[] Shown(int? stacks) => [new("Link", BuffSight.Shown, stacks)];
