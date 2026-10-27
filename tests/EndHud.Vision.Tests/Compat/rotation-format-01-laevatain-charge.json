@@ -1,0 +1,99 @@
+{
+  "format": 1,
+  "id": "laevatain-arcane-ardelia-camille",
+  "name": "莱万汀 诀 小羊 卡缪 充能轴",
+  "squad": [
+    "Laevatain",
+    "Arcane",
+    "Ardelia",
+    "Camille"
+  ],
+  "phases": [
+    {
+      "id": "charge-1",
+      "name": "充能轴",
+      "steps": [
+        {
+          "operatorId": "Camille",
+          "action": "BattleSkill"
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "Combo"
+        },
+        {
+          "operatorId": "Camille",
+          "action": "BattleSkill"
+        },
+        {
+          "operatorId": "Ardelia",
+          "action": "Combo",
+          "note": "重击后"
+        },
+        {
+          "operatorId": "Camille",
+          "action": "Combo"
+        },
+        {
+          "operatorId": "Laevatain",
+          "action": "Combo"
+        },
+        {
+          "operatorId": "Laevatain",
+          "action": "BattleSkill",
+          "label": "强化战技"
+        }
+      ]
+    },
+    {
+      "id": "charge-2",
+      "name": "充能轴",
+      "steps": [
+        {
+          "operatorId": "Camille",
+          "action": "BattleSkill"
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "Combo"
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "Ultimate"
+        },
+        {
+          "operatorId": "Ardelia",
+          "action": "Combo",
+          "note": "重击后"
+        },
+        {
+          "operatorId": "Camille",
+          "action": "Combo"
+        },
+        {
+          "operatorId": "Laevatain",
+          "action": "Combo"
+        },
+        {
+          "operatorId": "Laevatain",
+          "action": "BattleSkill",
+          "label": "强化战技"
+        },
+        {
+          "operatorId": "Ardelia",
+          "action": "BattleSkill"
+        }
+      ]
+    }
+  ],
+  "sequence": [
+    {
+      "phaseId": "charge-1",
+      "times": 1
+    },
+    {
+      "phaseId": "charge-2",
+      "times": 1
+    }
+  ]
+}

@@ -1,0 +1,233 @@
+{
+  "format": 2,
+  "id": "typhoeus-arcane-perlica-liino",
+  "name": "提弗洛斯 诀 佩丽卡 梨诺 9箭冷启动循环轴",
+  "squad": [
+    "Typhoeus",
+    "Arcane",
+    "Perlica",
+    "Liino"
+  ],
+  "phases": [
+    {
+      "id": "charge-1",
+      "name": "充能轴",
+      "when": [
+        {
+          "kind": "counter",
+          "operatorId": "Typhoeus",
+          "counterId": "hunting-arrow",
+          "is": "Exactly",
+          "value": 4
+        },
+        {
+          "kind": "ultimate",
+          "operatorId": "Arcane",
+          "ready": false
+        },
+        {
+          "kind": "ultimate",
+          "operatorId": "Liino",
+          "ready": false
+        }
+      ],
+      "steps": [
+        {
+          "operatorId": "Liino",
+          "action": "BattleSkill"
+        },
+        {
+          "operatorId": "Perlica",
+          "action": "Combo",
+          "note": "重击后"
+        },
+        {
+          "operatorId": "Liino",
+          "action": "Combo",
+          "withPrevious": true
+        },
+        {
+          "operatorId": "Typhoeus",
+          "action": "BattleSkill",
+          "label": "飞天"
+        },
+        {
+          "operatorId": "Typhoeus",
+          "action": "Combo",
+          "note": "普攻×4后"
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "BattleSkill",
+          "label": "战技·意"
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "Combo",
+          "label": "连携技·意",
+          "withPrevious": true,
+          "note": "再普攻×5"
+        }
+      ]
+    },
+    {
+      "id": "charge-2",
+      "name": "充能轴",
+      "when": [
+        {
+          "kind": "counter",
+          "operatorId": "Typhoeus",
+          "counterId": "hunting-arrow",
+          "is": "Exactly",
+          "value": 0
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Typhoeus",
+          "counterId": "sign",
+          "is": "Exactly",
+          "value": 8
+        },
+        {
+          "kind": "ultimate",
+          "operatorId": "Arcane",
+          "ready": false
+        },
+        {
+          "kind": "ultimate",
+          "operatorId": "Liino",
+          "ready": false
+        },
+        {
+          "kind": "any",
+          "of": [
+            {
+              "kind": "ultimateCharge",
+              "operatorId": "Arcane",
+              "is": "AtMost",
+              "percent": 79
+            },
+            {
+              "kind": "ultimateCharge",
+              "operatorId": "Liino",
+              "is": "AtMost",
+              "percent": 79
+            }
+          ]
+        }
+      ],
+      "steps": [
+        {
+          "operatorId": "Perlica",
+          "action": "Combo",
+          "note": "重击后"
+        },
+        {
+          "operatorId": "Liino",
+          "action": "Combo",
+          "withPrevious": true
+        },
+        {
+          "operatorId": "Typhoeus",
+          "action": "Combo"
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "BattleSkill",
+          "label": "战技·意"
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "Combo",
+          "label": "连携技·意",
+          "withPrevious": true
+        },
+        {
+          "operatorId": "Typhoeus",
+          "action": "BattleSkill",
+          "label": "飞天",
+          "note": "再普攻×5"
+        }
+      ]
+    },
+    {
+      "id": "burst",
+      "name": "爆发轴",
+      "when": [
+        {
+          "kind": "counter",
+          "operatorId": "Typhoeus",
+          "counterId": "hunting-arrow",
+          "is": "Exactly",
+          "value": 0
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Typhoeus",
+          "counterId": "sign",
+          "is": "Exactly",
+          "value": 8
+        },
+        {
+          "kind": "ultimateCharge",
+          "operatorId": "Arcane",
+          "is": "AtLeast",
+          "percent": 80
+        },
+        {
+          "kind": "ultimateCharge",
+          "operatorId": "Liino",
+          "is": "AtLeast",
+          "percent": 80
+        }
+      ],
+      "steps": [
+        {
+          "operatorId": "Perlica",
+          "action": "Combo",
+          "note": "重击后"
+        },
+        {
+          "operatorId": "Liino",
+          "action": "Combo",
+          "withPrevious": true
+        },
+        {
+          "operatorId": "Typhoeus",
+          "action": "Combo"
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "BattleSkill",
+          "label": "战技·意"
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "Combo",
+          "label": "连携技·意",
+          "withPrevious": true
+        },
+        {
+          "operatorId": "Typhoeus",
+          "action": "BattleSkill",
+          "label": "飞天"
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "Ultimate"
+        },
+        {
+          "operatorId": "Perlica",
+          "action": "Ultimate",
+          "withPrevious": true
+        },
+        {
+          "operatorId": "Liino",
+          "action": "Ultimate",
+          "withPrevious": true,
+          "note": "再普攻×5"
+        }
+      ]
+    }
+  ]
+}

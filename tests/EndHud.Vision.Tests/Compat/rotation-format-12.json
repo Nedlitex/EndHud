@@ -1,0 +1,131 @@
+{
+  "format": 12,
+  "id": "camille-laevatain-si-arcane",
+  "name": "卡缪 莱万汀 祀 诀",
+  "squad": [
+    "Camille",
+    "Laevatain",
+    "Si",
+    "Arcane"
+  ],
+  "phases": [
+    {
+      "id": "charge-1",
+      "name": "充能轴",
+      "steps": [
+        { "operatorId": "Laevatain", "action": "BattleSkill" },
+        { "operatorId": "Camille", "action": "BattleSkill",
+          "expect": [ { "kind": "skillPoints", "is": "AtLeast", "value": 2 } ] },
+        { "operatorId": "Si", "action": "BattleSkill" },
+        { "operatorId": "Arcane", "action": "Combo", "label": "连携技·意" },
+        { "operatorId": "controlled", "action": "HeavyAttack" },
+        { "operatorId": "", "action": "Condition", "withPrevious": true,
+          "expect": [ { "kind": "counter", "operatorId": "Laevatain", "counterId": "melting-flame", "is": "Exactly", "value": 4 } ] },
+        { "operatorId": "Camille", "action": "Combo", "note": "连击" },
+        { "operatorId": "Si", "action": "Combo" },
+        { "operatorId": "Laevatain", "action": "BattleSkill", "label": "强化战技",
+          "expect": [ { "kind": "battleSkillEmpowered", "operatorId": "Laevatain", "empowered": true },
+                      { "kind": "teamBuff", "buffId": "Link", "is": "AtLeast", "value": 1 } ] },
+        { "operatorId": "Laevatain", "action": "Combo" }
+      ]
+    },
+    {
+      "id": "charge-2",
+      "name": "充能轴",
+      "when": [
+        { "kind": "any", "of": [
+          { "kind": "all", "of": [
+            { "kind": "any", "of": [
+              { "kind": "phaseCurrent", "phaseId": "basic-1" },
+              { "kind": "phaseCurrent", "phaseId": "charge-1", "playedThrough": true } ] },
+            { "kind": "not", "of": { "kind": "all", "of": [
+              { "kind": "skillPoints", "is": "Below", "value": 2 },
+              { "kind": "battleSkillActive", "operatorId": "Si", "active": false } ] } } ] },
+          { "kind": "phaseCurrent", "phaseId": "charge-2", "playedThrough": false } ] }
+      ],
+      "steps": [
+        { "operatorId": "Camille", "action": "BattleSkill" },
+        { "operatorId": "Si", "action": "BattleSkill" },
+        { "operatorId": "Arcane", "action": "Combo", "label": "连携技·意" },
+        { "operatorId": "controlled", "action": "HeavyAttack" },
+        { "operatorId": "", "action": "Condition", "withPrevious": true,
+          "expect": [ { "kind": "counter", "operatorId": "Laevatain", "counterId": "melting-flame", "is": "Exactly", "value": 4 } ] },
+        { "operatorId": "Camille", "action": "Combo", "note": "连击" },
+        { "operatorId": "Si", "action": "Combo" },
+        { "operatorId": "Laevatain", "action": "BattleSkill", "label": "强化战技",
+          "expect": [ { "kind": "battleSkillEmpowered", "operatorId": "Laevatain", "empowered": true },
+                      { "kind": "teamBuff", "buffId": "Link", "is": "AtLeast", "value": 1 } ] },
+        { "operatorId": "Laevatain", "action": "Combo" }
+      ]
+    },
+    {
+      "id": "burst",
+      "name": "爆发轴",
+      "when": [
+        { "kind": "any", "of": [
+          { "kind": "all", "of": [
+            { "kind": "ultimate", "operatorId": "Camille", "ready": true },
+            { "kind": "ultimate", "operatorId": "Laevatain", "ready": true },
+            { "kind": "ultimate", "operatorId": "Arcane", "ready": true } ] },
+          { "kind": "phaseCurrent", "phaseId": "burst", "playedThrough": false } ] }
+      ],
+      "priority": 10,
+      "finish": [
+        { "kind": "stepsLit", "which": "These", "steps": [2] },
+        { "kind": "ultimateActive", "operatorId": "Laevatain", "active": false }
+      ],
+      "steps": [
+        { "operatorId": "Camille", "action": "Ultimate" },
+        { "operatorId": "Laevatain", "action": "Ultimate" },
+        { "operatorId": "Arcane", "action": "Ultimate",
+          "expect": [ { "kind": "bossStatus", "statusId": "Heat Infliction", "present": true } ] },
+        { "operatorId": "controlled", "action": "HeavyAttack" },
+        { "operatorId": "Arcane", "action": "Combo", "label": "连携技·意" },
+        { "operatorId": "Camille", "action": "Combo", "withPrevious": true },
+        { "operatorId": "Si", "action": "Combo", "withPrevious": true, "note": "连击" },
+        { "operatorId": "Camille", "action": "BattleSkill", "label": "强化战技", "note": "连击" },
+        { "operatorId": "Laevatain", "action": "BattleSkill", "label": "强化战技",
+          "expect": [ { "kind": "battleSkillEmpowered", "operatorId": "Laevatain", "empowered": true },
+                      { "kind": "teamBuff", "buffId": "Link", "is": "AtLeast", "value": 1 } ] },
+        { "operatorId": "Si", "action": "Ultimate" },
+        { "operatorId": "Arcane", "action": "Ultimate", "withPrevious": true },
+        { "operatorId": "Laevatain", "action": "Combo" },
+        { "operatorId": "Si", "action": "BattleSkill" },
+        { "operatorId": "controlled", "action": "HeavyAttack" },
+        { "operatorId": "Camille", "action": "Combo" },
+        { "operatorId": "Si", "action": "Combo", "withPrevious": true, "note": "连击" },
+        { "operatorId": "Laevatain", "action": "BattleSkill", "label": "强化战技",
+          "expect": [ { "kind": "battleSkillEmpowered", "operatorId": "Laevatain", "empowered": true } ] },
+        { "operatorId": "Laevatain", "action": "Combo" }
+      ]
+    },
+    {
+      "id": "basic-1",
+      "name": "普攻轴",
+      "when": [
+        { "kind": "skillPoints", "is": "Below", "value": 2 },
+        { "kind": "battleSkillActive", "operatorId": "Si", "active": false },
+        { "kind": "any", "of": [
+          { "kind": "phaseCurrent", "phaseId": "charge-1", "playedThrough": true },
+          { "kind": "phaseCurrent", "phaseId": "basic-1" } ] }
+      ],
+      "steps": [
+        { "operatorId": "controlled", "action": "BasicAttack" }
+      ]
+    },
+    {
+      "id": "basic-2",
+      "name": "普攻轴",
+      "when": [
+        { "kind": "skillPoints", "is": "Below", "value": 2 },
+        { "kind": "battleSkillActive", "operatorId": "Si", "active": false },
+        { "kind": "any", "of": [
+          { "kind": "phaseCurrent", "phaseId": "charge-2", "playedThrough": true },
+          { "kind": "phaseCurrent", "phaseId": "basic-2" } ] }
+      ],
+      "steps": [
+        { "operatorId": "controlled", "action": "BasicAttack" }
+      ]
+    }
+  ]
+}
