@@ -52,6 +52,11 @@ public sealed record StepPosition(int Phase, IReadOnlyList<StepMark> Marks, bool
 /// <see cref="PlayedThroughThisShowing"/>, for "the current phase, played through this showing"), and every light
 /// goes out for a new round. A finish condition that keeps holding counts again only after it was seen not holding;
 /// one that can't be told changes nothing.</para>
+/// <para><b>The round's clock</b> (<see cref="TimeInPhase"/>, for <see cref="TimeInPhaseCondition"/>): from the reading the
+/// phase came onto the strip, or was last played through, the time between readings, from their own stamps
+/// (<see cref="PartyState.ReadAt"/>). A reading that didn't see the squad panel adds nothing (owner, 2026-10-27: time with the
+/// HUD out of sight doesn't count), nor does a gap over <see cref="MaxCountedGap"/>; a reading without a time makes it
+/// unknown for the rest of the round; the fight's end sets it back.</para>
 /// </summary>
 public sealed class StepFollower(Rotation rotation)
 {
@@ -77,6 +82,27 @@ public sealed class StepFollower(Rotation rotation)
     public IReadOnlyList<bool?>? StepsLit => _phase < 0 ? null : _lit.Select((lit, i) => _countable[i] ? lit : (bool?)null).ToList();
 
     private readonly int[] _timesPlayed = new int[rotation.Phases.Count];
+
+    /// <summary>
+    /// Readings closer than this are one stretch of the fight; a longer gap (the follower wasn't fed: the strip off, the
+    /// squad not recognised) is not counted.
+    /// </summary>
+    private static readonly TimeSpan MaxCountedGap = TimeSpan.FromSeconds(1);
+
+    /// <summary>The time of the reading before (counted or not).</summary>
+    private TimeSpan? _lastReadAt;
+
+    /// <summary>How long the phase followed has run this round, hidden time left out.</summary>
+    private TimeSpan _timeInRound;
+
+    /// <summary>Every reading of this round was stamped (live readings always are; a test's may not be).</summary>
+    private bool _timeKnown;
+
+    /// <summary>
+    /// How long the phase followed has run this round, the squad panel's hidden time left out (<see cref="TimeInPhaseCondition"/>);
+    /// null before the first reading of a fight, or when a reading of this round had no time.
+    /// </summary>
+    public TimeSpan? TimeInPhase => _phase < 0 || !_timeKnown ? null : _timeInRound;
 
     /// <summary>The phase followed has been played through since it came onto the strip (<see cref="PhaseCurrentCondition"/>).</summary>
     private bool _playedThisShowing;
@@ -109,6 +135,9 @@ public sealed class StepFollower(Rotation rotation)
         _phase = -1;
         _playedThisShowing = false;
         Array.Clear(_timesPlayed);
+        _timeInRound = TimeSpan.Zero;
+        _lastReadAt = null;
+        _timeKnown = false;
     }
 
     /// <param name="phase">The phase on the strip (<see cref="PhaseSelector"/>).</param>
@@ -125,9 +154,11 @@ public sealed class StepFollower(Rotation rotation)
             _lit = new bool[steps.Count];
             _countable = steps.Select(p => Countable(p.Step)).ToArray();
             _finishHeld = false;
+            StartRound(now);
         }
+        else Advance(now);
         var slots = RotationTracker.SlotsByOperator(now);
-        LightConditions(steps, now, slots, history);
+        LightConditions(steps, now, slots, Own(history));
         FinishIfOver(steps, now, slots, history);
         var uses = casts.Select(c => new Use(c.Slot - 1, StepAction.BattleSkill, c.At)).ToList();
         if (before is not null) uses.AddRange(VisionUses(before, now));
@@ -137,6 +168,30 @@ public sealed class StepFollower(Rotation rotation)
             FinishIfOver(steps, now, slots, history);
         }
         return Position(phase, steps, now, slots, history);
+    }
+
+    /// <summary>A new round: the clock at 0 from this reading.</summary>
+    private void StartRound(PartyState now)
+    {
+        _timeInRound = TimeSpan.Zero;
+        _lastReadAt = now.ReadAt;
+        _timeKnown = now.ReadAt is not null;
+    }
+
+    /// <summary>
+    /// The time since the reading before, counted only when this reading saw the squad panel (owner, 2026-10-27: time
+    /// with the HUD out of sight doesn't count) and the two readings are one stretch (<see cref="MaxCountedGap"/>).
+    /// </summary>
+    private void Advance(PartyState now)
+    {
+        if (now.ReadAt is not { } at)
+        {
+            _timeKnown = false;
+            return;
+        }
+        if (_lastReadAt is { } last && at > last && at - last <= MaxCountedGap && now.PanelVisible && now.ReadingsSinceSeen == 0)
+            _timeInRound += at - last;
+        _lastReadAt = at;
     }
 
     /// <summary>Combos and ultimates seen used between two readings (<see cref="RotationTracker"/>'s rules).</summary>
@@ -193,7 +248,7 @@ public sealed class StepFollower(Rotation rotation)
         var finish = rotation.Phases[_phase].Finish;
         bool? held = finish.Count == 0
             ? _countable.Contains(true) && _lit.Where((_, i) => _countable[i]).All(lit => lit)
-            : RotationTracker.Holds(new AllCondition(finish), now, slots, new WithLights(history, StepsLit!));
+            : RotationTracker.Holds(new AllCondition(finish), now, slots, Own(history));
         if (held is not { } holds) return;
         bool cameTrue = holds && !_finishHeld;
         _finishHeld = holds;
@@ -201,11 +256,15 @@ public sealed class StepFollower(Rotation rotation)
         _timesPlayed[_phase]++;
         _playedThisShowing = true;
         Array.Clear(_lit);
-        LightConditions(steps, now, slots, history);
+        _timeInRound = TimeSpan.Zero; // a new round, a new clock (a finish on the clock would otherwise keep holding)
+        LightConditions(steps, now, slots, Own(history));
     }
 
-    /// <summary>The phase history, with this round's lights for "the phase's steps lit".</summary>
-    private sealed class WithLights(IPhaseHistory history, IReadOnlyList<bool?> lights) : IPhaseHistory
+    /// <summary>The history as this follower's own conditions see it: this round's lights and clock, as they are now.</summary>
+    private IPhaseHistory Own(IPhaseHistory history) => new WithLights(history, StepsLit ?? [], TimeInPhase);
+
+    /// <summary>The phase history, with this round's lights for "the phase's steps lit" and its clock for "time in phase".</summary>
+    private sealed class WithLights(IPhaseHistory history, IReadOnlyList<bool?> lights, TimeSpan? time) : IPhaseHistory
     {
         public int? TimesShown(string phaseId) => history.TimesShown(phaseId);
 
@@ -216,6 +275,8 @@ public sealed class StepFollower(Rotation rotation)
         public bool? PlayedThroughThisShowing(string phaseId) => history.PlayedThroughThisShowing(phaseId);
 
         public IReadOnlyList<bool?>? StepsLit => lights;
+
+        public TimeSpan? TimeInPhase => time;
     }
 
     /// <summary>The first unlit countable step in written order; -1 when there is none.</summary>
@@ -253,7 +314,7 @@ public sealed class StepFollower(Rotation rotation)
             // Every step lit and the finish condition not holding: nothing to point at, so what the phase waits for
             // is its finish condition (its badges on the strip), never a silent strip.
             var finish = rotation.Phases[phase].Finish;
-            var lights = new WithLights(history, StepsLit!);
+            var lights = Own(history);
             return new StepPosition(phase, marks, false,
                 finish.Select(c => new ConditionCheck(CheckKind.Expected, c, RotationTracker.Holds(c, now, slots, lights))).ToList());
         }
@@ -265,8 +326,9 @@ public sealed class StepFollower(Rotation rotation)
         // A condition step has no ability of its own, only its conditions.
         bool? own = RotationTracker.AbilityAvailable(step, now, slots);
         var checks = new List<ConditionCheck> { new(CheckKind.OwnAbility, null, own) };
+        var ownHistory = Own(history);
         foreach (var condition in step.Expect)
-            checks.Add(new ConditionCheck(CheckKind.Expected, condition, RotationTracker.Holds(condition, now, slots, history)));
+            checks.Add(new ConditionCheck(CheckKind.Expected, condition, RotationTracker.Holds(condition, now, slots, ownHistory)));
         // Ready only when every check is known to hold: one that can't be read now keeps the step waiting, its badge dim
         // (no words on the strip, only badges). Owner 2026-10-25: "not ready, dont say why".
         bool ready = checks.All(c => c.Holds == true);

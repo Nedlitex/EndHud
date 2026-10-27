@@ -152,6 +152,19 @@ public sealed class TimeInPhaseConditionTests
         Assert.Equal(TimeSpan.FromSeconds(0.25), strip.Clock);
     }
 
+    /// <summary>The strip's badges of steps other than the chevron's are judged with the selector as history: it reports the follower's clock.</summary>
+    [Fact]
+    public void The_selector_reports_the_followers_clock()
+    {
+        var strip = new Strip(OnePhase());
+        Assert.Null(strip.Selector.TimeInPhase);
+
+        strip.Quarters(0, 8);
+
+        Assert.Equal(TimeSpan.FromSeconds(2), strip.Follower.TimeInPhase);
+        Assert.Equal(strip.Follower.TimeInPhase, strip.Selector.TimeInPhase);
+    }
+
     // ---- Finishing ----
 
     [Fact]
