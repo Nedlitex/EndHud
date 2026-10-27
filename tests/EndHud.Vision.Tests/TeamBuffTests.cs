@@ -118,6 +118,40 @@ public sealed class TeamBuffTests : IDisposable
         Assert.Equal(shown ? ["Link"] : [], (await ReaderAsync()).Read(frame).Select(b => b.Id));
     }
 
+    // The no-counter crops' place in the recording's 3836x2158 frames (Fixtures/buffs/no-counter/README.md).
+    private const int NoCounterWidth = 3836, NoCounterHeight = 2158, CropX = 1150, CropY = 1880;
+
+    /// <summary>A crop pasted back at its spot into a black frame of the recording's size.</summary>
+    private static async Task<Frame> NoCounterFrameAsync(string file)
+    {
+        var crop = await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("buffs", "no-counter", file)));
+        var bgra = new byte[NoCounterWidth * NoCounterHeight * 4];
+        for (int i = 3; i < bgra.Length; i += 4) bgra[i] = 255;
+        for (int y = 0; y < crop.Height; y++)
+            Buffer.BlockCopy(crop.Bgra, y * crop.Width * 4, bgra, ((CropY + y) * NoCounterWidth + CropX) * 4, crop.Width * 4);
+        return new Frame(NoCounterWidth, NoCounterHeight, bgra);
+    }
+
+    // By eye (owner, 2026-10-27: "see 1:05, [Link] is triggered, but not shown"): the controlled operator has no
+    // counter, so Link is drawn right beside the HP bar, one stack, from about 63 s to 66.5 s.
+    public static TheoryData<string, int?> NoCounter() => new()
+    {
+        { "link-062_75.jpg", null },
+        { "link-064_00.jpg", 1 },
+        { "link-065_00.jpg", 1 },
+        { "link-065_50.jpg", 1 },
+        { "link-067_25.jpg", null },
+    };
+
+    [Theory]
+    [MemberData(nameof(NoCounter))]
+    public async Task Link_is_read_beside_the_hp_bar_when_no_counter_is_drawn(string file, int? stacks)
+    {
+        var frame = await NoCounterFrameAsync(file);
+
+        Assert.Equal(stacks is { } n ? [new TeamBuff("Link", n)] : [], (await ReaderAsync()).Read(frame));
+    }
+
     public static TheoryData<string> OtherSquads() =>
     [
         .. Directory.GetFiles(CombatFrameTests.Fixture("counters"), "*.jpg").Select(f => Path.Combine("counters", Path.GetFileName(f))),
