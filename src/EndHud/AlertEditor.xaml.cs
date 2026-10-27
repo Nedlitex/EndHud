@@ -421,20 +421,24 @@ public partial class AlertEditor : Window
         Status(string.Concat(said));
     }
 
+    /// <summary>Adds the rules of an alerts file's text (what importing a file does with the file it reads).</summary>
+    internal void ImportJson(string json) => Import(() => AlertFormat.FromJson(json));
+
     private void CopySelectedCode_Click(object sender, RoutedEventArgs e)
     {
-        if (_rule is not null) CopyCode([_rule]);
+        if (_rule is not null) CopyCode(ShareCode([_rule]));
     }
 
-    private void CopyAllCode_Click(object sender, RoutedEventArgs e) => CopyCode(_rules);
+    private void CopyAllCode_Click(object sender, RoutedEventArgs e) => CopyCode(ExportCode());
 
-    private void CopyCode(IReadOnlyList<RuleDraft> rules)
+    /// <summary>What "copy all as share code" puts on the clipboard; null, with the problems said, while a rule has one.</summary>
+    internal string? ExportCode() => ShareCode(_rules);
+
+    private void CopyCode(string? code)
     {
-        if (ShareCode(rules) is { } code)
-        {
-            Clipboard.SetText(code);
-            Status(Loc.Get("Alerts.CodeCopied"));
-        }
+        if (code is null) return;
+        Clipboard.SetText(code);
+        Status(Loc.Get("Alerts.CodeCopied"));
     }
 
     /// <summary>The share code of these rules (what the copy buttons put on the clipboard); null, with the problems said, while one has a problem.</summary>
@@ -449,14 +453,21 @@ public partial class AlertEditor : Window
         return AlertFormat.ToShareCode(rules.Select(r => r.ToRule()));
     }
 
-    private void ExportFile_Click(object sender, RoutedEventArgs e)
+    /// <summary>What "export to file" writes: every rule, as JSON. Null when there are none, or while a rule has a problem (then said).</summary>
+    internal string? ExportJson()
     {
-        if (_rules.Count == 0) return;
+        if (_rules.Count == 0) return null;
         if (Problems() is { Count: > 0 } problems)
         {
             Error(string.Join("\n", problems));
-            return;
+            return null;
         }
+        return AlertFormat.ToJson(_rules.Select(r => r.ToRule()));
+    }
+
+    private void ExportFile_Click(object sender, RoutedEventArgs e)
+    {
+        if (ExportJson() is not { } json) return;
         var dialog = new SaveFileDialog
         {
             Filter = Loc.Get("Alerts.FileFilter"),
@@ -464,7 +475,7 @@ public partial class AlertEditor : Window
             Title = Loc.Get("Editor.ExportFile"),
         };
         if (dialog.ShowDialog(this) != true) return;
-        File.WriteAllText(dialog.FileName, AlertFormat.ToJson(_rules.Select(r => r.ToRule())));
+        File.WriteAllText(dialog.FileName, json);
         Status(Loc.Format("Editor.Exported", Path.GetFileName(dialog.FileName)));
     }
 

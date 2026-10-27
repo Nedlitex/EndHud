@@ -883,9 +883,15 @@ public partial class RotationEditor : Window
         Status(Loc.Format("Editor.Imported", rotation.Name));
     }
 
+    /// <summary>What "export to file" writes: the rotation shown, as JSON. Null when there is none, or when it has a problem (then said).</summary>
+    internal string? ExportJson() => _draft is null || !Problems() ? null : RotationFormat.ToJson(_draft.ToRotation());
+
+    /// <summary>What "copy share code" puts on the clipboard. Null when there is no rotation, or when it has a problem (then said).</summary>
+    internal string? ExportCode() => _draft is null || !Problems() ? null : RotationFormat.ToShareCode(_draft.ToRotation());
+
     private void ExportFile_Click(object sender, RoutedEventArgs e)
     {
-        if (_draft is null || !Problems()) return;
+        if (_draft is null || ExportJson() is not { } json) return;
         var dialog = new SaveFileDialog
         {
             Filter = Loc.Get("Editor.FileFilter"),
@@ -893,14 +899,14 @@ public partial class RotationEditor : Window
             Title = Loc.Get("Editor.ExportFile"),
         };
         if (dialog.ShowDialog(this) != true) return;
-        File.WriteAllText(dialog.FileName, RotationFormat.ToJson(_draft.ToRotation()));
+        File.WriteAllText(dialog.FileName, json);
         Status(Loc.Format("Editor.Exported", Path.GetFileName(dialog.FileName)));
     }
 
     private void CopyCode_Click(object sender, RoutedEventArgs e)
     {
-        if (_draft is null || !Problems()) return;
-        Clipboard.SetText(RotationFormat.ToShareCode(_draft.ToRotation()));
+        if (ExportCode() is not { } code) return;
+        Clipboard.SetText(code);
         Status(Loc.Get("Editor.CodeCopied"));
     }
 
