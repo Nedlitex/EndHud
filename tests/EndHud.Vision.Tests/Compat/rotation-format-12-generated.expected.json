@@ -1,0 +1,2576 @@
+{
+  "format": 12,
+  "id": "compat-format-12",
+  "name": "Format 12 say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天",
+  "squad": [
+    "Si",
+    "Laevatain",
+    "Arcane",
+    "Tangtang"
+  ],
+  "phases": [
+    {
+      "id": "opener",
+      "name": "Opener say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天",
+      "steps": [
+        {
+          "operatorId": "Si",
+          "action": "BattleSkill",
+          "note": "BattleSkill say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天",
+          "label": "BattleSkill 战技",
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Laevatain",
+          "action": "Combo",
+          "note": "Combo say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天",
+          "label": "Combo 战技",
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "Ultimate",
+          "note": "Ultimate say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天",
+          "label": "Ultimate 战技",
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Tangtang",
+          "action": "BasicAttack",
+          "note": "BasicAttack say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天",
+          "label": "BasicAttack 战技",
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "controlled",
+          "action": "BasicAttack",
+          "note": "say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天",
+          "label": null,
+          "withPrevious": true,
+          "expect": []
+        },
+        {
+          "operatorId": "Si",
+          "action": "HeavyAttack",
+          "note": "HeavyAttack say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天",
+          "label": "HeavyAttack 战技",
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "controlled",
+          "action": "HeavyAttack",
+          "note": "say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天",
+          "label": null,
+          "withPrevious": true,
+          "expect": []
+        },
+        {
+          "operatorId": "Laevatain",
+          "action": "PlungeAttack",
+          "note": "PlungeAttack say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天",
+          "label": "PlungeAttack 战技",
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "controlled",
+          "action": "PlungeAttack",
+          "note": "say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天",
+          "label": null,
+          "withPrevious": true,
+          "expect": []
+        },
+        {
+          "operatorId": "",
+          "action": "Condition",
+          "note": null,
+          "label": "say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天",
+          "withPrevious": true,
+          "expect": [
+            {
+              "kind": "skillPoints",
+              "is": "AtLeast",
+              "value": 0.25
+            },
+            {
+              "kind": "skillPoints",
+              "is": "AtMost",
+              "value": 1
+            },
+            {
+              "kind": "skillPoints",
+              "is": "Exactly",
+              "value": 1.75
+            },
+            {
+              "kind": "skillPoints",
+              "is": "Below",
+              "value": 2.5
+            },
+            {
+              "kind": "skillPoints",
+              "is": "Above",
+              "value": 3.25
+            },
+            {
+              "kind": "combo",
+              "operatorId": "Laevatain",
+              "ready": true
+            },
+            {
+              "kind": "combo",
+              "operatorId": "Laevatain",
+              "ready": false
+            },
+            {
+              "kind": "comboCharge",
+              "operatorId": "Arcane",
+              "is": "AtLeast",
+              "percent": 0
+            },
+            {
+              "kind": "comboCharge",
+              "operatorId": "Arcane",
+              "is": "AtMost",
+              "percent": 25
+            },
+            {
+              "kind": "comboCharge",
+              "operatorId": "Arcane",
+              "is": "Exactly",
+              "percent": 50
+            },
+            {
+              "kind": "comboCharge",
+              "operatorId": "Arcane",
+              "is": "Below",
+              "percent": 75
+            },
+            {
+              "kind": "comboCharge",
+              "operatorId": "Arcane",
+              "is": "Above",
+              "percent": 100
+            },
+            {
+              "kind": "battleSkill",
+              "operatorId": "Tangtang",
+              "ready": true
+            },
+            {
+              "kind": "battleSkill",
+              "operatorId": "Tangtang",
+              "ready": false
+            },
+            {
+              "kind": "ultimate",
+              "operatorId": "Si",
+              "ready": true
+            },
+            {
+              "kind": "ultimate",
+              "operatorId": "Si",
+              "ready": false
+            },
+            {
+              "kind": "ultimateCharge",
+              "operatorId": "Laevatain",
+              "is": "AtLeast",
+              "percent": 100
+            },
+            {
+              "kind": "ultimateCharge",
+              "operatorId": "Laevatain",
+              "is": "AtMost",
+              "percent": 80
+            },
+            {
+              "kind": "ultimateCharge",
+              "operatorId": "Laevatain",
+              "is": "Exactly",
+              "percent": 60
+            },
+            {
+              "kind": "ultimateCharge",
+              "operatorId": "Laevatain",
+              "is": "Below",
+              "percent": 40
+            },
+            {
+              "kind": "ultimateCharge",
+              "operatorId": "Laevatain",
+              "is": "Above",
+              "percent": 20
+            },
+            {
+              "kind": "ultimateActive",
+              "operatorId": "Arcane",
+              "active": true
+            },
+            {
+              "kind": "ultimateActive",
+              "operatorId": "Arcane",
+              "active": false
+            },
+            {
+              "kind": "ultimateTimeLeft",
+              "operatorId": "Laevatain",
+              "is": "AtLeast",
+              "percent": 0
+            },
+            {
+              "kind": "ultimateTimeLeft",
+              "operatorId": "Laevatain",
+              "is": "AtMost",
+              "percent": 15
+            },
+            {
+              "kind": "ultimateTimeLeft",
+              "operatorId": "Laevatain",
+              "is": "Exactly",
+              "percent": 30
+            },
+            {
+              "kind": "ultimateTimeLeft",
+              "operatorId": "Laevatain",
+              "is": "Below",
+              "percent": 45
+            },
+            {
+              "kind": "ultimateTimeLeft",
+              "operatorId": "Laevatain",
+              "is": "Above",
+              "percent": 60
+            },
+            {
+              "kind": "battleSkillActive",
+              "operatorId": "Si",
+              "active": true
+            },
+            {
+              "kind": "battleSkillActive",
+              "operatorId": "Si",
+              "active": false
+            },
+            {
+              "kind": "battleSkillEmpowered",
+              "operatorId": "Laevatain",
+              "empowered": true
+            },
+            {
+              "kind": "battleSkillEmpowered",
+              "operatorId": "Laevatain",
+              "empowered": false
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Laevatain",
+              "counterId": "melting-flame",
+              "is": "AtLeast",
+              "value": 0
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Laevatain",
+              "counterId": "melting-flame",
+              "is": "AtMost",
+              "value": 1
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Laevatain",
+              "counterId": "melting-flame",
+              "is": "Exactly",
+              "value": 2
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Laevatain",
+              "counterId": "melting-flame",
+              "is": "Below",
+              "value": 3
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Laevatain",
+              "counterId": "melting-flame",
+              "is": "Above",
+              "value": 4
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Si",
+              "counterId": "damage-stacks",
+              "is": "AtLeast",
+              "value": 0
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Si",
+              "counterId": "damage-stacks",
+              "is": "AtMost",
+              "value": 1
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Si",
+              "counterId": "damage-stacks",
+              "is": "Exactly",
+              "value": 2
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Si",
+              "counterId": "damage-stacks",
+              "is": "Below",
+              "value": 3
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Si",
+              "counterId": "damage-stacks",
+              "is": "Above",
+              "value": 4
+            },
+            {
+              "kind": "teamBuff",
+              "buffId": "Link",
+              "is": "AtLeast",
+              "value": 0
+            },
+            {
+              "kind": "teamBuff",
+              "buffId": "Link",
+              "is": "AtMost",
+              "value": 1
+            },
+            {
+              "kind": "teamBuff",
+              "buffId": "Link",
+              "is": "Exactly",
+              "value": 2
+            },
+            {
+              "kind": "teamBuff",
+              "buffId": "Link",
+              "is": "Below",
+              "value": 3
+            },
+            {
+              "kind": "teamBuff",
+              "buffId": "Link",
+              "is": "Above",
+              "value": 4
+            },
+            {
+              "kind": "bossStatus",
+              "statusId": "Heat Infliction",
+              "present": true,
+              "minStacks": 3
+            },
+            {
+              "kind": "bossStatus",
+              "statusId": "Cryo Infliction",
+              "present": false,
+              "minStacks": 1
+            },
+            {
+              "kind": "controlling",
+              "operatorId": "Laevatain"
+            },
+            {
+              "kind": "phaseShown",
+              "phaseId": "burst",
+              "is": "AtLeast",
+              "times": 1
+            },
+            {
+              "kind": "phaseShown",
+              "phaseId": "burst",
+              "is": "AtMost",
+              "times": 2
+            },
+            {
+              "kind": "phaseShown",
+              "phaseId": "burst",
+              "is": "Exactly",
+              "times": 3
+            },
+            {
+              "kind": "phaseShown",
+              "phaseId": "burst",
+              "is": "Below",
+              "times": 4
+            },
+            {
+              "kind": "phaseShown",
+              "phaseId": "burst",
+              "is": "Above",
+              "times": 5
+            },
+            {
+              "kind": "phasePlayed",
+              "phaseId": "burst",
+              "is": "AtLeast",
+              "times": 0
+            },
+            {
+              "kind": "phasePlayed",
+              "phaseId": "burst",
+              "is": "AtMost",
+              "times": 1
+            },
+            {
+              "kind": "phasePlayed",
+              "phaseId": "burst",
+              "is": "Exactly",
+              "times": 2
+            },
+            {
+              "kind": "phasePlayed",
+              "phaseId": "burst",
+              "is": "Below",
+              "times": 3
+            },
+            {
+              "kind": "phasePlayed",
+              "phaseId": "burst",
+              "is": "Above",
+              "times": 4
+            },
+            {
+              "kind": "phaseCurrent",
+              "phaseId": "burst",
+              "playedThrough": null
+            },
+            {
+              "kind": "phaseCurrent",
+              "phaseId": "burst",
+              "playedThrough": true
+            },
+            {
+              "kind": "phaseCurrent",
+              "phaseId": "burst",
+              "playedThrough": false
+            },
+            {
+              "kind": "all",
+              "of": [
+                {
+                  "kind": "skillPoints",
+                  "is": "AtLeast",
+                  "value": 1.5
+                },
+                {
+                  "kind": "not",
+                  "of": {
+                    "kind": "combo",
+                    "operatorId": "Tangtang",
+                    "ready": true
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "all",
+              "of": [
+                {
+                  "kind": "any",
+                  "of": [
+                    {
+                      "kind": "not",
+                      "of": {
+                        "kind": "all",
+                        "of": [
+                          {
+                            "kind": "not",
+                            "of": {
+                              "kind": "bossStatus",
+                              "statusId": "Corrosion",
+                              "present": true,
+                              "minStacks": 2
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "kind": "controlling",
+                  "operatorId": "Tangtang"
+                }
+              ]
+            },
+            {
+              "kind": "any",
+              "of": [
+                {
+                  "kind": "ultimate",
+                  "operatorId": "Si",
+                  "ready": true
+                },
+                {
+                  "kind": "all",
+                  "of": [
+                    {
+                      "kind": "skillPoints",
+                      "is": "Below",
+                      "value": 2
+                    },
+                    {
+                      "kind": "battleSkill",
+                      "operatorId": "Si",
+                      "ready": false
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "not",
+              "of": {
+                "kind": "skillPoints",
+                "is": "Above",
+                "value": 2.5
+              }
+            },
+            {
+              "kind": "not",
+              "of": {
+                "kind": "any",
+                "of": [
+                  {
+                    "kind": "all",
+                    "of": [
+                      {
+                        "kind": "combo",
+                        "operatorId": "Laevatain",
+                        "ready": false
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "operatorId": "Laevatain",
+          "action": "Ultimate",
+          "note": "—\u00A0\t\u3000end",
+          "label": null,
+          "withPrevious": false,
+          "expect": [
+            {
+              "kind": "skillPoints",
+              "is": "AtLeast",
+              "value": 0.25
+            },
+            {
+              "kind": "skillPoints",
+              "is": "AtMost",
+              "value": 1
+            },
+            {
+              "kind": "skillPoints",
+              "is": "Exactly",
+              "value": 1.75
+            },
+            {
+              "kind": "skillPoints",
+              "is": "Below",
+              "value": 2.5
+            },
+            {
+              "kind": "skillPoints",
+              "is": "Above",
+              "value": 3.25
+            },
+            {
+              "kind": "combo",
+              "operatorId": "Laevatain",
+              "ready": true
+            },
+            {
+              "kind": "combo",
+              "operatorId": "Laevatain",
+              "ready": false
+            },
+            {
+              "kind": "comboCharge",
+              "operatorId": "Arcane",
+              "is": "AtLeast",
+              "percent": 0
+            },
+            {
+              "kind": "comboCharge",
+              "operatorId": "Arcane",
+              "is": "AtMost",
+              "percent": 25
+            },
+            {
+              "kind": "comboCharge",
+              "operatorId": "Arcane",
+              "is": "Exactly",
+              "percent": 50
+            },
+            {
+              "kind": "comboCharge",
+              "operatorId": "Arcane",
+              "is": "Below",
+              "percent": 75
+            },
+            {
+              "kind": "comboCharge",
+              "operatorId": "Arcane",
+              "is": "Above",
+              "percent": 100
+            },
+            {
+              "kind": "battleSkill",
+              "operatorId": "Tangtang",
+              "ready": true
+            },
+            {
+              "kind": "battleSkill",
+              "operatorId": "Tangtang",
+              "ready": false
+            },
+            {
+              "kind": "ultimate",
+              "operatorId": "Si",
+              "ready": true
+            },
+            {
+              "kind": "ultimate",
+              "operatorId": "Si",
+              "ready": false
+            },
+            {
+              "kind": "ultimateCharge",
+              "operatorId": "Laevatain",
+              "is": "AtLeast",
+              "percent": 100
+            },
+            {
+              "kind": "ultimateCharge",
+              "operatorId": "Laevatain",
+              "is": "AtMost",
+              "percent": 80
+            },
+            {
+              "kind": "ultimateCharge",
+              "operatorId": "Laevatain",
+              "is": "Exactly",
+              "percent": 60
+            },
+            {
+              "kind": "ultimateCharge",
+              "operatorId": "Laevatain",
+              "is": "Below",
+              "percent": 40
+            },
+            {
+              "kind": "ultimateCharge",
+              "operatorId": "Laevatain",
+              "is": "Above",
+              "percent": 20
+            },
+            {
+              "kind": "ultimateActive",
+              "operatorId": "Arcane",
+              "active": true
+            },
+            {
+              "kind": "ultimateActive",
+              "operatorId": "Arcane",
+              "active": false
+            },
+            {
+              "kind": "ultimateTimeLeft",
+              "operatorId": "Laevatain",
+              "is": "AtLeast",
+              "percent": 0
+            },
+            {
+              "kind": "ultimateTimeLeft",
+              "operatorId": "Laevatain",
+              "is": "AtMost",
+              "percent": 15
+            },
+            {
+              "kind": "ultimateTimeLeft",
+              "operatorId": "Laevatain",
+              "is": "Exactly",
+              "percent": 30
+            },
+            {
+              "kind": "ultimateTimeLeft",
+              "operatorId": "Laevatain",
+              "is": "Below",
+              "percent": 45
+            },
+            {
+              "kind": "ultimateTimeLeft",
+              "operatorId": "Laevatain",
+              "is": "Above",
+              "percent": 60
+            },
+            {
+              "kind": "battleSkillActive",
+              "operatorId": "Si",
+              "active": true
+            },
+            {
+              "kind": "battleSkillActive",
+              "operatorId": "Si",
+              "active": false
+            },
+            {
+              "kind": "battleSkillEmpowered",
+              "operatorId": "Laevatain",
+              "empowered": true
+            },
+            {
+              "kind": "battleSkillEmpowered",
+              "operatorId": "Laevatain",
+              "empowered": false
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Laevatain",
+              "counterId": "melting-flame",
+              "is": "AtLeast",
+              "value": 0
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Laevatain",
+              "counterId": "melting-flame",
+              "is": "AtMost",
+              "value": 1
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Laevatain",
+              "counterId": "melting-flame",
+              "is": "Exactly",
+              "value": 2
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Laevatain",
+              "counterId": "melting-flame",
+              "is": "Below",
+              "value": 3
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Laevatain",
+              "counterId": "melting-flame",
+              "is": "Above",
+              "value": 4
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Si",
+              "counterId": "damage-stacks",
+              "is": "AtLeast",
+              "value": 0
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Si",
+              "counterId": "damage-stacks",
+              "is": "AtMost",
+              "value": 1
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Si",
+              "counterId": "damage-stacks",
+              "is": "Exactly",
+              "value": 2
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Si",
+              "counterId": "damage-stacks",
+              "is": "Below",
+              "value": 3
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Si",
+              "counterId": "damage-stacks",
+              "is": "Above",
+              "value": 4
+            },
+            {
+              "kind": "teamBuff",
+              "buffId": "Link",
+              "is": "AtLeast",
+              "value": 0
+            },
+            {
+              "kind": "teamBuff",
+              "buffId": "Link",
+              "is": "AtMost",
+              "value": 1
+            },
+            {
+              "kind": "teamBuff",
+              "buffId": "Link",
+              "is": "Exactly",
+              "value": 2
+            },
+            {
+              "kind": "teamBuff",
+              "buffId": "Link",
+              "is": "Below",
+              "value": 3
+            },
+            {
+              "kind": "teamBuff",
+              "buffId": "Link",
+              "is": "Above",
+              "value": 4
+            },
+            {
+              "kind": "bossStatus",
+              "statusId": "Heat Infliction",
+              "present": true,
+              "minStacks": 3
+            },
+            {
+              "kind": "bossStatus",
+              "statusId": "Cryo Infliction",
+              "present": false,
+              "minStacks": 1
+            },
+            {
+              "kind": "controlling",
+              "operatorId": "Laevatain"
+            },
+            {
+              "kind": "phaseShown",
+              "phaseId": "burst",
+              "is": "AtLeast",
+              "times": 1
+            },
+            {
+              "kind": "phaseShown",
+              "phaseId": "burst",
+              "is": "AtMost",
+              "times": 2
+            },
+            {
+              "kind": "phaseShown",
+              "phaseId": "burst",
+              "is": "Exactly",
+              "times": 3
+            },
+            {
+              "kind": "phaseShown",
+              "phaseId": "burst",
+              "is": "Below",
+              "times": 4
+            },
+            {
+              "kind": "phaseShown",
+              "phaseId": "burst",
+              "is": "Above",
+              "times": 5
+            },
+            {
+              "kind": "phasePlayed",
+              "phaseId": "burst",
+              "is": "AtLeast",
+              "times": 0
+            },
+            {
+              "kind": "phasePlayed",
+              "phaseId": "burst",
+              "is": "AtMost",
+              "times": 1
+            },
+            {
+              "kind": "phasePlayed",
+              "phaseId": "burst",
+              "is": "Exactly",
+              "times": 2
+            },
+            {
+              "kind": "phasePlayed",
+              "phaseId": "burst",
+              "is": "Below",
+              "times": 3
+            },
+            {
+              "kind": "phasePlayed",
+              "phaseId": "burst",
+              "is": "Above",
+              "times": 4
+            },
+            {
+              "kind": "phaseCurrent",
+              "phaseId": "burst",
+              "playedThrough": null
+            },
+            {
+              "kind": "phaseCurrent",
+              "phaseId": "burst",
+              "playedThrough": true
+            },
+            {
+              "kind": "phaseCurrent",
+              "phaseId": "burst",
+              "playedThrough": false
+            },
+            {
+              "kind": "all",
+              "of": [
+                {
+                  "kind": "skillPoints",
+                  "is": "AtLeast",
+                  "value": 1.5
+                },
+                {
+                  "kind": "not",
+                  "of": {
+                    "kind": "combo",
+                    "operatorId": "Tangtang",
+                    "ready": true
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "all",
+              "of": [
+                {
+                  "kind": "any",
+                  "of": [
+                    {
+                      "kind": "not",
+                      "of": {
+                        "kind": "all",
+                        "of": [
+                          {
+                            "kind": "not",
+                            "of": {
+                              "kind": "bossStatus",
+                              "statusId": "Corrosion",
+                              "present": true,
+                              "minStacks": 2
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "kind": "controlling",
+                  "operatorId": "Tangtang"
+                }
+              ]
+            },
+            {
+              "kind": "any",
+              "of": [
+                {
+                  "kind": "ultimate",
+                  "operatorId": "Si",
+                  "ready": true
+                },
+                {
+                  "kind": "all",
+                  "of": [
+                    {
+                      "kind": "skillPoints",
+                      "is": "Below",
+                      "value": 2
+                    },
+                    {
+                      "kind": "battleSkill",
+                      "operatorId": "Si",
+                      "ready": false
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "not",
+              "of": {
+                "kind": "skillPoints",
+                "is": "Above",
+                "value": 2.5
+              }
+            },
+            {
+              "kind": "not",
+              "of": {
+                "kind": "any",
+                "of": [
+                  {
+                    "kind": "all",
+                    "of": [
+                      {
+                        "kind": "combo",
+                        "operatorId": "Laevatain",
+                        "ready": false
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "operatorId": "",
+          "action": "Condition",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": [
+            {
+              "kind": "bossStatus",
+              "statusId": "Vulnerable",
+              "present": true,
+              "minStacks": 4
+            }
+          ]
+        },
+        {
+          "operatorId": "controlled",
+          "action": "HeavyAttack",
+          "note": null,
+          "label": null,
+          "withPrevious": true,
+          "expect": []
+        }
+      ],
+      "when": [],
+      "finish": [
+        {
+          "kind": "skillPoints",
+          "is": "AtLeast",
+          "value": 0.25
+        },
+        {
+          "kind": "skillPoints",
+          "is": "AtMost",
+          "value": 1
+        },
+        {
+          "kind": "skillPoints",
+          "is": "Exactly",
+          "value": 1.75
+        },
+        {
+          "kind": "skillPoints",
+          "is": "Below",
+          "value": 2.5
+        },
+        {
+          "kind": "skillPoints",
+          "is": "Above",
+          "value": 3.25
+        },
+        {
+          "kind": "combo",
+          "operatorId": "Laevatain",
+          "ready": true
+        },
+        {
+          "kind": "combo",
+          "operatorId": "Laevatain",
+          "ready": false
+        },
+        {
+          "kind": "comboCharge",
+          "operatorId": "Arcane",
+          "is": "AtLeast",
+          "percent": 0
+        },
+        {
+          "kind": "comboCharge",
+          "operatorId": "Arcane",
+          "is": "AtMost",
+          "percent": 25
+        },
+        {
+          "kind": "comboCharge",
+          "operatorId": "Arcane",
+          "is": "Exactly",
+          "percent": 50
+        },
+        {
+          "kind": "comboCharge",
+          "operatorId": "Arcane",
+          "is": "Below",
+          "percent": 75
+        },
+        {
+          "kind": "comboCharge",
+          "operatorId": "Arcane",
+          "is": "Above",
+          "percent": 100
+        },
+        {
+          "kind": "battleSkill",
+          "operatorId": "Tangtang",
+          "ready": true
+        },
+        {
+          "kind": "battleSkill",
+          "operatorId": "Tangtang",
+          "ready": false
+        },
+        {
+          "kind": "ultimate",
+          "operatorId": "Si",
+          "ready": true
+        },
+        {
+          "kind": "ultimate",
+          "operatorId": "Si",
+          "ready": false
+        },
+        {
+          "kind": "ultimateCharge",
+          "operatorId": "Laevatain",
+          "is": "AtLeast",
+          "percent": 100
+        },
+        {
+          "kind": "ultimateCharge",
+          "operatorId": "Laevatain",
+          "is": "AtMost",
+          "percent": 80
+        },
+        {
+          "kind": "ultimateCharge",
+          "operatorId": "Laevatain",
+          "is": "Exactly",
+          "percent": 60
+        },
+        {
+          "kind": "ultimateCharge",
+          "operatorId": "Laevatain",
+          "is": "Below",
+          "percent": 40
+        },
+        {
+          "kind": "ultimateCharge",
+          "operatorId": "Laevatain",
+          "is": "Above",
+          "percent": 20
+        },
+        {
+          "kind": "ultimateActive",
+          "operatorId": "Arcane",
+          "active": true
+        },
+        {
+          "kind": "ultimateActive",
+          "operatorId": "Arcane",
+          "active": false
+        },
+        {
+          "kind": "ultimateTimeLeft",
+          "operatorId": "Laevatain",
+          "is": "AtLeast",
+          "percent": 0
+        },
+        {
+          "kind": "ultimateTimeLeft",
+          "operatorId": "Laevatain",
+          "is": "AtMost",
+          "percent": 15
+        },
+        {
+          "kind": "ultimateTimeLeft",
+          "operatorId": "Laevatain",
+          "is": "Exactly",
+          "percent": 30
+        },
+        {
+          "kind": "ultimateTimeLeft",
+          "operatorId": "Laevatain",
+          "is": "Below",
+          "percent": 45
+        },
+        {
+          "kind": "ultimateTimeLeft",
+          "operatorId": "Laevatain",
+          "is": "Above",
+          "percent": 60
+        },
+        {
+          "kind": "battleSkillActive",
+          "operatorId": "Si",
+          "active": true
+        },
+        {
+          "kind": "battleSkillActive",
+          "operatorId": "Si",
+          "active": false
+        },
+        {
+          "kind": "battleSkillEmpowered",
+          "operatorId": "Laevatain",
+          "empowered": true
+        },
+        {
+          "kind": "battleSkillEmpowered",
+          "operatorId": "Laevatain",
+          "empowered": false
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Laevatain",
+          "counterId": "melting-flame",
+          "is": "AtLeast",
+          "value": 0
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Laevatain",
+          "counterId": "melting-flame",
+          "is": "AtMost",
+          "value": 1
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Laevatain",
+          "counterId": "melting-flame",
+          "is": "Exactly",
+          "value": 2
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Laevatain",
+          "counterId": "melting-flame",
+          "is": "Below",
+          "value": 3
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Laevatain",
+          "counterId": "melting-flame",
+          "is": "Above",
+          "value": 4
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Si",
+          "counterId": "damage-stacks",
+          "is": "AtLeast",
+          "value": 0
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Si",
+          "counterId": "damage-stacks",
+          "is": "AtMost",
+          "value": 1
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Si",
+          "counterId": "damage-stacks",
+          "is": "Exactly",
+          "value": 2
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Si",
+          "counterId": "damage-stacks",
+          "is": "Below",
+          "value": 3
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Si",
+          "counterId": "damage-stacks",
+          "is": "Above",
+          "value": 4
+        },
+        {
+          "kind": "teamBuff",
+          "buffId": "Link",
+          "is": "AtLeast",
+          "value": 0
+        },
+        {
+          "kind": "teamBuff",
+          "buffId": "Link",
+          "is": "AtMost",
+          "value": 1
+        },
+        {
+          "kind": "teamBuff",
+          "buffId": "Link",
+          "is": "Exactly",
+          "value": 2
+        },
+        {
+          "kind": "teamBuff",
+          "buffId": "Link",
+          "is": "Below",
+          "value": 3
+        },
+        {
+          "kind": "teamBuff",
+          "buffId": "Link",
+          "is": "Above",
+          "value": 4
+        },
+        {
+          "kind": "bossStatus",
+          "statusId": "Heat Infliction",
+          "present": true,
+          "minStacks": 3
+        },
+        {
+          "kind": "bossStatus",
+          "statusId": "Cryo Infliction",
+          "present": false,
+          "minStacks": 1
+        },
+        {
+          "kind": "controlling",
+          "operatorId": "Laevatain"
+        },
+        {
+          "kind": "phaseShown",
+          "phaseId": "burst",
+          "is": "AtLeast",
+          "times": 1
+        },
+        {
+          "kind": "phaseShown",
+          "phaseId": "burst",
+          "is": "AtMost",
+          "times": 2
+        },
+        {
+          "kind": "phaseShown",
+          "phaseId": "burst",
+          "is": "Exactly",
+          "times": 3
+        },
+        {
+          "kind": "phaseShown",
+          "phaseId": "burst",
+          "is": "Below",
+          "times": 4
+        },
+        {
+          "kind": "phaseShown",
+          "phaseId": "burst",
+          "is": "Above",
+          "times": 5
+        },
+        {
+          "kind": "phasePlayed",
+          "phaseId": "burst",
+          "is": "AtLeast",
+          "times": 0
+        },
+        {
+          "kind": "phasePlayed",
+          "phaseId": "burst",
+          "is": "AtMost",
+          "times": 1
+        },
+        {
+          "kind": "phasePlayed",
+          "phaseId": "burst",
+          "is": "Exactly",
+          "times": 2
+        },
+        {
+          "kind": "phasePlayed",
+          "phaseId": "burst",
+          "is": "Below",
+          "times": 3
+        },
+        {
+          "kind": "phasePlayed",
+          "phaseId": "burst",
+          "is": "Above",
+          "times": 4
+        },
+        {
+          "kind": "phaseCurrent",
+          "phaseId": "burst",
+          "playedThrough": null
+        },
+        {
+          "kind": "phaseCurrent",
+          "phaseId": "burst",
+          "playedThrough": true
+        },
+        {
+          "kind": "phaseCurrent",
+          "phaseId": "burst",
+          "playedThrough": false
+        },
+        {
+          "kind": "stepsLit",
+          "which": "All"
+        },
+        {
+          "kind": "stepsLit",
+          "which": "AtLeast",
+          "count": 1
+        },
+        {
+          "kind": "stepsLit",
+          "which": "AtLeast",
+          "count": 6
+        },
+        {
+          "kind": "stepsLit",
+          "which": "These",
+          "steps": [
+            1,
+            2,
+            3,
+            10,
+            11,
+            12
+          ]
+        },
+        {
+          "kind": "all",
+          "of": [
+            {
+              "kind": "skillPoints",
+              "is": "AtLeast",
+              "value": 1.5
+            },
+            {
+              "kind": "not",
+              "of": {
+                "kind": "combo",
+                "operatorId": "Tangtang",
+                "ready": true
+              }
+            }
+          ]
+        },
+        {
+          "kind": "all",
+          "of": [
+            {
+              "kind": "any",
+              "of": [
+                {
+                  "kind": "not",
+                  "of": {
+                    "kind": "all",
+                    "of": [
+                      {
+                        "kind": "not",
+                        "of": {
+                          "kind": "bossStatus",
+                          "statusId": "Corrosion",
+                          "present": true,
+                          "minStacks": 2
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "controlling",
+              "operatorId": "Tangtang"
+            }
+          ]
+        },
+        {
+          "kind": "any",
+          "of": [
+            {
+              "kind": "ultimate",
+              "operatorId": "Si",
+              "ready": true
+            },
+            {
+              "kind": "all",
+              "of": [
+                {
+                  "kind": "skillPoints",
+                  "is": "Below",
+                  "value": 2
+                },
+                {
+                  "kind": "battleSkill",
+                  "operatorId": "Si",
+                  "ready": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "not",
+          "of": {
+            "kind": "skillPoints",
+            "is": "Above",
+            "value": 2.5
+          }
+        },
+        {
+          "kind": "not",
+          "of": {
+            "kind": "any",
+            "of": [
+              {
+                "kind": "all",
+                "of": [
+                  {
+                    "kind": "combo",
+                    "operatorId": "Laevatain",
+                    "ready": false
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "burst",
+      "name": "爆发轴",
+      "steps": [
+        {
+          "operatorId": "controlled",
+          "action": "PlungeAttack",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Laevatain",
+          "action": "Ultimate",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": [
+            {
+              "kind": "ultimate",
+              "operatorId": "Laevatain",
+              "ready": true
+            }
+          ]
+        },
+        {
+          "operatorId": "Si",
+          "action": "Combo",
+          "note": null,
+          "label": null,
+          "withPrevious": true,
+          "expect": []
+        }
+      ],
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtLeast",
+          "value": 0.25
+        },
+        {
+          "kind": "skillPoints",
+          "is": "AtMost",
+          "value": 1
+        },
+        {
+          "kind": "skillPoints",
+          "is": "Exactly",
+          "value": 1.75
+        },
+        {
+          "kind": "skillPoints",
+          "is": "Below",
+          "value": 2.5
+        },
+        {
+          "kind": "skillPoints",
+          "is": "Above",
+          "value": 3.25
+        },
+        {
+          "kind": "combo",
+          "operatorId": "Laevatain",
+          "ready": true
+        },
+        {
+          "kind": "combo",
+          "operatorId": "Laevatain",
+          "ready": false
+        },
+        {
+          "kind": "comboCharge",
+          "operatorId": "Arcane",
+          "is": "AtLeast",
+          "percent": 0
+        },
+        {
+          "kind": "comboCharge",
+          "operatorId": "Arcane",
+          "is": "AtMost",
+          "percent": 25
+        },
+        {
+          "kind": "comboCharge",
+          "operatorId": "Arcane",
+          "is": "Exactly",
+          "percent": 50
+        },
+        {
+          "kind": "comboCharge",
+          "operatorId": "Arcane",
+          "is": "Below",
+          "percent": 75
+        },
+        {
+          "kind": "comboCharge",
+          "operatorId": "Arcane",
+          "is": "Above",
+          "percent": 100
+        },
+        {
+          "kind": "battleSkill",
+          "operatorId": "Tangtang",
+          "ready": true
+        },
+        {
+          "kind": "battleSkill",
+          "operatorId": "Tangtang",
+          "ready": false
+        },
+        {
+          "kind": "ultimate",
+          "operatorId": "Si",
+          "ready": true
+        },
+        {
+          "kind": "ultimate",
+          "operatorId": "Si",
+          "ready": false
+        },
+        {
+          "kind": "ultimateCharge",
+          "operatorId": "Laevatain",
+          "is": "AtLeast",
+          "percent": 100
+        },
+        {
+          "kind": "ultimateCharge",
+          "operatorId": "Laevatain",
+          "is": "AtMost",
+          "percent": 80
+        },
+        {
+          "kind": "ultimateCharge",
+          "operatorId": "Laevatain",
+          "is": "Exactly",
+          "percent": 60
+        },
+        {
+          "kind": "ultimateCharge",
+          "operatorId": "Laevatain",
+          "is": "Below",
+          "percent": 40
+        },
+        {
+          "kind": "ultimateCharge",
+          "operatorId": "Laevatain",
+          "is": "Above",
+          "percent": 20
+        },
+        {
+          "kind": "ultimateActive",
+          "operatorId": "Arcane",
+          "active": true
+        },
+        {
+          "kind": "ultimateActive",
+          "operatorId": "Arcane",
+          "active": false
+        },
+        {
+          "kind": "ultimateTimeLeft",
+          "operatorId": "Laevatain",
+          "is": "AtLeast",
+          "percent": 0
+        },
+        {
+          "kind": "ultimateTimeLeft",
+          "operatorId": "Laevatain",
+          "is": "AtMost",
+          "percent": 15
+        },
+        {
+          "kind": "ultimateTimeLeft",
+          "operatorId": "Laevatain",
+          "is": "Exactly",
+          "percent": 30
+        },
+        {
+          "kind": "ultimateTimeLeft",
+          "operatorId": "Laevatain",
+          "is": "Below",
+          "percent": 45
+        },
+        {
+          "kind": "ultimateTimeLeft",
+          "operatorId": "Laevatain",
+          "is": "Above",
+          "percent": 60
+        },
+        {
+          "kind": "battleSkillActive",
+          "operatorId": "Si",
+          "active": true
+        },
+        {
+          "kind": "battleSkillActive",
+          "operatorId": "Si",
+          "active": false
+        },
+        {
+          "kind": "battleSkillEmpowered",
+          "operatorId": "Laevatain",
+          "empowered": true
+        },
+        {
+          "kind": "battleSkillEmpowered",
+          "operatorId": "Laevatain",
+          "empowered": false
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Laevatain",
+          "counterId": "melting-flame",
+          "is": "AtLeast",
+          "value": 0
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Laevatain",
+          "counterId": "melting-flame",
+          "is": "AtMost",
+          "value": 1
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Laevatain",
+          "counterId": "melting-flame",
+          "is": "Exactly",
+          "value": 2
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Laevatain",
+          "counterId": "melting-flame",
+          "is": "Below",
+          "value": 3
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Laevatain",
+          "counterId": "melting-flame",
+          "is": "Above",
+          "value": 4
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Si",
+          "counterId": "damage-stacks",
+          "is": "AtLeast",
+          "value": 0
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Si",
+          "counterId": "damage-stacks",
+          "is": "AtMost",
+          "value": 1
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Si",
+          "counterId": "damage-stacks",
+          "is": "Exactly",
+          "value": 2
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Si",
+          "counterId": "damage-stacks",
+          "is": "Below",
+          "value": 3
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Si",
+          "counterId": "damage-stacks",
+          "is": "Above",
+          "value": 4
+        },
+        {
+          "kind": "teamBuff",
+          "buffId": "Link",
+          "is": "AtLeast",
+          "value": 0
+        },
+        {
+          "kind": "teamBuff",
+          "buffId": "Link",
+          "is": "AtMost",
+          "value": 1
+        },
+        {
+          "kind": "teamBuff",
+          "buffId": "Link",
+          "is": "Exactly",
+          "value": 2
+        },
+        {
+          "kind": "teamBuff",
+          "buffId": "Link",
+          "is": "Below",
+          "value": 3
+        },
+        {
+          "kind": "teamBuff",
+          "buffId": "Link",
+          "is": "Above",
+          "value": 4
+        },
+        {
+          "kind": "bossStatus",
+          "statusId": "Heat Infliction",
+          "present": true,
+          "minStacks": 3
+        },
+        {
+          "kind": "bossStatus",
+          "statusId": "Cryo Infliction",
+          "present": false,
+          "minStacks": 1
+        },
+        {
+          "kind": "controlling",
+          "operatorId": "Laevatain"
+        },
+        {
+          "kind": "phaseShown",
+          "phaseId": "opener",
+          "is": "AtLeast",
+          "times": 1
+        },
+        {
+          "kind": "phaseShown",
+          "phaseId": "opener",
+          "is": "AtMost",
+          "times": 2
+        },
+        {
+          "kind": "phaseShown",
+          "phaseId": "opener",
+          "is": "Exactly",
+          "times": 3
+        },
+        {
+          "kind": "phaseShown",
+          "phaseId": "opener",
+          "is": "Below",
+          "times": 4
+        },
+        {
+          "kind": "phaseShown",
+          "phaseId": "opener",
+          "is": "Above",
+          "times": 5
+        },
+        {
+          "kind": "phasePlayed",
+          "phaseId": "opener",
+          "is": "AtLeast",
+          "times": 0
+        },
+        {
+          "kind": "phasePlayed",
+          "phaseId": "opener",
+          "is": "AtMost",
+          "times": 1
+        },
+        {
+          "kind": "phasePlayed",
+          "phaseId": "opener",
+          "is": "Exactly",
+          "times": 2
+        },
+        {
+          "kind": "phasePlayed",
+          "phaseId": "opener",
+          "is": "Below",
+          "times": 3
+        },
+        {
+          "kind": "phasePlayed",
+          "phaseId": "opener",
+          "is": "Above",
+          "times": 4
+        },
+        {
+          "kind": "phaseCurrent",
+          "phaseId": "opener",
+          "playedThrough": null
+        },
+        {
+          "kind": "phaseCurrent",
+          "phaseId": "opener",
+          "playedThrough": true
+        },
+        {
+          "kind": "phaseCurrent",
+          "phaseId": "opener",
+          "playedThrough": false
+        },
+        {
+          "kind": "all",
+          "of": [
+            {
+              "kind": "skillPoints",
+              "is": "AtLeast",
+              "value": 1.5
+            },
+            {
+              "kind": "not",
+              "of": {
+                "kind": "combo",
+                "operatorId": "Tangtang",
+                "ready": true
+              }
+            }
+          ]
+        },
+        {
+          "kind": "all",
+          "of": [
+            {
+              "kind": "any",
+              "of": [
+                {
+                  "kind": "not",
+                  "of": {
+                    "kind": "all",
+                    "of": [
+                      {
+                        "kind": "not",
+                        "of": {
+                          "kind": "bossStatus",
+                          "statusId": "Corrosion",
+                          "present": true,
+                          "minStacks": 2
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "controlling",
+              "operatorId": "Tangtang"
+            }
+          ]
+        },
+        {
+          "kind": "any",
+          "of": [
+            {
+              "kind": "ultimate",
+              "operatorId": "Si",
+              "ready": true
+            },
+            {
+              "kind": "all",
+              "of": [
+                {
+                  "kind": "skillPoints",
+                  "is": "Below",
+                  "value": 2
+                },
+                {
+                  "kind": "battleSkill",
+                  "operatorId": "Si",
+                  "ready": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "not",
+          "of": {
+            "kind": "skillPoints",
+            "is": "Above",
+            "value": 2.5
+          }
+        },
+        {
+          "kind": "not",
+          "of": {
+            "kind": "any",
+            "of": [
+              {
+                "kind": "all",
+                "of": [
+                  {
+                    "kind": "combo",
+                    "operatorId": "Laevatain",
+                    "ready": false
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "priority": 5,
+      "priorityRules": [
+        {
+          "priority": 10,
+          "when": [
+            {
+              "kind": "skillPoints",
+              "is": "AtLeast",
+              "value": 0.25
+            },
+            {
+              "kind": "skillPoints",
+              "is": "AtMost",
+              "value": 1
+            },
+            {
+              "kind": "skillPoints",
+              "is": "Exactly",
+              "value": 1.75
+            },
+            {
+              "kind": "skillPoints",
+              "is": "Below",
+              "value": 2.5
+            },
+            {
+              "kind": "skillPoints",
+              "is": "Above",
+              "value": 3.25
+            },
+            {
+              "kind": "combo",
+              "operatorId": "Laevatain",
+              "ready": true
+            },
+            {
+              "kind": "combo",
+              "operatorId": "Laevatain",
+              "ready": false
+            },
+            {
+              "kind": "comboCharge",
+              "operatorId": "Arcane",
+              "is": "AtLeast",
+              "percent": 0
+            },
+            {
+              "kind": "comboCharge",
+              "operatorId": "Arcane",
+              "is": "AtMost",
+              "percent": 25
+            },
+            {
+              "kind": "comboCharge",
+              "operatorId": "Arcane",
+              "is": "Exactly",
+              "percent": 50
+            },
+            {
+              "kind": "comboCharge",
+              "operatorId": "Arcane",
+              "is": "Below",
+              "percent": 75
+            },
+            {
+              "kind": "comboCharge",
+              "operatorId": "Arcane",
+              "is": "Above",
+              "percent": 100
+            },
+            {
+              "kind": "battleSkill",
+              "operatorId": "Tangtang",
+              "ready": true
+            },
+            {
+              "kind": "battleSkill",
+              "operatorId": "Tangtang",
+              "ready": false
+            },
+            {
+              "kind": "ultimate",
+              "operatorId": "Si",
+              "ready": true
+            },
+            {
+              "kind": "ultimate",
+              "operatorId": "Si",
+              "ready": false
+            },
+            {
+              "kind": "ultimateCharge",
+              "operatorId": "Laevatain",
+              "is": "AtLeast",
+              "percent": 100
+            },
+            {
+              "kind": "ultimateCharge",
+              "operatorId": "Laevatain",
+              "is": "AtMost",
+              "percent": 80
+            },
+            {
+              "kind": "ultimateCharge",
+              "operatorId": "Laevatain",
+              "is": "Exactly",
+              "percent": 60
+            },
+            {
+              "kind": "ultimateCharge",
+              "operatorId": "Laevatain",
+              "is": "Below",
+              "percent": 40
+            },
+            {
+              "kind": "ultimateCharge",
+              "operatorId": "Laevatain",
+              "is": "Above",
+              "percent": 20
+            },
+            {
+              "kind": "ultimateActive",
+              "operatorId": "Arcane",
+              "active": true
+            },
+            {
+              "kind": "ultimateActive",
+              "operatorId": "Arcane",
+              "active": false
+            },
+            {
+              "kind": "ultimateTimeLeft",
+              "operatorId": "Laevatain",
+              "is": "AtLeast",
+              "percent": 0
+            },
+            {
+              "kind": "ultimateTimeLeft",
+              "operatorId": "Laevatain",
+              "is": "AtMost",
+              "percent": 15
+            },
+            {
+              "kind": "ultimateTimeLeft",
+              "operatorId": "Laevatain",
+              "is": "Exactly",
+              "percent": 30
+            },
+            {
+              "kind": "ultimateTimeLeft",
+              "operatorId": "Laevatain",
+              "is": "Below",
+              "percent": 45
+            },
+            {
+              "kind": "ultimateTimeLeft",
+              "operatorId": "Laevatain",
+              "is": "Above",
+              "percent": 60
+            },
+            {
+              "kind": "battleSkillActive",
+              "operatorId": "Si",
+              "active": true
+            },
+            {
+              "kind": "battleSkillActive",
+              "operatorId": "Si",
+              "active": false
+            },
+            {
+              "kind": "battleSkillEmpowered",
+              "operatorId": "Laevatain",
+              "empowered": true
+            },
+            {
+              "kind": "battleSkillEmpowered",
+              "operatorId": "Laevatain",
+              "empowered": false
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Laevatain",
+              "counterId": "melting-flame",
+              "is": "AtLeast",
+              "value": 0
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Laevatain",
+              "counterId": "melting-flame",
+              "is": "AtMost",
+              "value": 1
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Laevatain",
+              "counterId": "melting-flame",
+              "is": "Exactly",
+              "value": 2
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Laevatain",
+              "counterId": "melting-flame",
+              "is": "Below",
+              "value": 3
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Laevatain",
+              "counterId": "melting-flame",
+              "is": "Above",
+              "value": 4
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Si",
+              "counterId": "damage-stacks",
+              "is": "AtLeast",
+              "value": 0
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Si",
+              "counterId": "damage-stacks",
+              "is": "AtMost",
+              "value": 1
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Si",
+              "counterId": "damage-stacks",
+              "is": "Exactly",
+              "value": 2
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Si",
+              "counterId": "damage-stacks",
+              "is": "Below",
+              "value": 3
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Si",
+              "counterId": "damage-stacks",
+              "is": "Above",
+              "value": 4
+            },
+            {
+              "kind": "teamBuff",
+              "buffId": "Link",
+              "is": "AtLeast",
+              "value": 0
+            },
+            {
+              "kind": "teamBuff",
+              "buffId": "Link",
+              "is": "AtMost",
+              "value": 1
+            },
+            {
+              "kind": "teamBuff",
+              "buffId": "Link",
+              "is": "Exactly",
+              "value": 2
+            },
+            {
+              "kind": "teamBuff",
+              "buffId": "Link",
+              "is": "Below",
+              "value": 3
+            },
+            {
+              "kind": "teamBuff",
+              "buffId": "Link",
+              "is": "Above",
+              "value": 4
+            },
+            {
+              "kind": "bossStatus",
+              "statusId": "Heat Infliction",
+              "present": true,
+              "minStacks": 3
+            },
+            {
+              "kind": "bossStatus",
+              "statusId": "Cryo Infliction",
+              "present": false,
+              "minStacks": 1
+            },
+            {
+              "kind": "controlling",
+              "operatorId": "Laevatain"
+            },
+            {
+              "kind": "phaseShown",
+              "phaseId": "opener",
+              "is": "AtLeast",
+              "times": 1
+            },
+            {
+              "kind": "phaseShown",
+              "phaseId": "opener",
+              "is": "AtMost",
+              "times": 2
+            },
+            {
+              "kind": "phaseShown",
+              "phaseId": "opener",
+              "is": "Exactly",
+              "times": 3
+            },
+            {
+              "kind": "phaseShown",
+              "phaseId": "opener",
+              "is": "Below",
+              "times": 4
+            },
+            {
+              "kind": "phaseShown",
+              "phaseId": "opener",
+              "is": "Above",
+              "times": 5
+            },
+            {
+              "kind": "phasePlayed",
+              "phaseId": "opener",
+              "is": "AtLeast",
+              "times": 0
+            },
+            {
+              "kind": "phasePlayed",
+              "phaseId": "opener",
+              "is": "AtMost",
+              "times": 1
+            },
+            {
+              "kind": "phasePlayed",
+              "phaseId": "opener",
+              "is": "Exactly",
+              "times": 2
+            },
+            {
+              "kind": "phasePlayed",
+              "phaseId": "opener",
+              "is": "Below",
+              "times": 3
+            },
+            {
+              "kind": "phasePlayed",
+              "phaseId": "opener",
+              "is": "Above",
+              "times": 4
+            },
+            {
+              "kind": "phaseCurrent",
+              "phaseId": "opener",
+              "playedThrough": null
+            },
+            {
+              "kind": "phaseCurrent",
+              "phaseId": "opener",
+              "playedThrough": true
+            },
+            {
+              "kind": "phaseCurrent",
+              "phaseId": "opener",
+              "playedThrough": false
+            },
+            {
+              "kind": "all",
+              "of": [
+                {
+                  "kind": "skillPoints",
+                  "is": "AtLeast",
+                  "value": 1.5
+                },
+                {
+                  "kind": "not",
+                  "of": {
+                    "kind": "combo",
+                    "operatorId": "Tangtang",
+                    "ready": true
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "all",
+              "of": [
+                {
+                  "kind": "any",
+                  "of": [
+                    {
+                      "kind": "not",
+                      "of": {
+                        "kind": "all",
+                        "of": [
+                          {
+                            "kind": "not",
+                            "of": {
+                              "kind": "bossStatus",
+                              "statusId": "Corrosion",
+                              "present": true,
+                              "minStacks": 2
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "kind": "controlling",
+                  "operatorId": "Tangtang"
+                }
+              ]
+            },
+            {
+              "kind": "any",
+              "of": [
+                {
+                  "kind": "ultimate",
+                  "operatorId": "Si",
+                  "ready": true
+                },
+                {
+                  "kind": "all",
+                  "of": [
+                    {
+                      "kind": "skillPoints",
+                      "is": "Below",
+                      "value": 2
+                    },
+                    {
+                      "kind": "battleSkill",
+                      "operatorId": "Si",
+                      "ready": false
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "not",
+              "of": {
+                "kind": "skillPoints",
+                "is": "Above",
+                "value": 2.5
+              }
+            },
+            {
+              "kind": "not",
+              "of": {
+                "kind": "any",
+                "of": [
+                  {
+                    "kind": "all",
+                    "of": [
+                      {
+                        "kind": "combo",
+                        "operatorId": "Laevatain",
+                        "ready": false
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "priority": -3,
+          "when": [
+            {
+              "kind": "not",
+              "of": {
+                "kind": "any",
+                "of": [
+                  {
+                    "kind": "ultimateActive",
+                    "operatorId": "Laevatain",
+                    "active": true
+                  },
+                  {
+                    "kind": "phaseCurrent",
+                    "phaseId": "loop",
+                    "playedThrough": true
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "loop",
+      "name": "循环 \u0022loop\u0022 \\",
+      "steps": [
+        {
+          "operatorId": "controlled",
+          "action": "BasicAttack",
+          "note": "say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天",
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        }
+      ],
+      "when": []
+    }
+  ],
+  "lastMatchWins": true
+}

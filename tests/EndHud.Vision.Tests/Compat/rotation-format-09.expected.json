@@ -1,0 +1,373 @@
+{
+  "format": 9,
+  "id": "si-last-rite-arcane-tangtang",
+  "name": "祀 别礼 诀 汤汤",
+  "squad": [
+    "Si",
+    "Last_Rite",
+    "Arcane",
+    "Tangtang"
+  ],
+  "phases": [
+    {
+      "id": "charge-1",
+      "name": "充能轴",
+      "steps": [
+        {
+          "operatorId": "Si",
+          "action": "BattleSkill",
+          "note": "\u002B1冰",
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Tangtang",
+          "action": "Combo",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "Combo",
+          "note": "\u002B1冰",
+          "label": "连携技·意",
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Last_Rite",
+          "action": "BattleSkill",
+          "note": "\u002B1冰",
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Tangtang",
+          "action": "BattleSkill",
+          "note": "\u002B1冰",
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Last_Rite",
+          "action": "Combo",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Si",
+          "action": "Combo",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        }
+      ],
+      "when": []
+    },
+    {
+      "id": "charge-2",
+      "name": "充能轴",
+      "steps": [
+        {
+          "operatorId": "Si",
+          "action": "BattleSkill",
+          "note": "\u002B1冰",
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Tangtang",
+          "action": "Combo",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "Combo",
+          "note": "\u002B1冰",
+          "label": "连携技·意",
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Last_Rite",
+          "action": "BattleSkill",
+          "note": "\u002B1冰",
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Tangtang",
+          "action": "BattleSkill",
+          "note": "\u002B1冰",
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Last_Rite",
+          "action": "Combo",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Si",
+          "action": "Combo",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        }
+      ],
+      "when": [
+        {
+          "kind": "any",
+          "of": [
+            {
+              "kind": "all",
+              "of": [
+                {
+                  "kind": "any",
+                  "of": [
+                    {
+                      "kind": "phaseCurrent",
+                      "phaseId": "basic-1",
+                      "playedThrough": null
+                    },
+                    {
+                      "kind": "phaseCurrent",
+                      "phaseId": "charge-1",
+                      "playedThrough": true
+                    }
+                  ]
+                },
+                {
+                  "kind": "battleSkillActive",
+                  "operatorId": "Si",
+                  "active": false
+                }
+              ]
+            },
+            {
+              "kind": "phaseCurrent",
+              "phaseId": "charge-2",
+              "playedThrough": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "basic-1",
+      "name": "普攻轴",
+      "steps": [
+        {
+          "operatorId": "Si",
+          "action": "BasicAttack",
+          "note": "继续普攻",
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        }
+      ],
+      "when": [
+        {
+          "kind": "battleSkillActive",
+          "operatorId": "Si",
+          "active": true
+        },
+        {
+          "kind": "any",
+          "of": [
+            {
+              "kind": "phaseCurrent",
+              "phaseId": "charge-1",
+              "playedThrough": true
+            },
+            {
+              "kind": "phaseCurrent",
+              "phaseId": "basic-1",
+              "playedThrough": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "burst",
+      "name": "爆发轴",
+      "steps": [
+        {
+          "operatorId": "Tangtang",
+          "action": "BattleSkill",
+          "note": "\u002B1冰",
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Tangtang",
+          "action": "Combo",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Si",
+          "action": "Ultimate",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Last_Rite",
+          "action": "Ultimate",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Tangtang",
+          "action": "Ultimate",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "Ultimate",
+          "note": "\u002B1冰",
+          "label": "终结技·意",
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "Combo",
+          "note": "\u002B1冰",
+          "label": "连携技·意",
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "controlled",
+          "action": "PlungeAttack",
+          "note": "\u002B1冰",
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Last_Rite",
+          "action": "Combo",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Si",
+          "action": "Combo",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        }
+      ],
+      "when": [
+        {
+          "kind": "any",
+          "of": [
+            {
+              "kind": "all",
+              "of": [
+                {
+                  "kind": "ultimateCharge",
+                  "operatorId": "Si",
+                  "is": "AtLeast",
+                  "percent": 90
+                },
+                {
+                  "kind": "ultimate",
+                  "operatorId": "Last_Rite",
+                  "ready": true
+                },
+                {
+                  "kind": "ultimateCharge",
+                  "operatorId": "Tangtang",
+                  "is": "AtLeast",
+                  "percent": 80
+                },
+                {
+                  "kind": "ultimate",
+                  "operatorId": "Arcane",
+                  "ready": true
+                }
+              ]
+            },
+            {
+              "kind": "phaseCurrent",
+              "phaseId": "burst",
+              "playedThrough": false
+            }
+          ]
+        }
+      ],
+      "priority": 10
+    },
+    {
+      "id": "basic-2",
+      "name": "普攻轴",
+      "steps": [
+        {
+          "operatorId": "Si",
+          "action": "BasicAttack",
+          "note": "继续普攻",
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        }
+      ],
+      "when": [
+        {
+          "kind": "battleSkillActive",
+          "operatorId": "Si",
+          "active": true
+        },
+        {
+          "kind": "any",
+          "of": [
+            {
+              "kind": "phaseCurrent",
+              "phaseId": "charge-2",
+              "playedThrough": true
+            },
+            {
+              "kind": "phaseCurrent",
+              "phaseId": "basic-2",
+              "playedThrough": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

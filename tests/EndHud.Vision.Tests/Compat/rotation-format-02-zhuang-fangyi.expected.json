@@ -1,0 +1,268 @@
+{
+  "format": 2,
+  "id": "zhuang-fangyi-liino-arcane-perlica",
+  "name": "庄方宜 梨诺 诀 佩丽卡",
+  "squad": [
+    "Zhuang_Fangyi",
+    "Liino",
+    "Arcane",
+    "Perlica"
+  ],
+  "phases": [
+    {
+      "id": "charge-1",
+      "name": "充能轴",
+      "steps": [
+        {
+          "operatorId": "Liino",
+          "action": "BattleSkill",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Perlica",
+          "action": "Combo",
+          "note": "重击后 导电",
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Liino",
+          "action": "Combo",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Zhuang_Fangyi",
+          "action": "BattleSkill",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Perlica",
+          "action": "BattleSkill",
+          "note": "⚡\u002B1",
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "Combo",
+          "note": "⚡\u002B1",
+          "label": "连携技·意",
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Zhuang_Fangyi",
+          "action": "Combo",
+          "note": "重击后 导电",
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Liino",
+          "action": "Combo",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Zhuang_Fangyi",
+          "action": "BattleSkill",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        }
+      ],
+      "when": [
+        {
+          "kind": "counter",
+          "operatorId": "Zhuang_Fangyi",
+          "counterId": "sunderblade",
+          "is": "AtMost",
+          "value": 4
+        }
+      ]
+    },
+    {
+      "id": "charge-2",
+      "name": "充能轴",
+      "steps": [
+        {
+          "operatorId": "Perlica",
+          "action": "Combo",
+          "note": "重击后 导电",
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Liino",
+          "action": "Combo",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Zhuang_Fangyi",
+          "action": "BattleSkill",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Perlica",
+          "action": "BattleSkill",
+          "note": "⚡\u002B1",
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "Combo",
+          "note": "⚡\u002B1",
+          "label": "连携技·意",
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "Ultimate",
+          "note": "⚡\u002B1",
+          "label": "终结技·意",
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Zhuang_Fangyi",
+          "action": "Combo",
+          "note": "重击后 导电",
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Liino",
+          "action": "Combo",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Zhuang_Fangyi",
+          "action": "BattleSkill",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        }
+      ],
+      "when": [
+        {
+          "kind": "counter",
+          "operatorId": "Zhuang_Fangyi",
+          "counterId": "sunderblade",
+          "is": "AtLeast",
+          "value": 5
+        },
+        {
+          "kind": "ultimate",
+          "operatorId": "Zhuang_Fangyi",
+          "ready": false
+        }
+      ]
+    },
+    {
+      "id": "burst",
+      "name": "爆发轴",
+      "steps": [
+        {
+          "operatorId": "Perlica",
+          "action": "Combo",
+          "note": "重击后 导电",
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "Ultimate",
+          "note": null,
+          "label": "终结技·意",
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Zhuang_Fangyi",
+          "action": "Ultimate",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Liino",
+          "action": "Ultimate",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Zhuang_Fangyi",
+          "action": "BattleSkill",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Zhuang_Fangyi",
+          "action": "BattleSkill",
+          "note": "重击后",
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Zhuang_Fangyi",
+          "action": "Combo",
+          "note": "导电 再重击",
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        }
+      ],
+      "when": [
+        {
+          "kind": "counter",
+          "operatorId": "Zhuang_Fangyi",
+          "counterId": "sunderblade",
+          "is": "Exactly",
+          "value": 9
+        },
+        {
+          "kind": "ultimate",
+          "operatorId": "Zhuang_Fangyi",
+          "ready": true
+        }
+      ]
+    }
+  ]
+}

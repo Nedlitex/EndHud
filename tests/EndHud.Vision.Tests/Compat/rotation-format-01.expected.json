@@ -1,0 +1,146 @@
+{
+  "format": 2,
+  "id": "laevatain-standard",
+  "name": "莱万汀 标准轴",
+  "squad": [
+    "Laevatain",
+    "Camille",
+    "Arcane",
+    "Ardelia"
+  ],
+  "phases": [
+    {
+      "id": "charge",
+      "name": "充能轴",
+      "steps": [
+        {
+          "operatorId": "Ardelia",
+          "action": "BattleSkill",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": [
+            {
+              "kind": "skillPoints",
+              "is": "AtLeast",
+              "value": 2
+            }
+          ]
+        },
+        {
+          "operatorId": "Camille",
+          "action": "Combo",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "Combo",
+          "note": null,
+          "label": null,
+          "withPrevious": true,
+          "expect": []
+        },
+        {
+          "operatorId": "Laevatain",
+          "action": "BattleSkill",
+          "note": "飞天",
+          "label": "战技·意",
+          "withPrevious": false,
+          "expect": [
+            {
+              "kind": "bossStatus",
+              "statusId": "Heat Infliction",
+              "present": true,
+              "minStacks": 1
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Laevatain",
+              "counterId": "melting-flame",
+              "is": "AtMost",
+              "value": 3
+            }
+          ]
+        }
+      ],
+      "when": []
+    },
+    {
+      "id": "charge-2",
+      "name": "充能轴",
+      "steps": [
+        {
+          "operatorId": "Ardelia",
+          "action": "BattleSkill",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": [
+            {
+              "kind": "skillPoints",
+              "is": "AtLeast",
+              "value": 2
+            }
+          ]
+        },
+        {
+          "operatorId": "Camille",
+          "action": "Combo",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "Combo",
+          "note": null,
+          "label": null,
+          "withPrevious": true,
+          "expect": []
+        },
+        {
+          "operatorId": "Laevatain",
+          "action": "BattleSkill",
+          "note": "飞天",
+          "label": "战技·意",
+          "withPrevious": false,
+          "expect": [
+            {
+              "kind": "bossStatus",
+              "statusId": "Heat Infliction",
+              "present": true,
+              "minStacks": 1
+            },
+            {
+              "kind": "counter",
+              "operatorId": "Laevatain",
+              "counterId": "melting-flame",
+              "is": "AtMost",
+              "value": 3
+            }
+          ]
+        }
+      ],
+      "when": []
+    },
+    {
+      "id": "burst",
+      "name": "爆发轴",
+      "steps": [
+        {
+          "operatorId": "Laevatain",
+          "action": "Ultimate",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        }
+      ],
+      "when": []
+    }
+  ]
+}

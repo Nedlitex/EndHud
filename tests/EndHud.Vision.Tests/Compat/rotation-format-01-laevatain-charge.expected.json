@@ -1,0 +1,147 @@
+{
+  "format": 2,
+  "id": "laevatain-arcane-ardelia-camille",
+  "name": "莱万汀 诀 小羊 卡缪 充能轴",
+  "squad": [
+    "Laevatain",
+    "Arcane",
+    "Ardelia",
+    "Camille"
+  ],
+  "phases": [
+    {
+      "id": "charge-1",
+      "name": "充能轴",
+      "steps": [
+        {
+          "operatorId": "Camille",
+          "action": "BattleSkill",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "Combo",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Camille",
+          "action": "BattleSkill",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Ardelia",
+          "action": "Combo",
+          "note": "重击后",
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Camille",
+          "action": "Combo",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Laevatain",
+          "action": "Combo",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Laevatain",
+          "action": "BattleSkill",
+          "note": null,
+          "label": "强化战技",
+          "withPrevious": false,
+          "expect": []
+        }
+      ],
+      "when": []
+    },
+    {
+      "id": "charge-2",
+      "name": "充能轴",
+      "steps": [
+        {
+          "operatorId": "Camille",
+          "action": "BattleSkill",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "Combo",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Arcane",
+          "action": "Ultimate",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Ardelia",
+          "action": "Combo",
+          "note": "重击后",
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Camille",
+          "action": "Combo",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Laevatain",
+          "action": "Combo",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Laevatain",
+          "action": "BattleSkill",
+          "note": null,
+          "label": "强化战技",
+          "withPrevious": false,
+          "expect": []
+        },
+        {
+          "operatorId": "Ardelia",
+          "action": "BattleSkill",
+          "note": null,
+          "label": null,
+          "withPrevious": false,
+          "expect": []
+        }
+      ],
+      "when": []
+    }
+  ]
+}

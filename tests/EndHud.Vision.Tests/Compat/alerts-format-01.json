@@ -1,0 +1,1219 @@
+{
+  "format": 1,
+  "rules": [
+    {
+      "id": "kind-SkillPoints",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtLeast",
+          "value": 0.25
+        },
+        {
+          "kind": "skillPoints",
+          "is": "AtMost",
+          "value": 1
+        },
+        {
+          "kind": "skillPoints",
+          "is": "Exactly",
+          "value": 1.75
+        },
+        {
+          "kind": "skillPoints",
+          "is": "Below",
+          "value": 2.5
+        },
+        {
+          "kind": "skillPoints",
+          "is": "Above",
+          "value": 3.25
+        }
+      ],
+      "message": "SkillPoints: say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天"
+    },
+    {
+      "id": "kind-Combo",
+      "when": [
+        {
+          "kind": "combo",
+          "operatorId": "Laevatain",
+          "ready": true
+        },
+        {
+          "kind": "combo",
+          "operatorId": "Laevatain",
+          "ready": false
+        }
+      ],
+      "message": "Combo: say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天"
+    },
+    {
+      "id": "kind-ComboCharge",
+      "when": [
+        {
+          "kind": "comboCharge",
+          "operatorId": "Arcane",
+          "is": "AtLeast",
+          "percent": 0
+        },
+        {
+          "kind": "comboCharge",
+          "operatorId": "Arcane",
+          "is": "AtMost",
+          "percent": 25
+        },
+        {
+          "kind": "comboCharge",
+          "operatorId": "Arcane",
+          "is": "Exactly",
+          "percent": 50
+        },
+        {
+          "kind": "comboCharge",
+          "operatorId": "Arcane",
+          "is": "Below",
+          "percent": 75
+        },
+        {
+          "kind": "comboCharge",
+          "operatorId": "Arcane",
+          "is": "Above",
+          "percent": 100
+        }
+      ],
+      "message": "ComboCharge: say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天"
+    },
+    {
+      "id": "kind-BattleSkill",
+      "when": [
+        {
+          "kind": "battleSkill",
+          "operatorId": "Tangtang",
+          "ready": true
+        },
+        {
+          "kind": "battleSkill",
+          "operatorId": "Tangtang",
+          "ready": false
+        }
+      ],
+      "message": "BattleSkill: say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天"
+    },
+    {
+      "id": "kind-Ultimate",
+      "when": [
+        {
+          "kind": "ultimate",
+          "operatorId": "Si",
+          "ready": true
+        },
+        {
+          "kind": "ultimate",
+          "operatorId": "Si",
+          "ready": false
+        }
+      ],
+      "message": "Ultimate: say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天"
+    },
+    {
+      "id": "kind-UltimateCharge",
+      "when": [
+        {
+          "kind": "ultimateCharge",
+          "operatorId": "Laevatain",
+          "is": "AtLeast",
+          "percent": 100
+        },
+        {
+          "kind": "ultimateCharge",
+          "operatorId": "Laevatain",
+          "is": "AtMost",
+          "percent": 80
+        },
+        {
+          "kind": "ultimateCharge",
+          "operatorId": "Laevatain",
+          "is": "Exactly",
+          "percent": 60
+        },
+        {
+          "kind": "ultimateCharge",
+          "operatorId": "Laevatain",
+          "is": "Below",
+          "percent": 40
+        },
+        {
+          "kind": "ultimateCharge",
+          "operatorId": "Laevatain",
+          "is": "Above",
+          "percent": 20
+        }
+      ],
+      "message": "UltimateCharge: say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天"
+    },
+    {
+      "id": "kind-UltimateActive",
+      "when": [
+        {
+          "kind": "ultimateActive",
+          "operatorId": "Arcane",
+          "active": true
+        },
+        {
+          "kind": "ultimateActive",
+          "operatorId": "Arcane",
+          "active": false
+        }
+      ],
+      "message": "UltimateActive: say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天"
+    },
+    {
+      "id": "kind-Counter",
+      "when": [
+        {
+          "kind": "counter",
+          "operatorId": "Laevatain",
+          "counterId": "melting-flame",
+          "is": "AtLeast",
+          "value": 0
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Laevatain",
+          "counterId": "melting-flame",
+          "is": "AtMost",
+          "value": 1
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Laevatain",
+          "counterId": "melting-flame",
+          "is": "Exactly",
+          "value": 2
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Laevatain",
+          "counterId": "melting-flame",
+          "is": "Below",
+          "value": 3
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Laevatain",
+          "counterId": "melting-flame",
+          "is": "Above",
+          "value": 4
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Si",
+          "counterId": "damage-stacks",
+          "is": "AtLeast",
+          "value": 0
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Si",
+          "counterId": "damage-stacks",
+          "is": "AtMost",
+          "value": 1
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Si",
+          "counterId": "damage-stacks",
+          "is": "Exactly",
+          "value": 2
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Si",
+          "counterId": "damage-stacks",
+          "is": "Below",
+          "value": 3
+        },
+        {
+          "kind": "counter",
+          "operatorId": "Si",
+          "counterId": "damage-stacks",
+          "is": "Above",
+          "value": 4
+        }
+      ],
+      "message": "Counter: say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天"
+    },
+    {
+      "id": "kind-BossStatus",
+      "when": [
+        {
+          "kind": "bossStatus",
+          "statusId": "Heat Infliction",
+          "present": true,
+          "minStacks": 3
+        },
+        {
+          "kind": "bossStatus",
+          "statusId": "Cryo Infliction",
+          "present": false,
+          "minStacks": 1
+        }
+      ],
+      "message": "BossStatus: say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天"
+    },
+    {
+      "id": "kind-Controlling",
+      "when": [
+        {
+          "kind": "controlling",
+          "operatorId": "Laevatain"
+        }
+      ],
+      "message": "Controlling: say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天"
+    },
+    {
+      "id": "kind-All",
+      "when": [
+        {
+          "kind": "all",
+          "of": [
+            {
+              "kind": "skillPoints",
+              "is": "AtLeast",
+              "value": 1.5
+            },
+            {
+              "kind": "not",
+              "of": {
+                "kind": "combo",
+                "operatorId": "Tangtang",
+                "ready": true
+              }
+            }
+          ]
+        },
+        {
+          "kind": "all",
+          "of": [
+            {
+              "kind": "any",
+              "of": [
+                {
+                  "kind": "not",
+                  "of": {
+                    "kind": "all",
+                    "of": [
+                      {
+                        "kind": "not",
+                        "of": {
+                          "kind": "bossStatus",
+                          "statusId": "Corrosion",
+                          "present": true,
+                          "minStacks": 2
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "controlling",
+              "operatorId": "Tangtang"
+            }
+          ]
+        }
+      ],
+      "message": "All: say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天"
+    },
+    {
+      "id": "kind-Any",
+      "when": [
+        {
+          "kind": "any",
+          "of": [
+            {
+              "kind": "ultimate",
+              "operatorId": "Si",
+              "ready": true
+            },
+            {
+              "kind": "all",
+              "of": [
+                {
+                  "kind": "skillPoints",
+                  "is": "Below",
+                  "value": 2
+                },
+                {
+                  "kind": "battleSkill",
+                  "operatorId": "Si",
+                  "ready": false
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "message": "Any: say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天"
+    },
+    {
+      "id": "kind-Not",
+      "when": [
+        {
+          "kind": "not",
+          "of": {
+            "kind": "skillPoints",
+            "is": "Above",
+            "value": 2.5
+          }
+        },
+        {
+          "kind": "not",
+          "of": {
+            "kind": "any",
+            "of": [
+              {
+                "kind": "all",
+                "of": [
+                  {
+                    "kind": "combo",
+                    "operatorId": "Laevatain",
+                    "ready": false
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "message": "Not: say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天"
+    },
+    {
+      "id": "two",
+      "when": [
+        {
+          "kind": "combo",
+          "operatorId": "Si",
+          "ready": true
+        }
+      ],
+      "message": "Si and Laevatain only say \u0022now\u0022 \\ C:\\temp\\ \u003C/script\u003E \u0026 \u0027x\u0027 \uD83D\uDD25 爆发轴 飞天"
+    },
+    {
+      "id": "four",
+      "when": [
+        {
+          "kind": "ultimate",
+          "operatorId": "Laevatain",
+          "ready": true
+        }
+      ],
+      "message": "this squad only"
+    },
+    {
+      "id": "plain-0",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtLeast",
+          "value": 0
+        }
+      ],
+      "message": "Rule 0"
+    },
+    {
+      "id": "plain-1",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtMost",
+          "value": 1
+        }
+      ],
+      "message": "Rule 1"
+    },
+    {
+      "id": "plain-2",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Exactly",
+          "value": 2
+        }
+      ],
+      "message": "Rule 2"
+    },
+    {
+      "id": "plain-3",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Below",
+          "value": 3
+        }
+      ],
+      "message": "Rule 3"
+    },
+    {
+      "id": "plain-4",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Above",
+          "value": 0
+        }
+      ],
+      "message": "Rule 4"
+    },
+    {
+      "id": "plain-5",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtLeast",
+          "value": 1
+        }
+      ],
+      "message": "Rule 5"
+    },
+    {
+      "id": "plain-6",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtMost",
+          "value": 2
+        }
+      ],
+      "message": "Rule 6"
+    },
+    {
+      "id": "plain-7",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Exactly",
+          "value": 3
+        }
+      ],
+      "message": "Rule 7"
+    },
+    {
+      "id": "plain-8",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Below",
+          "value": 0
+        }
+      ],
+      "message": "Rule 8"
+    },
+    {
+      "id": "plain-9",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Above",
+          "value": 1
+        }
+      ],
+      "message": "Rule 9"
+    },
+    {
+      "id": "plain-10",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtLeast",
+          "value": 2
+        }
+      ],
+      "message": "Rule 10"
+    },
+    {
+      "id": "plain-11",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtMost",
+          "value": 3
+        }
+      ],
+      "message": "Rule 11"
+    },
+    {
+      "id": "plain-12",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Exactly",
+          "value": 0
+        }
+      ],
+      "message": "Rule 12"
+    },
+    {
+      "id": "plain-13",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Below",
+          "value": 1
+        }
+      ],
+      "message": "Rule 13"
+    },
+    {
+      "id": "plain-14",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Above",
+          "value": 2
+        }
+      ],
+      "message": "Rule 14"
+    },
+    {
+      "id": "plain-15",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtLeast",
+          "value": 3
+        }
+      ],
+      "message": "Rule 15"
+    },
+    {
+      "id": "plain-16",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtMost",
+          "value": 0
+        }
+      ],
+      "message": "Rule 16"
+    },
+    {
+      "id": "plain-17",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Exactly",
+          "value": 1
+        }
+      ],
+      "message": "Rule 17"
+    },
+    {
+      "id": "plain-18",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Below",
+          "value": 2
+        }
+      ],
+      "message": "Rule 18"
+    },
+    {
+      "id": "plain-19",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Above",
+          "value": 3
+        }
+      ],
+      "message": "Rule 19"
+    },
+    {
+      "id": "plain-20",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtLeast",
+          "value": 0
+        }
+      ],
+      "message": "Rule 20"
+    },
+    {
+      "id": "plain-21",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtMost",
+          "value": 1
+        }
+      ],
+      "message": "Rule 21"
+    },
+    {
+      "id": "plain-22",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Exactly",
+          "value": 2
+        }
+      ],
+      "message": "Rule 22"
+    },
+    {
+      "id": "plain-23",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Below",
+          "value": 3
+        }
+      ],
+      "message": "Rule 23"
+    },
+    {
+      "id": "plain-24",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Above",
+          "value": 0
+        }
+      ],
+      "message": "Rule 24"
+    },
+    {
+      "id": "plain-25",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtLeast",
+          "value": 1
+        }
+      ],
+      "message": "Rule 25"
+    },
+    {
+      "id": "plain-26",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtMost",
+          "value": 2
+        }
+      ],
+      "message": "Rule 26"
+    },
+    {
+      "id": "plain-27",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Exactly",
+          "value": 3
+        }
+      ],
+      "message": "Rule 27"
+    },
+    {
+      "id": "plain-28",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Below",
+          "value": 0
+        }
+      ],
+      "message": "Rule 28"
+    },
+    {
+      "id": "plain-29",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Above",
+          "value": 1
+        }
+      ],
+      "message": "Rule 29"
+    },
+    {
+      "id": "plain-30",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtLeast",
+          "value": 2
+        }
+      ],
+      "message": "Rule 30"
+    },
+    {
+      "id": "plain-31",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtMost",
+          "value": 3
+        }
+      ],
+      "message": "Rule 31"
+    },
+    {
+      "id": "plain-32",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Exactly",
+          "value": 0
+        }
+      ],
+      "message": "Rule 32"
+    },
+    {
+      "id": "plain-33",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Below",
+          "value": 1
+        }
+      ],
+      "message": "Rule 33"
+    },
+    {
+      "id": "plain-34",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Above",
+          "value": 2
+        }
+      ],
+      "message": "Rule 34"
+    },
+    {
+      "id": "plain-35",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtLeast",
+          "value": 3
+        }
+      ],
+      "message": "Rule 35"
+    },
+    {
+      "id": "plain-36",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtMost",
+          "value": 0
+        }
+      ],
+      "message": "Rule 36"
+    },
+    {
+      "id": "plain-37",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Exactly",
+          "value": 1
+        }
+      ],
+      "message": "Rule 37"
+    },
+    {
+      "id": "plain-38",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Below",
+          "value": 2
+        }
+      ],
+      "message": "Rule 38"
+    },
+    {
+      "id": "plain-39",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Above",
+          "value": 3
+        }
+      ],
+      "message": "Rule 39"
+    },
+    {
+      "id": "plain-40",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtLeast",
+          "value": 0
+        }
+      ],
+      "message": "Rule 40"
+    },
+    {
+      "id": "plain-41",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtMost",
+          "value": 1
+        }
+      ],
+      "message": "Rule 41"
+    },
+    {
+      "id": "plain-42",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Exactly",
+          "value": 2
+        }
+      ],
+      "message": "Rule 42"
+    },
+    {
+      "id": "plain-43",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Below",
+          "value": 3
+        }
+      ],
+      "message": "Rule 43"
+    },
+    {
+      "id": "plain-44",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Above",
+          "value": 0
+        }
+      ],
+      "message": "Rule 44"
+    },
+    {
+      "id": "plain-45",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtLeast",
+          "value": 1
+        }
+      ],
+      "message": "Rule 45"
+    },
+    {
+      "id": "plain-46",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtMost",
+          "value": 2
+        }
+      ],
+      "message": "Rule 46"
+    },
+    {
+      "id": "plain-47",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Exactly",
+          "value": 3
+        }
+      ],
+      "message": "Rule 47"
+    },
+    {
+      "id": "plain-48",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Below",
+          "value": 0
+        }
+      ],
+      "message": "Rule 48"
+    },
+    {
+      "id": "plain-49",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Above",
+          "value": 1
+        }
+      ],
+      "message": "Rule 49"
+    },
+    {
+      "id": "plain-50",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtLeast",
+          "value": 2
+        }
+      ],
+      "message": "Rule 50"
+    },
+    {
+      "id": "plain-51",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtMost",
+          "value": 3
+        }
+      ],
+      "message": "Rule 51"
+    },
+    {
+      "id": "plain-52",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Exactly",
+          "value": 0
+        }
+      ],
+      "message": "Rule 52"
+    },
+    {
+      "id": "plain-53",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Below",
+          "value": 1
+        }
+      ],
+      "message": "Rule 53"
+    },
+    {
+      "id": "plain-54",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Above",
+          "value": 2
+        }
+      ],
+      "message": "Rule 54"
+    },
+    {
+      "id": "plain-55",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtLeast",
+          "value": 3
+        }
+      ],
+      "message": "Rule 55"
+    },
+    {
+      "id": "plain-56",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtMost",
+          "value": 0
+        }
+      ],
+      "message": "Rule 56"
+    },
+    {
+      "id": "plain-57",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Exactly",
+          "value": 1
+        }
+      ],
+      "message": "Rule 57"
+    },
+    {
+      "id": "plain-58",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Below",
+          "value": 2
+        }
+      ],
+      "message": "Rule 58"
+    },
+    {
+      "id": "plain-59",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Above",
+          "value": 3
+        }
+      ],
+      "message": "Rule 59"
+    },
+    {
+      "id": "plain-60",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtLeast",
+          "value": 0
+        }
+      ],
+      "message": "Rule 60"
+    },
+    {
+      "id": "plain-61",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtMost",
+          "value": 1
+        }
+      ],
+      "message": "Rule 61"
+    },
+    {
+      "id": "plain-62",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Exactly",
+          "value": 2
+        }
+      ],
+      "message": "Rule 62"
+    },
+    {
+      "id": "plain-63",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Below",
+          "value": 3
+        }
+      ],
+      "message": "Rule 63"
+    },
+    {
+      "id": "plain-64",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Above",
+          "value": 0
+        }
+      ],
+      "message": "Rule 64"
+    },
+    {
+      "id": "plain-65",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtLeast",
+          "value": 1
+        }
+      ],
+      "message": "Rule 65"
+    },
+    {
+      "id": "plain-66",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtMost",
+          "value": 2
+        }
+      ],
+      "message": "Rule 66"
+    },
+    {
+      "id": "plain-67",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Exactly",
+          "value": 3
+        }
+      ],
+      "message": "Rule 67"
+    },
+    {
+      "id": "plain-68",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Below",
+          "value": 0
+        }
+      ],
+      "message": "Rule 68"
+    },
+    {
+      "id": "plain-69",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Above",
+          "value": 1
+        }
+      ],
+      "message": "Rule 69"
+    },
+    {
+      "id": "plain-70",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtLeast",
+          "value": 2
+        }
+      ],
+      "message": "Rule 70"
+    },
+    {
+      "id": "plain-71",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "AtMost",
+          "value": 3
+        }
+      ],
+      "message": "Rule 71"
+    },
+    {
+      "id": "plain-72",
+      "when": [
+        {
+          "kind": "skillPoints",
+          "is": "Exactly",
+          "value": 0
+        }
+      ],
+      "message": "Rule 72"
+    }
+  ]
+}
