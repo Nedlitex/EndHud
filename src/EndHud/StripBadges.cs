@@ -24,8 +24,10 @@ internal static class StripBadges
 
     /// <param name="holds">Whether a condition holds now (null: can't be told); asked of each badge's own condition, a
     /// "not" as a <see cref="NotCondition"/> of it.</param>
-    public static IReadOnlyList<StripBadge> Of(IReadOnlyList<StateCondition> conditions, Func<StateCondition, bool?> holds, Pictures pictures)
+    /// <param name="text">The strings, for a unit a badge carries (seconds); default: the app's (<see cref="Loc.Get"/>).</param>
+    public static IReadOnlyList<StripBadge> Of(IReadOnlyList<StateCondition> conditions, Func<StateCondition, bool?> holds, Pictures pictures, Func<string, string>? text = null)
     {
+        text ??= Loc.Get;
         var badges = new List<StripBadge>();
         foreach (var condition in conditions) Add(condition, not: false, or: false);
         return badges;
