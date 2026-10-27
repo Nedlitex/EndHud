@@ -276,18 +276,6 @@ public interface IPhaseHistory
     bool? PlayedThroughThisShowing(string phaseId) => null;
 
     /// <summary>
-    /// "The current phase is <paramref name="phaseId"/>" (<see cref="PhaseCurrentCondition"/>), with <paramref name="playedThrough"/>
-    /// also whether it was played through since it came onto the strip; null when it can't be told.
-    /// </summary>
-    bool? IsCurrent(string phaseId, bool? playedThrough)
-    {
-        if (CurrentPhase is not { } current) return null;
-        if (current != phaseId) return false;
-        if (playedThrough is not { } wanted) return true;
-        return PlayedThroughThisShowing(phaseId) is { } played ? played == wanted : null;
-    }
-
-    /// <summary>
     /// The steps of the phase on the strip this round, in written order (<see cref="StepsLitCondition"/>): true lit,
     /// false not yet, null a step that never lights (a basic, heavy or plunge attack). Null when it can't be told.
     /// </summary>

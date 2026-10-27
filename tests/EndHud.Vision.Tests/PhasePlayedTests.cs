@@ -114,7 +114,9 @@ public sealed class PhasePlayedTests
         fight.Read(Plain);
         fight.Press(Ardelia);
 
-        Assert.Equal("Burst II", fight.Read(Reading(3)));
+        Assert.Equal("Burst II", fight.Read(Reading(3)));    // cuts into Charge half way
+        Assert.Equal("Burst II", fight.Read(Plain));          // and is finished first (owner, 2026-10-27)
+        Assert.Equal("Burst II", fight.Read(Plain, Laevatain));
         Assert.Equal("Charge I", fight.Read(Plain));
         Assert.Equal(0, fight.Steps.TimesPlayed("charge")); // the half round left isn't counted
 

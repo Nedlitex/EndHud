@@ -90,11 +90,11 @@ public class NewConditionKindsTests
     private static readonly string[] Squad = ["Laevatain", "Camille", "Arcane", "Ardelia"];
     private const int Laevatain = 1, Ardelia = 4;
 
-    private static PartyState Plain(double skillPoints = 2.0)
+    private static PartyState Plain(double skillPoints = 2.0, bool ultimatesReady = false)
     {
         var slots = Enumerable.Range(0, 4).Select(i => new PartySlot(i + 1, null, 1.0, "", new Frame(1, 1, new byte[4]),
             Combo: new ComboReading(1, true),
-            Ultimate: new UltimateReading(false, 0.2),
+            Ultimate: new UltimateReading(ultimatesReady, ultimatesReady ? 1 : 0.2),
             Operator: new OperatorMatch(new OperatorInfo(Squad[i], Squad[i], Squad[i], Squad[i] + ".png"), 1, true))
         {
             BattleSkill = BattleSkillState.Available,
@@ -149,21 +149,26 @@ public class NewConditionKindsTests
     /// GitHub issue 5 (a player's 别汤诀祀 rotation): each phase entered only by "the current phase is the one before,
     /// played through", with no "or this phase" to hold itself. Charge II held for the reading that switched to it, then its
     /// condition failed (the current phase was II now) and the strip went back to Charge I: II was never followed, and
-    /// with the two phases' finish conditions alike the strip flickered between them. A phase on the strip judges "the
-    /// current phase is" in its own condition as when it came on, until it is played through.
+    /// with the two phases' finish conditions alike the strip flickered between them. A phase on the strip is finished
+    /// before another takes its place (owner, 2026-10-27), unless one with a bigger priority holds.
     /// </summary>
+    private static Rotation ChargeChargeWrapOrBurst() => new(Rotation.CurrentFormat, "r", "r", Squad,
+    [
+        new RotationPhase("charge-1", "Charge", [new RotationStep("Ardelia", StepAction.BattleSkill), new RotationStep("Laevatain", StepAction.BattleSkill)]),
+        new RotationPhase("charge-2", "Charge", [new RotationStep("Camille", StepAction.BattleSkill), new RotationStep("Arcane", StepAction.BattleSkill)],
+            [new PhaseCurrentCondition("charge-1", PlayedThrough: true)]) { Priority = 20 },
+        new RotationPhase("burst", "Burst", [new RotationStep("Laevatain", StepAction.Ultimate), new RotationStep("Camille", StepAction.BattleSkill)],
+            [new UltimateCondition("Laevatain", Ready: true)]) { Priority = 30 },
+        new RotationPhase("wrap", "Wrap", [new RotationStep("Laevatain", StepAction.Ultimate)],
+            [new PhaseCurrentCondition("charge-2", PlayedThrough: true)]) { Priority = 45 },
+    ]);
+
+    private const int Camille = 2, Arcane = 3;
+
     [Fact]
     public void A_phase_entered_after_another_stays_until_it_is_played_through()
     {
-        const int Camille = 2, Arcane = 3;
-        var fight = new Fight(new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
-        [
-            new RotationPhase("charge-1", "Charge", [new RotationStep("Ardelia", StepAction.BattleSkill), new RotationStep("Laevatain", StepAction.BattleSkill)]),
-            new RotationPhase("charge-2", "Charge", [new RotationStep("Camille", StepAction.BattleSkill), new RotationStep("Arcane", StepAction.BattleSkill)],
-                [new PhaseCurrentCondition("charge-1", PlayedThrough: true)]) { Priority = 20 },
-            new RotationPhase("wrap", "Wrap", [new RotationStep("Laevatain", StepAction.Ultimate)],
-                [new PhaseCurrentCondition("charge-2", PlayedThrough: true)]) { Priority = 45 },
-        ]));
+        var fight = new Fight(ChargeChargeWrapOrBurst());
 
         Assert.Equal("Charge I", fight.Read(Plain(), Ardelia));
         Assert.Equal("Charge I", fight.Read(Plain(), Laevatain)); // played through
@@ -171,8 +176,27 @@ public class NewConditionKindsTests
         Assert.Equal("Charge II", fight.Read(Plain()));           // went back to Charge I here
         Assert.Equal("Charge II", fight.Read(Plain(), Camille));
         Assert.Equal("Charge II", fight.Read(Plain(), Arcane));   // played through
-        Assert.Equal("Wrap III", fight.Read(Plain()));
-        Assert.Equal("Wrap III", fight.Read(Plain()));
+        Assert.Equal("Wrap IV", fight.Read(Plain()));
+        Assert.Equal("Wrap IV", fight.Read(Plain()));
+    }
+
+    /// <summary>
+    /// A burst entered on "the ultimate is ready" (issue 5's 爆发轴): casting the ultimate ends that, but the burst stays
+    /// until its steps are done (it went back to the otherwise phase halfway). It cuts into Charge II on its bigger priority.
+    /// </summary>
+    [Fact]
+    public void A_burst_entered_on_a_ready_ultimate_is_finished_after_the_ultimate_is_cast()
+    {
+        var fight = new Fight(ChargeChargeWrapOrBurst());
+
+        Assert.Equal("Charge I", fight.Read(Plain(), Ardelia));
+        Assert.Equal("Charge I", fight.Read(Plain(), Laevatain));
+        Assert.Equal("Charge II", fight.Read(Plain()));
+        Assert.Equal("Burst III", fight.Read(Plain(ultimatesReady: true)));  // its bigger priority cuts in
+        Assert.Equal("Burst III", fight.Read(Plain()));                      // the ultimate cast: no longer ready
+        Assert.Equal("Burst III", fight.Read(Plain()));                      // went back to Charge I here
+        Assert.Equal("Burst III", fight.Read(Plain(), Camille));             // played through
+        Assert.Equal("Charge I", fight.Read(Plain()));                       // done: the otherwise phase
     }
 
     private sealed class FakeHistory(string? current, bool? played) : IPhaseHistory

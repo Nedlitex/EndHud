@@ -17,12 +17,14 @@ namespace EndHud.Vision.Rotations;
 /// <item>At the start, before anything holds, the first phase without a condition is shown, or the
 /// first phase when every phase has one.</item>
 /// </list>
-/// <para>A phase on the strip, until it is played through, judges "the current phase is" in its own condition as it
-/// stood when it came on: its condition is when to switch to it, not how long to stay. A player's 充能轴 II "when the
-/// current phase is 充能轴 I, played through" (GitHub issue 5) held for the one reading that switched to it, then failed
-/// (the current phase was now II), and the strip went back to I; II was never followed, and with both phases' finish
-/// conditions alike the strip flickered between them. The rest of the condition is read live, so a phase "while Si's
-/// skill runs" still gives way when it stops.</para>
+/// <para>A phase on the strip is finished before another takes its place (owner, 2026-10-27: "we should by default
+/// finish the rotation"): until it is played through, it counts as holding at its priority, whatever its own condition
+/// says now, so it never falls back to the otherwise phase halfway; only a phase holding with a bigger priority (a burst
+/// once the ultimates are ready) cuts in. A player's 充能轴 II "when the current phase is 充能轴 I, played through"
+/// (GitHub issue 5) held for the one reading that switched to it, then failed (the current phase was now II) and the
+/// strip went back to I; and a burst entered on "every ultimate ready" stopped holding once they were cast. A phase that
+/// can't be played through (no finish condition and nothing but attacks) is still judged by its condition, or it
+/// would never give way. Nor while it can't be told whether it was played through (no step follower).</para>
 /// <para>This only picks the phase; it doesn't follow the steps inside it. That is
 /// <see cref="StepFollower"/>'s job, from the battle skills, combos and ultimates seen used.</para>
 /// <para>It counts how many times each phase has come onto the strip this fight, for "phase shown"
@@ -35,9 +37,9 @@ public sealed class PhaseSelector(Rotation rotation) : IPhaseHistory
     private readonly (AllCondition When, int Priority)[][] _rules =
         rotation.Phases.Select(p => p.PriorityRules.Select(r => (new AllCondition(r.When), r.Priority)).ToArray()).ToArray();
     private readonly int? _otherwise = Array.FindIndex(rotation.Phases.ToArray(), p => !p.Gated) is var i and >= 0 ? i : null;
+    // A phase can be played through: it has a finish condition, or a step that lights up.
+    private readonly bool[] _canFinish = rotation.Phases.Select(p => p.Finish.Count > 0 || p.Steps.Any(StepFollower.Countable)).ToArray();
     private int? _current;
-    // The phase on the strip before the one on it now, and whether it had been played through when it gave way.
-    private (string Phase, bool? PlayedThrough)? _cameFrom;
     private readonly int[] _timesShown = new int[rotation.Phases.Count];
     private StepFollower? _plays;
 
@@ -70,7 +72,6 @@ public sealed class PhaseSelector(Rotation rotation) : IPhaseHistory
     public void EndFight()
     {
         _current = null;
-        _cameFrom = null;
         Array.Clear(_timesShown);
     }
 
@@ -85,14 +86,10 @@ public sealed class PhaseSelector(Rotation rotation) : IPhaseHistory
         int? holding = null;
         int best = 0;
         bool unknown = false;
-        // The phase on the strip, not played through yet, sees the phase it came from as current, as when it came on.
-        IPhaseHistory? asEntered = before is { } shown && _cameFrom is { } from && plays?.PlayedThroughThisShowing(rotation.Phases[shown].Id) == false
-            ? new AsEntered(this, from.Phase, from.PlayedThrough)
-            : null;
         for (int i = 0; i < _conditions.Length; i++)
         {
             if (_conditions[i] is not { } condition) continue;
-            switch (RotationTracker.Evaluate(condition, state, i == before && asEntered is not null ? asEntered : this))
+            switch (RotationTracker.Evaluate(condition, state, this))
             {
                 case true:
                     // The biggest priority wins; an equal one goes by list order: the first stays, or
@@ -107,39 +104,17 @@ public sealed class PhaseSelector(Rotation rotation) : IPhaseHistory
             }
         }
 
+        // The phase on the strip, not played through yet, stays unless a phase with a bigger priority holds.
+        if (before is { } shown && _canFinish[shown] && _conditions[shown] is not null
+            && plays?.PlayedThroughThisShowing(rotation.Phases[shown].Id) == false
+            && (holding is null || best <= PriorityOf(shown, state)))
+            holding = shown;
+
         if (holding is not null) _current = holding;
         else if (!unknown && _otherwise is { } otherwise) _current = otherwise;
         _current ??= _otherwise ?? 0;
-        if (_current != before)
-        {
-            _timesShown[_current.Value]++; // it came onto the strip
-            _cameFrom = before is { } gone ? (rotation.Phases[gone].Id, plays?.PlayedThroughThisShowing(rotation.Phases[gone].Id)) : null;
-        }
+        if (_current != before) _timesShown[_current.Value]++; // it came onto the strip
         return new RotationPosition(_played.First(p => p.PhaseIndex == _current), true, []);
-    }
-
-    /// <summary>
-    /// The history as the phase on the strip saw it when it came on: the phase it came from is current (played through as
-    /// it was then); itself and every other phase as now.
-    /// </summary>
-    private sealed class AsEntered(PhaseSelector selector, string cameFrom, bool? cameFromPlayed) : IPhaseHistory
-    {
-        private IPhaseHistory Now => selector;
-
-        public int? TimesShown(string phaseId) => Now.TimesShown(phaseId);
-
-        public int? TimesPlayed(string phaseId) => Now.TimesPlayed(phaseId);
-
-        public string? CurrentPhase => Now.CurrentPhase;
-
-        public bool? PlayedThroughThisShowing(string phaseId) => Now.PlayedThroughThisShowing(phaseId);
-
-        public IReadOnlyList<bool?>? StepsLit => Now.StepsLit;
-
-        public bool? IsCurrent(string phaseId, bool? playedThrough) =>
-            phaseId != cameFrom ? Now.IsCurrent(phaseId, playedThrough)
-            : playedThrough is not { } wanted ? true
-            : cameFromPlayed is { } played ? played == wanted : null;
     }
 
     /// <summary>

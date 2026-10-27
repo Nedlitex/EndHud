@@ -168,7 +168,7 @@
     <sys:String x:Key="Editor.PhaseItem">{0}. {1}</sys:String>
     <sys:String x:Key="Editor.PhaseItemGated">{0}. {1}　· 有显示条件</sys:String>
     <sys:String x:Key="Editor.Gate">显示条件（可选）</sys:String>
-    <sys:String x:Key="Editor.GateHint">满足这些条件时显示这个轴段（几个轴段同时满足时，显示优先级最大的；优先级相同时显示最上面的那个，也可以在上面改为最下面的那个）。都不满足时显示第一个没有条件的轴段；所有轴段都有条件，或有条件暂时看不到时（例如终结技动画），保持当前显示的轴段。勾选“非”表示这个条件不满足时才算满足。例如爆发轴：“青霆剑 等于 9”且“庄方宜 终结技 就绪”。</sys:String>
+    <sys:String x:Key="Editor.GateHint">满足这些条件时显示这个轴段（几个轴段同时满足时，显示优先级最大的；优先级相同时显示最上面的那个，也可以在上面改为最下面的那个）。都不满足时显示第一个没有条件的轴段；所有轴段都有条件，或有条件暂时看不到时（例如终结技动画），保持当前显示的轴段。轴段显示后会先打完再换：打完前条件不再成立也不会退回，只有优先级更大的轴段可以插进来。勾选“非”表示这个条件不满足时才算满足。例如爆发轴：“青霆剑 等于 9”且“庄方宜 终结技 就绪”。</sys:String>
     <sys:String x:Key="Editor.Condition.Group">条件组</sys:String>
     <sys:String x:Key="Editor.Compare.Below">小于</sys:String>
     <sys:String x:Key="Editor.Compare.Above">大于</sys:String>
