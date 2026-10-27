@@ -861,8 +861,7 @@ public partial class RotationEditor : Window
             return;
         }
 
-        var unknown = rotation.Squad.Concat(rotation.Phases.SelectMany(p => p.Steps.Select(s => s.OperatorId)))
-            .Distinct().Where(id => _library.Find(id) is null).ToList();
+        var unknown = rotation.NamedOperators().Where(id => _library.Find(id) is null).ToList();
         if (unknown.Count > 0)
         {
             Error(Loc.Format("Editor.ImportError.UnknownOperator", string.Join("、", unknown)));

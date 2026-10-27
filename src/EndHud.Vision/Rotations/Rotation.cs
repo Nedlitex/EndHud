@@ -511,6 +511,14 @@ public sealed record Rotation(
         return null;
     }
 
+    /// <summary>
+    /// The operators it names: its squad and whose each step is. A condition step names nobody, and an attack by
+    /// whoever is controlled (<see cref="RotationStep.Controlled"/>) names no one operator.
+    /// </summary>
+    public IEnumerable<string> NamedOperators() => Squad.Concat(Phases.SelectMany(p => p.Steps)
+        .Where(s => s.Action != StepAction.Condition && s.OperatorId != RotationStep.Controlled)
+        .Select(s => s.OperatorId)).Distinct(StringComparer.Ordinal);
+
     /// <summary>What's wrong with it, if anything (the editor turns these into sentences).</summary>
     public IReadOnlyList<RotationProblem> Problems()
     {
