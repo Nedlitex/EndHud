@@ -70,6 +70,8 @@ internal static class EverythingRotation
             [typeof(StepsLitCondition)] = p =>
                 [new StepsLitCondition(StepsLitWhich.All), new StepsLitCondition(StepsLitWhich.AtLeast, 1),
                  new StepsLitCondition(StepsLitWhich.AtLeast, p.LitSteps.Count), new StepsLitCondition(StepsLitWhich.These, Steps: p.LitSteps)],
+            // Seconds on the editor's half-second list and off it (a hand-written 7.25 is kept as written).
+            [typeof(TimeInPhaseCondition)] = _ => [.. EveryComparison((c, i) => new TimeInPhaseCondition(c, 0.5 + i * 1.5)), new TimeInPhaseCondition(Comparison.AtLeast, 7.25), new TimeInPhaseCondition(Comparison.Below, 120)],
             // Groups in groups, five deep, and "not" around a group and inside one.
             [typeof(AllCondition)] = p =>
                 [new AllCondition([new SkillPointsCondition(Comparison.AtLeast, 1.5), new NotCondition(new ComboCondition(p.Who, true))]),

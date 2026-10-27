@@ -103,6 +103,13 @@ public static class ConditionCatalogue
     /// </summary>
     private static readonly IReadOnlySet<ConditionHostKind> FinishOnly = new HashSet<ConditionHostKind> { ConditionHostKind.PhaseFinish };
 
+    /// <summary>
+    /// The phase's own round only: its finish condition, a condition step, a step's expected state ("time in phase").
+    /// In an entry condition or a priority rule it would read whichever phase is on the strip; in an alert, no phase.
+    /// </summary>
+    private static readonly IReadOnlySet<ConditionHostKind> OwnPhase =
+        new HashSet<ConditionHostKind> { ConditionHostKind.PhaseFinish, ConditionHostKind.ConditionStep, ConditionHostKind.StepExpect };
+
     private static ConditionKind Kind<T>(string id, string json, string? editor, int rotationFormat, int alertFormat, ConditionNeeds needs = ConditionNeeds.None,
         Func<T, string?>? who = null, Func<T, Comparison?>? comparison = null, Func<T, string?>? phase = null, IReadOnlySet<ConditionHostKind>? hosts = null) where T : StateCondition =>
         new(id, typeof(T), json, editor, rotationFormat, alertFormat, needs,
@@ -138,6 +145,8 @@ public static class ConditionCatalogue
         Kind<PhaseCurrentCondition>("PhaseCurrent", "phaseCurrent", "PhaseCurrent", 9, 4, ConditionNeeds.Phase, phase: c => c.PhaseId),
         // Alert format: never written there (refused), so the current one.
         Kind<StepsLitCondition>("StepsLit", "stepsLit", "StepsLit", 10, 4, hosts: FinishOnly),
+        // Alert format: never written there (refused), so the current one.
+        Kind<TimeInPhaseCondition>("TimeInPhase", "timeInPhase", "TimeInPhase", 14, 8, comparison: c => c.Is, hosts: OwnPhase),
         Kind<AllCondition>("All", "all", "Group", 2, 1),
         Kind<AnyCondition>("Any", "any", "Group", 2, 1),
         Kind<NotCondition>("Not", "not", null, 3, 1),
@@ -192,7 +201,10 @@ public enum ConditionProblemKind
     /// <summary>"Time left of the ultimate" for an operator whose lasting ultimate isn't read: it could never be told.</summary>
     UltimateTimeNotRead,
 
-    /// <summary>A kind not offered in this host (<see cref="ConditionKind.Hosts"/>): "the phase's steps lit" outside a finish condition.</summary>
+    /// <summary>
+    /// A kind not offered in this host (<see cref="ConditionKind.Hosts"/>): "the phase's steps lit" outside a finish condition,
+    /// "time in phase" outside the phase's own hosts.
+    /// </summary>
     NotOfferedHere,
 
     /// <summary>"These steps lit" with no step picked.</summary>

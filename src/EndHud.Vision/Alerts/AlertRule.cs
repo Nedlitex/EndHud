@@ -73,6 +73,8 @@ public sealed record AlertRule(string Id, IReadOnlyList<StateCondition> When, st
                 ConditionProblemKind.EmptyGroup => AlertProblem.EmptyConditionGroup,
                 ConditionProblemKind.SkillTimeNotRead => AlertProblem.SkillTimeNotRead,
                 ConditionProblemKind.UltimateTimeNotRead => AlertProblem.UltimateTimeNotRead,
+                // "Time in phase" has a sentence of its own: the general one names "the phase's steps lit".
+                ConditionProblemKind.NotOfferedHere when problem.Condition is TimeInPhaseCondition => AlertProblem.TimeInPhaseNotForAlerts,
                 ConditionProblemKind.NotOfferedHere => AlertProblem.NotForAlerts,
                 _ => (AlertProblem?)null,
             };

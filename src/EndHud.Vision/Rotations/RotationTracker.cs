@@ -408,6 +408,8 @@ public sealed class RotationTracker(Rotation rotation)
                 if (match is null) return !c.Present;            // not there: 0 stacks
                 if (match.Stacks is not { } stacks) return null; // there, but its count isn't read (covered, or not a counted status)
                 return (stacks >= c.MinStacks) == c.Present;
+            case TimeInPhaseCondition c:
+                return history.TimeInPhase is { } inPhase ? Compare(inPhase.TotalSeconds, c.Is, c.Seconds) : null;
             case StepsLitCondition c:
                 return history.StepsLit is { } lit ? StepsLit(c, lit) : null;
             case ControllingCondition c:
