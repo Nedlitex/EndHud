@@ -372,10 +372,7 @@ public sealed class RotationTracker(Rotation rotation)
             case UltimateTimeLeftCondition c:
                 return UltimateLeft(c.OperatorId, state) is { } left ? Compare(left * 100, c.Is, c.Percent) : null;
             case PhaseCurrentCondition c:
-                if (history.CurrentPhase is not { } current) return null;
-                if (current != c.PhaseId) return false;
-                if (c.PlayedThrough is not { } wanted) return true;
-                return history.PlayedThroughThisShowing(c.PhaseId) is { } playedThrough ? playedThrough == wanted : null;
+                return history.IsCurrent(c.PhaseId, c.PlayedThrough);
             case BattleSkillActiveCondition c:
                 return SkillRunning(c.OperatorId, state) is { } skillRunning ? skillRunning == c.Active : null;
             case BattleSkillEmpoweredCondition c:

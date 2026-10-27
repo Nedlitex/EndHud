@@ -145,6 +145,36 @@ public class NewConditionKindsTests
         Assert.Equal("charge", ((IPhaseHistory)fight.Selector).CurrentPhase);
     }
 
+    /// <summary>
+    /// GitHub issue 5 (a player's 别汤诀祀 rotation): each phase entered only by "the current phase is the one before,
+    /// played through", with no "or this phase" to hold itself. Charge II held for the reading that switched to it, then its
+    /// condition failed (the current phase was II now) and the strip went back to Charge I: II was never followed, and
+    /// with the two phases' finish conditions alike the strip flickered between them. A phase on the strip judges "the
+    /// current phase is" in its own condition as when it came on, until it is played through.
+    /// </summary>
+    [Fact]
+    public void A_phase_entered_after_another_stays_until_it_is_played_through()
+    {
+        const int Camille = 2, Arcane = 3;
+        var fight = new Fight(new Rotation(Rotation.CurrentFormat, "r", "r", Squad,
+        [
+            new RotationPhase("charge-1", "Charge", [new RotationStep("Ardelia", StepAction.BattleSkill), new RotationStep("Laevatain", StepAction.BattleSkill)]),
+            new RotationPhase("charge-2", "Charge", [new RotationStep("Camille", StepAction.BattleSkill), new RotationStep("Arcane", StepAction.BattleSkill)],
+                [new PhaseCurrentCondition("charge-1", PlayedThrough: true)]) { Priority = 20 },
+            new RotationPhase("wrap", "Wrap", [new RotationStep("Laevatain", StepAction.Ultimate)],
+                [new PhaseCurrentCondition("charge-2", PlayedThrough: true)]) { Priority = 45 },
+        ]));
+
+        Assert.Equal("Charge I", fight.Read(Plain(), Ardelia));
+        Assert.Equal("Charge I", fight.Read(Plain(), Laevatain)); // played through
+        Assert.Equal("Charge II", fight.Read(Plain()));
+        Assert.Equal("Charge II", fight.Read(Plain()));           // went back to Charge I here
+        Assert.Equal("Charge II", fight.Read(Plain(), Camille));
+        Assert.Equal("Charge II", fight.Read(Plain(), Arcane));   // played through
+        Assert.Equal("Wrap III", fight.Read(Plain()));
+        Assert.Equal("Wrap III", fight.Read(Plain()));
+    }
+
     private sealed class FakeHistory(string? current, bool? played) : IPhaseHistory
     {
         public int? TimesShown(string phaseId) => null;
