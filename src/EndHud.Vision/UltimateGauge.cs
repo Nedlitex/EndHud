@@ -18,12 +18,16 @@ public sealed record UltimateReading(bool Ready, double Progress);
 /// </list>
 /// </summary>
 internal sealed record UltimateCircle(double CentreX, double CentreY, int EmptyCentreRadius, int ArcInnerRadius, int ArcOuterRadius,
-    int ChargingRingRadius, int DiscRadius, int? IconRadius, int? ReadyRingRadius, int ArcMinSaturation = 70, double ArcMaxHueDrift = 18, int ArcRadiusStep = 2)
+    int ChargingRingRadius, int DiscRadius, int? IconRadius, int? ReadyRingRadius, int ArcMinSaturation = 70, double ArcMaxHueDrift = 18, int ArcRadiusStep = 2,
+    bool ReadsNeutral = false)
 {
-    /// <summary>Keyboard and mouse, slot 0–3.</summary>
+    /// <summary>
+    /// Keyboard and mouse, slot 0–3. These also read a Physical ultimate, drawn in a neutral cream
+    /// instead of an element colour (<see cref="ReadsNeutral"/>).
+    /// </summary>
     public static UltimateCircle Row(int slot) => new(SkillLayout.FirstCentreX + slot * SkillLayout.Pitch, SkillLayout.CentreY,
         SkillLayout.EmptyCentreRadius, SkillLayout.ArcInnerRadius, SkillLayout.ArcOuterRadius, SkillLayout.ChargingRingRadius,
-        SkillLayout.DiscRadius, IconRadius: SkillLayout.IconRadius, ReadyRingRadius: null);
+        SkillLayout.DiscRadius, IconRadius: SkillLayout.IconRadius, ReadyRingRadius: null, ReadsNeutral: true);
 
     /// <summary>
     /// Controller, slot 0–3: slot 1 left, 2 top, 3 right, 4 bottom, like the squad diamond.
@@ -73,11 +77,12 @@ public static class UltimateGauge
         // sequences) loses its colour and bright white, but still has an icon's contrast.
         double centreRadius = circle.EmptyCentreRadius * s;
         var (centreColoured, _) = SampleDisc(frame, cx, cy, centreRadius);
+        var (centreBrightness, centreSpread) = Brightness(frame, cx, cy, centreRadius);
         bool centreEmpty = centreColoured < EmptyCentreMaxColour
                            && WhiteShare(frame, cx, cy, centreRadius) < EmptyCentreMaxWhite
-                           && BrightnessSpread(frame, cx, cy, centreRadius) < EmptyCentreMaxSpread;
+                           && centreSpread < EmptyCentreMaxSpread;
         if (centreEmpty && RingVisible(frame, cx, cy, circle.ChargingRingRadius * s))
-            return new UltimateReading(Ready: false, Progress: ArcProgress(frame, cx, cy, s, circle));
+            return new UltimateReading(Ready: false, Progress: ArcProgress(frame, cx, cy, s, circle, centreBrightness));
 
         // Ready: element colour around a white icon (keyboard and mouse) or inside a white ring
         // (controller). Colour alone isn't enough: skill effects sweeping over the corner are
@@ -88,7 +93,63 @@ public static class UltimateGauge
             : circle.ReadyRingRadius is { } ring && WhiteRingShare(frame, cx, cy, ring * s, s) >= WhiteRingMinShare && coloured >= PlainDiscColourShare;
         if (coloured >= ReadyColourShare && marked)
             return new UltimateReading(Ready: true, Progress: 1);
+        // A Physical ultimate is ready in grey: the disc lit a light, unsaturated grey behind the
+        // white icon, in a light ring just outside the circle. Grey scenery has no icon and no ring;
+        // a coloured effect isn't grey.
+        if (circle.ReadsNeutral && marked
+            && NeutralLitShare(frame, cx, cy, circle.DiscRadius * s) >= NeutralReadyDiscShare
+            && LightRingShare(frame, cx, cy, s) >= NeutralReadyRingShare)
+            return new UltimateReading(Ready: true, Progress: 1);
         return null;
+    }
+
+    // Measured on test_mifu (four Physical operators), share of the disc with channel spread <= 20 and
+    // darkest channel >= 90: 0.93-0.99 on every ready circle; 0.03-0.46 on charging ones (their dark
+    // disc and cream arc). The light ring, 36-44 px out: lightest unsaturated pixel >= 150 at 1.00 of
+    // the way round when ready (median 206-210), at most 0.22 round a charging circle, 0.00-0.01 on the
+    // frames where the circle flashes plain white as it fills (those read nothing, like a cutscene).
+    private const double NeutralReadyDiscShare = 0.6;
+    private const double NeutralReadyRingShare = 0.8;
+
+    private static double NeutralLitShare(Frame frame, double cx, double cy, double radius)
+    {
+        int lit = 0, total = 0;
+        int r = (int)Math.Ceiling(radius);
+        for (int dy = -r; dy <= r; dy += 2)
+        for (int dx = -r; dx <= r; dx += 2)
+        {
+            if (dx * dx + dy * dy > radius * radius) continue;
+            int x = (int)Math.Round(cx + dx), y = (int)Math.Round(cy + dy);
+            if ((uint)x >= (uint)frame.Width || (uint)y >= (uint)frame.Height) continue;
+            var (cr, cg, cb) = frame.GetPixel(x, y);
+            int min = Math.Min(cr, Math.Min(cg, cb)), max = Math.Max(cr, Math.Max(cg, cb));
+            total++;
+            if (min >= 90 && max - min <= 20) lit++;
+        }
+        return total == 0 ? 0 : lit / (double)total;
+    }
+
+    /// <summary>
+    /// Share of the way round with a light grey ring 36-44 px from the centre (at 4K, scaled): the
+    /// ring a ready keyboard-and-mouse circle has.
+    /// </summary>
+    private static double LightRingShare(Frame frame, double cx, double cy, double scale)
+    {
+        int light = 0;
+        for (int i = 0; i < 72; i++)
+        {
+            double angle = i * Math.PI * 2 / 72;
+            for (int dr = 36; dr <= 44; dr++)
+            {
+                int x = (int)Math.Round(cx + Math.Cos(angle) * dr * scale);
+                int y = (int)Math.Round(cy + Math.Sin(angle) * dr * scale);
+                if ((uint)x >= (uint)frame.Width || (uint)y >= (uint)frame.Height) continue;
+                var (r, g, b) = frame.GetPixel(x, y);
+                int min = Math.Min(r, Math.Min(g, b)), max = Math.Max(r, Math.Max(g, b));
+                if (min >= 150 && max - min <= 40) { light++; break; }
+            }
+        }
+        return light / 72.0;
     }
 
     // The controller's ready dot is plain colour (no icon) inside a white ring.
@@ -123,8 +184,8 @@ public static class UltimateGauge
     // icons (the thinnest, slot 3's, is lowest), 0.00 for skill effects passing over the circle.
     private const double IconWhiteShare = 0.08;
 
-    /// <summary>Standard deviation of per-pixel brightness (darkest channel) over a disc.</summary>
-    private static double BrightnessSpread(Frame frame, double cx, double cy, double radius)
+    /// <summary>Mean and standard deviation of per-pixel brightness (darkest channel) over a disc.</summary>
+    private static (double Mean, double Spread) Brightness(Frame frame, double cx, double cy, double radius)
     {
         double sum = 0, sumSq = 0;
         int n = 0;
@@ -141,9 +202,9 @@ public static class UltimateGauge
             sumSq += v * v;
             n++;
         }
-        if (n == 0) return double.MaxValue;
+        if (n == 0) return (double.MaxValue, double.MaxValue);
         double mean = sum / n;
-        return Math.Sqrt(Math.Max(0, sumSq / n - mean * mean));
+        return (mean, Math.Sqrt(Math.Max(0, sumSq / n - mean * mean)));
     }
 
     private static double WhiteShare(Frame frame, double cx, double cy, double radius)
@@ -167,25 +228,30 @@ public static class UltimateGauge
     /// How far the charge arc reaches. The arc is one unbroken run of a single element colour
     /// starting at 12 o'clock; the disc is translucent, so colourful scenery behind it (a copper
     /// pipe, say) can show elsewhere in the band and must not count. Walk clockwise from
-    /// 12 o'clock in 5° steps while the band holds the arc's colour.
+    /// 12 o'clock in 5° steps while the band holds the arc's colour. A Physical ultimate's arc is
+    /// neutral cream instead (see <see cref="IsNeutralArc"/>), and an arc is one or the other.
     /// </summary>
-    private static double ArcProgress(Frame frame, double cx, double cy, double scale, UltimateCircle circle)
+    private static double ArcProgress(Frame frame, double cx, double cy, double scale, UltimateCircle circle, double centreBrightness)
     {
         // The arc's colour so far: the average of its bands, not just its first one, which can take
         // a tint from the scenery behind the translucent disc (a cyan arc's start read 158° over a
         // red backdrop, the rest of it 169-183°).
         double sx = 0, sy = 0, brightness = 0;
         int bands = 0;
+        bool neutralArc = false;
         int reached = 0, gap = 0;
         for (int i = 0; i < ArcSamples; i++)
         {
-            var band = BandColour(frame, cx, cy, scale, i, circle);
+            var band = BandColour(frame, cx, cy, scale, i, circle, centreBrightness);
             bool sameArc = band is { } b && (bands == 0
-                || (HueDistance(b.Hue, MeanHue(sx, sy)) <= circle.ArcMaxHueDrift && b.Brightness >= brightness / bands * MinArcBrightnessRatio));
+                || (b.Neutral == neutralArc
+                    && (b.Neutral || HueDistance(b.Hue, MeanHue(sx, sy)) <= circle.ArcMaxHueDrift)
+                    && b.Brightness >= brightness / bands * MinArcBrightnessRatio));
             if (sameArc)
             {
                 double h = band!.Value.Hue * Math.PI / 180;
                 (sx, sy, brightness, bands) = (sx + Math.Cos(h), sy + Math.Sin(h), brightness + band.Value.Brightness, bands + 1);
+                neutralArc = band.Value.Neutral;
                 reached = i + 1;
                 gap = 0;
             }
@@ -209,14 +275,15 @@ public static class UltimateGauge
     private const double MinArcBrightnessRatio = 0.7;
 
     /// <summary>
-    /// Hue and brightness of the element colour in the band at step <paramref name="i"/>, if most
-    /// of it is element colour.
+    /// Hue and brightness of the arc colour in the band at step <paramref name="i"/>, if most of it
+    /// is element colour or (on circles that read Physical ultimates) neutral cream.
     /// </summary>
-    private static (double Hue, double Brightness)? BandColour(Frame frame, double cx, double cy, double scale, int i, UltimateCircle circle)
+    private static (double Hue, double Brightness, bool Neutral)? BandColour(Frame frame, double cx, double cy, double scale, int i,
+        UltimateCircle circle, double centreBrightness)
     {
         double angle = i * Math.PI * 2 / ArcSamples - Math.PI / 2; // from 12 o'clock, clockwise
-        int hits = 0, samples = 0;
-        double sx = 0, sy = 0, brightness = 0;
+        int hits = 0, neutral = 0, samples = 0;
+        double sx = 0, sy = 0, brightness = 0, neutralBrightness = 0;
         for (double r = circle.ArcInnerRadius; r <= circle.ArcOuterRadius; r += circle.ArcRadiusStep)
         {
             int x = (int)Math.Round(cx + Math.Cos(angle) * r * scale);
@@ -224,16 +291,43 @@ public static class UltimateGauge
             if ((uint)x >= (uint)frame.Width || (uint)y >= (uint)frame.Height) continue;
             var (cr, cg, cb) = frame.GetPixel(x, y);
             samples++;
-            if (!IsElementColour(cr, cg, cb, circle.ArcMinSaturation)) continue;
+            if (!IsElementColour(cr, cg, cb, circle.ArcMinSaturation))
+            {
+                if (circle.ReadsNeutral && IsNeutralArc(cr, cg, cb, centreBrightness))
+                {
+                    neutral++;
+                    neutralBrightness += Math.Max(cr, Math.Max(cg, cb));
+                }
+                continue;
+            }
             hits++;
             brightness += Math.Max(cr, Math.Max(cg, cb));
             double h = Hue(cr, cg, cb) * Math.PI / 180;
             sx += Math.Cos(h);
             sy += Math.Sin(h);
         }
-        if (samples == 0 || hits * 2 < samples) return null;
-        double mean = Math.Atan2(sy, sx) * 180 / Math.PI;
-        return (mean < 0 ? mean + 360 : mean, brightness / hits);
+        if (samples == 0) return null;
+        if (hits * 2 >= samples)
+        {
+            double mean = Math.Atan2(sy, sx) * 180 / Math.PI;
+            return (mean < 0 ? mean + 360 : mean, brightness / hits, false);
+        }
+        return neutral * 2 >= samples ? (0, neutralBrightness / neutral, true) : null;
+    }
+
+    /// <summary>
+    /// A pixel of a Physical ultimate's cream arc: light, hardly any colour, and much lighter than
+    /// the circle's empty centre. Measured on test_mifu: the arc's darkest channel 182-200 (10th
+    /// percentile) and channel spread up to 25 (90th), against the grey charging ring's 72 and the
+    /// dark disc's 60 or less. The empty centre's mean darkest channel was 2-85 on charging circles
+    /// and 109 over a light floor, so the arc stands 80+ above it; in a white-out (the screen washed
+    /// out to grey, 66 s) the centre was 178 and the "arc" 176, nothing above it, and accepting any
+    /// light grey read that circle as full.
+    /// </summary>
+    private static bool IsNeutralArc(byte r, byte g, byte b, double centreBrightness)
+    {
+        int max = Math.Max(r, Math.Max(g, b)), min = Math.Min(r, Math.Min(g, b));
+        return min >= 150 && max - min <= 45 && min >= centreBrightness + 50;
     }
 
     private static double MeanHue(double sx, double sy)
