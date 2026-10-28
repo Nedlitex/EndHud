@@ -24,16 +24,35 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Text="{DynamicResource Alerts.Intro}" TextWrapping="Wrap" Margin="0,0,0,8" />
-        <!-- The file couldn't be read (renamed), is from a newer EndHud, or couldn't be opened. -->
-        <TextBlock Grid.Row="1" x:Name="StoreText" Foreground="#B04030" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,0,0,8" />
+        <!-- The sharing and file buttons, and save, at the top as in other programs (a player, 2026-10-27) -->
+        <DockPanel Grid.Row="0" LastChildFill="False" Margin="0,0,0,2">
+            <WrapPanel DockPanel.Dock="Left" MaxWidth="700">
+                <Button x:Name="PasteCodeButton" Content="{DynamicResource Alerts.PasteCode}" Click="PasteCode_Click" />
+                <Button x:Name="CopySelectedCodeButton" Content="{DynamicResource Alerts.CopySelectedCode}" Click="CopySelectedCode_Click" />
+                <Button x:Name="CopyAllCodeButton" Content="{DynamicResource Alerts.CopyAllCode}" Click="CopyAllCode_Click" />
+                <Button x:Name="ImportFileButton" Content="{DynamicResource Editor.ImportFile}" Click="ImportFile_Click" />
+                <Button x:Name="ExportFileButton" Content="{DynamicResource Editor.ExportFile}" Click="ExportFile_Click" />
+            </WrapPanel>
+            <Button DockPanel.Dock="Right" x:Name="CloseButton" Content="{DynamicResource Editor.Close}" Click="CloseButton_Click" Margin="0,0,0,6" />
+            <Button DockPanel.Dock="Right" x:Name="SaveButton" Content="{DynamicResource Editor.Save}" Click="SaveButton_Click" IsDefault="True" />
+        </DockPanel>
 
-        <Grid Grid.Row="2">
+        <!-- What saving, importing or exporting said: just under the buttons -->
+        <StackPanel Grid.Row="1" Margin="0,0,0,8">
+            <TextBlock x:Name="ProblemsText" Foreground="#B04030" TextWrapping="Wrap" />
+            <TextBlock x:Name="StatusText" Foreground="#2E7D32" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="2" Text="{DynamicResource Alerts.Intro}" TextWrapping="Wrap" Margin="0,0,0,8" />
+        <!-- The file couldn't be read (renamed), is from a newer EndHud, or couldn't be opened. -->
+        <TextBlock Grid.Row="3" x:Name="StoreText" Foreground="#B04030" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,0,0,8" />
+
+        <Grid Grid.Row="4">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="2*" MinWidth="240" MaxWidth="360" />
                 <ColumnDefinition Width="12" />
@@ -92,22 +111,5 @@
                 </ScrollViewer>
             </GroupBox>
         </Grid>
-
-        <StackPanel Grid.Row="3" Margin="0,0,0,8">
-            <TextBlock x:Name="ProblemsText" Foreground="#B04030" TextWrapping="Wrap" />
-            <TextBlock x:Name="StatusText" Foreground="#2E7D32" TextWrapping="Wrap" />
-        </StackPanel>
-
-        <DockPanel Grid.Row="4" LastChildFill="False">
-            <WrapPanel DockPanel.Dock="Left" MaxWidth="700">
-                <Button x:Name="PasteCodeButton" Content="{DynamicResource Alerts.PasteCode}" Click="PasteCode_Click" />
-                <Button x:Name="CopySelectedCodeButton" Content="{DynamicResource Alerts.CopySelectedCode}" Click="CopySelectedCode_Click" />
-                <Button x:Name="CopyAllCodeButton" Content="{DynamicResource Alerts.CopyAllCode}" Click="CopyAllCode_Click" />
-                <Button x:Name="ImportFileButton" Content="{DynamicResource Editor.ImportFile}" Click="ImportFile_Click" />
-                <Button x:Name="ExportFileButton" Content="{DynamicResource Editor.ExportFile}" Click="ExportFile_Click" />
-            </WrapPanel>
-            <Button DockPanel.Dock="Right" x:Name="CloseButton" Content="{DynamicResource Editor.Close}" Click="CloseButton_Click" Margin="0,0,0,6" />
-            <Button DockPanel.Dock="Right" x:Name="SaveButton" Content="{DynamicResource Editor.Save}" Click="SaveButton_Click" IsDefault="True" />
-        </DockPanel>
     </Grid>
 </Window>

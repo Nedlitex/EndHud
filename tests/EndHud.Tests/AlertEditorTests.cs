@@ -44,6 +44,30 @@ public sealed class AlertEditorTests : IDisposable
 
     private static string Said(AlertEditor editor) => ((TextBlock)editor.FindName("ProblemsText")).Text;
 
+    /// <summary>
+    /// The sharing, file and save buttons are at the top, above the alerts, as in other programs (a player,
+    /// 2026-10-27); what they say shows just under them.
+    /// </summary>
+    [Fact]
+    public void The_file_and_save_buttons_are_at_the_top()
+    {
+        (double Save, double Paste, double Said, double Alerts) at = default;
+        OnEditor(Store(), () => { }, editor =>
+            at = (Top(editor, "SaveButton"), Top(editor, "PasteCodeButton"), Top(editor, "ProblemsText"), Top(editor, "RuleList")));
+
+        Assert.True(at.Save < at.Alerts && at.Paste < at.Alerts, $"buttons at {at.Save}/{at.Paste}, the alerts at {at.Alerts}");
+        Assert.InRange(at.Said, at.Save, at.Alerts);
+    }
+
+    /// <summary>How far down the editor the element is, laid out at the editor's own size (not shown).</summary>
+    private static double Top(Window editor, string name)
+    {
+        var content = (FrameworkElement)editor.Content;
+        content.Measure(new Size(editor.Width, editor.Height));
+        content.Arrange(new Rect(0, 0, editor.Width, editor.Height));
+        return ((FrameworkElement)editor.FindName(name)).TranslatePoint(new Point(0, 0), content).Y;
+    }
+
     /// <summary>The owner's first example: skill points at least 1.8 → "Cast now", built with the New button and the pickers, saved in alerts.json.</summary>
     [Fact]
     public void Builds_a_skill_point_alert_and_saves_it()

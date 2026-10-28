@@ -555,6 +555,33 @@ public sealed class RotationEditorTests : IDisposable
     }
 
     /// <summary>
+    /// The file, sharing and save buttons are at the top, above the rotation and its steps, as in other programs (a
+    /// player, 2026-10-27); what they say shows just under them.
+    /// </summary>
+    [Fact]
+    public void The_file_and_save_buttons_are_at_the_top()
+    {
+        var library = new RotationLibrary(_folder);
+        library.Own.Save(Published() with { Id = "mine" });
+        (double Save, double Restore, double Said, double Picker, double Steps) at = default;
+        OnEditor(library, _ => { }, editor =>
+            at = (Top(editor, "SaveButton"), Top(editor, "RestorePublishedButton"), Top(editor, "ProblemsText"), Top(editor, "RotationPicker"), Top(editor, "StepList")));
+
+        Assert.True(at.Save < at.Picker && at.Restore < at.Picker, $"buttons at {at.Save}/{at.Restore}, the rotation picker at {at.Picker}");
+        Assert.InRange(at.Said, at.Save, at.Picker);
+        Assert.True(at.Picker < at.Steps);
+    }
+
+    /// <summary>How far down the editor the element is, laid out at the editor's own size (not shown).</summary>
+    private static double Top(Window editor, string name)
+    {
+        var content = (FrameworkElement)editor.Content;
+        content.Measure(new Size(editor.Width, editor.Height));
+        content.Arrange(new Rect(0, 0, editor.Width, editor.Height));
+        return ((FrameworkElement)editor.FindName(name)).TranslatePoint(new Point(0, 0), content).Y;
+    }
+
+    /// <summary>
     /// A plunge attack by whoever is controlled, from the editor: the operator picker offers 当前操控 whatever the
     /// action (a player, 2026-10-27: it should be pickable before the attack is).
     /// </summary>

@@ -28,14 +28,32 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
+        <!-- The file and sharing buttons, and save, at the top as in other programs (a player, 2026-10-27) -->
+        <DockPanel Grid.Row="0" LastChildFill="False" Margin="0,0,0,8">
+            <Button Content="{DynamicResource Editor.ImportFile}" Click="ImportFile_Click" />
+            <Button Content="{DynamicResource Editor.PasteCode}" Click="PasteCode_Click" />
+            <Button Content="{DynamicResource Editor.ExportFile}" Click="ExportFile_Click" />
+            <Button Content="{DynamicResource Editor.CopyCode}" Click="CopyCode_Click" />
+            <Button x:Name="RestorePublishedButton" Content="{DynamicResource Editor.RestorePublished}" Click="RestorePublished_Click"
+                    ToolTip="{DynamicResource Editor.RestorePublished.Hint}" Margin="18,0,6,0" />
+            <Button DockPanel.Dock="Right" Content="{DynamicResource Editor.Close}" Click="CloseButton_Click" Margin="0" />
+            <Button DockPanel.Dock="Right" x:Name="SaveButton" Content="{DynamicResource Editor.Save}" Click="SaveButton_Click" IsDefault="True" />
+        </DockPanel>
+
+        <!-- What saving, importing or exporting said: just under the buttons -->
+        <StackPanel Grid.Row="1" Margin="0,0,0,8">
+            <TextBlock x:Name="ProblemsText" Foreground="#B04030" TextWrapping="Wrap" />
+            <TextBlock x:Name="StatusText" Foreground="#2E7D32" TextWrapping="Wrap" />
+        </StackPanel>
+
         <!-- Which rotation -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,8">
             <TextBlock Text="{DynamicResource Editor.Rotation}" Style="{StaticResource Label}" />
             <ComboBox x:Name="RotationPicker" MinWidth="320" SelectionChanged="RotationPicker_SelectionChanged" />
             <Button x:Name="NewButton" Content="{DynamicResource Editor.New}" Click="NewButton_Click" />
@@ -44,7 +62,7 @@
         </StackPanel>
 
         <!-- Name and squad -->
-        <StackPanel Grid.Row="1" x:Name="Header" Margin="0,0,0,8">
+        <StackPanel Grid.Row="3" x:Name="Header" Margin="0,0,0,8">
             <TextBlock x:Name="EmptyText" Text="{DynamicResource Editor.Empty}" Foreground="#666" Margin="0,0,0,6" TextWrapping="Wrap" />
             <TextBlock x:Name="PublishedNote" Text="{DynamicResource Editor.PublishedNote}" Foreground="#1F5FAF"
                        TextWrapping="Wrap" Visibility="Collapsed" Margin="0,0,0,6" />
@@ -61,7 +79,7 @@
             </StackPanel>
         </StackPanel>
 
-        <Grid Grid.Row="2" x:Name="Body">
+        <Grid Grid.Row="4" x:Name="Body">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="400" />
                 <ColumnDefinition Width="12" />
@@ -183,7 +201,7 @@
         </Grid>
 
         <!-- Preview -->
-        <GroupBox Grid.Row="3" Header="{DynamicResource Editor.Preview}">
+        <GroupBox Grid.Row="5" Header="{DynamicResource Editor.Preview}">
             <Border Background="#5A646E" Padding="8" CornerRadius="4">
                 <!-- Shrinks to fit: the strip is drawn at its in-game size. -->
                 <Viewbox Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Left" MaxHeight="150">
@@ -191,21 +209,5 @@
                 </Viewbox>
             </Border>
         </GroupBox>
-
-        <StackPanel Grid.Row="4" Margin="0,0,0,8">
-            <TextBlock x:Name="ProblemsText" Foreground="#B04030" TextWrapping="Wrap" />
-            <TextBlock x:Name="StatusText" Foreground="#2E7D32" TextWrapping="Wrap" />
-        </StackPanel>
-
-        <DockPanel Grid.Row="5" LastChildFill="False">
-            <Button Content="{DynamicResource Editor.ImportFile}" Click="ImportFile_Click" />
-            <Button Content="{DynamicResource Editor.PasteCode}" Click="PasteCode_Click" />
-            <Button Content="{DynamicResource Editor.ExportFile}" Click="ExportFile_Click" />
-            <Button Content="{DynamicResource Editor.CopyCode}" Click="CopyCode_Click" />
-            <Button x:Name="RestorePublishedButton" Content="{DynamicResource Editor.RestorePublished}" Click="RestorePublished_Click"
-                    ToolTip="{DynamicResource Editor.RestorePublished.Hint}" Margin="18,0,6,0" />
-            <Button DockPanel.Dock="Right" Content="{DynamicResource Editor.Close}" Click="CloseButton_Click" Margin="0" />
-            <Button DockPanel.Dock="Right" x:Name="SaveButton" Content="{DynamicResource Editor.Save}" Click="SaveButton_Click" IsDefault="True" />
-        </DockPanel>
     </Grid>
 </Window>
