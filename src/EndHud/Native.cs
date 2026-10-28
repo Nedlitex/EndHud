@@ -11,14 +11,17 @@ namespace EndHud;
 internal static class Native
 {
     public const int GWL_EXSTYLE = -20;
+    public const long WS_EX_TOPMOST = 0x8;
     public const long WS_EX_TRANSPARENT = 0x20;
     public const long WS_EX_TOOLWINDOW = 0x80;
     public const long WS_EX_LAYERED = 0x80000;
     public const long WS_EX_NOACTIVATE = 0x08000000;
 
     public static readonly IntPtr HWND_TOPMOST = new(-1);
+    public static readonly IntPtr HWND_NOTOPMOST = new(-2);
     public const uint SWP_NOSIZE = 0x1;
     public const uint SWP_NOMOVE = 0x2;
+    public const uint SWP_NOZORDER = 0x4;
     public const uint SWP_NOACTIVATE = 0x10;
     public const int SW_HIDE = 0;
     public const int SW_SHOWNOACTIVATE = 4;
@@ -51,6 +54,36 @@ internal static class Native
     public delegate void WinEventDelegate(
         IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild,
         uint dwEventThread, uint dwmsEventTime);
+
+    /// <summary>
+    /// Whether EndHud's windows stay above everything else: while the game or one of EndHud's own windows is in
+    /// front. With anything else in front (a browser, say) they let it come above them (a player, 2026-10-27:
+    /// "use the editor and look at a website at the same time").
+    /// </summary>
+    public static bool StaysOnTop(IntPtr front, IntPtr game) => front != IntPtr.Zero && (front == game || IsOurs(front));
+
+    /// <summary>Whether the window belongs to EndHud (the overlay, an editor, one of their dialogs).</summary>
+    public static bool IsOurs(IntPtr hwnd)
+    {
+        GetWindowThreadProcessId(hwnd, out uint pid);
+        return pid == (uint)Environment.ProcessId;
+    }
+
+    /// <summary>Asked of Windows, not remembered.</summary>
+    public static bool IsTopmost(IntPtr hwnd) => (GetWindowLongPtr(hwnd, GWL_EXSTYLE).ToInt64() & WS_EX_TOPMOST) != 0;
+
+    /// <summary>
+    /// Put the window always-on-top, or take that away and leave it just under the window in front. Taking it away
+    /// with HWND_NOTOPMOST alone would lift it above every other ordinary window, the one in front included; placed
+    /// after that window, it loses always-on-top and stays behind it. Only a change is made: the window's z-order is
+    /// otherwise left to the user.
+    /// </summary>
+    public static void SetOnTop(IntPtr hwnd, bool onTop, IntPtr front)
+    {
+        if (hwnd == IntPtr.Zero || onTop == IsTopmost(hwnd)) return;
+        IntPtr after = onTop ? HWND_TOPMOST : front != IntPtr.Zero && front != hwnd ? front : HWND_NOTOPMOST;
+        SetWindowPos(hwnd, after, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
 
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
     public static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);

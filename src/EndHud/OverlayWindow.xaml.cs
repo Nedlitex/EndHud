@@ -381,6 +381,8 @@ public partial class OverlayWindow : Window
     {
         int x, y, w, h;
         bool show;
+        IntPtr fg = Native.GetForegroundWindow();
+        bool onTop = Native.StaysOnTop(fg, _game);
 
         if (_game == IntPtr.Zero)
         {
@@ -405,7 +407,6 @@ public partial class OverlayWindow : Window
             w = client.Right;
             h = client.Bottom;
 
-            IntPtr fg = Native.GetForegroundWindow();
             bool gameFocused = fg == _game || fg == _hwnd;
             UpdateSkillInput(gameInFront: fg == _game);
             show = _hudOn && !Native.IsIconic(_game) && (gameFocused || !_config.AutoShowOnGameFocus);
@@ -427,22 +428,35 @@ public partial class OverlayWindow : Window
             Native.ShowWindow(_hwnd, hide ? Native.SW_HIDE : Native.SW_SHOWNOACTIVATE);
             reassertTopmost |= !hide;
         }
+        KeepEditorsOnTop(onTop, fg);
         if (hide) return;
 
         if (w <= 0 || h <= 0) return;
 
+        // The open menu is a window the user works in, as the editors are: on top only while the game or EndHud is
+        // in front. The HUD alone stays on top as before (it shows over other windows only when set to show always).
+        bool overlayOnTop = onTop || !_menuOpen;
         var rect = (x, y, w, h);
         if (rect != _lastRect)
         {
             _lastRect = rect;
-            Native.SetWindowPos(_hwnd, Native.HWND_TOPMOST, x, y, w, h, Native.SWP_NOACTIVATE);
+            Native.SetWindowPos(_hwnd, Native.HWND_TOPMOST, x, y, w, h,
+                Native.SWP_NOACTIVATE | (overlayOnTop ? 0 : Native.SWP_NOZORDER));
         }
-        else if (reassertTopmost)
+        else if (reassertTopmost && overlayOnTop)
         {
             // Some games push themselves topmost when focused; put the overlay back above them.
             Native.SetWindowPos(_hwnd, Native.HWND_TOPMOST, 0, 0, 0, 0,
                 Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
         }
+        if (!overlayOnTop) Native.SetOnTop(_hwnd, false, fg);
+    }
+
+    /// <summary>The rotation and alert editors: on top while the game or EndHud is in front, behind anything else.</summary>
+    private void KeepEditorsOnTop(bool onTop, IntPtr front)
+    {
+        foreach (var editor in new Window?[] { _editor, _alertEditor })
+            if (editor is not null) Native.SetOnTop(new WindowInteropHelper(editor).Handle, onTop, front);
     }
 
     private void ShowParty(PartyState? state, string? errorKey)
