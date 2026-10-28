@@ -555,8 +555,8 @@ public sealed class RotationEditorTests : IDisposable
     }
 
     /// <summary>
-    /// A plunge attack by whoever is controlled, from the editor: for an attack the operator picker
-    /// also offers 当前操控; for a skill it doesn't (and a step left on it moves to a squad operator).
+    /// A plunge attack by whoever is controlled, from the editor: the operator picker offers 当前操控 whatever the
+    /// action (a player, 2026-10-27: it should be pickable before the attack is).
     /// </summary>
     [Fact]
     public void A_plunge_by_whoever_is_controlled_is_built_in_the_editor()
@@ -581,7 +581,7 @@ public sealed class RotationEditorTests : IDisposable
             said = ((TextBlock)editor.FindName("ProblemsText")).Text;
         });
 
-        Assert.DoesNotContain(RotationStep.Controlled, forSkill);
+        Assert.Contains(RotationStep.Controlled, forSkill);
         Assert.Contains(RotationStep.Controlled, forAttack);
         Assert.True(hintShown);
         Assert.Equal("", said);
@@ -589,6 +589,44 @@ public sealed class RotationEditorTests : IDisposable
         Assert.Equal(new RotationStep(RotationStep.Controlled, StepAction.PlungeAttack), step with { Expect = [] });
         // Its words (Rotation.Action.PlungeAttack, Editor.ControlledOperator) are checked by I18nTests; the refusal here.
         Assert.True(Translated("Rotation.Problem.ControlledOperatorOnlyForAttacks"));
+    }
+
+    /// <summary>
+    /// 当前操控 picked first, on a new step (a skill): the step becomes a basic attack, so 主控 + 普攻 takes one pick
+    /// (a player, 2026-10-27). Turning it back to a skill afterwards moves it to a squad operator, as before.
+    /// </summary>
+    [Fact]
+    public void Picking_whoever_is_controlled_first_makes_the_step_a_basic_attack()
+    {
+        var library = new RotationLibrary(_folder);
+        library.Own.Save(Published() with { Id = "mine" });
+
+        string said = "";
+        StepAction? shownAfterPick = null;
+        object? operatorAfterSkill = null;
+        OnEditor(library, _ => { }, editor =>
+        {
+            var who = (ComboBox)editor.FindName("StepOperator");
+            var action = (ComboBox)editor.FindName("StepActionPicker");
+            Click(editor, "AddStepButton");
+            Pick(action, StepAction.Combo);
+            Pick(who, RotationStep.Controlled);
+            shownAfterPick = (StepAction?)((ComboBoxItem?)action.SelectedItem)?.Tag;
+            Click(editor, "SaveButton");
+            said = ((TextBlock)editor.FindName("ProblemsText")).Text;
+
+            Click(editor, "AddStepButton");
+            Pick(who, RotationStep.Controlled);
+            Pick(action, StepAction.Ultimate);
+            operatorAfterSkill = ((ComboBoxItem?)who.SelectedItem)?.Tag;
+        });
+
+        Assert.Equal(StepAction.BasicAttack, shownAfterPick);
+        Assert.Equal("", said);
+        var step = Assert.Single(library.Own.Load().Rotations).Phases[0].Steps[1];
+        Assert.Equal(new RotationStep(RotationStep.Controlled, StepAction.BasicAttack), step with { Expect = [] });
+        Assert.NotNull(operatorAfterSkill);
+        Assert.NotEqual(RotationStep.Controlled, operatorAfterSkill);
     }
 
     /// <summary>

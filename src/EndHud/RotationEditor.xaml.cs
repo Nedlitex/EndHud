@@ -268,11 +268,14 @@ public partial class RotationEditor : Window
         BuildConditionRows();
     }
 
-    /// <summary>The step's operator picker: the squad, and for an attack also 当前操控 (whoever is controlled at the time).</summary>
+    /// <summary>
+    /// The step's operator picker: the squad, and 当前操控 (whoever is controlled at the time). It is offered whatever
+    /// the action, so it can be picked first: picking it on a skill makes the step a basic attack (StepField_Changed).
+    /// </summary>
     private void FillStepOperators()
     {
         FillOperators(StepOperator, SquadOperators());
-        if (_step?.Action.IsDisplayOnly() == true) StepOperator.Items.Add(Item(Loc.Get("Editor.ControlledOperator"), RotationStep.Controlled));
+        StepOperator.Items.Add(Item(Loc.Get("Editor.ControlledOperator"), RotationStep.Controlled));
     }
 
     /// <summary>
@@ -449,6 +452,14 @@ public partial class RotationEditor : Window
         // A condition step has no operator: the operator picker is hidden then, and what it still holds isn't the step's.
         if (was != StepAction.Condition && StepOperator.SelectedItem is ComboBoxItem { Tag: string id }) _step.OperatorId = id;
         if (StepActionPicker.SelectedItem is ComboBoxItem { Tag: StepAction action }) _step.Action = action;
+        // 当前操控 picked first, on a skill: it is for attacks, so the step becomes a basic attack.
+        if (sender == StepOperator && _step.OperatorId == RotationStep.Controlled && !_step.Action.IsDisplayOnly())
+        {
+            _step.Action = StepAction.BasicAttack;
+            _loading = true;
+            StepActionPicker.SelectedItem = StepActionPicker.Items.Cast<ComboBoxItem>().First(i => (StepAction)i.Tag == StepAction.BasicAttack);
+            _loading = false;
+        }
         if (_step.Action.IsDisplayOnly() != was.IsDisplayOnly())
         {
             // 当前操控 is offered for an attack only: a skill left on it moves to the first squad operator.
