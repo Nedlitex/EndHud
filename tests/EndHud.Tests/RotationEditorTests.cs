@@ -572,6 +572,33 @@ public sealed class RotationEditorTests : IDisposable
         Assert.True(at.Picker < at.Steps);
     }
 
+    /// <summary>
+    /// The phase column shares the window's width with the steps column (a player, 2026-10-27: widening the window
+    /// only padded the right side): both grow with the window, the phases never below 400.
+    /// </summary>
+    [Fact]
+    public void A_wider_window_widens_the_phase_column_too()
+    {
+        var library = new RotationLibrary(_folder);
+        library.Own.Save(Published() with { Id = "mine" });
+        (double Phases, double Steps) narrow = default, wide = default;
+        OnEditor(library, _ => { }, editor =>
+        {
+            (double, double) Columns(double width)
+            {
+                editor.Width = width;
+                Top(editor, "Body"); // lays the editor out at that width
+                return (((ColumnDefinition)editor.FindName("PhaseColumn")).ActualWidth, ((ColumnDefinition)editor.FindName("StepColumn")).ActualWidth);
+            }
+            narrow = Columns(editor.MinWidth);
+            wide = Columns(1800);
+        });
+
+        Assert.True(narrow.Phases >= 400, $"at the narrowest the phases are {narrow.Phases}");
+        Assert.True(wide.Phases > narrow.Phases + 250, $"the phases grew from {narrow.Phases} to {wide.Phases}");
+        Assert.Equal(wide.Phases, wide.Steps, 1);
+    }
+
     /// <summary>How far down the editor the element is, laid out at the editor's own size (not shown).</summary>
     private static double Top(Window editor, string name)
     {

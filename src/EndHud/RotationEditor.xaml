@@ -81,9 +81,11 @@
 
         <Grid Grid.Row="4" x:Name="Body">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="400" />
+                <!-- Both columns share the window's width: a wider window widens the phases too, for deep condition
+                     groups (a player, 2026-10-27), never below the phase column's 400. -->
+                <ColumnDefinition x:Name="PhaseColumn" Width="*" MinWidth="400" />
                 <ColumnDefinition Width="12" />
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition x:Name="StepColumn" Width="*" />
             </Grid.ColumnDefinitions>
 
             <!-- The phases, in order; one with an entry condition is switched to when it holds -->
