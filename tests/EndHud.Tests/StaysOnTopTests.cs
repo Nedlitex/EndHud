@@ -40,6 +40,29 @@ public class StaysOnTopTests
         Assert.True(Above(browser.Handle, editor.Handle), "the window in front should stay above the editor");
     });
 
+    /// <summary>
+    /// The open menu has a taskbar button and a place in Alt+Tab, so it can be found again from behind a browser (a
+    /// player, 2026-10-27: "no taskbar icon, so if I switch to browser, I lose the menu"); closed, it has neither.
+    /// </summary>
+    [Fact]
+    public void The_open_menu_is_in_the_taskbar_and_the_closed_one_is_not() => OnSta(() =>
+    {
+        using var overlay = Shown("overlay");
+        long Style() => Native.GetWindowLongPtr(overlay.Handle, Native.GWL_EXSTYLE).ToInt64();
+        bool InTaskbar() => (Style() & Native.WS_EX_APPWINDOW) != 0 && (Style() & Native.WS_EX_TOOLWINDOW) == 0;
+
+        Native.SetInTaskbar(overlay.Handle, false);
+        Assert.False(InTaskbar());
+        Assert.True(Native.IsWindowVisible(overlay.Handle));
+
+        Native.SetInTaskbar(overlay.Handle, true);
+        Assert.True(InTaskbar());
+        Assert.True(Native.IsWindowVisible(overlay.Handle), "the window should be shown again after the change");
+
+        Native.SetInTaskbar(overlay.Handle, false);
+        Assert.False(InTaskbar());
+    });
+
     private static Form Shown(string title)
     {
         var form = new Form { Text = title, Width = 300, Height = 200, ShowInTaskbar = false, StartPosition = FormStartPosition.Manual, Left = 50, Top = 50 };

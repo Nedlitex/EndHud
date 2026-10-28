@@ -15,6 +15,7 @@ internal static class Native
     public const long WS_EX_TRANSPARENT = 0x20;
     public const long WS_EX_TOOLWINDOW = 0x80;
     public const long WS_EX_LAYERED = 0x80000;
+    public const long WS_EX_APPWINDOW = 0x40000;
     public const long WS_EX_NOACTIVATE = 0x08000000;
 
     public static readonly IntPtr HWND_TOPMOST = new(-1);
@@ -67,6 +68,21 @@ internal static class Native
     {
         GetWindowThreadProcessId(hwnd, out uint pid);
         return pid == (uint)Environment.ProcessId;
+    }
+
+    /// <summary>
+    /// Give the window a taskbar button and a place in Alt+Tab, or take them away. Windows adds or removes the button
+    /// when a window is shown, so a shown window is hidden and shown again (without taking focus) around the change.
+    /// </summary>
+    public static void SetInTaskbar(IntPtr hwnd, bool inTaskbar)
+    {
+        long ex = GetWindowLongPtr(hwnd, GWL_EXSTYLE).ToInt64();
+        long wanted = inTaskbar ? (ex | WS_EX_APPWINDOW) & ~WS_EX_TOOLWINDOW : (ex | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW;
+        if (wanted == ex) return;
+        bool shown = IsWindowVisible(hwnd);
+        if (shown) ShowWindow(hwnd, SW_HIDE);
+        SetWindowLongPtr(hwnd, GWL_EXSTYLE, new IntPtr(wanted));
+        if (shown) ShowWindow(hwnd, SW_SHOWNOACTIVATE);
     }
 
     /// <summary>Asked of Windows, not remembered.</summary>

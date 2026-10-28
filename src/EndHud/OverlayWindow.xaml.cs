@@ -118,7 +118,24 @@ public partial class OverlayWindow : Window
         Refresh(reassertTopmost: true);
     }
 
-    public void ToggleMenu() => SetMenuOpen(!_menuOpen);
+    /// <summary>
+    /// The menu hotkey and the tray icon: open or close the menu. Open but behind another program's window (it stays
+    /// on top only with the game or EndHud in front), it is brought back to the front instead of closed.
+    /// </summary>
+    public void ToggleMenu()
+    {
+        if (_menuOpen && !Native.StaysOnTop(Native.GetForegroundWindow(), _game)) BringMenuForward();
+        else SetMenuOpen(!_menuOpen);
+    }
+
+    private void BringMenuForward()
+    {
+        Native.ForceForeground(_hwnd);
+        Native.ClipCursor(IntPtr.Zero);
+        Activate();
+        Refresh(reassertTopmost: true);
+    }
+
 
     /// <summary>Check the wiki for new operators (at most every 15 minutes; see PartyMonitor).</summary>
     internal Task<OperatorCheck> CheckOperatorsAsync() => _party.CheckOperatorsAsync();
@@ -238,6 +255,9 @@ public partial class OverlayWindow : Window
         long ex = Native.GetWindowLongPtr(_hwnd, Native.GWL_EXSTYLE).ToInt64();
         ex = open ? ex & ~PassThroughStyles : ex | PassThroughStyles;
         Native.SetWindowLongPtr(_hwnd, Native.GWL_EXSTYLE, new IntPtr(ex));
+        // While open the overlay is a window the user works in: a taskbar button and a place in Alt+Tab, so it can be
+        // found again from behind another program's window (a player, 2026-10-27). Closed, neither.
+        Native.SetInTaskbar(_hwnd, open);
 
         MenuPanel.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
         SetComboHintEditing(open);

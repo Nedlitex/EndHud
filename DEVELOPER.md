@@ -653,7 +653,9 @@ EndHud starts in the **system tray**, and the HUD appears whenever the game wind
 
 The menu and the rotation and alert editors stay on top while the game or an EndHud window is in front.
 With any other window in front (a browser, say) they go behind it, so an editor can be used beside
-another program (a player, 2026-10-27). The HUD itself always stays on top.
+another program (a player, 2026-10-27). The HUD itself always stays on top. While open, the menu has a
+taskbar button and a place in Alt+Tab; the menu hotkey or the tray icon brings an open menu that is behind
+another window back to the front instead of closing it.
 
 | Hotkey | Action |
 |---|---|
