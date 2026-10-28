@@ -204,7 +204,8 @@
     <sys:String x:Key="Editor.Group.Any">任一满足</sys:String>
     <sys:String x:Key="Editor.AddToGroup">在组内添加条件</sys:String>
     <sys:String x:Key="Editor.Not">非</sys:String>
-    <sys:String x:Key="Editor.NotHint">勾选后，这个条件不满足时才算满足（例如“非 莱万汀 终结技充能 至多 50%”）</sys:String>
+    <sys:String x:Key="Editor.Is">是</sys:String>
+    <sys:String x:Key="Editor.NotHint">选“非”时，这个条件不满足时才算满足（例如“非 莱万汀 终结技充能 至多 50%”）；默认“是”，即条件本身</sys:String>
     <sys:String x:Key="Editor.LastMatchWins">优先级相同的几个轴段同时满足时，显示最下面的那个</sys:String>
     <sys:String x:Key="Editor.LastMatchWinsHint">不勾选时显示最上面的那个</sys:String>
     <sys:String x:Key="Rotation.Problem.FirstStepWithPrevious">轴段“{0}”的第一步不能“与上一步连放”：轴段里它前面没有步骤。</sys:String>

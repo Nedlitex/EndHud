@@ -143,6 +143,8 @@ public sealed class RotationEditorTests : IDisposable
         library.Own.Save(two with { Phases = [.. two.Phases, new RotationPhase("burst", "爆发轴", [new RotationStep("Laevatain", StepAction.Ultimate)])] });
 
         string said = "";
+        List<bool> notShown = [];
+        bool notPicked = true;
         OnEditor(library, _ => { }, editor =>
         {
             ((CheckBox)editor.FindName("LastMatchWinsBox")).IsChecked = true;
@@ -155,7 +157,9 @@ public sealed class RotationEditorTests : IDisposable
             var pickers = row.Children.OfType<ComboBox>().ToList(); // kind, who, compare, percent
             pickers[2].SelectedItem = pickers[2].Items.Cast<ComboBoxItem>().Single(i => Equals(i.Tag, Comparison.AtMost));
             pickers[3].SelectedItem = pickers[3].Items.Cast<ComboBoxItem>().Single(i => Equals(i.Tag, 0));
-            row.Children.OfType<CheckBox>().Single().IsChecked = true;
+            notShown = Negation(row).Items.Cast<ComboBoxItem>().Select(i => (bool)i.Tag).ToList();
+            notPicked = (bool)((ComboBoxItem)Negation(row).SelectedItem).Tag;
+            Pick(Negation(row), true);
             Click(editor, "SaveButton");
             said = ((TextBlock)editor.FindName("ProblemsText")).Text;
         });
@@ -164,7 +168,16 @@ public sealed class RotationEditorTests : IDisposable
         Assert.True(saved.LastMatchWins, $"editor said: {said}");
         Assert.Equal(3, saved.Format);
         Assert.Equal(new NotCondition(new UltimateChargeCondition("Laevatain", Comparison.AtMost, 0)), Assert.Single(saved.Phases[1].When));
+        // 是 / 非 in a picker, 是 by default (a player, 2026-10-27: a 非 beside an unticked box read as "not").
+        Assert.Equal([false, true], notShown);
+        Assert.False(notPicked);
+        Assert.Equal("是", Words("Editor.Is"));
+        Assert.Equal("非", Words("Editor.Not"));
     }
+
+    /// <summary>A condition row's 是 / 非 picker (in a box of its own, before the row's kind picker).</summary>
+    private static ComboBox Negation(Panel row) =>
+        (ComboBox)row.Children.OfType<Border>().Single(b => Equals(b.Tag, ConditionEditor.NegationTag)).Child;
 
     /// <summary>
     /// BUG1: a rotation file holding "skill points at least 1.8" opened in the editor, and once the row was touched
@@ -1002,6 +1015,19 @@ public sealed class RotationEditorTests : IDisposable
     /// <summary>A phase's steps as comparable text (a step's list of conditions compares by reference).</summary>
     private static List<string> Shape(RotationPhase phase) =>
         phase.Steps.Select(s => $"{s.OperatorId}|{s.Action}|{s.Label}|{s.Note}|{s.WithPrevious}|{string.Join(",", s.Expect)}").ToList();
+
+    /// <summary>The zh-CN words for the key, or null.</summary>
+    private static string? Words(string key)
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            string file = Path.Combine(dir.FullName, "src", "EndHud", "i18n", "zh-CN.xaml");
+            if (!File.Exists(file)) continue;
+            var match = System.Text.RegularExpressions.Regex.Match(File.ReadAllText(file), $"x:Key=\"{System.Text.RegularExpressions.Regex.Escape(key)}\">([^<]*)<");
+            return match.Success ? match.Groups[1].Value : null;
+        }
+        throw new DirectoryNotFoundException("src/EndHud/i18n");
+    }
 
     /// <summary>
     /// The sentence the player reads is in the zh-CN strings, in Chinese, naming the phase (tests run

@@ -131,22 +131,22 @@ internal sealed class ConditionEditor(
     /// One condition as pickers: its kind, then what it needs, then a remove button. A group
     /// ("all of" / "any of") shows its conditions indented below it, with its own "add" button.
     /// </summary>
+    /// <summary>The tag on the box holding a row's 是 / 非 picker.</summary>
+    internal const string NegationTag = "negation";
+
     private UIElement Row(List<StateCondition> list, int index, Action<bool> changed)
     {
-        // A "not" is shown as its condition with the "not" box ticked.
+        // A "not" is shown as its condition with 非 picked in front of it; 是 (the default) reads as the condition
+        // itself (a player, 2026-10-27: a 非 beside an unticked box read as "not ..." whether ticked or not).
         var stored = list[index];
         var condition = stored is NotCondition not ? not.Of : stored;
         var row = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
-        var negate = new CheckBox
-        {
-            Content = Loc.Get("Editor.Not"),
-            ToolTip = Loc.Get("Editor.NotHint"),
-            IsChecked = stored is NotCondition,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 6, 0),
-        };
-        StateCondition Wrap(StateCondition c) => negate.IsChecked == true ? new NotCondition(c) : c;
-        row.Children.Add(negate);
+        var negate = Picker([false, true], n => Loc.Get(n ? "Editor.Not" : "Editor.Is"), stored is NotCondition);
+        negate.MinWidth = 48;
+        negate.ToolTip = Loc.Get("Editor.NotHint");
+        StateCondition Wrap(StateCondition c) => (bool)Picked(negate) ? new NotCondition(c) : c;
+        // In a box of its own: the row's own pickers (kind, then what it needs) stay the row's ComboBoxes.
+        row.Children.Add(new Border { Child = negate, Tag = NegationTag, Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center });
         var kind = new ComboBox();
         var offeredKinds = ConditionCatalogue.OfferedIn(host);
         foreach (string k in ConditionCatalogue.EditorKinds.Where(k => offeredKinds.Contains(k) || k == KindOf(condition))) kind.Items.Add(KindItem(k, KindOf(condition)));
@@ -557,13 +557,11 @@ internal sealed class ConditionEditor(
             list[index] = Wrap(Default((string)Picked(kind)));
             changed(true);
         };
-        negate.Checked += (_, _) => NegateChanged();
-        negate.Unchecked += (_, _) => NegateChanged();
-        void NegateChanged()
+        negate.SelectionChanged += (_, _) =>
         {
             list[index] = Wrap(read());
             changed(false);
-        }
+        };
         foreach (var picker in row.Children.OfType<ComboBox>().Where(p => p != kind && p != groupMode))
         {
             picker.SelectionChanged += (_, _) =>
