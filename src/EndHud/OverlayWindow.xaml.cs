@@ -276,6 +276,8 @@ public partial class OverlayWindow : Window
             Native.ClipCursor(IntPtr.Zero);
             Activate();
             CloseMenuButton.Focus();
+            // Where the centred panels went, once laid out (the owner, 2026-10-27: the strip and gauges off the middle).
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, () => DiagnosticLog.Info("menu open: " + DescribeCentredPanels()));
         }
         else if (_game != IntPtr.Zero)
         {
@@ -283,6 +285,17 @@ public partial class OverlayWindow : Window
         }
 
         Refresh(reassertTopmost: true);
+    }
+
+    /// <summary>The strip's and the gauges' size, scale, place and saved centre, in the overlay's units.</summary>
+    private string DescribeCentredPanels()
+    {
+        static string Describe(FrameworkElement frame, double scale) =>
+            $"{frame.Visibility} {frame.ActualWidth:F0}x{frame.ActualHeight:F0} x{scale:F2} at ({System.Windows.Controls.Canvas.GetLeft(frame):F0},{System.Windows.Controls.Canvas.GetTop(frame):F0})";
+        static double Scale(FrameworkElement frame) => (frame.LayoutTransform as System.Windows.Media.ScaleTransform)?.ScaleX ?? 1;
+        return $"canvas {HintCanvas.ActualWidth:F0}x{HintCanvas.ActualHeight:F0}; " +
+               $"strip {Describe(RotationFrame, Scale(RotationFrame))}, saved centre {_config.RotationCenterX:F3}, top {_config.RotationY:F3}; " +
+               $"gauges {Describe(GaugeFrame, Scale(GaugeFrame))}, saved centre {_config.GaugesCenterX:F3}, bottom {_config.GaugesBottomY:F3}";
     }
 
     private void CloseMenuButton_Click(object sender, RoutedEventArgs e) => SetMenuOpen(false);
