@@ -651,6 +651,10 @@ unrecognised app the first time.
 
 EndHud starts in the **system tray**, and the HUD appears whenever the game window has focus.
 
+The menu and the rotation and alert editors stay on top while the game or an EndHud window is in front.
+With any other window in front (a browser, say) they go behind it, so an editor can be used beside
+another program (a player, 2026-10-27). The HUD itself always stays on top.
+
 | Hotkey | Action |
 |---|---|
 | **Ctrl+Shift+M** or **Ctrl+F9** | Open/close the menu: settings, and correcting operator names |
@@ -1885,7 +1889,9 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   operator under the chevron in this reading (`PartyState.ActiveSlot`); nobody known (the editor's
   preview, the chevron not read): no face, the label alone. Only for `BasicAttack`, `HeavyAttack`
   and `PlungeAttack`; a skill step on it is refused (`ControlledOperatorOnlyForAttacks`: a skill is
-  followed by whose it is). The editor's operator picker offers 当前操控 for an attack only.
+  followed by whose it is). The editor's operator picker offers 当前操控 whatever the action, so it
+  can be picked first (a player, 2026-10-27); picked on a skill, the step becomes a basic attack, and a
+  step on it turned into a skill moves to the first squad operator.
 - `withPrevious`: used right after the previous step of the same phase, drawn overlapping it.
 - `label` (optional): replaces the action's name above the icon, for a variant the game names
   differently (e.g. "战技·意"). `note` (optional): a short hint under the icon.
