@@ -837,9 +837,11 @@ The game shows no operator names in the squad panel, so EndHud identifies each p
      - **The operator's in-game portrait**, built in
        ([`PortraitReferences`](src/EndHud.Vision/Operators/PortraitReferences.cs)): the model's
        description of each operator's squad portrait, made from 4K screenshots of nine squads
-       covering all 32 operators ([the squad fixtures](tests/data/Fixtures/squads/README.md)),
-       at the common portrait sizes. Numbers only (1.3 MB); no image is shipped. Same art as the
-       screen, so the most reliable.
+       and two frames of a Si recording, covering 33 of the 34 operators (not yet Argent Flow)
+       ([the squad fixtures](tests/data/Fixtures/squads/README.md)), at the common portrait sizes.
+       Numbers only (1.4 MB); no image is shipped. Same art as the screen, so the most reliable.
+       The wiki avatar alone isn't enough once a counter is drawn on the portrait: with her damage
+       stacks on it, Si came closer to Arcane, Snowshine or Avywenna than to her own avatar.
      - **The wiki avatar**, so an operator with no in-game reference yet (a new one) is still
        recognised. To add one: put a screenshot with them in the squad into the squad fixtures,
        name them in `squads.json`, and run `endhud-cli build-portrait-references` (see that folder's README).

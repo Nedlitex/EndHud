@@ -325,6 +325,37 @@ public sealed class SquadIdentifier(OperatorLibrary library)
         return new SlotIdentity(portrait, new OperatorMatch(suggestions[0], 1 - mean[ranked[0]], FromLearned: false), suggestions);
     }
 
+    /// <summary>
+    /// For the log, per slot: how its name was arrived at. Taught, or the two closest operators'
+    /// mean difference over the comparisons so far (0 = the same character), so a wrong name can be
+    /// told from a close call afterwards.
+    /// </summary>
+    public string Explain()
+    {
+        lock (_evidence)
+        {
+            var parts = new List<string>();
+            for (int i = 0; i < _evidence.Length; i++)
+            {
+                SlotIdentity? last;
+                lock (_lock) last = _last[i];
+                var evidence = _evidence[i];
+                if (last?.Match is { FromLearned: true } taught) parts.Add($"{i + 1}: {taught.Operator.Id} taught");
+                else if (evidence.Differences.Count == 0) parts.Add($"{i + 1}: -");
+                else
+                {
+                    var mean = new double[library.Operators.Count];
+                    foreach (var row in evidence.Differences)
+                        for (int j = 0; j < mean.Length; j++) mean[j] += row[j] / evidence.Differences.Count;
+                    var ranked = Enumerable.Range(0, mean.Length).OrderBy(j => mean[j]).Take(2).ToList();
+                    string closest = string.Join(", ", ranked.Select(j => FormattableString.Invariant($"{library.Operators[j].Id} {mean[j]:0.000}")));
+                    parts.Add($"{i + 1}: {closest} over {evidence.Differences.Count}{(evidence.Provisional ? " (in-game references only)" : "")}");
+                }
+            }
+            return string.Join(" | ", parts);
+        }
+    }
+
     /// <summary>The operator closest on average over the slot's comparisons so far.</summary>
     private string ClosestSoFar(SlotEvidence evidence)
     {

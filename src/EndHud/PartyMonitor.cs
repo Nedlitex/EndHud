@@ -933,7 +933,7 @@ internal sealed class PartyMonitor : IDisposable
                         if (state.PanelVisible && now != names)
                         {
                             names = now;
-                            DiagnosticLog.Info($"squad: {now}");
+                            DiagnosticLog.Info($"squad: {now} ({_identifier?.Explain()})");
                         }
                         // The squad's own counters (e.g. Melting Flame): drawn differently per operator, so
                         // read once we know who it is; the controlled operator's beside the HP bar, the

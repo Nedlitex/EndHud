@@ -98,6 +98,7 @@ public sealed class SquadChangeTests : IDisposable
     /// the wiki avatars take a while to describe, and until then the newest operators have nothing
     /// to match: Si came closest to Arcane, was named Arcane, and kept it. She stays unnamed until
     /// the avatars are in, then is named; the others are named from their in-game references at once.
+    /// Si has a built-in reference now, so it's left out here: she stands for a newly released operator.
     /// </summary>
     [Theory]
     [InlineData("controller/combat.jpg")]
@@ -106,7 +107,8 @@ public sealed class SquadChangeTests : IDisposable
     {
         var state = await ReadAsync(fixture);
         var gate = new TaskCompletionSource();
-        var identifier = new SquadIdentifier(await OperatorCache.LoadAsync(_userFolder), () => _clock, null, gate.Task);
+        var withoutSi = PortraitReferences.BuiltIn.Where(r => r.OperatorId != "Si").ToList();
+        var identifier = new SquadIdentifier(await OperatorCache.LoadAsync(_userFolder), () => _clock, withoutSi, gate.Task);
 
         PartyState named = state;
         for (int n = 0; n < SquadIdentifier.Window * 2; n++)

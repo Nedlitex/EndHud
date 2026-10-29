@@ -125,7 +125,10 @@ public sealed class OutOfTheBoxRecognitionTests : IDisposable
 
     private sealed record SquadScreenshot(string File, string[] Slots);
 
-    /// <summary>Fixtures/squads (see its README): nine squads covering all 32 playable operators.</summary>
+    /// <summary>
+    /// Fixtures/squads (see its README): nine squads covering 33 of the 34 playable operators, and two
+    /// frames of the owner's Si recording for Si (her other slots not labelled: "").
+    /// </summary>
     private static readonly SquadScreenshot[] Squads = System.Text.Json.JsonSerializer.Deserialize<SquadScreenshot[]>(
         File.ReadAllText(CombatFrameTests.Fixture(Path.Combine("squads", "squads.json"))),
         new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
@@ -161,7 +164,7 @@ public sealed class OutOfTheBoxRecognitionTests : IDisposable
     [Theory]
     [MemberData(nameof(SquadsOnScreens))]
     public async Task Every_operator_is_named_from_the_built_in_references_at_every_size(int squad, string screenName) =>
-        await NameSquadAsync(squad, SimulatedScreen.Named(screenName), null, Squads[squad - 1].Slots);
+        await NameSquadAsync(squad, SimulatedScreen.Named(screenName), null, Squads[squad - 1].Slots.Where(id => id.Length > 0).ToArray());
 
     [Theory]
     [InlineData(7)]
@@ -178,12 +181,61 @@ public sealed class OutOfTheBoxRecognitionTests : IDisposable
             if (other == squad) continue;
             var state = await reader.ReadAsync(await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("squads", Squads[other - 1].File))));
             for (int i = 0; i < 4; i++)
-                references.AddRange(PortraitReferences.Describe(Squads[other - 1].Slots[i], state.Slots[i].ScreenPortrait!, [64]));
+                if (Squads[other - 1].Slots[i].Length > 0)
+                    references.AddRange(PortraitReferences.Describe(Squads[other - 1].Slots[i], state.Slots[i].ScreenPortrait!, [64]));
         }
-        string[] elsewhere = Squads[squad - 1].Slots.Where(id => references.Any(r => r.OperatorId == id)).ToArray();
+        string[] elsewhere = Squads[squad - 1].Slots.Where(id => id.Length > 0 && references.Any(r => r.OperatorId == id)).ToArray();
         Assert.NotEmpty(elsewhere);
 
         await NameSquadAsync(squad, SimulatedScreen.FullHd, references, elsewhere);
+    }
+
+    public static TheoryData<string, string> SiFramesOnScreens()
+    {
+        // Another recording than the one Si's built-in references come from (Fixtures/portrait-counters:
+        // Si in slot 3), and that one's other frames. Her portrait with her damage stacks drawn on it
+        // and without; left out: the frames where it can't be read (labelled unknown: tinted, faded).
+        var data = new TheoryData<string, string>();
+        foreach (string file in SiFrames().Select(f => f.File))
+            foreach (var screen in new[] { SimulatedScreen.Uhd, SimulatedScreen.FullHd })
+                data.Add(file, screen.Name);
+        return data;
+    }
+
+    private static IEnumerable<(string File, int Slot)> SiFrames()
+    {
+        using var labels = System.Text.Json.JsonDocument.Parse(File.ReadAllText(CombatFrameTests.Fixture(Path.Combine("portrait-counters", "labels.json"))));
+        foreach (var frame in labels.RootElement.EnumerateArray())
+        {
+            string file = frame.GetProperty("file").GetString()!;
+            int slot = frame.GetProperty("squad").EnumerateArray().Select(s => s.GetString()).ToList().IndexOf("Si") + 1;
+            if (slot == 0 || Squads.Any(s => s.File == "../portrait-counters/" + file)) continue; // not Si, or a reference
+            bool unreadable = frame.GetProperty("counters").EnumerateArray()
+                .Any(c => c.GetProperty("slot").GetInt32() == slot && c.GetProperty("value").ValueKind == System.Text.Json.JsonValueKind.Null);
+            if (!unreadable) yield return (file, slot);
+        }
+    }
+
+    /// <summary>
+    /// Player report (2026-10-28): Si named right as a fight starts, then Snowshine. With her damage
+    /// stacks drawn on her portrait, the wiki avatar alone put Arcane, Snowshine or Avywenna closer.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(SiFramesOnScreens))]
+    public async Task Si_is_named_with_and_without_her_damage_stacks_on_her_portrait(string file, string screenName)
+    {
+        int slot = SiFrames().Single(f => f.File == file).Slot;
+        var frame = await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("portrait-counters", file)));
+        var state = await new PartyReader(new TextRecognizer()).ReadAsync(SimulatedScreen.Named(screenName).Render(frame));
+        var identifier = await NewIdentifierAsync(state);
+
+        PartyState named = state;
+        for (int n = 0; n < SquadIdentifier.MinReadings * 4; n++)
+        {
+            named = await ReadingAsync(identifier, state);
+            if (named.Slots[slot - 1].Operator is { } match) Assert.Equal("Si", match.Operator.Id);
+        }
+        Assert.Equal("Si", named.Slots[slot - 1].Operator?.Operator.Id);
     }
 
     [Fact]

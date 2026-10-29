@@ -486,14 +486,18 @@ static async Task<int> BuildReferencesAsync(string squadsJson, string outFile)
     foreach (var squad in squads)
     {
         var frame = await ImageFile.LoadAsync(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(squadsJson))!, squad.File));
-        if (frame.Width != 3840 || frame.Height != 2160)
+        // 4K: screenshots are 3840x2160, frames from the owner's 4K recordings 3838x2158.
+        if (Math.Abs(frame.Width - 3840) > 2 || Math.Abs(frame.Height - 2160) > 2)
         {
             Console.Error.WriteLine($"{squad.File}: {frame.Width}x{frame.Height}; references are made from 4K screenshots");
             return 1;
         }
         var state = await reader.ReadAsync(frame);
         for (int i = 0; i < squad.Slots.Length; i++)
+        {
+            if (squad.Slots[i].Length == 0) continue; // "": not labelled (a recording frame kept for one operator)
             portraits.Add((squad.Slots[i], state.Slots[i].ScreenPortrait ?? state.Slots[i].Portrait));
+        }
     }
     int count = PortraitReferences.Build(portraits, outFile);
     Console.WriteLine($"{portraits.Count} portraits of {portraits.Select(p => p.Item1).Distinct().Count()} operators, {count} references -> {Path.GetFullPath(outFile)}");
