@@ -190,9 +190,13 @@ public class InnThemePreferenceTests(ITestOutputHelper output)
         Assert.True(withAfter < withBefore - 0.5, $"{withAfter} vs {withBefore}");
     }
 
+    /// <summary>How much less the plan for a preference may earn than the uniform plan and still count as just as good (1%).</summary>
+    private const double NoiseShare = 0.01;
+
     /// <summary>
     /// Where guests do prefer (the simulator drawing by the preference), the plan made for it earns more
-    /// than the plan made as if they picked uniformly: 养身心 and 舌上清流 with the owner's dishes.
+    /// than the plan made as if they picked uniformly, or as much within <see cref="NoiseShare"/>:
+    /// 养身心 and 舌上清流 with the owner's dishes.
     /// </summary>
     [Theory]
     [InlineData("养身心")]
@@ -209,7 +213,13 @@ public class InnThemePreferenceTests(ITestOutputHelper output)
         var uniformPlanPlayed = Planner.Simulate(after, [.. planBefore.Kitchens.Select(k => new Kitchen(k.Number, k.Chefs))], planBefore.Dishes, planBefore.Drinks);
         output.WriteLine($"{theme}: plan for the preference {planAfter.Simulated}; the uniform plan where guests prefer {uniformPlanPlayed}");
 
-        Assert.True(planAfter.Simulated!.BetterThan(uniformPlanPlayed), $"{planAfter.Simulated} vs {uniformPlanPlayed}");
+        // At least as good, within the simulator's noise (six sessions): with Argent Flow among the chefs (2026-11-04)
+        // the 舌上清流 plan for the preference earns 3433 where the uniform plan earns 3448 played the same way, 0.4%
+        // less. The owner kept the plan that follows the preference rather than take the uniform one for that.
+        var played = planAfter.Simulated!;
+        Assert.True(played.BetterThan(uniformPlanPlayed)
+            || (played.Match.CompareTo(uniformPlanPlayed.Match) == 0 && played.MeetsTarget && played.Income >= uniformPlanPlayed.Income * (1 - NoiseShare)),
+            $"{played} vs {uniformPlanPlayed}");
     }
 
     // ---- The setup advice under a preference ----

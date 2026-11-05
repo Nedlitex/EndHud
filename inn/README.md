@@ -41,8 +41,8 @@ Cereal & Flour, Warming Flow, Cozily Sweet). Never fill one in by guessing; take
 - **A name seen in Chinese for the first time:** fill in its `zh`.
 - **An operator the wiki lists but the game doesn't have yet:** add `{"id": "<operator id>", "source": "<who said so, date>"}`
   to `chefRules.notYetAvailable`; the setup advice never suggests them as a chef. Take the entry out once the operator
-  is in the game. Now: Argent Flow (`Argent_Flow`; owner, 2026-10-20: "not an available operator yet"). The wiki's
-  infobox couldn't be checked for a release field on that day (the wiki was down for maintenance), so the list is kept by hand.
+  is in the game. Now: nobody (Argent Flow was listed from 2026-10-20 until he came out, owner 2026-11-04). The wiki
+  marks an unreleased operator's page `{{Upcoming}}`, but still did for Argent Flow after his release, so the list is kept by hand.
 - **A gourmand's request:** `when` is written as players write it: a dish type (主食, 菜肴, 汤羹,
   甜品), a trait in brackets ([咸], [茶香]), an ingredient in angle brackets (<面粉> the plain grade,
   <优质肉块> only [A], <(优质)鳞肉> either), joined with 非 (not), & (and), 或 (or) and parentheses.

@@ -263,7 +263,7 @@ internal sealed class InnSetupMemory(InnData data, IReadOnlyList<OperatorInfo> r
         var setup = Setup!;
         var r = _requirements;
         int rating = Rating;
-        // Only operators who can cook and are in the game (InnChefRules.Suggestable: Argent Flow isn't out yet, owner 2026-10-20).
+        // Only operators who can cook and are in the game (InnChefRules.Suggestable: the inn data's notYetAvailable list).
         var chefs = roster.Where(o => data.ChefBonuses.Suggestable(o.Id)).ToList();
         int? Stock(string id) => _offered.TryGetValue(id, out var card) && !card.Unlimited ? card.Stock : null;
         // What the player has: every dish the Inn Rating unlocks (reaching the rating unlocks it), and of the others (a

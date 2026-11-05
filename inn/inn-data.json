@@ -280,12 +280,7 @@
       "Si",
       "Endministrator"
     ],
-    "notYetAvailable": [
-      {
-        "id": "Argent_Flow",
-        "source": "owner, 2026-10-20: Argent Flow is not an available operator yet"
-      }
-    ]
+    "notYetAvailable": []
   },
   "dishes": [
     {

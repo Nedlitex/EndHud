@@ -54,11 +54,12 @@ public class InnSetupPanelTests
 
         Assert.Empty(inputs.Gaps);
         var input = Assert.IsType<InnPlanInput>(inputs.Input);
-        // Every operator who can cook and is in the game: Si and the Endministrator can't cook; Argent Flow (明河) isn't
-        // out yet (owner, 2026-10-20: "明河 is not an available operator yet, do not suggest him for now").
-        Assert.Equal(Library.Operators.Where(o => !Inn.ChefBonuses.NotChefs.Contains(o.Id) && o.Id != "Argent_Flow").Select(o => o.Id).Order(),
+        // Every operator who can cook and is in the game: Si and the Endministrator can't cook; Argent Flow (明河) is
+        // in the game now (owner, 2026-11-04).
+        Assert.Equal(Library.Operators.Where(o => !Inn.ChefBonuses.NotChefs.Contains(o.Id)).Select(o => o.Id).Order(),
             input.Chefs.Select(c => c.Id).Order());
-        Assert.DoesNotContain(input.Chefs, c => c.Id is "Si" or "Endministrator" or "Argent_Flow");
+        Assert.DoesNotContain(input.Chefs, c => c.Id is "Si" or "Endministrator");
+        Assert.Contains(input.Chefs, c => c.Id == "Argent_Flow");
         Assert.Equal(["1:2", "2:2", "3:2"], input.Kitchens.Select(k => $"{k.Number}:{k.Places}"));
         Assert.Equal(4, input.Rating);
         Assert.Equal(new[] { "Veggy", "Rich" }, input.HotTraits);

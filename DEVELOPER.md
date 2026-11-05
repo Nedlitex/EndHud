@@ -1651,8 +1651,8 @@ delete the recommend pannel"), the text panels stay.
   `SetupInputs()`: the theme's hot types and rules, every kitchen with its places and the chefs
   already placed (kept; only the empty places are planned), the built-in roster (everyone who can
   cook and is in the game: Si and the Endministrator can't cook, and an operator the wiki lists before release
-  is on the hand-kept `chefRules.notYetAvailable` of inn/inn-data.json, `InnChefRules.Suggestable`: Argent Flow,
-  owner 2026-10-20) and the dishes and drinks the player has: every one the Inn Rating unlocks (reaching the rating
+  is on the hand-kept `chefRules.notYetAvailable` of inn/inn-data.json, `InnChefRules.Suggestable`: empty since
+  Argent Flow came out, owner 2026-11-04) and the dishes and drinks the player has: every one the Inn Rating unlocks (reaching the rating
   unlocks it), and of the others (a theme's stars, a mission) those the menu screen has shown, or, before it has shown
   any, all of them. Never only the cards seen so far (owner, live 2026-10-21: the top of the menu list showed soups
   and desserts only, and the plan "only contains 2" types where Rating 4 asks for 3). The menu screen's stock, Inn

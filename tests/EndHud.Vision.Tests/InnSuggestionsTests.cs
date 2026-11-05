@@ -129,23 +129,41 @@ public class InnSuggestionsTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// Owner, 2026-10-20: "明河 is not an available operator yet, do not suggest him for now". Argent Flow is on the
-    /// hand-kept list of operators not in the game yet (inn-data.json), and is never planned nor a substitute, even
-    /// when everyone else is stripped of their kitchen bonuses and he'd be the best chef by far.
+    /// Owner, 2026-10-20: "明河 is not an available operator yet, do not suggest him for now". An operator on the
+    /// hand-kept list of operators not in the game yet (inn-data.json) is never planned nor a substitute, even
+    /// when everyone else is stripped of their kitchen bonuses and he'd be the best chef by far. The list is
+    /// empty now (Argent Flow came out, owner 2026-11-04), so here it lists him.
     /// </summary>
     [Fact]
     public void An_operator_not_yet_in_the_game_is_never_planned_nor_a_substitute()
     {
-        Assert.Contains(Inn.ChefBonuses.NotYetAvailable, o => o.Id == "Argent_Flow");
-        var roster = InnTestData.Library.Operators.Select(o => o.Id == "Argent_Flow" ? o : o with { Hobbies = [], Element = null }).ToList();
-        Assert.NotEmpty(Inn.ChefBonusesOf(roster.Single(o => o.Id == "Argent_Flow")));
-        var input = Input(["Veggy", "Rich"], [new DishRule(2, ["Veggy", "Rich"])]) with { Chefs = roster };
-
-        var plan = Planner.Plan(input);
-        var suggestions = InnSuggester.Of(Planner, input, plan);
+        var inn = Inn with { ChefBonuses = Inn.ChefBonuses with { NotYetAvailable = [new InnNotYetAvailable("Argent_Flow", "test")] } };
+        var (plan, suggestions) = PlanWithArgentFlowTheOnlyBonus(inn);
 
         Assert.DoesNotContain(plan.Kitchens.SelectMany(k => k.Chefs), c => c.Id == "Argent_Flow");
         Assert.DoesNotContain(suggestions.Kitchens.SelectMany(k => k.Chefs.Concat(k.ChefSubstitutes)), c => c.Id == "Argent_Flow");
+    }
+
+    /// <summary>Owner, 2026-11-04: "明河 has now come online … enable him for inn". He's planned like anyone else.</summary>
+    [Fact]
+    public void Argent_Flow_is_in_the_game_and_planned_as_a_chef()
+    {
+        Assert.DoesNotContain(Inn.ChefBonuses.NotYetAvailable, o => o.Id == "Argent_Flow");
+        Assert.True(Inn.ChefBonuses.Suggestable("Argent_Flow"));
+        var (plan, _) = PlanWithArgentFlowTheOnlyBonus(Inn);
+
+        Assert.Contains(plan.Kitchens.SelectMany(k => k.Chefs), c => c.Id == "Argent_Flow");
+    }
+
+    /// <summary>A plan where Argent Flow is the only operator with kitchen bonuses: the best chef by far.</summary>
+    private (InnPlan Plan, InnSuggestions Suggestions) PlanWithArgentFlowTheOnlyBonus(InnData inn)
+    {
+        var roster = InnTestData.Library.Operators.Select(o => o.Id == "Argent_Flow" ? o : o with { Hobbies = [], Element = null }).ToList();
+        Assert.NotEmpty(inn.ChefBonusesOf(roster.Single(o => o.Id == "Argent_Flow")));
+        var input = Input(["Veggy", "Rich"], [new DishRule(2, ["Veggy", "Rich"])]) with { Chefs = roster };
+        var planner = new InnPlanner(inn);
+        var plan = planner.Plan(input);
+        return (plan, InnSuggester.Of(planner, input, plan));
     }
 
     // ---- Substitutes ----
