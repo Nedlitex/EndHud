@@ -64,6 +64,9 @@ public static partial class WikiOperatorSource
 
         // 2. Chinese names, elements and hobbies: the "cnname", "element", "hb1" and "hb2" fields of
         //    each operator page's infobox ("???" is the wiki's placeholder for one not known yet).
+        //    Only pages with the operator infobox are operators: the navbox also shows other icons
+        //    (2026-11-02: "Yuanyuan Manor Inn", a facility, whose page has a generic infobox).
+        var operatorPages = new HashSet<string>();
         var chinese = new Dictionary<string, string>();
         var elements = new Dictionary<string, string>();
         var hobbies = new Dictionary<string, List<string>>();
@@ -79,11 +82,18 @@ public static partial class WikiOperatorSource
                 string? content = page["revisions"]?[0]?["slots"]?["main"]?["content"]?.GetValue<string>();
                 if (content is null) continue;
                 string requested = redirects.GetValueOrDefault(title, title);
+                if (!IsOperatorPage(content)) continue;
+                operatorPages.Add(requested);
                 if (InfoboxField(content, "cnname") is { } zh) chinese[requested] = zh;
                 if (InfoboxField(content, "element") is { } element) elements[requested] = element;
                 hobbies[requested] = [.. new[] { "hb1", "hb2" }.Select(f => InfoboxField(content, f)).OfType<string>()];
             }
         }
+
+        var notOperators = names.Where(n => !operatorPages.Contains(n)).ToHashSet();
+        iconFiles = iconFiles.Where((_, i) => !notOperators.Contains(names[i])).ToList();
+        names = names.Where(n => !notOperators.Contains(n)).ToList();
+        if (iconFiles.Count == 0) throw new InvalidDataException("None of the icons on the wiki's Operator page is an operator's page.");
 
         // 3. Skill icons: each operator page shows its battle skill, combo and ultimate icons as Skill-*/Combo-*/Ult-*.
         //    File names don't follow the operator name reliably (Skill-Lastrite, Skill-Endmin,
@@ -312,6 +322,10 @@ public static partial class WikiOperatorSource
                 map[r!["to"]!.GetValue<string>()] = r["from"]!.GetValue<string>();
         return map;
     }
+
+    /// <summary>Whether a wiki page is an operator's: it has the operator infobox ("{{Operator infobox").</summary>
+    internal static bool IsOperatorPage(string content) =>
+        Regex.IsMatch(content, @"\{\{\s*Operator[ _]infobox\b", RegexOptions.IgnoreCase);
 
     /// <summary>An infobox field's value ("|name = value" on its own line), or null when it's missing, empty or "???".</summary>
     internal static string? InfoboxField(string content, string name)

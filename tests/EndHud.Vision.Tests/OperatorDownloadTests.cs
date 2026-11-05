@@ -48,6 +48,24 @@ public sealed class OperatorDownloadTests : IDisposable
         Assert.NotNull(library.FindAvatar("Alpha"));
     }
 
+    /// <summary>
+    /// The wiki's Operator page also shows the inn's icon (2026-11-02), which became an "operator"
+    /// named Yuanyuan Manor Inn: only pages with the operator infobox are operators.
+    /// </summary>
+    [Fact]
+    public async Task An_icon_whose_page_is_not_an_operator_is_left_out()
+    {
+        var wiki = await FakeWiki.CreateAsync("Alpha", "Beta");
+        await wiki.AddFacilityAsync("Yuanyuan Manor Inn");
+
+        var result = await OperatorReference.UpdateAsync(Library, wiki.Client(), Fast);
+
+        Assert.Equal(2, result.Download.Operators);
+        var library = await OperatorLibrary.LoadAsync(Path.Combine(_root, "user"), Library);
+        Assert.Equal(["Alpha", "Beta"], library.Operators.Select(o => o.Id));
+        Assert.Equal(0, wiki.Downloads("Yuanyuan_Manor_Inn_icon.png"));
+    }
+
     [Fact]
     public async Task A_new_operator_appears_and_unchanged_images_are_not_downloaded_again()
     {
@@ -301,6 +319,15 @@ public sealed class OperatorDownloadTests : IDisposable
 
         public List<string> Listed { get; set; } = [];
 
+        /// <summary>Non-operator pages whose "_icon.png" the Operator page also shows (the inn, 2026-11-02).</summary>
+        public List<string> Facilities { get; } = [];
+
+        public async Task AddFacilityAsync(string name)
+        {
+            Facilities.Add(name);
+            await UploadAsync($"{name.Replace(' ', '_')}_icon.png");
+        }
+
         /// <summary>Statuses the glossary module lists with an icon (none unless a test adds some).</summary>
         public List<string> Statuses { get; } = [];
 
@@ -409,7 +436,7 @@ public sealed class OperatorDownloadTests : IDisposable
             string[] titles = (q["titles"] ?? "").Split('|', StringSplitOptions.RemoveEmptyEntries);
             object json = (q["action"], q["prop"]) switch
             {
-                ("parse", _) => new { parse = new { images = Listed.Select(n => $"{n}_icon.png").Append("Something_facility_icon.png") } },
+                ("parse", _) => new { parse = new { images = Listed.Concat(Facilities).Select(n => $"{n.Replace(' ', '_')}_icon.png").Append("Something_facility_icon.png") } },
                 ("query", "revisions") when titles.SequenceEqual([WikiOperatorSource.GlossaryModule]) => GlossaryBroken
                     ? new { query = new { pages = new object[] { new { title = titles[0], missing = true } } } }
                     : new { query = new { pages = new object[] { new
@@ -422,7 +449,9 @@ public sealed class OperatorDownloadTests : IDisposable
                 ("query", "revisions") => new { query = new { pages = titles.Select(t => new
                 {
                     title = t,
-                    revisions = new[] { new { slots = new { main = new { content = $"{{{{Operator\n|cnname = {t}-cn\n}}}}" } } } },
+                    revisions = new[] { new { slots = new { main = new { content = Facilities.Contains(t)
+                        ? $"{{{{#invoke:Infobox|main\n| title = {t}\n| type = Facility\n}}}}"
+                        : $"{{{{Upcoming}}}}\n\n{{{{Operator infobox\n|cnname = {t}-cn\n}}}}" } } } },
                 }) } },
                 ("query", "images") => new { query = new { pages = titles.Select(t => new
                 {
