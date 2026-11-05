@@ -92,10 +92,18 @@ internal sealed class TrayIcon : IDisposable
         _autoInstaller = new AutoInstaller(() => _overlay.AutoInstallUpdates, () => _overlay.GameFound);
         _updates.NewVersionFound += release => OnUi(() =>
         {
+            string version = release.Version.ToString(3);
             if (!_autoInstaller.Found(release))
+            {
+                DiagnosticLog.Info($"EndHud {version} found: offered in the tray, not installed by itself ({(_overlay.AutoInstallUpdates ? "already tried this run" : "automatic install off")})");
                 Notify(AvailableText(release), () => _ = UpdateNowAsync(release));
+            }
             else if (_overlay.GameFound)
-                Notify(Loc.Format("Update.AutoLater", release.Version.ToString(3)), () => _ = UpdateNowAsync(release));
+            {
+                DiagnosticLog.Info($"EndHud {version} found: installs by itself once the game is closed (or now from the tray)");
+                Notify(Loc.Format("Update.AutoLater", version), () => _ = UpdateNowAsync(release));
+            }
+            else DiagnosticLog.Info($"EndHud {version} found: installing now (the game isn't running)");
             InstallIfDue();
         });
         _autoInstallTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
@@ -153,6 +161,7 @@ internal sealed class TrayIcon : IDisposable
         if (_updating) return;
         _updating = true;
         string version = release.Version.ToString(3);
+        DiagnosticLog.Info($"EndHud {version}: downloading and installing");
         Notify(Loc.Format("Update.Downloading", version), null);
         try
         {
@@ -171,6 +180,7 @@ internal sealed class TrayIcon : IDisposable
                 UpdateFailure.Elevated => Loc.Format("Update.Failed.Elevated", version),
                 _ => Loc.Format("Update.Failed.NoPackage", version),
             };
+            DiagnosticLog.Warn($"EndHud {version}: not installed ({outcome.Failure}{(outcome.Detail is { } detail ? ": " + detail : "")})");
             Notify(reason, () => OpenLink(release.PageUrl));
         }
         finally
