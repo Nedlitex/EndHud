@@ -14,7 +14,8 @@ permissions:
 jobs:
   test:
     runs-on: windows-2022
-    timeout-minutes: 60
+    # The whole suite takes 45-55 minutes on a hosted runner and varies by runner; 60 cut off a passing run twice.
+    timeout-minutes: 90
     steps:
       # The test data (screenshots, recordings) is the tests/data submodule (EndHud-test-data).
       # Large files are in Git LFS: the character model here (38 MB), the recordings there
