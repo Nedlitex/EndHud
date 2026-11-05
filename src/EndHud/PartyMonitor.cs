@@ -310,6 +310,14 @@ internal sealed class PartyMonitor : IDisposable
     }
 
     private volatile WindowCapture? _capture; // the window capture in use, for Describe
+    private volatile PrintWindowTrial? _printTrial; // the game window's direct copies, for Describe
+
+    /// <summary>
+    /// Copy the game window directly (<see cref="WindowPrint"/>) before trying window capture; null (as
+    /// EndHud runs): where Windows can't hide window capture's yellow border (<see cref="WindowCapture.BorderCanBeHidden"/>).
+    /// Tests set it to take either way on any Windows.
+    /// </summary>
+    internal bool? CopyWindowDirectly { get; init; }
 
     /// <summary>The battle-skill buttons sampled many times a second for the cast flash, between readings (keyboard and mouse, in battle).</summary>
     private readonly FlashSampler _flashes = new();
@@ -397,7 +405,8 @@ internal sealed class PartyMonitor : IDisposable
                $"library {(library is null ? "not loaded" : $"{library.Operators.Count} operators")}; " +
                $"last frame {(LatestFrame is { } f ? $"{f.Width}x{f.Height}" : "none")}; " +
                _flashes.Describe() +
-               (_capture is { } capture ? $"; {capture.Describe()}" : "");
+               (_capture is { } capture ? $"; {capture.Describe()}" : "") +
+               (_printTrial is { } print ? $"; window print: {print.Describe()}" : "");
     }
 
     /// <summary>A reading, or an i18n key describing why there is none.</summary>
@@ -703,6 +712,9 @@ internal sealed class PartyMonitor : IDisposable
         Task? avatars = null;
         Task<PartyState>? naming = null;
         bool fromScreen = false, screenRefused = false;
+        // Windows 10 draws a yellow border round a window it captures and can't be told not to:
+        // there the game window is copied directly (WindowPrint) while that works for it.
+        PrintWindowTrial? printTrial = null;
         IntPtr describedWindow = IntPtr.Zero;
         int missed = 0;
         HudLayout? layoutSeen = null; // the last controller-or-not layout a visible panel showed
@@ -755,12 +767,50 @@ internal sealed class PartyMonitor : IDisposable
                         fromScreen = false;
                         screenRefused = false;
                         silentCaptures = 0;
+                        printTrial = (CopyWindowDirectly ?? !WindowCapture.BorderCanBeHidden) ? new PrintWindowTrial() : null;
+                        if (printTrial is not null)
+                            DiagnosticLog.Info("Windows can't hide the yellow border round a captured window here: copying the game window directly (PrintWindow)");
                     }
                     if (fromScreen)
                     {
                         captured = hwnd;
                         if (ReadScreen(hwnd) is not { } fromDesktop) continue; // why is reported
                         gameFrame = fromDesktop;
+                    }
+                    else if (printTrial is { GaveUp: null } trial)
+                    {
+                        captured = hwnd;
+                        _source = "window print";
+                        _printTrial = trial;
+                        capture?.Dispose(); // another game window's, from before
+                        capture = null;
+                        _capture = null;
+                        Frame? printed = null;
+                        string? problem = null;
+                        var copying = Stopwatch.StartNew();
+                        try
+                        {
+                            printed = WindowPrint.Copy(hwnd);
+                        }
+                        catch (InvalidOperationException ex)
+                        {
+                            problem = ex.Message;
+                        }
+                        bool hadPicture = trial.PictureSeen;
+                        if (!trial.Record(printed, copying.Elapsed, problem))
+                        {
+                            DiagnosticLog.Warn($"copying the game window directly is given up ({trial.Describe()}): using window capture, which on this Windows draws a yellow border round the game; {Native.Describe(hwnd)}");
+                            continue; // the next reading starts the window capture
+                        }
+                        if (!hadPicture && trial.PictureSeen)
+                            DiagnosticLog.Info($"copying the game window directly works: {printed!.Width}x{printed.Height} in {copying.ElapsedMilliseconds} ms");
+                        DiagnosticLog.Throttled("window-print", TimeSpan.FromHours(1), $"copying the game window directly: {trial.Describe()}", "INFO");
+                        if (printed is null)
+                        {
+                            DiagnosticLog.Throttled("window-print-failed", RepeatLogEvery, $"copying the game window failed: {problem}");
+                            continue;
+                        }
+                        gameFrame = printed;
                     }
                     else
                     {

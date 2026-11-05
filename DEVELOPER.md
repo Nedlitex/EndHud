@@ -508,6 +508,20 @@ that never returned. A 0.4.3 player's log showed the capture counts "1 frames ar
 1 copying now" for minutes, so the HUD read nothing ("no picture from the game window"). The log's
 no-picture line carries those counts (frames arrived, resizes, copied, copies failed or running).
 
+**Windows 10: copying the game window directly.** Windows 10 draws a yellow border round any
+window it captures with Windows.Graphics.Capture and can't be told not to: `IsBorderRequired`
+exists only from build 20348 (Windows 11, Server 2022), so players saw a yellow frame round the game
+the whole time (issue 8). Where that property is missing (`WindowCapture.BorderCanBeHidden`),
+`PartyMonitor` copies the game window's client area with `PrintWindow(PW_CLIENTONLY |
+PW_RENDERFULLCONTENT)` ([`WindowPrint`](src/EndHud.Vision/Capture/WindowPrint.cs)): no border, only
+the game window (never the overlay), and it works while the game is covered. Some windows come back
+black this way; [`PrintWindowTrial`](src/EndHud.Vision/Capture/WindowPrint.cs) gives the copies up for
+window capture (border and all) when they fail 3 times in a row, when the first 12 are all black
+(after one picture, black is the game's own loading screen), or when the last 5 took over 150 ms on
+average, and logs why. The log's "window print:" part of the reading line has the copies' state and
+mean time. These copies come once per reading, so the battle-skill buttons aren't sampled for the cast
+flash (30 a second, from window capture's frames); casts are still seen by countdown and key press.
+
 **Reading the game off the screen** (fallback). After two silent captures in a row (2 s each)
 `PartyMonitor` asks to keep the overlay out of screen captures (`SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)`)
 and, if Windows agrees, copies the game's client area off the screen

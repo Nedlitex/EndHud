@@ -56,6 +56,13 @@ public sealed class WindowCapture : IDisposable
     /// <summary>The graphics adapter the capture device is on (for the diagnostic log).</summary>
     public string Adapter => _reader.Adapter;
 
+    /// <summary>
+    /// This Windows can hide the yellow border it draws around a captured window
+    /// (GraphicsCaptureSession.IsBorderRequired, Windows 11 and Server 2022 on; Windows 10 always draws it).
+    /// </summary>
+    public static bool BorderCanBeHidden { get; } =
+        Windows.Foundation.Metadata.ApiInformation.IsPropertyPresent("Windows.Graphics.Capture.GraphicsCaptureSession", "IsBorderRequired");
+
     public WindowCapture(IntPtr hwnd)
     {
         if (!GraphicsCaptureSession.IsSupported())
@@ -68,7 +75,7 @@ public sealed class WindowCapture : IDisposable
         _pool.FrameArrived += OnFrameArrived;
         _session = _pool.CreateCaptureSession(item);
         _session.IsCursorCaptureEnabled = false;
-        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
+        if (BorderCanBeHidden)
         {
             // Hide the yellow "being captured" border; not allowed on every build, so best-effort.
             try { _session.IsBorderRequired = false; } catch (Exception) { }

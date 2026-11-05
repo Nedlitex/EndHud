@@ -72,6 +72,34 @@ public class WindowCaptureTests
         Assert.Matches(@"\d+ corner copies \(0 failed\)", capture.Describe());
     }
 
+    /// <summary>
+    /// Windows 10's copy of the game window (WindowPrint, no yellow border): the window's client
+    /// area as it shows it, read the same as the picture.
+    /// </summary>
+    [Fact]
+    public async Task The_window_copied_directly_reads_the_same_as_the_recorded_frame()
+    {
+        string fixture = CombatFrameTests.Fixture("combat-combos-nearly-refilled.jpg");
+        var reader = new PartyReader(new TextRecognizer());
+
+        using var window = StandInGameWindow.Show(fixture);
+        var copied = WindowPrint.Copy(window.Handle);
+
+        Assert.Equal(window.ClientSize, new Size(copied.Width, copied.Height));
+        Assert.False(PrintWindowTrial.LooksBlack(copied));
+        var expected = await reader.ReadAsync((await ImageFile.LoadAsync(fixture)).Resize(copied.Width, copied.Height));
+        var actual = await reader.ReadAsync(copied);
+
+        Assert.True(actual.PanelVisible);
+        for (int i = 0; i < 4; i++)
+        {
+            var (e, a) = (expected.Slots[i], actual.Slots[i]);
+            Assert.InRange(a.Hp!.Value, e.Hp!.Value - 0.03, e.Hp.Value + 0.03);
+            Assert.Equal(e.Combo!.Ready, a.Combo!.Ready);
+            Assert.Equal(e.Ultimate!.Ready, a.Ultimate!.Ready);
+        }
+    }
+
     /// <summary>A borderless window on its own UI thread showing one image, redrawn like a game.</summary>
     private sealed class StandInGameWindow : IDisposable
     {

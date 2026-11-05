@@ -255,10 +255,25 @@ public class WindowedGameCaptureTests
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.Opaque, true);
         }
 
+        private Bitmap? _scaled; // the image at the client size, scaled once: a redraw is a plain copy, like a game's
+
         protected override void OnPaint(PaintEventArgs e)
         {
-            e.Graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-            e.Graphics.DrawImage(_image, ClientRectangle);
+            if (_scaled is null || _scaled.Size != ClientSize)
+            {
+                _scaled?.Dispose();
+                _scaled = new Bitmap(Math.Max(1, ClientSize.Width), Math.Max(1, ClientSize.Height));
+                using var g = Graphics.FromImage(_scaled);
+                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                g.DrawImage(_image, new Rectangle(Point.Empty, ClientSize));
+            }
+            e.Graphics.DrawImageUnscaled(_scaled, 0, 0);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) _scaled?.Dispose();
+            base.Dispose(disposing);
         }
     }
 }
