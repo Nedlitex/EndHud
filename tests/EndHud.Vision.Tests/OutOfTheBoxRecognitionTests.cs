@@ -127,7 +127,7 @@ public sealed class OutOfTheBoxRecognitionTests : IDisposable
 
     /// <summary>
     /// Fixtures/squads (see its README): nine squads covering 33 of the 34 playable operators, and two
-    /// frames of the owner's Si recording for Si (her other slots not labelled: "").
+    /// frames each of the owner's Si and Argent Flow recordings for them (their other slots not labelled: "").
     /// </summary>
     private static readonly SquadScreenshot[] Squads = System.Text.Json.JsonSerializer.Deserialize<SquadScreenshot[]>(
         File.ReadAllText(CombatFrameTests.Fixture(Path.Combine("squads", "squads.json"))),
@@ -236,6 +236,38 @@ public sealed class OutOfTheBoxRecognitionTests : IDisposable
             if (named.Slots[slot - 1].Operator is { } match) Assert.Equal("Si", match.Operator.Id);
         }
         Assert.Equal("Si", named.Slots[slot - 1].Operator?.Operator.Id);
+    }
+
+    public static TheoryData<string, string> ArgentFlowFramesOnScreens()
+    {
+        var data = new TheoryData<string, string>();
+        foreach (string file in new[] { "argent-flow-100s.jpg", "argent-flow-140s.jpg" })
+            foreach (var screen in new[] { SimulatedScreen.Uhd, SimulatedScreen.FullHd })
+                data.Add(file, screen.Name);
+        return data;
+    }
+
+    /// <summary>
+    /// Argent Flow (came out 2026-11-04): named in slot 1 of the frames of his recording that his
+    /// built-in references don't come from (Fixtures/squads: argent-flow-9s and -60s are references,
+    /// these are held out), in a fight, at 4K and 1080p.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(ArgentFlowFramesOnScreens))]
+    public async Task Argent_Flow_is_named_on_frames_his_references_dont_come_from(string file, string screenName)
+    {
+        Assert.DoesNotContain(Squads, s => s.File == file);
+        var frame = await ImageFile.LoadAsync(CombatFrameTests.Fixture(Path.Combine("squads", file)));
+        var state = await new PartyReader(new TextRecognizer()).ReadAsync(SimulatedScreen.Named(screenName).Render(frame));
+        var identifier = await NewIdentifierAsync(state);
+
+        PartyState named = state;
+        for (int n = 0; n < SquadIdentifier.MinReadings * 4; n++)
+        {
+            named = await ReadingAsync(identifier, state);
+            if (named.Slots[0].Operator is { } match) Assert.Equal("Argent_Flow", match.Operator.Id);
+        }
+        Assert.Equal("Argent_Flow", named.Slots[0].Operator?.Operator.Id);
     }
 
     [Fact]
