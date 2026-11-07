@@ -73,7 +73,7 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
     public IReadOnlyDictionary<string, LastingUltimateView>? RunningUltimates { get; init; }
 
     /// <summary>
-    /// Every lasting battle skill running now (Si's), by operator id, across readings
+    /// Every lasting battle skill running now (Si's, Argent Flow's), by operator id, across readings
     /// (<see cref="SkillTimers"/>: the ring, or the estimate while the button is hidden); null when not
     /// worked out for this reading (then a condition asking about one goes by this reading's button alone).
     /// </summary>
@@ -168,7 +168,7 @@ public sealed record PartyState(IReadOnlyList<PartySlot> Slots, int PanelMarks =
     /// null when not read this time (it's read less often than the rest).</summary>
     public IReadOnlyList<BossStatusReading>? BossStatuses { get; init; }
 
-    /// <summary>Lasting battle skills' buttons (Si's, see <see cref="SkillRing"/>), read once the squad
+    /// <summary>Lasting battle skills' buttons (Si's, Argent Flow's, see <see cref="SkillRing"/>), read once the squad
     /// is named; empty when none.</summary>
     public IReadOnlyList<SkillRingReading> SkillRings { get; init; } = [];
 

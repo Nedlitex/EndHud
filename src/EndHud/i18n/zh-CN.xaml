@@ -112,8 +112,8 @@
     <sys:String x:Key="Editor.PhaseCurrent.Played">本次已打完</sys:String>
     <sys:String x:Key="Editor.PhaseCurrent.NotPlayed">本次未打完</sys:String>
     <sys:String x:Key="Editor.PhaseCurrentHint">排轴条上现在显示的轴段。“本次已打完”指这个轴段这次出现在排轴条上以后，它的完成条件成立过（没有完成条件时：除普攻、重击、下落攻击以外的每一步都点亮，顺序不限；按画面判断：战技释放时按钮的闪光和技力消耗、连携技、终结技）；轴段离开后再出现时重新算。</sys:String>
-    <sys:String x:Key="Editor.SkillTimeHint">按祀的战技按钮判断：图标变成漩涡（或第二次释放后的叉形蝴蝶）时为持续中，变回蝴蝶时结束，即她计数圈外紫色倒计时的那段时间。按钮被特效挡住时按倒计时估计；手柄布局下读不到，条件无法判断。</sys:String>
-    <sys:String x:Key="Editor.SkillTimeNoOperator">小队中没有能读取战技持续时间的干员（目前只有祀）。</sys:String>
+    <sys:String x:Key="Editor.SkillTimeHint">按战技按钮判断。祀：图标变成漩涡（或第二次释放后的叉形蝴蝶）时为持续中，变回蝴蝶时结束，即她计数圈外紫色倒计时的那段时间。明河：连携技之后战技按钮变成金底的骑马图标时为持续中（约 20 秒），释放战技或倒计时走完、变回原来的图标时结束。按钮被特效挡住时按倒计时估计；手柄布局下读不到，条件无法判断。</sys:String>
+    <sys:String x:Key="Editor.SkillTimeNoOperator">小队中没有能读取战技持续时间的干员（目前只有祀和明河）。</sys:String>
     <sys:String x:Key="Editor.Condition.BattleSkillEmpowered">战技已强化</sys:String>
     <sys:String x:Key="Editor.Empowered">已强化</sys:String>
     <sys:String x:Key="Editor.NotEmpowered">未强化</sys:String>
@@ -196,7 +196,7 @@
     <sys:String x:Key="Editor.ConditionStepExpect">等到这些条件都满足</sys:String>
     <sys:String x:Key="Editor.ConditionStepExpectHint">排轴条上显示第一个条件的图标（敌人状态的图标、干员头像或技力），下方写出条件；在“备注”中可以改成更短的文字。</sys:String>
     <sys:String x:Key="Rotation.Problem.UltimateTimeNotRead">轴段“{0}”的条件中“终结技剩余持续时间”选了莱万汀、庄方宜、伊冯以外的干员：目前只读取她们的终结技持续时间，这个条件永远无法判断。请改选她们之一，或删除这个条件。</sys:String>
-    <sys:String x:Key="Rotation.Problem.SkillTimeNotRead">轴段“{0}”的条件中“战技持续中”选了祀以外的干员：目前只读取祀的战技持续时间，这个条件永远无法判断。请改选祀，或删除这个条件。</sys:String>
+    <sys:String x:Key="Rotation.Problem.SkillTimeNotRead">轴段“{0}”的条件中“战技持续中”选了祀和明河以外的干员：目前只读取祀和明河的战技持续时间，这个条件永远无法判断。请改选祀或明河，或删除这个条件。</sys:String>
     <sys:String x:Key="Rotation.Problem.PhasePlayedOwnGate">轴段“{0}”的进入条件要求它自己先完成过：可它要先出现才能被完成，所以永远不会出现。请改用其他轴段的次数，或改用“至多”“小于”。</sys:String>
     <sys:String x:Key="Editor.CopyPhase">复制轴段</sys:String>
     <sys:String x:Key="Editor.CopyPhaseHint">复制选中的轴段（步骤和进入条件都会复制），放在它后面。</sys:String>
@@ -549,7 +549,7 @@
     <sys:String x:Key="Alerts.FileFilter">EndHud 战斗提示|*.json</sys:String>
     <sys:String x:Key="Alerts.Problem.NoConditions">提示“{0}”还没有条件，请添加条件或删除这条提示。</sys:String>
     <sys:String x:Key="Alerts.Problem.EmptyConditionGroup">提示“{0}”中有空的条件组，请添加条件或删除它。</sys:String>
-    <sys:String x:Key="Alerts.Problem.SkillTimeNotRead">提示“{0}”的条件中“战技持续中”选了祀以外的干员：目前只读取祀的战技持续时间，这个条件永远无法判断。请改选祀，或删除这个条件。</sys:String>
+    <sys:String x:Key="Alerts.Problem.SkillTimeNotRead">提示“{0}”的条件中“战技持续中”选了祀和明河以外的干员：目前只读取祀和明河的战技持续时间，这个条件永远无法判断。请改选祀或明河，或删除这个条件。</sys:String>
     <sys:String x:Key="Alerts.Full">最多 100 条提示，请先删除不用的。</sys:String>
     <sys:String x:Key="Alerts.ConfirmDelete">删除提示“{0}”？此操作无法撤销。</sys:String>
     <sys:String x:Key="Alerts.Deleted">已删除。</sys:String>

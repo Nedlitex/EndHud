@@ -18,7 +18,7 @@ public partial class OverlayWindow
 {
     private readonly CounterMemory _counterMemory = new();
     private readonly List<string> _buffsSeen = []; // this battle, in the order first seen
-    // Lasting battle skills (Si's), by operator id: when each started, across readings; and what the
+    // Lasting battle skills (Si's, Argent Flow's), by operator id: when each started, across readings; and what the
     // last reading showed, for a redraw between readings.
     private readonly SkillTimers _skillTimers = new();
     private IReadOnlyDictionary<string, SkillTimerView> _timerViews = new Dictionary<string, SkillTimerView>();
@@ -46,8 +46,8 @@ public partial class OverlayWindow
         state is null ? null : state with { RunningUltimates = _lastingUltimates.Update(state, _clock.Elapsed) };
 
     /// <summary>
-    /// A new reading, before anything reads it: the lasting battle skills running now (Si's, from her
-    /// button and the timer while it's hidden), put on the state, so the rotation's and alerts' "battle
+    /// A new reading, before anything reads it: the lasting battle skills running now (Si's, Argent Flow's
+    /// Bolt Rush; from the button and the timer while it's hidden), put on the state, so the rotation's and alerts' "battle
     /// skill running" and her gauge's purple countdown agree. Forgotten out of battle (<see cref="TrackGauges"/>).
     /// </summary>
     private PartyState? WithRunningSkills(PartyState? state) =>

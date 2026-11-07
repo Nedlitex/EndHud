@@ -576,7 +576,7 @@ internal sealed class ConditionEditor(
     /// <summary>
     /// A kind in the kind picker. One that can't be told in this setting stays listed, greyed out,
     /// saying why, by what its kind needs (<see cref="ConditionKind.Needs"/>): a phase to name, an operator
-    /// whose time is read (Si's battle skill). The
+    /// whose time is read (Si's and Argent Flow's battle skills). The
     /// row's own kind is always pickable (it is what the row shows).
     /// </summary>
     private ComboBoxItem KindItem(string kind, string rowKind)

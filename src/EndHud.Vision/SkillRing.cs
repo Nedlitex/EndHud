@@ -22,7 +22,7 @@ public enum SkillButtonIcon
     Unknown,
 }
 
-/// <param name="OperatorId">Whose battle skill (Si).</param>
+/// <param name="OperatorId">Whose battle skill (Si, Argent_Flow).</param>
 /// <param name="LeftShare">The grey ring's part not yet drained, 0–1; null when it can't be read.</param>
 public sealed record SkillRingReading(string OperatorId, SkillButtonIcon Icon, double? LeftShare);
 
@@ -34,6 +34,12 @@ public sealed record SkillRingReading(string OperatorId, SkillButtonIcon Icon, d
 /// crossed-out butterfly and the ring goes on draining from where it was, without filling again;
 /// the butterfly comes back when the ring is empty (or, once, earlier). Measured with Si in slot 3
 /// and in slot 1 (Fixtures/si-timer-second-cast).
+/// <para>Argent Flow's: after his combo skill his battle skill turns into Bolt Rush for 20 s (the wiki's "Battle Skill
+/// Change Duration", 20 s at every level). His button's icon becomes a horse on gold with the same grey ring draining
+/// from 12 o'clock; it is dim while he can't afford it and lit, with a white ring, when he can. Casting Bolt Rush, or
+/// the ring running out, brings his own icon back. Measured with him in slot 1, keyboard layout, on the owner's
+/// recording (Fixtures/argent-flow): the horse appeared at 20.5, 82.9, 114.5 and 136.9 s, and the ring drained 0.29 in
+/// 5.5 s (115.5-121 s, 19.8 s for all of it).</para>
 /// </summary>
 public static class SkillRing
 {
@@ -43,8 +49,27 @@ public static class SkillRing
     /// </summary>
     public static readonly TimeSpan SiDuration = TimeSpan.FromSeconds(22);
 
+    /// <summary>How long Argent Flow's battle skill stays Bolt Rush after his combo skill (the wiki: 20 s at every skill level).</summary>
+    public static readonly TimeSpan ArgentFlowDuration = TimeSpan.FromSeconds(20);
+
     /// <summary>The operators whose lasting battle skill's time is read (the "battle skill running" condition).</summary>
-    public static readonly IReadOnlyList<string> Operators = ["Si"];
+    public static readonly IReadOnlyList<string> Operators = ["Si", "Argent_Flow"];
+
+    /// <summary>How long the operator's ring takes to drain (one of <see cref="Operators"/>).</summary>
+    public static TimeSpan DurationOf(string operatorId) => operatorId switch
+    {
+        "Si" => SiDuration,
+        "Argent_Flow" => ArgentFlowDuration,
+        _ => throw new ArgumentException($"No lasting battle skill is read for {operatorId}.", nameof(operatorId)),
+    };
+
+    /// <summary>The icons the operator's button can show, each with its white shape (see <see cref="IconGlyph"/>).</summary>
+    private static (SkillButtonIcon Icon, bool[] Mask)[] IconsOf(string operatorId) => operatorId switch
+    {
+        "Si" => [(SkillButtonIcon.Original, ButterflyMask), (SkillButtonIcon.Changed, SwirlMask), (SkillButtonIcon.SecondCast, SecondCastMask)],
+        "Argent_Flow" => [(SkillButtonIcon.Original, ArgentFlowMask), (SkillButtonIcon.Changed, BoltRushMask)],
+        _ => throw new ArgumentException($"No lasting battle skill is read for {operatorId}.", nameof(operatorId)),
+    };
 
     /// <summary>Every such operator in the squad, keyboard layout only (the controller layout's buttons aren't read).</summary>
     public static IReadOnlyList<SkillRingReading> Read(Frame frame, PartyState state)
@@ -53,32 +78,30 @@ public static class SkillRing
         var found = new List<SkillRingReading>();
         int size = state.SquadSize;
         for (int i = 0; i < state.Slots.Count && i < size; i++)
-            if (state.Slots[i] is { Dead: false, Operator.Operator.Id: "Si" })
-                found.Add(ReadSi(frame, button: PartyLayout.SlotCount - size + i)); // numbered as PartyReader numbers buttons
+            if (state.Slots[i] is { Dead: false, Operator.Operator.Id: { } id } && Operators.Contains(id))
+                found.Add(ReadButton(frame, id, button: PartyLayout.SlotCount - size + i)); // numbered as PartyReader numbers buttons
         return found;
     }
 
     /// <param name="button">The battle-skill button, 0 = leftmost of four (a smaller squad's are drawn from the right).</param>
-    internal static SkillRingReading ReadSi(Frame frame, int button)
+    internal static SkillRingReading ReadSi(Frame frame, int button) => ReadButton(frame, "Si", button);
+
+    /// <summary>The operator's button (one of <see cref="Operators"/>): its icon, and the ring's share left while it's changed.</summary>
+    internal static SkillRingReading ReadButton(Frame frame, string operatorId, int button)
     {
-        if (BattleSkillButton.Measure(frame, button) == BattleSkillState.Cooling) return new("Si", SkillButtonIcon.Cooling, null);
-        var icon = Icon(frame, button);
-        return new("Si", icon, icon is SkillButtonIcon.Changed or SkillButtonIcon.SecondCast ? Left(frame, button) : null);
+        if (BattleSkillButton.Measure(frame, button) == BattleSkillState.Cooling) return new(operatorId, SkillButtonIcon.Cooling, null);
+        var icon = Icon(frame, button, operatorId);
+        return new(operatorId, icon, icon is SkillButtonIcon.Changed or SkillButtonIcon.SecondCast ? Left(frame, button) : null);
     }
 
     /// <summary>
-    /// The butterfly, the swirl or the crossed-out butterfly, by the icon's white shape: the one it
-    /// matches best, clearly better than the others; unknown when it's clearly none of them.
+    /// The operator's icons (Si's butterfly, swirl or crossed-out butterfly; Argent Flow's own or Bolt Rush's horse), by
+    /// the icon's white shape: the one it matches best, clearly better than the others; unknown when it's clearly none of them.
     /// </summary>
-    internal static SkillButtonIcon Icon(Frame frame, int button)
+    internal static SkillButtonIcon Icon(Frame frame, int button, string operatorId = "Si")
     {
         if (IconGlyph(frame, button) is not { } glyph) return SkillButtonIcon.Unknown;
-        var scores = new (SkillButtonIcon Icon, double Overlap)[]
-        {
-            (SkillButtonIcon.Original, Overlap(glyph, ButterflyMask)),
-            (SkillButtonIcon.Changed, Overlap(glyph, SwirlMask)),
-            (SkillButtonIcon.SecondCast, Overlap(glyph, SecondCastMask)),
-        }.OrderByDescending(s => s.Overlap).ToArray();
+        var scores = IconsOf(operatorId).Select(i => (i.Icon, Overlap: Overlap(glyph, i.Mask))).OrderByDescending(s => s.Overlap).ToArray();
         if (scores[0].Overlap < IconMatchAt || scores[0].Overlap - scores[1].Overlap < IconMinLead) return SkillButtonIcon.Unknown;
         return scores[0].Icon;
     }
@@ -315,6 +338,71 @@ public static class SkillRing
         "....############..##....",
         "...##..##############...",
         "........#########.......",
+        "........................",
+        "........................",
+        "........................",
+    ]);
+
+
+    /// <summary>
+    /// Argent Flow's own battle-skill icon (24 × 24): the majority over 5 labelled frames of Fixtures/argent-flow (18_5s,
+    /// 22s, 80s, 82s, 95_5s), rebuilt with a throwaway run of <see cref="IconGlyph"/>. Its other Original frames (110_25s
+    /// to 141s) were left out to check it.
+    /// </summary>
+    internal static readonly bool[] ArgentFlowMask = Mask([
+        "........................",
+        "........................",
+        "...........##...........",
+        ".............###........",
+        "...............###......",
+        ".....##..........###....",
+        "...##.............###...",
+        "..###..............##...",
+        "..##...............###..",
+        "..##...............####.",
+        "...#...............####.",
+        "...................####.",
+        "..................#####.",
+        ".............#....#####.",
+        "........##..##...#####..",
+        ".....####..###########..",
+        ".....###..############..",
+        "....##...############...",
+        "....#...####...###......",
+        "...#...###....##........",
+        ".......#................",
+        "........................",
+        "........................",
+        "........................",
+    ]);
+
+    /// <summary>
+    /// Bolt Rush's horse on Argent Flow's button (24 × 24): the majority over the 10 labelled frames of his first two
+    /// windows in Fixtures/argent-flow (21s to 92_75s), rebuilt with a throwaway run of <see cref="IconGlyph"/>. The
+    /// frames of his later two windows (115s to 139_5s) were left out to check it.
+    /// </summary>
+    internal static readonly bool[] BoltRushMask = Mask([
+        "#.......................",
+        "........................",
+        "............#####.......",
+        "...........######.......",
+        "...##.....########......",
+        "...###...##########.....",
+        ".....#..######.#####....",
+        "........#####..######...",
+        ".......######...#####...",
+        ".......######...........",
+        "......########..........",
+        ".......#######..........",
+        "....#...######..........",
+        ".....#...#####..........",
+        ".....##...####.#........",
+        "......##........##......",
+        ".......#.........##.....",
+        "...###.............#....",
+        "........................",
+        "........................",
+        "........................",
         "........................",
         "........................",
         "........................",

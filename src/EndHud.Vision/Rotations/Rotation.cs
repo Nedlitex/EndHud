@@ -180,7 +180,8 @@ public sealed record UltimateActiveCondition(string OperatorId, bool Active) : S
 
 /// <summary>
 /// An operator's lasting battle skill is running (Si's: from the swirl on her battle-skill button
-/// until the butterfly is back, the purple countdown round her stacks' circle), or not, when
+/// until the butterfly is back, the purple countdown round her stacks' circle; Argent Flow's: while his battle skill
+/// is Bolt Rush, the horse on his button), or not, when
 /// <paramref name="Active"/> is false. Only operators whose skill time is read
 /// (<see cref="SkillRing.Operators"/>) can be told. Format 7.
 /// </summary>
@@ -658,7 +659,7 @@ public enum RotationProblemKind
 
     /// <summary>
     /// A "battle skill running" condition names an operator whose battle-skill time EndHud doesn't read
-    /// (only Si's, <see cref="SkillRing.Operators"/>): it could never be told.
+    /// (only Si's and Argent Flow's, <see cref="SkillRing.Operators"/>): it could never be told.
     /// </summary>
     SkillTimeNotRead,
 

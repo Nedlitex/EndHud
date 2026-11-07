@@ -301,7 +301,7 @@ With Si in the squad the gauge row has two more circles, both with her avatar:
   butterfly is back. It has no circle of its own (owner, 2026-10-23: one circle, the running
   ultimates' purple countdown, no seconds): her stacks' circle carries it, a glowing purple ring
   draining anticlockwise round the number (`Gauge.Running` on the uncapped counter); seen before
-  her stacks are read, that circle shows "?". See [the estimate rule](#sis-battle-skill-timer).
+  her stacks are read, that circle shows "?". See [the estimate rule](#sis-battle-skill-timer-and-argent-flows-bolt-rush).
 
 ### Counters on the portraits
 
@@ -851,9 +851,9 @@ The game shows no operator names in the squad panel, so EndHud identifies each p
      - **The operator's in-game portrait**, built in
        ([`PortraitReferences`](src/EndHud.Vision/Operators/PortraitReferences.cs)): the model's
        description of each operator's squad portrait, made from 4K screenshots of nine squads
-       and two frames of a Si recording, covering 33 of the 34 operators (not yet Argent Flow)
+       and two frames each of a Si and an Argent Flow recording, covering all 34 operators
        ([the squad fixtures](tests/data/Fixtures/squads/README.md)), at the common portrait sizes.
-       Numbers only (1.4 MB); no image is shipped. Same art as the screen, so the most reliable.
+       Numbers only (1.5 MB); no image is shipped. Same art as the screen, so the most reliable.
        The wiki avatar alone isn't enough once a counter is drawn on the portrait: with her damage
        stacks on it, Si came closer to Arcane, Snowshine or Avywenna than to her own avatar.
      - **The wiki avatar**, so an operator with no in-game reference yet (a new one) is still
@@ -912,8 +912,6 @@ How the package build stays safe ([`OperatorReference`](src/EndHud.Vision/Operat
 - The new copy is downloaded beside the current one and swapped in with two renames; an
   interrupted swap is undone on the next start. If the wiki lists far fewer operators than the
   current copy (under 80%), the current copy is kept: operators don't leave the game.
-
-Argent Flow has no skill icons on the wiki yet; it's recognised by portrait only.
 
 ---
 
@@ -1923,7 +1921,7 @@ A rotation is a JSON file in `%APPDATA%\EndHud\rotations\<id>.json`
   | `battleSkill` | `operatorId`, `ready` | that operator's battle skill button is available (`true`) or cooling (its countdown seconds aren't read) |
   | `ultimate` | `operatorId`, `ready` | that operator's ultimate is ready or charging |
   | `ultimateCharge` | `operatorId`, `is`, `percent` (0–100) | that operator's ultimate is charged so far (ready is 100; at most 0 is just used) |
-  | `battleSkillActive` | `operatorId`, `active` (format 7) | that operator's lasting battle skill is running (`true`) or not: Si's, from the swirl on her battle-skill button until the butterfly is back (the purple countdown round her stacks' circle, see [Si's battle-skill timer](#sis-battle-skill-timer)). This reading's button decides (swirl or crossed-out butterfly: running; butterfly: not); a reading that can't tell it (an effect, a countdown look) goes by the overlay's timer (`PartyState.RunningSkills`, the estimate while it lasts): running while it shows one, else unknown. Unknown with a controller (the buttons aren't read). Only Si's is read (`SkillRing.Operators`); naming anyone else is refused (`SkillTimeNotRead`), and the editors offer only Si, greyed out without her |
+  | `battleSkillActive` | `operatorId`, `active` (format 7) | that operator's lasting battle skill is running (`true`) or not: Si's, from the swirl on her battle-skill button until the butterfly is back (the purple countdown round her stacks' circle, see [Si's battle-skill timer](#sis-battle-skill-timer-and-argent-flows-bolt-rush)). This reading's button decides (swirl or crossed-out butterfly: running; butterfly: not); a reading that can't tell it (an effect, a countdown look) goes by the overlay's timer (`PartyState.RunningSkills`, the estimate while it lasts): running while it shows one, else unknown. Unknown with a controller (the buttons aren't read). Also Argent Flow's: while his battle skill is Bolt Rush, the horse on his button (see [below Si's timer](#sis-battle-skill-timer-and-argent-flows-bolt-rush)). Only Si's and Argent Flow's are read (`SkillRing.Operators`); naming anyone else is refused (`SkillTimeNotRead`), and the editors offer only them, greyed out without them |
   | `battleSkillEmpowered` | `operatorId`, `empowered` (format 11) | that operator's battle skill is empowered (战技已强化, `true`) or not: the steady near-white glow on the rim of their battle-skill button, judged over the last 0.5 s of the corner sampled 30 times a second (see [Following battle skills from the screen](#following-battle-skills-from-the-screen); `PartyState.Empowered`, `PartyState.EmpoweredOf`). Keyboard and mouse and controller alike (either diamond: LB held or not). Unknown when the corner isn't sampled (no window capture), the squad panel is out of sight or out of battle, with keyboard and mouse when that reading couldn't read the slot's button, and whenever the glow can't be told (below). Any operator may be named: whose battle skill the game empowers is not EndHud's to say |
   | `teamBuff` | `buffId` (the wiki's name: `Link`, 连击), `is`, `value` (0–4 in the editor) (format 12) | how many stacks of a team buff the game shows left of the controlled operator's HP bar (连击层数, e.g. `Link` `AtLeast` 1 before Laevatain's empowered battle skill), compared: the number on the icon's bottom right, 1 when it has none ([`TeamBuffReader`](src/EndHud.Vision/TeamBuffReader.cs), `PartyState.Buffs`); **0 when it isn't shown in combat** (`PartyState.BuffStacks`). Unknown out of combat or with the squad panel out of sight (buffs are read in combat only), and when the number is there but can't be read. Each frame is a verdict (`TeamBuffReader.Look`): shown, **clearly absent** (the best match in the band under 0.6 and under 0.1 white: nothing shaped like the icon, nothing white like its sword), or unclear; [`TeamBuffHold`](src/EndHud.Vision/TeamBuffHold.cs) keeps a buff seen through unclear readings (its stacks for up to 8 readings, 2 s; then the count unknown, never gone) and ends it after 2 clearly absent readings since it was last seen. Why: Link's icon pulses about once a second, and at the dim end over a light floor it matches at 0.67-0.72, just under the 0.72 bar; effects over it and the HUD jolting hide it for a few frames more. Read frame by frame, the gauge blinked off while the buff was there throughout (owner, 2026-10-25, test_battle_debug 84-95 s: 87 of 412 frames missed, none of them clearly absent; tests `TeamBuffHoldTests` on Fixtures/buffs/link-pulse, also under the synthetic on-screen display at its five positions; a display moved onto the icon itself still reads as absent). The editor offers the buffs EndHud reads (`TeamBuffReader.Buffs`: Link) by their Chinese names. Its per-frame verdict is in the on-screen display combat gate (`buff Link`: the stacks, 0 clearly absent, unknown when unclear), so a display over it gives the same verdict or unclear, never absent for shown or back; tests: `TeamBuffConditionTests` |
   | `staggerProgress` | `is`, `percent` (0–100) (format 13) | how far the boss's stagger bar has filled, in whole percent ([Stagger bar](#the-bosss-stagger-bar), `PartyState.StaggerPercent`); 100 while staggered. Unknown only out of battle or with no boss HP bar; the bar covered or unreadable under the HP bar holds its last reading (0 before any) |
@@ -2175,7 +2173,7 @@ on any condition. Measured on the owner's two recordings of one boss (`fullbattl
   log says when its kind changes (building, staggered, held, unread), with why it is held or unread
   (`stagger bar: held Building 0.450 … (unread: pink to 480, fill colours past it)`).
 
-### Si's battle-skill timer
+### Si's battle-skill timer (and Argent Flow's Bolt Rush)
 
 [`SkillTimer`](src/EndHud.Vision/SkillTimer.cs) turns each reading of her button
 (`PartyState.SkillRings`, read in `PartyMonitor` once the squad is named) into what the gauge
@@ -2208,6 +2206,19 @@ The overlay works the timer out once per reading, before anything reads it
 (`OverlayWindow.WithRunningSkills`, as `WithRunningUltimates` does for the lasting ultimates), and puts
 it on the state (`PartyState.RunningSkills`): the gauge, the rotation's and the alerts' `battleSkillActive`
 all read the same one. Readings the overlay didn't stamp (`endhud-cli`, tests) go by the button alone.
+
+**Argent Flow's Bolt Rush** (owner, 2026-11-07: "more like Si and Mifu's", not an empowered glow) goes through
+the same reader and timer (`SkillRing.Operators`, `SkillRing.DurationOf`). After his combo skill his battle skill
+becomes Bolt Rush for 20 s (the wiki's "Battle Skill Change Duration", 20 s at every level;
+`SkillRing.ArgentFlowDuration`): his button's icon turns from his own to a horse on gold (`Changed`), with the same
+grey ring draining from 12 o'clock that Si's has (`SkillRing.Left` reads it unchanged). The horse is dim while he
+can't afford it and lit, with a white ring round the disc, when he can; that white ring is not the empowered glow
+(it sits inside the rim, where `BattleSkillFlash` doesn't look, so `battleSkillEmpowered` stays "not" for him).
+Casting Bolt Rush, or the ring running out, brings his own icon back (`Original`); there is no second-cast icon. His
+two icon masks (`ArgentFlowMask`, `BoltRushMask`) were built from the first half of
+[`Fixtures/argent-flow`](tests/data/Fixtures/argent-flow) and checked on the rest. Measured on that recording: the
+ring reads full for about a second after the horse appears, then drains at 1/20 of it a second (0.29 in 5.5 s,
+115.5–121 s); the readings were within 0.07 of 20 s counted from the horse's first frame.
 
 ### Choosing the phase
 

@@ -271,7 +271,7 @@ static async Task<int> TraceSkillsAsync(string path, double everySeconds, double
         var views = timers.Update(state, now);
         string squad = string.Join("/", state.Slots.Select(s => s.Operator?.Operator.Id ?? "-"));
         string skills = string.Join(" ", state.SkillRings.Select(r => $"{r.OperatorId}:{r.Icon}:{F(r.LeftShare)}"));
-        string buttons = string.Join(" ", state.Slots.Where(s => s.Operator?.Operator.Id == "Si").Select(s => $"slot{s.Number}:{s.BattleSkill}"));
+        string buttons = string.Join(" ", state.Slots.Where(s => s.Operator?.Operator.Id is { } id && SkillRing.Operators.Contains(id)).Select(s => $"slot{s.Number}:{s.BattleSkill}"));
         string shown = string.Join(" ", views.Select(v => $"{v.Key}:{(v.Value.Estimated ? "~" : "")}{v.Value.SecondsLeft:F1}"));
         string ultShown = string.Join(" ", lasting.Update(state, now).Values.Select(u => $"{u.OperatorId}:{(u.Estimated ? "~" : "")}{F(u.LeftShare)}"));
         string ultimates = string.Join("/", state.Slots.Select(s => s.Ultimate is { } u ? (u.Ready ? "R" : F(u.Progress)) : "-"));

@@ -9,7 +9,7 @@ namespace EndHud;
 /// <summary>
 /// What the gauges show for a reading: first the team buffs seen this battle (Link), lit while
 /// active, with their stacks (one ring segment each, the count in the corner); then per recognised operator, in slot order, their ultimate's charge,
-/// a lasting battle skill's time left while it runs (Si's), and their own
+/// a lasting battle skill's time left while it runs (Si's, Argent Flow's), and their own
 /// counters (Zhuang Fangyi's Sunderblade, Typhoeus's Hunting Arrow and Sign, Si's damage stacks, …). An operator not recognised yet has no
 /// gauges: there'd be no avatar or counter to show. A buff shows once it has been seen in the battle,
 /// so a squad that never gets it isn't shown an empty circle for it.
@@ -26,7 +26,7 @@ internal static class GaugesView
             skillIcon, avatar, statusIcon);
 
     /// <param name="buffsSeen">Buffs seen so far this battle (the reading's own included), in the order first seen.</param>
-    /// <param name="timers">Lasting battle skills running now (Si's), by operator id (see <see cref="SkillTimer"/>):
+    /// <param name="timers">Lasting battle skills running now (Si's, Argent Flow's), by operator id (see <see cref="SkillTimer"/>):
     /// drawn round her stacks' number, not as a circle of their own.</param>
     /// <param name="ultimates">Lasting ultimates running now, by operator id (see <see cref="LastingUltimates"/>):
     /// each on its own operator's gauge, whoever is controlled.</param>

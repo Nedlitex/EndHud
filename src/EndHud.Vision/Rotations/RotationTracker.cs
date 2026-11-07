@@ -466,8 +466,8 @@ public sealed class RotationTracker(Rotation rotation)
     }
 
     /// <summary>
-    /// Is this operator's lasting battle skill (Si's) running? Her button in this reading: the swirl or
-    /// the crossed-out butterfly is running, the butterfly is over. A reading that can't tell the button
+    /// Is this operator's lasting battle skill (Si's, Argent Flow's Bolt Rush) running? The button in this reading: the
+    /// changed icon (Si's swirl or crossed-out butterfly, Argent Flow's horse) is running, the original icon is over. A reading that can't tell the button
     /// (hidden, a countdown look, the controller layout) goes by the overlay's timer
     /// (<see cref="PartyState.RunningSkills"/>, the estimate while it lasts): running while it shows
     /// one, else unknown. Unknown for an operator whose skill time isn't read.
